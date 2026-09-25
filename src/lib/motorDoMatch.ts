@@ -68,6 +68,12 @@ export interface FaixaDeOrcamento {
 /** As faixas de reserva, para quando o estoque ainda não chegou ou falhou. */
 export const CORTES_DE_RESERVA = [50000, 65000, 90000] as const;
 
+/** A faixa de cima vai até este múltiplo do próprio piso (25/09). */
+export const TETO_DA_FAIXA_DE_CIMA = 1.5;
+
+/** VALOR EXATO: a faixa começa nesta fração do valor digitado (25/09). */
+export const PISO_DO_VALOR_EXATO = 0.7;
+
 const arredondaCinco = (n: number) => Math.round(n / 5000) * 5000;
 
 function rotuloDeValor(v: number): string {
@@ -93,7 +99,7 @@ export function faixasDoPatio(precos: readonly number[]): FaixaDeOrcamento[] {
 
   const montar = (cortes: readonly number[], lista: readonly number[]): FaixaDeOrcamento[] => {
     const ultimo = cortes[cortes.length - 1] ?? 0;
-    const tetoDoUltimo = arredondaCinco(ultimo * 1.5);
+    const tetoDoUltimo = arredondaCinco(ultimo * TETO_DA_FAIXA_DE_CIMA);
     const limites = [0, ...cortes, tetoDoUltimo];
     const faixas: FaixaDeOrcamento[] = limites.slice(0, -1).map((lo, i) => {
       const hi = limites[i + 1];
@@ -135,7 +141,7 @@ export function faixasDoPatio(precos: readonly number[]): FaixaDeOrcamento[] {
  * mil" quer dizer "algo perto de R$ 80 mil", não "qualquer coisa até lá".
  */
 export function pisoDoValorExato(valor: number): number {
-  return Math.round((valor * 0.7) / 1000) * 1000;
+  return Math.round((valor * PISO_DO_VALOR_EXATO) / 1000) * 1000;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,6 +300,15 @@ const itemDaFicha = (id: string) => ITENS_DA_FICHA.find((i) => i.id === id)!;
 
 const combustivelLegivel = (v: Veiculo) => (v.combustivel || "outro combustível").toLowerCase();
 
+/** "sedã", "SUV", "picape" — a carroceria como se fala, e não como se cadastra. */
+function carroceriaLegivel(v: Veiculo): string {
+  const t = carroceriaDe(v);
+  if (!t) return "outra carroceria";
+  if (t === "Sedan") return "sedã";
+  if (t === "SUV") return "SUV";
+  return t.toLowerCase();
+}
+
 export const PREFERENCIAS: Record<ChaveDePreferencia, DefinicaoDePreferencia> = {
   novo: {
     rotulo: "2020 ou mais novo",
@@ -339,7 +354,7 @@ export const PREFERENCIAS: Record<ChaveDePreferencia, DefinicaoDePreferencia> = 
       if (!t) return "nao-consta";
       return t === "hatch" || t === "sedan" ? "atende" : "nao-atende";
     },
-    contradicao: (v) => `é ${carroceriaDe(v).toLowerCase()}`,
+    contradicao: (v) => `é ${carroceriaLegivel(v)}`,
   },
   carga: {
     rotulo: "caçamba ou espaço de carga",
@@ -348,7 +363,7 @@ export const PREFERENCIAS: Record<ChaveDePreferencia, DefinicaoDePreferencia> = 
       if (!t) return "nao-consta";
       return CARROCERIAS_DE_CARGA.some((c) => normalizar(c) === t) ? "atende" : "nao-atende";
     },
-    contradicao: (v) => `é ${carroceriaDe(v).toLowerCase()}`,
+    contradicao: (v) => `é ${carroceriaLegivel(v)}`,
   },
   diesel: {
     rotulo: "diesel",
@@ -404,7 +419,8 @@ export function elegivel(v: Veiculo): boolean {
   return divergenciaDeCarroceria(v) === null;
 }
 
-function passaNosFiltros(v: Veiculo, c: Criterios): boolean {
+/** Filtros de carro e teto; o piso fica de fora, porque ele só separa faixa. */
+export function passaNosFiltros(v: Veiculo, c: Criterios): boolean {
   if (c.teto !== null && precoDoCarro(v) > c.teto) return false;
   if (c.portas4 && !((v.portas ?? 0) >= 4)) return false;
   if (c.automatico && ehAutomatico(v) !== true) return false;
@@ -442,7 +458,7 @@ export interface CartaoDoMatch {
 export interface SugestaoESe {
   filtro: ChaveDeFiltro;
   rotulo: string;
-  /** Quantos carros entram a mais, dentro do teto. */
+  /** Quantos carros entram a mais NA FAIXA — os que a tela vai mostrar. */
   entram: number;
   melhor: { id: string; nome: string; preco: number; ano: number } | null;
 }
@@ -457,6 +473,8 @@ export interface Recomendacao {
   filtros: string[];
   avisos: string[];
   eSe: SugestaoESe[];
+  /** `false` na faixa "acima de" e no texto livre sem valor: a tela não fala em teto. */
+  temTeto: boolean;
 }
 
 const reais = (n: number) => `R$ ${Math.round(n).toLocaleString("pt-BR")}`;
@@ -603,7 +621,7 @@ function explicar(
   if (maisBarato) vitorias.push("o mais barato");
   if (unicoCom(todos, (x) => ehAutomatico(x) === true) === v) vitorias.push("o único automático");
   if (unicoCom(todos, (x) => combustivelDe(x).includes("diesel")) === v) vitorias.push("o único diesel");
-  if (unicoCom(todos, (x) => normalizar(carroceriaDe(x)) === normalizar(carroceriaDe(v))) === v) {
+  if (carroceriaDe(v) && unicoCom(todos, (x) => normalizar(carroceriaDe(x)) === normalizar(carroceriaDe(v))) === v) {
     vitorias.push(unicaCarroceria(v));
   }
 
@@ -613,7 +631,10 @@ function explicar(
     manchete = `${frase.charAt(0).toUpperCase()}${frase.slice(1)} ${grupo}.`;
     // No card abaixo da faixa a sobra já está no rótulo, logo acima.
     if (maisBarato && c.teto !== null && !abaixoDaFaixa) manchete += ` Sobram ${reais(c.teto - precoDoCarro(v))} do seu teto.`;
-  } else if (todos.length === 1 && naFaixa <= 1) {
+  } else if (abaixoDaFaixa) {
+    // Nunca "passa em tudo": ele passa nos filtros, mas não na faixa de preço.
+    manchete = "Passa nos seus filtros e custa menos do que a faixa que você escolheu.";
+  } else if (naFaixa === 1) {
     manchete = "O único do pátio que passa nos seus filtros hoje.";
   } else if (pedidos.length > 0) {
     manchete = `Atende ${atende} de ${pedidos.length} do que você pediu.`;
@@ -673,15 +694,14 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
   const tres = escolherTres(naFaixa);
 
   // Decisão 2 do dono (25/09): faixa com menos de três completa com o mais
-  // perto ABAIXO do piso — o mais caro dos que sobram —, sempre rotulado.
-  const abaixo = [...passam.filter((v) => precoDoCarro(v) < c.piso)].sort(
-    (a, b) => pontuacao(b, c.preferencias) - pontuacao(a, c.preferencias) || precoDoCarro(b) - precoDoCarro(a),
-  );
-  const completando: Veiculo[] = [];
-  for (const v of escolherTres(abaixo)) {
-    if (tres.length + completando.length >= 3) break;
-    completando.push(v);
-  }
+  // perto ABAIXO do piso, sempre rotulado. "Mais perto" é o preço: o mais caro
+  // dos que sobram vem primeiro, e a pontuação só desempata. A primeira versão
+  // ordenava pela pontuação e completava 115–175 mil com um Soul de R$ 76.900,
+  // pulando um X1 que ficava R$ 100 abaixo do piso — achado da revisão.
+  const completando = passam
+    .filter((v) => precoDoCarro(v) < c.piso)
+    .sort((a, b) => precoDoCarro(b) - precoDoCarro(a) || pontuacao(b, c.preferencias) - pontuacao(a, c.preferencias))
+    .slice(0, Math.max(0, 3 - tres.length));
 
   const todos = [...tres, ...completando];
   const cartoes: CartaoDoMatch[] = todos.map((v, i) => {
@@ -702,10 +722,12 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     return { ...explicar(v, todos, c, naFaixa.length, abaixoDaFaixa), lugar, rotuloDoLugar };
   });
 
-  // "E se": só quando o pátio não fecha três. Cada filtro ativo é tirado
-  // sozinho, e conta-se quem entra a mais, com o teto sempre de pé.
+  // "E se": quando a FAIXA não fecha três — ainda que o complemento abaixo do
+  // piso encha a tela. Cada filtro ativo é tirado sozinho e conta-se quem
+  // entra a mais NA FAIXA, que é o que a tela mostra depois do clique. Contar
+  // também os de baixo do piso prometia "+12 carros" e entregava cinco.
   const eSe: SugestaoESe[] = [];
-  if (todos.length < 3) {
+  if (naFaixa.length < 3) {
     const ativos: ChaveDeFiltro[] = [];
     if (c.automatico) ativos.push("automatico");
     if (c.carrocerias) ativos.push("carroceria");
@@ -714,11 +736,11 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     for (const filtro of ativos) {
       const frouxo = semFiltro(c, filtro);
       const novos = ordenar(
-        base.filter((v) => !dentro.has(v.id) && passaNosFiltros(v, frouxo)),
+        base.filter((v) => !dentro.has(v.id) && passaNosFiltros(v, frouxo) && precoDoCarro(v) >= c.piso),
         frouxo.preferencias,
       );
       if (novos.length === 0) continue;
-      const m = novos.find((v) => precoDoCarro(v) >= c.piso) ?? novos[0];
+      const m = novos[0];
       eSe.push({
         filtro,
         rotulo: ROTULO_DO_E_SE[filtro],
@@ -735,5 +757,6 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     filtros: filtrosLegiveis(c),
     avisos: [...c.avisos],
     eSe,
+    temTeto: c.teto !== null,
   };
 }

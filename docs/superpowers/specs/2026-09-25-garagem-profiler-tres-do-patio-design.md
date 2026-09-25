@@ -1,7 +1,9 @@
 # Garagem Profiler (/carro-perfeito): "Três do Pátio"
 
-Data: 2026-09-25 · **Proposta.** Nada foi implementado. Aguarda as decisões do
-dono listadas na seção 10.
+Data: 2026-09-25 · **Fase 1 implementada em 25/09** (`lib/motorDoMatch.ts`,
+`lib/fichaDoMotor.ts`, `components/ResultadoDoProfiler.tsx`), com as decisões
+1, 2 e 5 da seção 10 aprovadas pelo dono no mesmo dia. As demais seguem
+abertas. O que a fase 1 entregou diferente do plano está anotado na seção 6.
 
 Pedido do dono: *"o /carro-perfeito continua oferecendo resultados genéricos...
 gerar novas propostas de valor para a seção, mantendo a ideia original que é
@@ -230,7 +232,8 @@ nos duelos. O bloco O QUE MUDA é obrigatório.
 
 **Cadastro.** Regra nova em `coerenciaDoCadastro.ts` para nomes de picape
 (F-250, F-1000, Ranger, S10, Hilux, Toro, Saveiro, Strada, Montana) contra o
-tipo cadastrado; carro divergente sai dos três principais e ganha alerta no
+tipo cadastrado; carro divergente sai do Profiler inteiro (não só dos três
+principais: pela carroceria errada ele passaria no filtro de outra) e ganha alerta no
 /admin. Opcionais só se corrigem no RevendaMais (o painel é só leitura para
 eles desde 17/09).
 
@@ -347,6 +350,26 @@ motor turbo).
 | **3. Porta de descoberta** | Duas portas; tela dos caminhos; até 3 duelos; "O que entendi" editável; capas padronizadas nos carros que entram em duelo. | M (2 semanas) | % que escolhe cada porta; conclusão ≥ 60%; lead por resultado em cada porta; % de "tanto faz" por par (acima de 40%, o par sai). |
 | **4. Continuar depois** | ME AVISE avisando o consultor quando chega carro que casa; relatório "pedidos sem estoque" para compras; `montarEncomenda` por critérios; teste da porta "comece pelo seu carro". | G (3 semanas+) | Aviso que vira conversa em 7 dias; pedidos sem estoque × carros comprados. |
 
+**Como a fase 1 saiu (25/09), onde difere da linha acima:**
+
+- LGPD: o `ag_leads_history` do Profiler perdeu o perfil e não grava nada
+  para quem recusou o rastreamento, e `/api/match` não lê mais o cookie
+  `ag_uid`. **Ficaram de fora**, por serem política do site inteiro e não do
+  Profiler: tirar nome, e-mail e WhatsApp do histórico (o `LeadCaptureModal`
+  os usa para preencher o formulário de novo, nos cinco formulários) e fazer
+  `getActiveAgUid` devolver o sentinela para quem recusou. Precisam de
+  decisão do dono.
+- Cadastro: a F-250 não foi corrigida no banco — é dado de produção e cabe ao
+  painel. A regra nova a tira do Profiler até lá.
+- Evento por passo: `profiler_step` vai só pelo `gtag`, e não pelo
+  `dataLayer`, porque o container publicado não o conhece
+  (`tests/contrato-do-container.test.ts`). No GA4, `profiler_step` precisa ser
+  registrado como dimensão personalizada para aparecer em relatório.
+- "Esportivo/Coupé" também passou a filtrar hatch, sedã e SUV: sem isso a
+  Toro diesel era a primeira sugestão para quem marcava esportivo.
+- O "e se" e o ME AVISE aparecem quando a FAIXA tem menos de três carros,
+  mesmo que o complemento abaixo do piso feche três cartões.
+
 Tradução das respostas de hoje na fase 1:
 
 | Resposta de hoje | Vira |
@@ -426,12 +449,10 @@ esperadas: o cliente não vê essas duas propostas, mas as outras dependem delas
 
 ## 10. Decisões do dono
 
-1. **Carro acima do teto.** Pode aparecer num chip "e se" com o valor escrito
-   ("R$ 900 acima") e na linha de fronteira? Hoje o `car-match.ts` proíbe.
-   Proposta: fora na fase 1; depois, só por toque da pessoa e nunca como card
-   principal.
-2. **Faixa com menos de 3 carros.** Completar com o mais perto abaixo do piso,
-   rotulado "sobram R$ X"?
+1. **Carro acima do teto.** ✅ Decidido em 25/09: nunca, nem no "e se".
+2. **Faixa com menos de 3 carros.** ✅ Decidido em 25/09: completar com o mais
+   perto abaixo do piso (o de preço mais alto entre os que sobram), rotulado
+   "abaixo da sua faixa · sobram R$ X".
 3. **Parcela.** Validar a matriz de taxas do `finance-calculator` com o banco
    antes de pôr parcela em card. A idade do carro sai de `getFullYear()`, e em
    01/01 várias parcelas sobem sozinhas; a proposta é congelar o ano de
@@ -439,8 +460,8 @@ esperadas: o cliente não vê essas duas propostas, mas as outras dependem delas
 4. **Troca.** A pessoa pode informar "quanto espera que o carro cubra", dito na
    tela como estimativa dela? A alternativa é mostrar só a entrada mínima por
    carro.
-5. **PESA CONTRA em destaque** ("186.600 km, o mais rodado"). Recomendação:
-   sim, o dado já está na ficha.
+5. **PESA CONTRA em destaque** ("186.600 km, o mais rodado"). ✅ Decidido em
+   25/09: sim.
 6. **Contagem que expõe pátio curto** ("Só automático (1)"). Aceitar, com o
    "e se" e o aviso como saída?
 7. **Cadastro.** Quem completa no RevendaMais as 9 fichas sem opcionais (Polo

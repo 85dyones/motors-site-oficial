@@ -207,9 +207,13 @@ function criteriosDoCorpo(corpo: Record<string, unknown>): Criterios {
   const texto = (x: unknown) => (typeof x === "string" ? x : undefined);
   const orcamento = objeto(corpo.orcamento);
   const max = valor(orcamento.max);
+  const teto = max && max > 0 ? max : null;
+  // Piso acima do teto só vem de corpo forjado; vira "sem piso", e não uma
+  // faixa impossível escrita na tela ("de R$ 100 mil a R$ 50 mil").
+  const min = valor(orcamento.min) ?? 0;
 
   let criterios = criteriosDasRespostas({
-    orcamento: { min: valor(orcamento.min) ?? 0, max: max && max > 0 ? max : null },
+    orcamento: { min: teto !== null && min > teto ? 0 : min, max: teto },
     objetivo: texto(r.objetivo),
     experiencia: texto(r.experiencia),
     estilo: texto(r.estilo),

@@ -66,8 +66,12 @@ export default function ResultadoDoProfiler({
     );
   }
 
-  const { cartoes, outros, naFaixa, filtros, avisos, eSe } = recomendacao;
-  const vazio = cartoes.length === 0;
+  const { cartoes, outros, naFaixa, filtros, avisos, eSe, temTeto } = recomendacao;
+  // As saídas dependem da FAIXA, e não de quantos cartões a tela mostra: o
+  // complemento abaixo do piso pode fechar três cartões com zero carro na
+  // faixa, e aí a pessoa ainda precisa do "e se" e do aviso.
+  const semNaFaixa = naFaixa === 0;
+  const faixaCurta = naFaixa < 3;
 
   return (
     <div className="mt-9 flex flex-1 flex-col lg:mt-11">
@@ -76,11 +80,14 @@ export default function ResultadoDoProfiler({
           TRÊS DO PÁTIO
         </Rotulo>
         <h2 className="mt-titulo m-0 mt-2.5 text-3xl text-mt-inverso lg:text-[46px]">
-          {vazio ? "Não temos exatamente isso hoje." : `${EXTENSO[cartoes.length]} do pátio para você`}
+          {semNaFaixa ? "Não temos exatamente isso hoje." : `${EXTENSO[cartoes.length]} do pátio para você`}
         </h2>
         <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-inverso-suave">
-          {naFaixa === 1 ? "1 carro passa" : `${naFaixa} carros passam`} em tudo o que você pediu
-          {filtros.length > 0 ? `: ${filtros.join(" · ")}` : ""}.
+          {semNaFaixa ? "Nenhum carro passa" : naFaixa === 1 ? "1 carro passa" : `${naFaixa} carros passam`} em
+          tudo o que você pediu{filtros.length > 0 ? `: ${filtros.join(" · ")}` : ""}.
+          {semNaFaixa && cartoes.length > 0
+            ? " Abaixo, os que passam nos seus filtros e custam menos do que a sua faixa."
+            : ""}
         </p>
         {afrouxados.length > 0 && (
           <p className="m-0 mt-1.5 text-[12px] text-mt-inverso-suave">
@@ -161,11 +168,13 @@ export default function ResultadoDoProfiler({
       {eSe.length > 0 && (
         <div className="mt-10 max-w-[720px] border-2 border-mt-inverso-regua-fina p-5 lg:p-6">
           <p className="m-0 text-[15px] font-extrabold leading-snug">
-            {vazio ? "Nenhum carro passa em tudo hoje. E se você afrouxar um filtro?" : "Quer ver mais opções? Afrouxe um filtro."}
+            {semNaFaixa ? "Nenhum carro passa em tudo hoje. E se você afrouxar um filtro?" : "Quer ver mais opções? Afrouxe um filtro."}
           </p>
-          <p className="m-0 mt-1.5 text-[12px] leading-relaxed text-mt-inverso-suave">
-            O teto do seu orçamento continua valendo em todas.
-          </p>
+          {temTeto && (
+            <p className="m-0 mt-1.5 text-[12px] leading-relaxed text-mt-inverso-suave">
+              O teto do seu orçamento continua valendo em todas.
+            </p>
+          )}
           <div className="mt-4 flex flex-col gap-2">
             {eSe.map((s) => (
               <button
@@ -175,11 +184,11 @@ export default function ResultadoDoProfiler({
                 className="mt-foco flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-2 border-mt-inverso-regua px-4 py-3 text-left transition-colors hover:border-mt-accent"
               >
                 <span className="text-[13px] font-extrabold tracking-[.04em]">
-                  {s.rotulo} · +{s.entram} {s.entram === 1 ? "carro" : "carros"}
+                  {s.rotulo} · +{s.entram} {s.entram === 1 ? "carro" : "carros"} na sua faixa
                 </span>
                 {s.melhor && (
                   <span className="text-[12px] text-mt-inverso-suave">
-                    o primeiro seria o {s.melhor.nome}, {reais(s.melhor.preco)}
+                    {s.entram === 1 ? "o" : "entre eles, o"} {s.melhor.nome}, {reais(s.melhor.preco)}
                   </span>
                 )}
               </button>
@@ -202,7 +211,9 @@ export default function ResultadoDoProfiler({
                 >
                   <span className="text-[13px] font-extrabold">{nomeCurto(v)}</span>
                   <span className="text-[12px] text-mt-inverso-suave">
-                    {v.quilometragem.toLocaleString("pt-BR")} km · {v.cambio} · {reais(precoDoCarro(v))}
+                    {[`${v.quilometragem.toLocaleString("pt-BR")} km`, v.cambio, reais(precoDoCarro(v))]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                 </Link>
               </li>
@@ -211,7 +222,7 @@ export default function ResultadoDoProfiler({
         </div>
       )}
 
-      {cartoes.length < 3 && (
+      {faixaCurta && (
         <div className="mt-10 max-w-[720px]">
           <p className="m-0 text-[13px] leading-relaxed text-mt-inverso-suave">
             O pátio muda toda semana. Deixe o seu pedido com o consultor e ele avisa quando chegar um carro assim.

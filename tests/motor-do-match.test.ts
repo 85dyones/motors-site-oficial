@@ -16,10 +16,13 @@ import {
 } from "../src/lib/fichaDoMotor";
 import {
   CARROCERIAS_DE_CARGA,
+  PREFERENCIAS,
   criteriosDasRespostas,
   elegivel,
   faixasDoPatio,
+  passaNosFiltros,
   recomendar,
+  semFiltro,
   type Criterios,
   type Recomendacao,
 } from "../src/lib/motorDoMatch";
@@ -66,8 +69,8 @@ const porId = (id: number) => ESTOQUE.find((v) => v.id === String(id))!;
 const OBJETIVOS = ["family", "status", "efficiency", "offroad"];
 const EXPERIENCIAS = ["performance", "comfort", "tech", "economy"];
 const ESTILOS = ["suv", "sedan", "hatch", "sport", "pickup", "open"];
-// Como a tela: sem a moto, que o Profiler não sugere (`carrosDoPatio` no CarMatch).
-const FAIXAS = faixasDoPatio(ESTOQUE.filter((v) => !ehMoto(v)).map(precoDoCarro));
+// Como a tela: a régua do motor (`carrosDoPatio` no CarMatch usa `elegivel`).
+const FAIXAS = faixasDoPatio(ESTOQUE.filter(elegivel).map(precoDoCarro));
 
 interface Rodada {
   chave: string;
@@ -88,6 +91,7 @@ const RODADAS: Rodada[] = FAIXAS.flatMap((f) =>
 
 describe("o fixture é o pátio de 25/09", () => {
   it("37 publicados: 36 carros e uma moto", () => {
+    expect(ehMoto(porId(6170299))).toBe(true);
     // Trava que não lê nada passa verde. Se o fixture ou o mapper mudarem, o
     // resto deste arquivo deixa de medir o que diz medir.
     expect(ESTOQUE).toHaveLength(37);
@@ -96,8 +100,8 @@ describe("o fixture é o pátio de 25/09", () => {
 
   it("as faixas têm teto: a de cima não vai mais ao infinito", () => {
     expect(FAIXAS.map((f) => f.titulo)).toEqual([
-      "Até R$ 55mil",
-      "R$ 55mil a R$ 75mil",
+      "Até R$ 50mil",
+      "R$ 50mil a R$ 75mil",
       "R$ 75mil a R$ 115mil",
       "R$ 115mil a R$ 175mil",
       "Acima de R$ 175mil",
@@ -139,14 +143,13 @@ describe("a ficha do motor lê o que o carro é", () => {
   });
 
   it("ficha vazia é lacuna, não defeito", () => {
+    // O Polo 2025 chegou sem opcional nenhum. "Bem equipado" fica em aberto
+    // para ele — e nunca vira "não atende".
     const polo = porId(8407873);
     expect(fichaVazia(polo)).toBe(true);
-    const r = recomendar(ESTOQUE, criteriosDasRespostas({ orcamento: { min: 75000, max: 115000 }, objetivo: "status" }));
-    const cartaoDoPolo = r.cartoes.find((c) => c.veiculo.id === polo.id);
-    if (cartaoDoPolo) {
-      const equipado = cartaoDoPolo.pedidos.find((p) => p.rotulo.startsWith("bem equipado"));
-      expect(equipado?.estado).toBe("nao-consta");
-    }
+    expect(PREFERENCIAS.equipado.avaliar(polo)).toBe("nao-consta");
+    expect(PREFERENCIAS.couro.avaliar(polo)).toBe("nao-consta");
+    expect(PREFERENCIAS.multimidia.avaliar(polo)).toBe("nao-consta");
   });
 
   it("os três Ka são um modelo só", () => {
@@ -263,17 +266,71 @@ describe(`em todas as ${RODADAS.length} combinações do quiz`, () => {
     }
   });
 
-  it("menos de três cartões sempre vem com saída: \"e se\" ou nada a afrouxar", () => {
+  it("faixa curta sempre vem com saída: \"e se\" ou nada a afrouxar", () => {
+    // Pela FAIXA, e não pelo número de cartões: o complemento abaixo do piso
+    // pode encher a tela com zero carro na faixa (revisão de 25/09).
     const erros: string[] = [];
     for (const { chave, criterios: c, r } of RODADAS) {
       const temFiltro = c.portas4 || c.automatico || c.carrocerias !== null;
-      if (r.cartoes.length < 3 && temFiltro && r.eSe.length === 0) {
+      if (r.naFaixa < 3 && temFiltro && r.eSe.length === 0) {
         // Afrouxar não traz ninguém: aceitável, mas só se de fato não traz.
         const soTeto = recomendar(ESTOQUE, { ...c, portas4: false, automatico: false, carrocerias: null });
-        if (soTeto.cartoes.length > r.cartoes.length) erros.push(chave);
+        if (soTeto.naFaixa > r.naFaixa) erros.push(chave);
       }
     }
     expect(erros).toEqual([]);
+  });
+
+  it("o \"e se\" entrega exatamente o que promete", () => {
+    // A primeira versão contava também os carros abaixo do piso: o chip dizia
+    // "+12 carros" e a tela, depois do clique, mostrava cinco a mais.
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of RODADAS) {
+      for (const s of r.eSe) {
+        const depois = recomendar(ESTOQUE, semFiltro(c, s.filtro));
+        if (depois.naFaixa - r.naFaixa !== s.entram) erros.push(`${chave}: ${s.filtro} prometeu ${s.entram}`);
+        const vistos = [...depois.cartoes.map((x) => x.veiculo.id), ...depois.outros.map((v) => v.id)];
+        if (s.melhor && !vistos.includes(s.melhor.id)) erros.push(`${chave}: ${s.melhor.nome} não aparece`);
+      }
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("o complemento é o mais perto abaixo do piso (decisão 2 do dono)", () => {
+    // Ordenar pela pontuação completava 115–175 mil com um Soul de R$ 76.900
+    // e pulava um X1 R$ 100 abaixo do piso.
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of RODADAS) {
+      const completos = r.cartoes.filter((x) => x.lugar === "abaixo-da-faixa").map((x) => x.veiculo);
+      if (completos.length === 0) continue;
+      const maisBaratoUsado = Math.min(...completos.map(precoDoCarro));
+      const pulados = ESTOQUE.filter(
+        (v) =>
+          elegivel(v) &&
+          passaNosFiltros(v, c) &&
+          precoDoCarro(v) < c.piso &&
+          precoDoCarro(v) > maisBaratoUsado &&
+          !completos.includes(v),
+      );
+      if (pulados.length > 0) erros.push(`${chave}: pulou ${pulados.map((v) => v.modelo).join(", ")}`);
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("o cartão abaixo da faixa nunca diz que passa em tudo", () => {
+    for (const { r } of RODADAS) {
+      for (const c of r.cartoes.filter((x) => x.lugar === "abaixo-da-faixa")) {
+        expect(c.manchete).not.toMatch(/Passa em todos|O único do pátio/);
+      }
+    }
+  });
+
+  it("carroceria no texto é a que se fala: sedã, SUV — nunca \"é suv\" nem \"é sedan\"", () => {
+    for (const { r } of RODADAS) {
+      for (const c of r.cartoes) {
+        expect(`${c.manchete} ${c.pesaContra ?? ""}`).not.toMatch(/é suv\b|é sedan\b|único\s+dos/);
+      }
+    }
   });
 });
 

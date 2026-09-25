@@ -111,6 +111,40 @@ não o endereço. Configurar URLs distintas no painel é opcional.
 | `cliente.email` / `cliente.whatsapp` | podem ser `""` |
 | `veiculo` | objeto do estoque ou `null` |
 | `ag_uid` | `"ag_ref_nao_localizado"` quando não há cookie |
+| `intencao_busca` | objeto livre, `{}` por padrão. No canal `Garagem Match Profiler` (desde 2026-09-25) traz o pedido e os carros — ver abaixo |
+
+**`intencao_busca` do Garagem Profiler.** O `perfil_curadoria` que o
+`CarMatch` monta **não** chega aqui: a rota repassa só os campos da tabela
+acima. Por isso o que o consultor precisa ler vai em `intencao_busca`:
+
+```json
+{
+  "aiQuery": "",
+  "budgetTab": "presets",
+  "modo": "carros",
+  "orcamento": "de R$ 75 mil a R$ 115 mil",
+  "filtros": ["de R$ 75 mil a R$ 115 mil", "4 portas ou mais"],
+  "afrouxados": [],
+  "prazo": "Pesquisando",
+  "carros": [
+    {
+      "id": "8449096",
+      "nome": "Kia Soul 2016",
+      "preco": 76900,
+      "lugar": "principal",
+      "manchete": "O mais barato dos três. Sobram R$ 38.100 do seu teto.",
+      "pesa_contra": "Não atende 2020 ou mais novo: é 2016."
+    }
+  ]
+}
+```
+
+`modo` é `carros` (QUERO VER ESTE — `carros` traz os escolhidos, ou os três
+do resultado), `aviso` (ME AVISE QUANDO CHEGAR — `carros` vazio) ou `ajuda`
+(a consulta ao estoque falhou — `carros` vazio). `lugar` é `principal`,
+`tambem`, `outro-caminho` ou `abaixo-da-faixa`. `filtros` e `afrouxados` são
+listas: um nó que concatene o objeto em texto precisa tratá-las, senão sai
+`[object Object]`. A `mensagem` do lead já nomeia os carros em texto corrido.
 
 **Captcha:** todo canal que nasce no modal de captura (`LeadCaptureModal`)
 exige token Turnstile válido — ou seja, todos os valores em uso acima, exceto

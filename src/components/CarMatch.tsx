@@ -5,8 +5,8 @@ import Link from "next/link";
 import { getEstoque, Veiculo } from "../lib/supabase";
 import { disponiveisDe, precoVigente } from "../lib/regrasEstoque";
 import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, rastreamentoRecusado, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick, trackPassoDoProfiler } from "../lib/telemetry";
-import { ehMoto, precoDoCarro } from "../lib/fichaDoMotor";
-import { faixasDoPatio, nomeCurto, pisoDoValorExato, type ChaveDeFiltro, type Recomendacao } from "../lib/motorDoMatch";
+import { precoDoCarro } from "../lib/fichaDoMotor";
+import { elegivel, faixasDoPatio, nomeCurto, pisoDoValorExato, type ChaveDeFiltro, type Recomendacao } from "../lib/motorDoMatch";
 import LeadCaptureModal from "./LeadCaptureModal";
 import ResultadoDoProfiler from "./ResultadoDoProfiler";
 import { useTheme } from "../app/ThemeContext";
@@ -228,8 +228,12 @@ export default function CarMatch() {
   const [afrouxados, setAfrouxados] = useState<ChaveDeFiltro[]>([]);
   /** "QUERO VER ESTE" — ids dos carros marcados, até os três do resultado. */
   const [escolhidos, setEscolhidos] = useState<string[]>([]);
-  /** O lead leva carros ("quero ver") ou só o pedido ("me avise quando chegar"). */
-  const [modoDoLead, setModoDoLead] = useState<"carros" | "aviso">("carros");
+  /**
+   * O lead leva carros ("quero ver"), só o pedido ("me avise quando chegar"),
+   * ou — quando a consulta ao estoque falhou — um pedido de ajuda. Falha nossa
+   * não pode chegar ao consultor como "não tem o carro que eu quero".
+   */
+  const [modoDoLead, setModoDoLead] = useState<"carros" | "aviso" | "ajuda">("carros");
 
   // ─── Dynamic budget ranges computed from real inventory ───
   interface BudgetRange {
@@ -266,8 +270,12 @@ export default function CarMatch() {
     loadInventory();
   }, []);
 
-  /** Os carros à venda — sem a moto, que o Profiler nunca sugere. */
-  const carrosDoPatio = useMemo(() => disponiveisDe(estoque).filter((v) => !ehMoto(v)), [estoque]);
+  /**
+   * Os carros que o Profiler pode sugerir — a mesma régua do motor
+   * (`elegivel`): sem a moto e sem carro de cadastro divergente. Contar com
+   * outra régua fazia a faixa prometer 8 carros e o resultado achar 7.
+   */
+  const carrosDoPatio = useMemo(() => disponiveisDe(estoque).filter(elegivel), [estoque]);
 
   /**
    * As faixas de orçamento — as quatro opções da pergunta 01.
@@ -390,13 +398,13 @@ export default function CarMatch() {
 
   /** Os carros que o lead leva: os marcados em QUERO VER ESTE, ou os três. */
   const carrosDoLead = () => {
-    if (modoDoLead === "aviso") return [];
+    if (modoDoLead !== "carros") return [];
     const cartoes = recomendacao?.cartoes ?? [];
     const marcados = cartoes.filter((c) => escolhidos.includes(c.veiculo.id));
     return marcados.length > 0 ? marcados : cartoes;
   };
 
-  const abrirLead = (modo: "carros" | "aviso") => {
+  const abrirLead = (modo: "carros" | "aviso" | "ajuda") => {
     setModoDoLead(modo);
     setIsLeadModalOpen(true);
   };
@@ -439,7 +447,9 @@ export default function CarMatch() {
     const finalMsg =
       carros.length > 0
         ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site e quero ver ${lista}. Estão disponíveis?${sufixoRef()}`
-        : `Olá! Montei meu perfil no ${nomeDoQuiz} do site e não achei exatamente o que procuro: ${pedido}. Podem me avisar quando chegar um carro assim?${sufixoRef()}`;
+        : modoDoLead === "ajuda"
+          ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site (${pedido}, foco em ${formatObjective(answers.objective)}). Podem me mostrar as opções do pátio?${sufixoRef()}`
+          : `Olá! Montei meu perfil no ${nomeDoQuiz} do site e não achei exatamente o que procuro: ${pedido}. Podem me avisar quando chegar um carro assim?${sufixoRef()}`;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).
@@ -563,10 +573,17 @@ export default function CarMatch() {
 
   const parseFreeTextQuery = (text: string) => {
     const lower = text.toLowerCase();
+    // O ano não é orçamento: "um SUV 2020" virava teto de R$ 202 mil, e desde
+    // 25/09 o teto é filtro que corta.
+    const semAnos = lower.replace(/\b(19|20)\d{2}\b/g, " ");
 
     let parsedBudget = 0;
-    const milMatch = lower.match(/(\d+)\s*(?:mil|k)/);
-    const rawNumberMatch = lower.match(/(?:r\$)?\s*(\d{2,3})(?:\.\d{3})*(?:,00)?/);
+    const milMatch = semAnos.match(/(\d+)\s*(?:mil|k)/);
+    // O número inteiro, com ou sem ponto de milhar: "80.000", "80000" e "80".
+    // A expressão anterior lia só os três primeiros dígitos, e "R$ 80000"
+    // virava R$ 800 mil. E número colado em letra é nome de carro, não
+    // dinheiro: "hb20" não é orçamento de R$ 20 mil.
+    const rawNumberMatch = semAnos.match(/(?:^|[^a-z0-9.,])(\d{1,3}(?:\.\d{3})+|\d{4,7}|\d{2,3})(?![0-9a-z])/);
 
     if (milMatch) {
       parsedBudget = parseInt(milMatch[1]) * 1000;
@@ -690,6 +707,7 @@ export default function CarMatch() {
   useEffect(() => {
     if (gameState !== "loading") return;
     let cancelado = false;
+    const idsDasRespostas = [answers.objective, answers.style, answers.experience, answers.timeline].filter(Boolean);
     const teto = !answers.budgetMax || answers.budgetMax >= Number.MAX_SAFE_INTEGER ? null : answers.budgetMax;
 
     fetch("/api/match", {
@@ -712,14 +730,19 @@ export default function CarMatch() {
         setBuscaFalhou(false);
         // O disparo vive aqui, não no início da busca: antes ele saía com
         // results_count fixo em 0 e o GA4 registrava toda busca como vazia.
-        trackCarMatch(r.filtros, r.cartoes.length);
+        //
+        // Os ids das respostas, como sempre foram — e não os filtros em texto,
+        // que levariam o orçamento ("de R$ 55 mil a R$ 75 mil") ao Pixel e à
+        // CAPI. A contagem é a da faixa: o complemento abaixo do piso não é
+        // resultado da busca.
+        trackCarMatch(idsDasRespostas, r.naFaixa);
       })
       .catch((err) => {
         if (cancelado) return;
         console.error("[CarMatch] A consulta ao estoque falhou:", err);
         setRecomendacao(null);
         setBuscaFalhou(true);
-        trackCarMatch([], 0);
+        trackCarMatch(idsDasRespostas, 0);
       })
       .finally(() => {
         if (!cancelado) setGameState("results");
@@ -1089,7 +1112,9 @@ export default function CarMatch() {
             afrouxados={afrouxados}
             onAlternar={alternarEscolhido}
             onAfrouxar={afrouxar}
-            onFalar={() => abrirLead(recomendacao && recomendacao.cartoes.length > 0 ? "carros" : "aviso")}
+            onFalar={() =>
+              abrirLead(buscaFalhou || !recomendacao ? "ajuda" : recomendacao.cartoes.length > 0 ? "carros" : "aviso")
+            }
             onAvisar={() => abrirLead("aviso")}
             onRefazer={handleReset}
           />
