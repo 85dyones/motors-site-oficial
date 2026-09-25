@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   alteracoes,
+  cadastraRepasse,
   decidirCriacao,
   decidirEdicao,
   formularioDe,
   podeEditarORepasse,
+  validaRepasse,
 } from "../src/lib/edicaoDoRepasse";
 import type { Perfil } from "../src/lib/permissoes";
 import { fotoDeTeste, repasseDeTeste } from "./repasseDeTeste";
@@ -58,6 +60,14 @@ describe("quem edita o quê", () => {
     expect(podeEditarORepasse({ situacao: "reservado" }, ["gestor"])).toBe(true);
     expect(podeEditarORepasse({ situacao: "vendido" }, ["admin"])).toBe(false);
     expect(podeEditarORepasse({ situacao: "arquivado" }, ["admin"])).toBe(false);
+  });
+
+  it("o SDR cadastra e não valida (dono, 24/09; 6ª coluna da matriz)", () => {
+    expect(cadastraRepasse(["sdr"])).toBe(true);
+    expect(validaRepasse(["sdr"])).toBe(false);
+    expect(criar(MINIMO, ["sdr"]).ok).toBe(true);
+    expect(podeEditarORepasse({ situacao: "rascunho" }, ["sdr"])).toBe(true);
+    expect(podeEditarORepasse({ situacao: "em_validacao" }, ["sdr"])).toBe(false);
   });
 
   it("marketing edita o rascunho", () => {
