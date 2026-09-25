@@ -45,6 +45,18 @@ describe("POST /api/repasses", () => {
     expect(banco.escritas).toEqual([]);
   });
 
+  it("quem foi desativado: 403 e nada escrito, mesmo com papel de painel", async () => {
+    // A escrita é da chave de serviço, que passa por cima da RLS: a rota é a
+    // única trava que sobra para o `is_active = false`.
+    banco.leituras.profiles = {
+      data: { role: "comercial", papeis: ["comercial"], full_name: "X", is_active: false },
+      error: null,
+    };
+    const res = await POST(pedido(MINIMO));
+    expect(res.status).toBe(403);
+    expect(banco.escritas).toEqual([]);
+  });
+
   it("marketing cria o rascunho, com dono, slug e auditoria", async () => {
     entrarComo(["marketing"]);
     const res = await POST(pedido(MINIMO));

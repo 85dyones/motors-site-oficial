@@ -28,7 +28,18 @@ export async function sessaoDoRepasse(): Promise<SessaoDoRepasse> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, resposta: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
-  const { data: profile } = await supabase.from("profiles").select("role, papeis, full_name").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, papeis, full_name, is_active")
+    .eq("id", user.id)
+    .single();
+  // Quem foi desativado em /admin/usuarios não escreve mais. Desde
+  // 20260924200000 a escrita sai com a chave de serviço, que passa por cima da
+  // RLS; antes era a RLS (`is_staff`, que exige `is_active`) que barrava, e a
+  // desativação não derruba a sessão no Auth. Linha ausente segue o fallback.
+  if ((profile as { is_active?: boolean | null } | null)?.is_active === false) {
+    return { ok: false, resposta: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
+  }
   // Sem linha em `profiles`, vale o papel padrão por e-mail — mesma regra do layout.
   const origem = profile ?? papelPadraoPorEmail(user.email);
   if (!ehStaff(origem)) {
