@@ -154,7 +154,7 @@ const ARGUMENTOS = [
      * vendedor, não é preciso esperar a ficha abrir o bloco para saber disso.
      */
     texto:
-      "Nossos veículos do estoque passam por perícia cautelar independente antes de entrar na vitrine — " +
+      "Os veículos do nosso estoque passam por perícia cautelar independente antes de entrar na vitrine — " +
       "estrutura, chassi e histórico de sinistro auditados, com o laudo " +
       "disponível para consulta com o vendedor.",
   },
