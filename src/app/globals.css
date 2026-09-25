@@ -1,6 +1,30 @@
 @import "tailwindcss";
 @import "./modernist.css";
 
+/* As reservas enquanto a webfont não chega (`font-display: swap`) — 2026-09-25.
+   Os números são os que o `next/font/google` gerava, lidos do CSS da build do
+   aa34ca2, e não os que o `next/font/local` calcularia do arquivo (Archivo
+   daria size-adjust 102.8% em vez de 98.7%): o texto provisório precisa ocupar
+   o mesmo espaço de antes, senão o salto na troca de fonte muda. Os nomes são
+   os que `fontes.ts` põe em `fallback`. */
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial");
+  ascent-override: 95.94%;
+  descent-override: 28.16%;
+  line-gap-override: 0%;
+  size-adjust: 104.76%;
+}
+
+@font-face {
+  font-family: "Archivo Fallback";
+  src: local("Arial");
+  ascent-override: 88.96%;
+  descent-override: 21.28%;
+  line-gap-override: 0%;
+  size-adjust: 98.7%;
+}
+
 :root {
   --brand-background: #fafafc;
   --brand-foreground: #1a1a23;
