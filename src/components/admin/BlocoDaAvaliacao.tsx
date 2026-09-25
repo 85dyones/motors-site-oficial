@@ -9,7 +9,7 @@ import {
   lerValorDaAvaliacao,
   type AvaliacaoDoLead,
 } from "../../lib/avaliacaoDoLead";
-import { REGRA_DA_CURVA, type ComponenteDoDesagio } from "../../lib/avaliacaoRecomendacao";
+import { ehRegraDaCurva, type ComponenteDoDesagio } from "../../lib/avaliacaoRecomendacao";
 
 /**
  * O que o cliente preencheu na /avaliacao, dentro do card do lead.
@@ -57,7 +57,7 @@ function valorDoComponente(c: ComponenteDoDesagio): string {
 
 /** Por qual régua o número saiu, dito para quem lê o card. */
 function nomeDaRegua(a: AvaliacaoDoLead): string {
-  if (a.regra === REGRA_DA_CURVA) {
+  if (ehRegraDaCurva(a.regra)) {
     const desde = a.recomendacao?.parametros_desde;
     const data = desde && /^\d{4}-\d{2}-\d{2}$/.test(desde) ? desde.split("-").reverse().join("/") : null;
     return data ? `Curva de deságio vigente desde ${data}` : "Curva de deságio";
@@ -144,7 +144,7 @@ export default function BlocoDaAvaliacao({
   // Na curva, todo sinal é aviso para a vistoria. Na régua de 3 faixas, os
   // sinais repetiam estado e km; só os avisos de km alto eram novidade.
   const alertas = (a.recomendacao?.sinais ?? []).filter((s) =>
-    componentes.length > 0 ? true : /acima de/i.test(s),
+    ehRegraDaCurva(a.regra) || componentes.length > 0 ? true : /acima de/i.test(s),
   );
 
   const linhas: [string, string | null][] = [

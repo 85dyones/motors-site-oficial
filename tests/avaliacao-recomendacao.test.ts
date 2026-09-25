@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   REGRA_DA_CURVA,
+  ehRegraDaCurva,
   fipeParaNumero,
   idadeEmAnos,
   lerParametrosDaCurva,
@@ -103,6 +104,19 @@ describe("a linha de parametros_avaliacao vira régua", () => {
       { ...LINHA_DO_BANCO, degraus_km: [] },
       { ...LINHA_DO_BANCO, degraus_km: [{ pp: 0, desvio_km_ate: null }, { pp: 2, desvio_km_ate: 5000 }, { pp: 3, desvio_km_ate: null }] },
       { ...LINHA_DO_BANCO, base_pp: "vinte" },
+      // Legível, mas não é curva de deságio — a revisão de 25/09 achou todas
+      // passando e produzindo conta sem sentido:
+      { ...LINHA_DO_BANCO, estado_excepcional_pp: "5.00" }, // "excelente" pior que "bom"
+      { ...LINHA_DO_BANCO, degraus_km: LINHA_DO_BANCO.degraus_km.slice(0, -1) }, // sem o aberto: régua inventada acima do último
+      { ...LINHA_DO_BANCO, degraus_km: [{ pp: 0, desvio_km_ate: 5000 }, { pp: 2, desvio_km_ate: 5000 }, { pp: 4, desvio_km_ate: null }] },
+      { ...LINHA_DO_BANCO, degraus_km: [{ pp: 4, desvio_km_ate: 5000 }, { pp: 2, desvio_km_ate: 15000 }, { pp: 6, desvio_km_ate: null }] },
+      { ...LINHA_DO_BANCO, degraus_km: [{ pp: -1, desvio_km_ate: 5000 }, { pp: 2, desvio_km_ate: null }] },
+      { ...LINHA_DO_BANCO, teto_pct: "150.00" },
+      { ...LINHA_DO_BANCO, piso_pct: "-10.00" },
+      { ...LINHA_DO_BANCO, base_pp: "-20.00" },
+      { ...LINHA_DO_BANCO, avaria_leve_pp: "[-4,-2]" },
+      { ...LINHA_DO_BANCO, km_por_ano: 0 },
+      { ...LINHA_DO_BANCO, km_por_ano: undefined }, // a migração 20260924220000 ainda não aplicada
     ]) {
       expect(lerParametrosDaCurva(torta), JSON.stringify(torta)).toBeNull();
     }
@@ -124,9 +138,20 @@ describe("idade do carro", () => {
     expect(idadeEmAnos(2020, HOJE)).toBeCloseTo(6.5, 1);
   });
 
-  it("nunca menos de um ano — carro zero não ganha degrau por rodar 3 mil km", () => {
-    expect(idadeEmAnos(2026, HOJE)).toBe(1);
-    expect(idadeEmAnos(2027, HOJE)).toBe(1);
+  it("sem mínimo inventado: a spec não tem um; o único piso é idade zero", () => {
+    // A primeira versão punha um ano de mínimo — número de regra que não está
+    // no banco nem na spec, e que mudava o degrau de todo carro novo.
+    expect(idadeEmAnos(2026, HOJE)).toBeCloseTo(0.5, 1);
+    expect(idadeEmAnos(2027, HOJE)).toBe(0);
+  });
+
+  it("carro do ano: o esperado é o da fração de ano, e rodar muito já custa degrau", () => {
+    // 2026 em 1º/07/2026: ~7.450 km esperados.
+    expect(avaliar("bom", "riscos", 7000, 2026).desconto_min).toBe(20);
+    expect(avaliar("bom", "riscos", 20000, 2026).desconto_min).toBe(22);
+    // Ano-modelo que ainda não começou tem esperado zero.
+    expect(avaliar("bom", "riscos", 3000, 2027).km_esperado).toBe(0);
+    expect(avaliar("bom", "riscos", 3000, 2027).desconto_min).toBe(20);
   });
 });
 
@@ -165,6 +190,36 @@ describe("a conta", () => {
     const r = avaliar("bom", "riscos", 10000);
     expect(r.km_desvio).toBeLessThan(0);
     expect(r.desconto_min).toBe(20);
+    const km = r.componentes.find((c) => c.nome === "km")!;
+    expect(km.motivo).toMatch(/abaixo dos .* esperados/);
+    expect(km.motivo).not.toMatch(/dentro/);
+  });
+
+  it("km abaixo do esperado conta como desvio zero NA TABELA — não pula o primeiro degrau", () => {
+    const comPrimeiroDegrau = { ...P, degrausKm: [{ ate: 5000, pp: 1 }, { ate: null, pp: 5 }] };
+    const r = recomendarAvaliacao({
+      estadoMecanico: "bom",
+      estadoConservacao: "riscos",
+      quilometragem: 10000,
+      anoModelo: 2020,
+      fipeValor: FIPE,
+      parametros: comPrimeiroDegrau,
+      hoje: HOJE,
+    })!;
+    expect(r.desconto_min).toBe(21);
+  });
+
+  it("km baixo demais é alerta de hodômetro (spec 11) — rodar pouco não é", () => {
+    // 2015 com 0 km, "excelente e impecável": a revisão de 25/09 achou saindo
+    // como excepcional com "dentro dos 175.996 km esperados" e nenhum alerta.
+    const zerado = avaliar("excelente", "impecavel", 0, 2015);
+    expect(zerado.sinais.join(" ")).toMatch(/hodômetro/);
+    expect(zerado.faixa_label).toMatch(/hodômetro/);
+    // Mais baixo que o maior degrau fechado (50 mil) alarma; menos, não.
+    expect(avaliar("bom", "riscos", ESPERADO_2020 - 50001).sinais.join(" ")).toMatch(/hodômetro/);
+    expect(avaliar("bom", "riscos", ESPERADO_2020 - 50000).sinais.join(" ")).not.toMatch(/hodômetro/);
+    // Um 2020 com 60 mil km (~9 mil por ano) é carro pouco rodado, não suspeito.
+    expect(avaliar("bom", "riscos", 60000).sinais.join(" ")).not.toMatch(/hodômetro/);
   });
 
   it("avaria leve soma o intervalo leve; séria, o sério; e as duas somam", () => {
@@ -229,6 +284,14 @@ describe("a conta", () => {
     expect(semKm.componentes.some((c) => c.nome === "km")).toBe(false);
     expect(semKm.sinais.join(" ")).toMatch(/km não informado/);
     expect(semKm.desconto_min).toBe(20);
+    // Ano ilegível: ausente, fracionário, antigo demais ou depois do ano que vem.
+    for (const ano of [null, 2019.5, 1800, 2028, 3000] as Array<number | null>) {
+      const r = avaliar("bom", "riscos", 400000, ano as number);
+      expect(r.componentes.some((c) => c.nome === "km"), String(ano)).toBe(false);
+      expect(r.sinais.join(" "), String(ano)).toMatch(/ano-modelo ilegível/);
+      expect(r.km_esperado, String(ano)).toBeNull();
+      expect(r.desconto_min, String(ano)).toBe(20);
+    }
   });
 
   it("a pendência de documento vira aviso com o intervalo do banco", () => {
@@ -252,6 +315,17 @@ describe("os casos do diagnóstico de 24/09 que a régua antiga errava", () => {
   it("carro de 0–3 anos em ótimo estado: a antiga dava 10%, a curva nunca desce do piso", () => {
     const r = avaliar("excelente", "impecavel", 20000, 2025);
     expect(r.desconto_min).toBe(15);
+  });
+});
+
+describe("a régua gravada no retrato", () => {
+  it("leva a data da composição, e o card reconhece qualquer versão da curva", () => {
+    expect(REGRA_DA_CURVA).toMatch(/^curva_spec11_\d{4}_\d{2}_\d{2}$/);
+    expect(ehRegraDaCurva(REGRA_DA_CURVA)).toBe(true);
+    expect(ehRegraDaCurva("curva_spec11")).toBe(true);
+    expect(ehRegraDaCurva("tres_faixas_2026_08_06")).toBe(false);
+    expect(ehRegraDaCurva("curva_spec110")).toBe(false);
+    expect(ehRegraDaCurva(7)).toBe(false);
   });
 });
 

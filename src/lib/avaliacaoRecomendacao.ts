@@ -23,7 +23,8 @@
  *   base ........................ todo carro parte de `base_pp`
  *   km .......................... o desvio sobre `km_por_ano` × idade cai num
  *                                 dos `degraus_km`; km abaixo do esperado não
- *                                 é prêmio (0 p.p.)
+ *                                 é prêmio (conta como desvio zero), e km
+ *                                 baixo demais vira alerta de hodômetro
  *   mecânica / funilaria ........ "requer atenção" e "amassados leves" são
  *                                 avaria leve (`avaria_leve_pp`); "ruim" e
  *                                 "avariado" são avaria séria
@@ -62,8 +63,19 @@ export type EstadoConservacao = "impecavel" | "riscos" | "reparos" | "avariado";
  */
 export type FaixaAvaliacao = "excepcional" | "com_avarias" | "padrao" | "acima_do_teto";
 
-/** A régua que produziu a recomendação — vai junto no retrato do lead. */
-export const REGRA_DA_CURVA = "curva_spec11";
+/**
+ * A régua que produziu a recomendação — vai junto no retrato do lead. A
+ * família diz "curva da spec 11"; a data diz qual COMPOSIÇÃO (este arquivo)
+ * leu os parâmetros. Mudou a composição, muda a data: o mesmo `parametros_id`
+ * com outra composição dá outro número, e o retrato precisa dizer qual foi.
+ */
+export const FAMILIA_DA_CURVA = "curva_spec11";
+export const REGRA_DA_CURVA = `${FAMILIA_DA_CURVA}_2026_09_25`;
+
+/** O retrato saiu de alguma composição da curva (não da régua de 3 faixas). */
+export function ehRegraDaCurva(regra: unknown): boolean {
+  return typeof regra === "string" && (regra === FAMILIA_DA_CURVA || regra.startsWith(`${FAMILIA_DA_CURVA}_`));
+}
 
 export interface ComponenteDoDesagio {
   /** "base", "km", "mecânica", "funilaria" ou "estado excepcional". */
@@ -174,6 +186,16 @@ function intervalo(v: unknown): [number, number] | null {
   return Number.isFinite(a) && Number.isFinite(b) && a <= b ? [a, b] : null;
 }
 
+/**
+ * Os degraus de km, em ordem. Recusa (e a avaliação sai sem sugestão) o que
+ * obrigaria a conta a inventar:
+ *   * sem o degrau aberto (`desvio_km_ate: null`) no fim, um desvio acima do
+ *     último limite não teria degrau — estender o último seria régua nossa;
+ *   * dois abertos, ou dois com o mesmo limite, deixam um degrau inalcançável
+ *     em silêncio;
+ *   * p.p. negativo, ou menor que o do degrau anterior, faz mais km custar
+ *     menos — o contrário da curva.
+ */
 function degraus(v: unknown): DegrauDeKm[] | null {
   const lista = typeof v === "string" ? (() => { try { return JSON.parse(v); } catch { return null; } })() : v;
   if (!Array.isArray(lista) || lista.length === 0) return null;
@@ -183,13 +205,17 @@ function degraus(v: unknown): DegrauDeKm[] | null {
     const { desvio_km_ate, pp } = d as { desvio_km_ate?: unknown; pp?: unknown };
     const valor = numero(pp);
     const ate = desvio_km_ate === null ? null : numero(desvio_km_ate);
-    if (valor === null || (desvio_km_ate !== null && ate === null)) return null;
+    if (valor === null || valor < 0 || (desvio_km_ate !== null && (ate === null || ate <= 0))) return null;
     lidos.push({ ate, pp: valor });
   }
   // Do menor desvio para o maior; o degrau aberto (`null`) por último.
   lidos.sort((a, b) => (a.ate ?? Infinity) - (b.ate ?? Infinity));
-  // Um degrau aberto no meio deixaria os de depois inalcançáveis.
-  if (lidos.slice(0, -1).some((d) => d.ate === null)) return null;
+  if (lidos[lidos.length - 1].ate !== null) return null;
+  for (let i = 1; i < lidos.length; i++) {
+    const anterior = lidos[i - 1];
+    // Aberto antes do último, limite repetido, ou p.p. que desce.
+    if (anterior.ate === null || anterior.ate === lidos[i].ate || lidos[i].pp < anterior.pp) return null;
+  }
   return lidos;
 }
 
@@ -211,19 +237,29 @@ export function lerParametrosDaCurva(linha: unknown): ParametrosDaCurva | null {
   const avariaLeve = intervalo(l.avaria_leve_pp);
   const avariaSeria = intervalo(l.avaria_seria_pp);
   const pendencia = intervalo(l.pendencia_pp);
+  // Além de legível, a linha tem de ter a forma de uma curva de deságio:
+  // pontos percentuais não negativos, o excepcional como redução, e piso e
+  // teto dentro de 0–100%. Não são valores da régua — é o que faz dela uma.
   if (
     typeof l.id !== "string" ||
     basePp === null ||
+    basePp < 0 ||
     excepcionalPp === null ||
+    excepcionalPp > 0 ||
     pisoPct === null ||
+    pisoPct < 0 ||
     tetoPct === null ||
+    tetoPct > 100 ||
     pisoPct >= tetoPct ||
     kmPorAno === null ||
     kmPorAno <= 0 ||
     !degrausKm ||
     !avariaLeve ||
     !avariaSeria ||
-    !pendencia
+    !pendencia ||
+    avariaLeve[0] < 0 ||
+    avariaSeria[0] < 0 ||
+    pendencia[0] < 0
   ) {
     return null;
   }
@@ -249,23 +285,29 @@ export function lerParametrosDaCurva(linha: unknown): ParametrosDaCurva | null {
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Idade do carro, em anos, para o km esperado.
+ * Idade do carro, em anos, para o km esperado ("15.000 × idade em anos", spec
+ * 11).
  *
- * Contada de 1º de janeiro do ano-modelo, com fração: um 2020 em setembro de
- * 2026 tem 6,7 anos. O ano-modelo costuma adiantar o de fabricação, e o carro
- * de um ano-modelo é vendido ao longo do ano anterior e do próprio — 1º de
- * janeiro é o meio desse intervalo. Mínimo de um ano: carro recém-comprado não
- * pode ter o esperado perto de zero e ganhar degrau de km por rodar 3 mil km.
+ * O formulário só sabe o ano-modelo, então a idade é contada de 1º de janeiro
+ * dele, com fração: um 2020 em setembro de 2026 tem 6,7 anos. Nada de mínimo
+ * inventado: a spec não tem um, e um piso aqui mudaria o degrau de km de todo
+ * carro novo. O único piso é o físico — idade não é negativa (ano-modelo que
+ * ainda não começou, como o 2027 vendido em 2026, tem idade zero).
  */
 export function idadeEmAnos(anoModelo: number, hoje: Date): number {
   const inicio = Date.UTC(anoModelo, 0, 1);
-  return Math.max(1, (hoje.getTime() - inicio) / (365.25 * DIA_MS));
+  return Math.max(0, (hoje.getTime() - inicio) / (365.25 * DIA_MS));
 }
 
+/**
+ * O degrau do desvio. Km abaixo do esperado conta como desvio zero ("km baixo
+ * não é prêmio"), e o degrau sai da tabela como qualquer outro.
+ * `lerParametrosDaCurva` garante degraus em ordem e o último aberto, então
+ * todo desvio cai em algum.
+ */
 function degrauDoDesvio(desvio: number, lista: DegrauDeKm[]): number {
-  if (desvio <= 0) return 0;
-  const achado = lista.find((d) => d.ate === null || desvio <= d.ate);
-  return achado ? achado.pp : lista[lista.length - 1].pp;
+  const d = Math.max(0, desvio);
+  return lista.find((g) => g.ate === null || d <= g.ate)?.pp ?? 0;
 }
 
 export function recomendarAvaliacao(entrada: {
@@ -294,8 +336,12 @@ export function recomendarAvaliacao(entrada: {
   let kmPp = 0;
   const quilometragem =
     typeof entrada.quilometragem === "number" && entrada.quilometragem >= 0 ? entrada.quilometragem : null;
+  // Ano-modelo vai no máximo até o ano que vem; depois disso é dedo pesado.
   const anoModelo =
-    typeof entrada.anoModelo === "number" && Number.isInteger(entrada.anoModelo) && entrada.anoModelo > 1900
+    typeof entrada.anoModelo === "number" &&
+    Number.isInteger(entrada.anoModelo) &&
+    entrada.anoModelo > 1900 &&
+    entrada.anoModelo <= hoje.getUTCFullYear() + 1
       ? entrada.anoModelo
       : null;
   if (quilometragem === null || anoModelo === null) {
@@ -309,16 +355,29 @@ export function recomendarAvaliacao(entrada: {
     kmEsperado = Math.round(p.kmPorAno * idade);
     kmDesvio = Math.round(quilometragem - kmEsperado);
     kmPp = degrauDoDesvio(kmDesvio, p.degrausKm);
-    const idadeTexto = idade.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+    const idadeTexto = `${idade.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ${idade < 2 ? "ano" : "anos"}`;
     componentes.push({
       nome: "km",
       pp_min: kmPp,
       pp_max: kmPp,
       motivo:
         kmDesvio > 0
-          ? `${km(quilometragem)}: ${km(kmDesvio)} acima dos ${km(kmEsperado)} esperados para ${idadeTexto} anos`
-          : `${km(quilometragem)}: dentro dos ${km(kmEsperado)} esperados para ${idadeTexto} anos`,
+          ? `${km(quilometragem)}: ${km(kmDesvio)} acima dos ${km(kmEsperado)} esperados para ${idadeTexto}`
+          : kmDesvio < 0
+            ? `${km(quilometragem)}: ${km(-kmDesvio)} abaixo dos ${km(kmEsperado)} esperados para ${idadeTexto} — km baixo não reduz o deságio`
+            : `${km(quilometragem)}: no esperado para ${idadeTexto}`,
     });
+    // "Km baixo demais = alerta de hodômetro, não prêmio" (spec 11). A spec
+    // não diz quanto é "demais"; a leitura aqui usa a própria curva: ficar
+    // abaixo do esperado por mais que o maior degrau fechado (50.000 km na
+    // semente) — o mesmo desvio que, para cima, já é o degrau mais caro. Rodar
+    // pouco (10 mil por ano num 2021) não alarma; um 2015 com 0 km alarma.
+    const demais = p.degrausKm.reduce((maior, g) => (g.ate !== null && g.ate > maior ? g.ate : maior), 0);
+    if (kmDesvio < -demais) {
+      sinais.push(
+        `km baixo para a idade: ${km(-kmDesvio)} abaixo dos ${km(kmEsperado)} esperados — não é prêmio; confira o hodômetro na vistoria`,
+      );
+    }
   }
 
   // Avarias, cada uma somando o seu intervalo.
@@ -389,7 +448,7 @@ export function recomendarAvaliacao(entrada: {
   const faixaLabel = acimaDoTeto
     ? `Acima do teto de ${pct(p.tetoPct)}% (${intervaloTexto}): recusar ou encaminhar como repasse`
     : candidatoExcepcional
-      ? `Deságio ${intervaloTexto} sobre a FIPE — ${pct(descontoMin)}% só se a vistoria confirmar o estado excepcional`
+      ? `Deságio ${intervaloTexto} sobre a FIPE — ${pct(descontoMin)}% só se a vistoria confirmar o estado excepcional e o hodômetro`
       : `Deságio ${intervaloTexto} sobre a FIPE`;
 
   const fipe = fipeParaNumero(entrada.fipeValor);

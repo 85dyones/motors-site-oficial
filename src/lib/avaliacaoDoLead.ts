@@ -43,15 +43,28 @@ export const REGRA_TRES_FAIXAS = "tres_faixas_2026_08_06";
 export const SEM_REGUA = "sem_regua";
 
 /**
- * A recomendação como o card a lê: o mínimo que ele mostra, conferido. Serve
- * aos dois formatos gravados — o da curva (com `componentes`) e o das três
- * faixas (sem eles).
+ * A recomendação como o painel a lê: campo a campo, cada um conferido no tipo
+ * — nada passa "como veio". Serve aos dois formatos gravados: o da curva (com
+ * `componentes` e `parametros_desde`) e o das três faixas (sem eles, que aqui
+ * viram lista vazia e `null`).
  */
-export type RecomendacaoLida = Partial<RecomendacaoAvaliacao> & {
+export interface RecomendacaoLida {
+  regra: string | null;
   resumo: string;
   sinais: string[];
   componentes: ComponenteDoDesagio[];
-};
+  acima_do_teto: boolean;
+  faixa: string | null;
+  faixa_label: string | null;
+  parametros_id: string | null;
+  parametros_desde: string | null;
+  desconto_min: number | null;
+  desconto_max: number | null;
+  km_esperado: number | null;
+  km_desvio: number | null;
+  valor_sugerido_min: number | null;
+  valor_sugerido_max: number | null;
+}
 
 export interface AvaliacaoDoLead {
   versao: 1;
@@ -205,8 +218,10 @@ export function lerAvaliacaoDoLead(bruto: unknown): AvaliacaoDoLead | null {
 }
 
 /**
- * A recomendação gravada, conferida no que o card lê — `resumo`, `sinais` e
- * `componentes` —; o resto segue como veio. Sem `resumo` legível, é `null`.
+ * A recomendação gravada, conferida campo a campo. Sem `resumo` legível, é
+ * `null`. A versão anterior conferia só `resumo`, `sinais` e `componentes` e
+ * espalhava o resto como veio: `parametros_desde: ["2026-08-30"]` passava e o
+ * card lançava no `split`.
  */
 function lerRecomendacao(r: unknown): RecomendacaoLida | null {
   if (!ehObjeto(r) || typeof r.resumo !== "string") return null;
@@ -220,11 +235,21 @@ function lerRecomendacao(r: unknown): RecomendacaoLida | null {
       })
     : [];
   return {
-    ...(r as Partial<RecomendacaoAvaliacao>),
+    regra: textoOuNulo(r.regra),
     resumo: r.resumo,
     sinais: Array.isArray(r.sinais) ? r.sinais.filter((x): x is string => typeof x === "string") : [],
     componentes,
     acima_do_teto: r.acima_do_teto === true,
+    faixa: textoOuNulo(r.faixa),
+    faixa_label: textoOuNulo(r.faixa_label),
+    parametros_id: textoOuNulo(r.parametros_id),
+    parametros_desde: textoOuNulo(r.parametros_desde),
+    desconto_min: numeroOuNulo(r.desconto_min),
+    desconto_max: numeroOuNulo(r.desconto_max),
+    km_esperado: numeroOuNulo(r.km_esperado),
+    km_desvio: numeroOuNulo(r.km_desvio),
+    valor_sugerido_min: numeroOuNulo(r.valor_sugerido_min),
+    valor_sugerido_max: numeroOuNulo(r.valor_sugerido_max),
   };
 }
 

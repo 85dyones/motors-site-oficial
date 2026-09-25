@@ -30,11 +30,20 @@ function semComentarios(codigo: string): string {
 
 const CALCULO_INVENTADO = /cruzad[oa]s?\s+com\s+o\s+giro|giro\s+real\s+do\s+nosso\s+estoque/i;
 
+/**
+ * Na própria /avaliacao, qualquer "giro" no texto que chega ao cliente é
+ * afirmação sobre a conta da página — e a conta não lê giro. (Fora dela, o
+ * "proposta com base na FIPE e no giro do estoque" das outras páginas fala do
+ * consultor, não do site; aqui não há consultor falando.)
+ */
+const QUALQUER_GIRO = /\bgiro\b/i;
+
 describe("a /avaliacao descreve só o que faz", () => {
   it.each(["src/components/AutoAvaliacao.tsx", "src/app/avaliacao/page.tsx"])(
     "%s não diz que cruza a FIPE com o giro do estoque",
     (arquivo) => {
       expect(semComentarios(ler(arquivo))).not.toMatch(CALCULO_INVENTADO);
+      expect(semComentarios(ler(arquivo))).not.toMatch(QUALQUER_GIRO);
     },
   );
 
@@ -42,6 +51,7 @@ describe("a /avaliacao descreve só o que faz", () => {
     const avaliacao = PAGINAS_COMPARTILHAVEIS.find((p) => p.id === "avaliacao");
     expect(avaliacao, "a página de avaliação saiu da lista de compartilháveis").toBeDefined();
     expect(avaliacao!.descricaoPadrao).not.toMatch(CALCULO_INVENTADO);
+    expect(avaliacao!.descricaoPadrao).not.toMatch(QUALQUER_GIRO);
     expect(avaliacao!.descricaoPadrao).toMatch(/Tabela FIPE/);
   });
 

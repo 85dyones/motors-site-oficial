@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import {
+  REGRA_TRES_FAIXAS,
   SEM_REGUA,
   colunaDaAvaliacaoAusente,
   estadoPorExtenso,
@@ -166,6 +167,10 @@ describe("lerAvaliacaoDoLead — o painel não cai por um retrato torto", () => 
       { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: { resumo: "r", componentes: [{ nome: "km" }, 3, { nome: "base", pp_min: 20, pp_max: 20 }] } },
       // Régua indisponível no envio: sem recomendação, o retrato continua de pé.
       { versao: 1, marca: "Fiat", modelo: "Argo", recomendacao: null, regra: "sem_regua" },
+      // Curva com `parametros_desde` torto: a revisão de 25/09 derrubou o card
+      // com a lista (o regex aprovava `String(["2026-08-30"])` e o `split` lançava).
+      { versao: 1, marca: "Fiat", modelo: "Argo", regra: REGRA_DA_CURVA, recomendacao: { resumo: "r", parametros_desde: ["2026-08-30"] } },
+      { versao: 1, marca: "Fiat", modelo: "Argo", regra: REGRA_DA_CURVA, recomendacao: { resumo: "r", parametros_desde: 20260830, desconto_min: "20", valor_sugerido_max: {} } },
     ];
     for (const bruto of tortos) {
       const a = lerAvaliacaoDoLead(bruto);
@@ -195,6 +200,42 @@ describe("lerAvaliacaoDoLead — o painel não cai por um retrato torto", () => 
     );
     expect(semRegua).toContain("sem sugestão");
     expect(semRegua).toContain("Sem régua legível no envio");
+    const desdeTorto = lerAvaliacaoDoLead(tortos[7])!.recomendacao!;
+    expect(desdeTorto.parametros_desde).toBeNull();
+    const numerosTortos = lerAvaliacaoDoLead(tortos[8])!.recomendacao!;
+    expect([numerosTortos.parametros_desde, numerosTortos.desconto_min, numerosTortos.valor_sugerido_max]).toEqual([null, null, null]);
+  });
+
+  it("o retrato da régua de 3 faixas continua legível no card", () => {
+    // Gravado entre 24/09 e a troca: sem componentes, e com sinais que em parte
+    // só repetiam estado e km — o card mostra apenas os avisos de "acima de".
+    const legado = {
+      versao: 1,
+      marca: "VW",
+      modelo: "Gol 1.0",
+      ano: 2011,
+      quilometragem: 250000,
+      regra: REGRA_TRES_FAIXAS,
+      recomendacao: {
+        faixa: "bom",
+        resumo: "Deságio de 15% a 20% sobre a FIPE",
+        sinais: ["mecânica boa", "km acima de 150 mil: conferir revisões"],
+        desconto_min: 15,
+        desconto_max: 20,
+      },
+    };
+    const a = lerAvaliacaoDoLead(legado)!;
+    expect(a.regra).toBe(REGRA_TRES_FAIXAS);
+    expect(a.recomendacao!.componentes).toEqual([]);
+    expect(a.recomendacao!.parametros_desde).toBeNull();
+    const html = renderToStaticMarkup(
+      createElement(BlocoDaAvaliacao, { nome: "Ana", avaliacao: legado, valorOfertado: null, valorPago: null, onSalvar: () => {} }),
+    );
+    expect(html).toContain("Régua de 3 faixas (06/08)");
+    expect(html).toContain("Deságio de 15% a 20% sobre a FIPE");
+    expect(html).toContain("km acima de 150 mil");
+    expect(html).not.toContain("mecânica boa</p>");
+    expect(html).not.toContain("Conta do deságio");
   });
 
   it("devolve null para ausente, lista, texto e forma incompleta", () => {
@@ -276,6 +317,8 @@ const n8n: Record<string, unknown>[] = [];
 let respostaDaRegua: { data: unknown[] | null; error: { message: string } | null };
 /** Os filtros com que a rota leu a régua. */
 let filtrosDaRegua: string[] = [];
+/** O cliente do Supabase lançando em vez de devolver `{ error }`. */
+let reguaLanca: "nao" | "na_consulta" | "no_from" = "nao";
 
 vi.mock("../src/lib/turnstile", () => ({
   verificarTurnstile: async () => ({ ok: true, hostname: "x", action: "avaliacao" }),
@@ -286,12 +329,16 @@ vi.mock("../src/lib/supabase-server", () => ({
   createAdminSupabaseClient: () => ({
     from: (tabela: string) => {
       if (tabela === "parametros_avaliacao") {
+        if (reguaLanca === "no_from") throw new Error("cliente sem configuração");
         const q = {
           select: (c: string) => (filtrosDaRegua.push(`select ${c}`), q),
           is: (c: string, v: unknown) => (filtrosDaRegua.push(`is ${c} ${v}`), q),
           lte: (c: string, v: unknown) => (filtrosDaRegua.push(`lte ${c} ${v}`), q),
           order: (c: string) => (filtrosDaRegua.push(`order ${c}`), q),
-          limit: async () => respostaDaRegua,
+          limit: async () => {
+            if (reguaLanca === "na_consulta") throw new Error("fetch failed");
+            return respostaDaRegua;
+          },
         };
         return q;
       }
@@ -349,6 +396,7 @@ beforeEach(() => {
   errosDoInsert = [];
   respostaDaRegua = { data: [LINHA_DA_REGUA], error: null };
   filtrosDaRegua = [];
+  reguaLanca = "nao";
   // Só o relógio é falso: a idade do carro sai do mesmo "hoje" do esperado.
   vi.useFakeTimers({ toFake: ["Date"], now: HOJE });
   globalThis.fetch = (async (_url: string, opcoes?: RequestInit) => {
@@ -403,6 +451,21 @@ describe("POST /api/avaliacao grava o retrato no lead", () => {
       expect(avaliacao.regra).toBe(SEM_REGUA);
       expect(avaliacao.quilometragem).toBe(55000);
       expect(n8n[0]).toMatchObject({ recomendacao: null });
+    }
+  });
+
+  it("cliente do Supabase que LANÇA (rede, configuração) também vira avaliação sem sugestão", async () => {
+    for (const modo of ["na_consulta", "no_from"] as const) {
+      inserts.length = 0;
+      n8n.length = 0;
+      reguaLanca = modo;
+      const r = await enviar(CORPO);
+      expect(r.status, modo).toBe(200);
+      expect(inserts, modo).toHaveLength(1);
+      const avaliacao = lerAvaliacaoDoLead(inserts[0].avaliacao)!;
+      expect(avaliacao.recomendacao, modo).toBeNull();
+      expect(avaliacao.regra, modo).toBe(SEM_REGUA);
+      expect(n8n[0], modo).toMatchObject({ recomendacao: null });
     }
   });
 
