@@ -52,9 +52,12 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       "Loja de carros seminovos em Curitiba com perícia cautelar independente em todo o " +
       `estoque. ${ENDERECO}, Bacacheri. Avaliação do seu usado e financiamento.`,
     paragrafos: [
+      // Até 25/09 terminava em "Os outros sete vão para repasse antes de chegar
+      // à vitrine.", que fazia o leitor supor que o carro de repasse é o
+      // recusado na perícia (spec 2026-09-24 §10). A oração saiu; a trava está
+      // em `tests/paginas-geo.test.ts`.
       "A Motors Store atende Curitiba inteira a partir do showroom no Bacacheri e se diferencia " +
-        "das outras revendas da cidade pelo filtro: de cada dez veículos avaliados, três entram. " +
-        "Os outros sete vão para repasse antes de chegar à vitrine.",
+        "das outras revendas da cidade pelo filtro: de cada dez veículos avaliados, três entram.",
       "Curitiba tem um dos mercados de perícia cautelar mais maduros do país, e o comprador " +
         "daqui costuma chegar à loja já sabendo o que é laudo e o que ele mostra. Por isso a " +
         "perícia é feita antes, por empresa independente, e o laudo está disponível para consulta " +

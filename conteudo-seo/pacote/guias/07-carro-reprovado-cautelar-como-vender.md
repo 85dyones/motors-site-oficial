@@ -149,7 +149,7 @@ Não para a vitrine — o critério ali é fechado. Dependendo do caso pode have
 
 ## Pendências antes de publicar
 
-- [ ] **Verificação de T3 sobre repasse.** A `/garantia` afirma "sem termo de isenção — nunca pedimos". Se o repasse entre lojistas usa termo de isenção de garantia, decidir a redação: ou a frase da `/garantia` fica explicitamente restrita à venda ao consumidor, ou este guia não menciona repasse como caminho. Hoje o texto cita "outro caminho comercial" sem detalhar condições — é a redação mais segura, mas a decisão é sua
+- [x] **Verificação de T3 sobre repasse.** Fechado em 25/09/2026 pela spec `docs/superpowers/specs/2026-09-24-secao-de-repasse-design.md` §10: a frase da `/garantia` ("na venda ao consumidor, não pedimos termo de isenção") segue verdadeira, porque a ficha de estado que o comprador do repasse assina não é termo de isenção. A redação deste guia ("outro caminho comercial") fica como está.
 - [x] Confirmar que "avaliação gratuita mesmo quando o carro não entra" corresponde à prática
 - [x] Revisão jurídica do bloco sobre dever de informar
 
@@ -157,7 +157,7 @@ Não para a vitrine — o critério ali é fechado. Dependendo do caso pode have
 
 - [x] T1 — nenhum multiplicador de deságio. "Reduz o valor" e "varia conforme o caso" sem número
 - [x] T2 — nenhuma ocorrência de "abaixo da FIPE" ou "desconto". A peça aponta para `/avaliacao` e mantém o vocabulário dela
-- [ ] **T3 — pendente**, ver acima
+- [x] T3 — fechado em 25/09/2026, ver acima
 - [x] T4 — descritivo. O segmento de recuperados é descrito como legítimo quando a informação circula, sem ataque
 - [x] T5 — encaminha a advogado e Procon, e declara que não é parecer
 - [x] T6 — único número próprio é o 3 em 10

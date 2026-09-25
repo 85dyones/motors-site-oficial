@@ -233,3 +233,45 @@ describe("o texto que depende do dado", () => {
     expect(pagina.rotuloDaFipe(null)).toBe("FIPE do mês");
   });
 });
+
+describe("as portas de entrada, como a prancha Portas escreve (PR 4)", () => {
+  it("a faixa do /estoque, com a contagem da prancha", () => {
+    expect(pagina.PORTAS_DO_REPASSE.rotulo).toBe("REPASSE MOTORS");
+    expect(pagina.PORTAS_DO_REPASSE.estoque.titulo).toBe("Paga à vista? Tem carro abaixo da FIPE no repasse.");
+    expect(`${pagina.PORTAS_DO_REPASSE.estoque.texto} ${pagina.abertosHoje(6)}`).toBe(
+      "Sem a garantia da loja. Cada carro diz se tem laudo e mostra a conta, com o reparo orçado quando há. Hoje são 6 carros abertos.",
+    );
+    expect(pagina.PORTAS_DO_REPASSE.estoque.botao).toBe("VER O REPASSE");
+  });
+
+  it("um carro aberto fala no singular", () => {
+    expect(pagina.abertosHoje(1)).toBe("Hoje há 1 carro aberto.");
+  });
+
+  it("a faixa da home, com o CTA e a linha do card que já existiam", () => {
+    expect(pagina.PORTAS_DO_REPASSE.home.titulo).toBe("Repasse às claras");
+    expect(pagina.PORTAS_DO_REPASSE.home.texto).toBe(
+      "Carros no estado e abaixo da FIPE. Cada um diz se tem laudo e traz a conta e a ficha de estado. Só à vista.",
+    );
+    expect(pagina.verOsCarros(6)).toBe("VER OS 6 CARROS");
+    expect(pagina.abaixoDaFipeNaBarra("R$ 3.180")).toBe("R$ 3.180 abaixo da FIPE");
+  });
+
+  it("o menu e o rodapé, pelo módulo pequeno que o cabeçalho importa", () => {
+    expect(pagina.CAMINHO_DO_REPASSE).toBe("/repasse");
+    expect(pagina.REPASSE_NA_NAVEGACAO).toEqual({
+      menu: "REPASSE",
+      apoioNoCelular: "abaixo da FIPE, à vista",
+      rodape: "Repasse",
+    });
+  });
+
+  it("o texto do menu e o singular chegam às travas desta seção", () => {
+    // A reexportação é o que põe o texto de `repasseNaNavegacao.ts` em
+    // `textosFixosDoRepasse()`; a amostra de `abertosHoje` é o que põe o
+    // singular em `textosMontadosDoRepasse()`. Sem as duas, esse texto ficaria
+    // fora da régua dos termos proibidos e das marcas de IA.
+    expect(TUDO).toContain("abaixo da FIPE, à vista");
+    expect(TUDO).toContain("Hoje há 1 carro aberto.");
+  });
+});

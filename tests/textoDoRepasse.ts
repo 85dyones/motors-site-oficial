@@ -53,6 +53,7 @@ export const FUNCOES_COM_AMOSTRA = [
   "textoAlternativoDaFoto",
   "tituloDaFichaNaBusca",
   "textoDoVazio",
+  "abertosHoje",
 ] as const;
 
 export function textosMontadosDoRepasse(): string[] {
@@ -125,6 +126,8 @@ export function textosMontadosDoRepasse(): string[] {
     pagina.tituloDaFichaNaBusca("Renault Kwid Zen 1.0 2021"),
     pagina.textoDoVazio("23/09"),
     pagina.textoDoVazio(null),
+    pagina.abertosHoje(1),
+    pagina.abertosHoje(6),
   ];
 }
 

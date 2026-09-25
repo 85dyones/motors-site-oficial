@@ -38,6 +38,12 @@ import {
   type LaudoDoRepasse,
 } from "./repasse";
 
+// O caminho e o texto do repasse no menu e no rodapé nascem num módulo sem
+// import, porque `Header` e `Footer` são client components de toda página
+// (ver o docblock de `repasseNaNavegacao.ts`). Reexportados aqui, entram na
+// régua de `tests/textoDoRepasse.ts` como o resto da seção.
+export { CAMINHO_DO_REPASSE, REPASSE_NA_NAVEGACAO } from "./repasseNaNavegacao";
+
 const PRAZO_COM_MAIUSCULA = `${PRAZO_DA_GARANTIA.charAt(0).toUpperCase()}${PRAZO_DA_GARANTIA.slice(1)}`;
 
 const minuscula = (texto: string) => texto.charAt(0).toLowerCase() + texto.slice(1);
@@ -53,7 +59,6 @@ function juntar(partes: string[], conector: string): string {
 // Caminho e âncoras — os links entre as seções e entre as páginas
 // ---------------------------------------------------------------------------
 
-export const CAMINHO_DO_REPASSE = "/repasse";
 export const ANCORA_DO_LOTE = "lote";
 export const ANCORA_DA_LISTA = "lista";
 /** Abrir `/repasse#lista-lojista` abre a lista já na trilha do lojista (decisão 5). */
@@ -695,6 +700,39 @@ export const NAO_ENCONTRADO_NO_REPASSE = {
   descricaoNaBusca:
     "Este endereço não abre nenhum carro do repasse. Veja uma amostra do estoque com garantia e entre na lista para receber o próximo no WhatsApp.",
 } as const;
+
+// ---------------------------------------------------------------------------
+// Portas de entrada (PR 4, spec §10): as faixas do /estoque e da home
+// ---------------------------------------------------------------------------
+
+/**
+ * Prancha "Portas de entrada", seções 2 e 3, letra por letra. Quem decide se
+ * cada faixa aparece é `lib/portasDoRepasse.ts`; o CTA da home é
+ * `verOsCarros` e a linha do card é `abaixoDaFipeNaBarra`, as mesmas do
+ * `/repasse`.
+ */
+export const PORTAS_DO_REPASSE = {
+  rotulo: "REPASSE MOTORS",
+  estoque: {
+    titulo: "Paga à vista? Tem carro abaixo da FIPE no repasse.",
+    texto: "Sem a garantia da loja. Cada carro diz se tem laudo e mostra a conta, com o reparo orçado quando há.",
+    botao: "VER O REPASSE",
+  },
+  home: {
+    titulo: "Repasse às claras",
+    texto: "Carros no estado e abaixo da FIPE. Cada um diz se tem laudo e traz a conta e a ficha de estado. Só à vista.",
+  },
+} as const;
+
+/**
+ * "Hoje são 6 carros abertos." O fim do texto da faixa do /estoque, com a
+ * contagem dos abertos a todos. A prancha só desenha o plural; o singular é
+ * texto novo (lista do dono no plano do PR 4). Zero não chega aqui: sem
+ * carro aberto a faixa nem é montada.
+ */
+export function abertosHoje(total: number): string {
+  return total === 1 ? "Hoje há 1 carro aberto." : `Hoje são ${total} carros abertos.`;
+}
 
 // ---------------------------------------------------------------------------
 // O que os formulários e a rota dizem quando algo não passa
