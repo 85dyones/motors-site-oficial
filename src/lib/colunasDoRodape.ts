@@ -1,5 +1,6 @@
 import type { CompanySettings } from "../types";
 import { NOME_DA_SECAO } from "./guias";
+import { CAMINHO_DO_REPASSE, REPASSE_NA_NAVEGACAO } from "./repasseNaNavegacao";
 import { PERFIL_NO_GOOGLE } from "./schemaLoja";
 import { linkWhatsApp, telefoneVisivel } from "./whatsapp";
 
@@ -48,6 +49,13 @@ export function colunasDoRodape(companySettings: CompanySettings): ColunaDoRodap
         { rotulo: "Avaliação Express", href: "/avaliacao" },
         { rotulo: "Financiamento", href: "/financiamento" },
         { rotulo: "Garantia", href: "/garantia" },
+        // O repasse (spec 2026-09-24 §10). A spec dizia "na coluna Comprar",
+        // que não existe desde o redesign do rodapé: a INSTITUCIONAL é onde já
+        // moram as outras portas de compra (Garagem Profiler, Avaliação
+        // Express, Financiamento). De 1024 a 1280px é o único link visível
+        // para ele — ver `tests/rodape-renderizado.test.ts`. O texto vem de
+        // `repasseNaNavegacao.ts`, e não de `paginaDoRepasse.ts`: ver lá.
+        { rotulo: REPASSE_NA_NAVEGACAO.rodape, href: CAMINHO_DO_REPASSE },
         // Os guias entram no rodapé desde o primeiro, e não a partir do
         // terceiro: sem uma entrada em todas as páginas, o cluster nasceria
         // acessível só pelo sitemap. É o mesmo defeito que a F1 corrigiu na

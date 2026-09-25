@@ -1,8 +1,15 @@
 import { NOME_DA_SECAO } from "./guias";
+import { CAMINHO_DO_REPASSE, REPASSE_NA_NAVEGACAO } from "./repasseNaNavegacao";
 
 export interface ItemDoMenu {
   href: string;
   rotulo: string;
+  /**
+   * Texto de apoio, SÓ no menu do celular, à direita do rótulo (prancha
+   * "Portas de entrada", 24/09). Hoje só o REPASSE tem. A barra do desktop
+   * não o desenha: lá cada caractere custa folga na régua medida abaixo.
+   */
+  apoio?: string;
 }
 
 /**
@@ -41,14 +48,34 @@ export interface ItemDoMenu {
  * ---------------------------------------------------------------------------
  * A ordem é decisão, não acaso
  * ---------------------------------------------------------------------------
- * As três primeiras são as de ação — ver o pátio, dizer o que se procura,
- * vender o seu. `GUIAS MOTORS` entra logo depois delas e antes das
- * institucionais, que é onde o dono pediu em 07/09: quem já leu as três de cima
- * e não converteu é exatamente quem o conteúdo atende.
+ * As quatro primeiras são as de ação — ver o pátio, ver o repasse, dizer o
+ * que se procura, vender o seu. O `REPASSE` entrou em 25/09 (spec 2026-09-24
+ * §10) logo depois do `ESTOQUE`: é a outra porta de compra. `GUIAS MOTORS`
+ * entra depois delas e antes das institucionais, que é onde o dono pediu em
+ * 07/09: quem já leu as de cima e não converteu é exatamente quem o conteúdo
+ * atende.
  *
  * ---------------------------------------------------------------------------
  * Cabe na barra? Estes números são do código que está no ar
  * ---------------------------------------------------------------------------
+ * ⚠️ 25/09: a tabela abaixo é de ANTES do `REPASSE`. Ele fica oculto até
+ * 1280px e não pesa na régua nessa faixa. De 1281px para cima ele SOMAVA
+ * déficit com o gap antigo do nav (`desktop:gap-7`, 28px): o telefone partia
+ * em duas linhas, o mesmo defeito que tirou o CONTATO do degrau `desktop:`
+ * em 07/09. Ruling do controlador, no mesmo dia (opção A): o nav passa para
+ * `desktop:gap-6` (24px). Medido em produção, injetando o REPASSE no DOM
+ * (barra de rolagem clássica, 15px), rótulo REPASSE = 60,5px:
+ *
+ *     viewport   gap do nav        telefone       folga na barra
+ *     1281px     28px (gap-7)      2 linhas       negativa
+ *     1281px     24px (gap-6)      1 linha          13px
+ *     1536px     24px (gap-6)      1 linha         182px
+ *
+ * A reescrita completa da tabela abaixo (as demais larguras, 1024 a 1920px,
+ * já com `desktop:gap-6`) são os passos 4 a 6 da Task 6 do plano do PR 4
+ * (`docs/superpowers/plans/2026-09-25-repasse-pr4-portas.md`), antes do
+ * merge. Não cite a tabela abaixo enquanto este aviso estiver aqui.
+ *
  * A barra tem 68px e uma linha só, então o sexto item pedia prova. Medido em
  * janela REAL do Chrome (a barra de rolagem clássica come 15px, e é ela que
  * cria a diferença entre a largura que a media query vê e a que o layout tem),
@@ -108,6 +135,15 @@ export interface ItemDoMenu {
  */
 export const MENU_DO_CABECALHO: ItemDoMenu[] = [
   { href: "/estoque", rotulo: "ESTOQUE" },
+  // O repasse (spec 2026-09-24 §10), logo depois do estoque. Na barra só a
+  // partir de `desktop:` (1281px), decisão do dono de 24/09 — o degrau mora
+  // no `Header.tsx`; no celular, sempre, com o apoio da prancha. O texto vem
+  // de `repasseNaNavegacao.ts`: ver lá por que não de `paginaDoRepasse.ts`.
+  {
+    href: CAMINHO_DO_REPASSE,
+    rotulo: REPASSE_NA_NAVEGACAO.menu,
+    apoio: REPASSE_NA_NAVEGACAO.apoioNoCelular,
+  },
   { href: "/carro-perfeito", rotulo: "CARRO PERFEITO" },
   { href: "/avaliacao", rotulo: "AVALIE SEU CARRO" },
   // `toUpperCase()` sobre a constante, e não a string escrita à mão: o menu é
@@ -117,7 +153,7 @@ export const MENU_DO_CABECALHO: ItemDoMenu[] = [
   // custo de deixar uma delas solta — desfazendo a renomeação em seis pontos, a
   // suíte cheia ficava verde e o site servia quatro nomes diferentes.
   //
-  // A caixa alta é literal aqui porque é a convenção dos outros cinco rótulos,
+  // A caixa alta é literal aqui porque é a convenção dos outros rótulos,
   // que não passam por `uppercase` do CSS. Diferente do breadcrumb, este texto
   // não é comparado com nenhum `name` de JSON-LD, então a grafia do DOM é
   // escolha de estilo e não de correção.
