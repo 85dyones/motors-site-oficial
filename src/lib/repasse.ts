@@ -153,6 +153,26 @@ export function soParaLojistas(r: Pick<Repasse, "situacao" | "aberto_ao_publico_
   return r.situacao === "publicado" && r.aberto_ao_publico_em === null;
 }
 
+/**
+ * Como o carro aparece no site: aberto a todos, só para lojistas (publicado
+ * sem o switch), reservado ou vendido. `null` para o que não aparece
+ * (rascunho, em validação, arquivado) — a página decide o 404.
+ */
+export type EstadoDoRepasse = "aberto" | "lojistas" | "reservado" | "vendido";
+
+export function estadoDoRepasse(r: Pick<Repasse, "situacao" | "aberto_ao_publico_em">): EstadoDoRepasse | null {
+  switch (r.situacao) {
+    case "publicado":
+      return r.aberto_ao_publico_em === null ? "lojistas" : "aberto";
+    case "reservado":
+      return "reservado";
+    case "vendido":
+      return "vendido";
+    default:
+      return null;
+  }
+}
+
 const DIA_MS = 86_400_000;
 
 /** Publicado, reservado, e vendido dentro da mesma carência do estoque. */
@@ -164,11 +184,19 @@ export function aparecePublicamente(r: Pick<Repasse, "situacao" | "vendido_em">,
   return agora.getTime() - vendido <= CARENCIA_VENDIDO_DIAS * DIA_MS;
 }
 
+/**
+ * Os 6 primeiros do uuid, sem hífen: o fim do slug, a referência que o
+ * atendente procura no painel ("Ref.: repasse 3f9a1c") e o que acha o carro
+ * quando o slug muda (decisão 13 do PR 3).
+ */
+export function sufixoDoRepasse(id: string): string {
+  return id.replace(/-/g, "").slice(0, 6).toLowerCase();
+}
+
 /** `marca-modelo-versao-ano-xxxxxx`: legível e único pelos 6 primeiros do uuid. */
 export function slugDoRepasse(r: Pick<Repasse, "id" | "marca" | "modelo" | "versao" | "ano_modelo">): string {
   const base = slugificar([r.marca, r.modelo, r.versao ?? "", String(r.ano_modelo)].join(" "));
-  const sufixo = r.id.replace(/-/g, "").slice(0, 6).toLowerCase();
-  return `${base}-${sufixo}`;
+  return `${base}-${sufixoDoRepasse(r.id)}`;
 }
 
 /** Em que faixa da lista um preço cai — é por ela que o painel casa inscrito e carro. */
