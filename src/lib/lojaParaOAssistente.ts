@@ -96,8 +96,8 @@ export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
   const ferramentas = bloco("O que a loja tem no site", [
     `- Avaliação do usado: ${SITE_URL}/avaliacao — o cliente manda o carro dele e um`,
     "  consultor retorna com a proposta. O valor sai depois da vistoria presencial.",
-    `- Garagem Profiler: ${SITE_URL}/carro-perfeito — cinco perguntas, e o consultor`,
-    "  manda três sugestões do estoque.",
+    `- Garagem Profiler: ${SITE_URL}/carro-perfeito — cinco perguntas, e a tela mostra`,
+    "  três carros do pátio com o porquê de cada um; o consultor confirma no WhatsApp.",
     `- Simulador de financiamento: ${SITE_URL}/financiamento — o número de lá é`,
     "  estimativa; quem fecha a condição é o banco.",
     `- Vitrine completa: ${SITE_URL}/estoque`,

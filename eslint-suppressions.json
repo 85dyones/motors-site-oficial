@@ -298,10 +298,10 @@
   },
   "src/components/CarMatch.tsx": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 2
+      "count": 1
     },
     "react-hooks/set-state-in-effect": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/ConfiguracoesClientWrapper.tsx": {
