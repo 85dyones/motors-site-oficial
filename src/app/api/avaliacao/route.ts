@@ -4,6 +4,7 @@ import { logLeadCaptured, logApiTelemetry } from "../../../lib/telemetry";
 import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { recomendarAvaliacao } from "../../../lib/avaliacaoRecomendacao";
+import { lerParametrosVigentes, type ClienteDeLeitura } from "../../../lib/parametrosDaAvaliacao";
 import { verificarTurnstile, ACOES_DE_AVALIACAO, ipDoVisitante } from "../../../lib/turnstile";
 import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
 import {
@@ -121,13 +122,28 @@ export async function POST(request: NextRequest) {
     // Km e FIPE passam pelos tetos de sanidade de `lib/avaliacaoDoLead`
     // (2026-09-24): sem eles, um POST à mão com FIPE de R$ 1 trilhão virava
     // uma "faixa sugerida" de bilhões gravada no lead.
+    //
+    // A régua é a curva de `parametros_avaliacao` desde 2026-09-24 (decisão
+    // do dono; antes eram três faixas fixas no código). Lida aqui, com a chave
+    // de serviço, a cada pedido: são poucos por dia, e a régua nova vale no
+    // pedido seguinte ao da troca de vigência. Sem régua legível, a
+    // recomendação é `null` — o lead segue, sem sugestão.
     const quilometragem = quilometragemDoCorpo(requestBody.quilometragem);
+
+    let parametros = null;
+    try {
+      parametros = await lerParametrosVigentes(createAdminSupabaseClient() as unknown as ClienteDeLeitura);
+    } catch (erroDaRegua) {
+      console.warn("[Avaliacao API] Régua indisponível:", (erroDaRegua as Error)?.message);
+    }
 
     const recomendacao = recomendarAvaliacao({
       estadoMecanico: String(requestBody.estado_mecanico || ""),
       estadoConservacao: String(requestBody.estado_conservacao || ""),
       quilometragem,
+      anoModelo: Number(ano) || null,
       fipeValor: fipeDoCorpo(requestBody.fipe_valor) === null ? "" : requestBody.fipe_valor,
+      parametros,
     });
 
     const n8nPayload = {

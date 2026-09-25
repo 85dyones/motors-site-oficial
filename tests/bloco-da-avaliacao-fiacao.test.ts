@@ -4,7 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ETAPAS_PADRAO } from "../src/lib/funil";
 import { montarAvaliacaoDoLead } from "../src/lib/avaliacaoDoLead";
-import { recomendarAvaliacao } from "../src/lib/avaliacaoRecomendacao";
+import { lerParametrosDaCurva, recomendarAvaliacao } from "../src/lib/avaliacaoRecomendacao";
 
 /**
  * O card do lead de avaliação, na tela montada.
@@ -31,12 +31,36 @@ vi.mock("next/link", () => ({
 
 const TRES_DIAS_ATRAS = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
 
+/** A curva vigente, como o banco a guarda (semente da f0f + `km_por_ano`). */
+const PARAMETROS = lerParametrosDaCurva({
+  id: "69838e3c-0ec2-4092-94c7-fda9bdd26727",
+  base_pp: "20.00",
+  estado_excepcional_pp: "-5.00",
+  piso_pct: "15.00",
+  teto_pct: "40.00",
+  km_por_ano: 15000,
+  degraus_km: [
+    { pp: 0, desvio_km_ate: 5000 },
+    { pp: 2, desvio_km_ate: 15000 },
+    { pp: 4, desvio_km_ate: 30000 },
+    { pp: 7, desvio_km_ate: 50000 },
+    { pp: 10, desvio_km_ate: null },
+  ],
+  avaria_leve_pp: "[2,4]",
+  avaria_seria_pp: "[8,12]",
+  pendencia_pp: "[3,5]",
+  vigencia_desde: "2026-08-30",
+});
+
 const recomendacao = recomendarAvaliacao({
   estadoMecanico: "bom",
   estadoConservacao: "riscos",
   quilometragem: 180000,
+  anoModelo: 2021,
   fipeValor: "R$ 68.000,00",
-});
+  parametros: PARAMETROS,
+  hoje: new Date(Date.UTC(2026, 8, 24, 15)),
+})!;
 
 const lead = (id: string, nome: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -171,7 +195,11 @@ describe("o bloco da avaliação no card", () => {
     expect(doAna).toContain("180.000 km");
     expect(doAna).toContain("mecânica boa · pequenos riscos de uso");
     expect(doAna).toContain(recomendacao.resumo.replace(/\u00a0/g, " "));
-    expect(doAna, "o alerta de km alto da régua").toContain("acima de 150.000 km");
+    // A conta da curva, componente por componente — o número se explica.
+    expect(doAna).toMatch(/\+20\s*base/);
+    expect(doAna, "180 mil km num 2021 é o último degrau").toMatch(/\+10\s*km — 180\.000 km/);
+    expect(doAna, "o aviso da pendência de documento").toContain("documento e procedência");
+    expect(doAna).toContain("Curva de deságio vigente desde 30/08/2026");
     expect(doAna).toContain("pneus novos");
 
     expect(card("Carlos Compra").textContent).not.toContain("Avaliação do site");
