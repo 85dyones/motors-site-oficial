@@ -9,6 +9,7 @@ import ConsultaFipeDoRepasse from "../src/components/admin/repasse/ConsultaFipeD
 import FichaDeEstadoNoEditor from "../src/components/admin/repasse/FichaDeEstadoNoEditor";
 import { FIPE_BASE, type Buscar } from "../src/lib/consultaFipe";
 import { ITEM_VAZIO, comItem, semItem } from "../src/lib/fichaDeEstado";
+import type { Perfil } from "../src/lib/permissoes";
 import { repasseDeTeste } from "./repasseDeTeste";
 
 /**
@@ -107,7 +108,7 @@ describe("AcoesDoRepasse", () => {
 
   it("editar outro campo com a nota aberta trava o botão de devolver", async () => {
     const emValidacao = repasseDeTeste({ situacao: "em_validacao" });
-    const props = { repasse: emValidacao, perfis: ["gestor"] as const, alterado: false, aoMudar: () => {} };
+    const props = { repasse: emValidacao, perfis: ["gestor"] as Perfil[], alterado: false, aoMudar: () => {} };
     await montar(createElement(AcoesDoRepasse, props));
     await act(async () => botao("Devolver para rascunho").click());
     expect(botao("Devolver").disabled).toBe(false);
