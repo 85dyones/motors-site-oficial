@@ -124,6 +124,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const temPerfil = requestBody && typeof requestBody.perfil === "object" && requestBody.perfil !== null;
     const temRespostas = requestBody && typeof requestBody.respostas === "object" && requestBody.respostas !== null;
     if (temPerfil || temRespostas) {
+      // POR MÊS que veio e não se lê é recusado. Cair na faixa de preço
+      // falhava ABERTO: a tela do POR MÊS manda `max: null`, e a busca saía
+      // sem teto nenhum — o X4 de R$ 318.900 para quem disse R$ 1.500/mês.
+      const orcamentoDoCorpo = requestBody.orcamento;
+      const parcelaBruta =
+        typeof orcamentoDoCorpo === "object" && orcamentoDoCorpo !== null ? orcamentoDoCorpo.parcela : undefined;
+      if (parcelaBruta !== undefined && parcelaBruta !== null && parcelaDoCorpo(parcelaBruta) === null) {
+        return sendResponse(NextResponse.json({ error: "Parcela inválida." }, { status: 400 }));
+      }
+
       const criterios = criteriosDoCorpo(requestBody);
       const recomendacao = recomendar(disponiveisDe(await getEstoque()), criterios);
 
@@ -216,8 +226,7 @@ function daLista<T extends string>(lista: readonly T[], bruto: unknown): T | nul
 /**
  * POR MÊS, conferido: parcela de R$ 100 a R$ 50 mil, entrada até R$ 10
  * milhões, prazo da lista e ocupação da lista (CLT se não veio). Fora disso,
- * `null` — e a busca cai na faixa de preço, como se a aba não tivesse sido
- * usada, em vez de filtrar por um número forjado.
+ * `null` — e o POST responde 400 (ver o começo do handler).
  */
 function parcelaDoCorpo(bruto: unknown): PerfilDoQuiz["parcela"] {
   if (typeof bruto !== "object" || bruto === null) return null;

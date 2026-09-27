@@ -2,7 +2,14 @@ import type { Veiculo } from "../types";
 import { divergenciaDeCarroceria } from "./coerenciaDoCadastro";
 import { modeloEVersaoParaExibir } from "./estoqueTabela";
 import { nomeTemOAno } from "./nomeDoVeiculo";
-import { calculateFinancing, type SimulationParams, type SimulationResult } from "./finance-calculator";
+import {
+  ANO_DE_REFERENCIA_DAS_TAXAS,
+  calculateFinancing,
+  IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
+  type SimulationParams,
+  type SimulationResult,
+} from "./finance-calculator";
+import type { ParcelaParaTexto } from "./textoDaParcela";
 import {
   carroceriaDe,
   cilindradaDe,
@@ -699,25 +706,25 @@ export interface CartaoDoMatch {
   parcela: ParcelaDoCartao | null;
 }
 
-export interface ParcelaDoCartao {
-  valor: number;
-  prazo: number;
-  entrada: number;
-  taxaMes: number;
-  cetAno: number;
-  total: number;
-}
+/** A parcela de um cartão — tudo o que `textoDaParcela` precisa para dizer a oferta inteira. */
+export type ParcelaDoCartao = ParcelaParaTexto;
 
 function parcelaDoCartao(v: Veiculo, c: Criterios): ParcelaDoCartao | null {
-  if (!c.parcela) return null;
-  const r = simularParcela(v, c.parcela);
+  return c.parcela ? parcelaDoPedido(v, c.parcela) : null;
+}
+
+/** A oferta inteira deste carro para este pedido — para cartão, carta e lista. */
+export function parcelaDoPedido(v: Veiculo, p: ParcelaPedida): ParcelaDoCartao {
+  const r = simularParcela(v, p);
   return {
     valor: r.parcela_mensal,
-    prazo: c.parcela.prazo,
-    entrada: Math.min(c.parcela.entrada, precoDoCarro(v)),
+    prazo: p.prazo,
+    entrada: Math.min(p.entrada, precoDoCarro(v)),
     taxaMes: r.taxa_aplicada_mes_pct,
     cetAno: r.cet_anual_real_pct,
     total: r.total_pago_ao_final,
+    aVista: precoDoCarro(v),
+    taxaVariaMais: ANO_DE_REFERENCIA_DAS_TAXAS - v.ano > IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
   };
 }
 
@@ -942,7 +949,9 @@ function explicar(
     }
   } else if (abaixoDaFaixa) {
     // Nunca "passa em tudo": ele passa nos filtros, mas não na faixa de preço.
-    manchete = "Passa nos seus filtros e custa menos do que a faixa que você escolheu.";
+    manchete = c.parcela
+      ? "Passa nos seus filtros e tem parcela menor do que a faixa que você escolheu."
+      : "Passa nos seus filtros e custa menos do que a faixa que você escolheu.";
   } else if (naFaixa === 1) {
     manchete = "O único do pátio que passa nos seus filtros hoje.";
   } else if (pedidos.length > 0 && atende > 0) {
@@ -1188,7 +1197,16 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
   const completando = passam
     .filter((v) => !naFaixaDoCliente(v, c))
     // No POR MÊS, "mais perto" é a parcela mais alta dos que sobram.
-    .sort((a, b) => valorNaFaixa(b, c) - valorNaFaixa(a, c) || pontuacao(b, c.preferencias) - pontuacao(a, c.preferencias))
+    // Empate de parcela (duas em zero, quando a entrada cobre os dois) vai
+    // pelo preço, como no modo à vista: o mais perto do que a pessoa pode é o
+    // mais caro. Desempatar pela pontuação trazia um Ka de R$ 53.900 no lugar
+    // de um Corolla Cross de R$ 134.900 que a entrada também cobria.
+    .sort(
+      (a, b) =>
+        valorNaFaixa(b, c) - valorNaFaixa(a, c) ||
+        precoDoCarro(b) - precoDoCarro(a) ||
+        pontuacao(b, c.preferencias) - pontuacao(a, c.preferencias),
+    )
     .slice(0, Math.max(0, 3 - tres.length));
 
   const todos = [...tres, ...completando];

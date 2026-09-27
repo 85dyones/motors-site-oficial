@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { pushSimulacaoDeFinanciamento } from "../lib/dataLayer";
-import { calculateFinancing, SimulationResult } from "../lib/finance-calculator";
+import {
+  ANO_DE_REFERENCIA_DAS_TAXAS,
+  calculateFinancing,
+  IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
+  SimulationResult,
+} from "../lib/finance-calculator";
+import { AVISO_DA_SIMULACAO, textoDaParcela } from "../lib/textoDaParcela";
 
 export interface SimulacaoData {
   valor_veiculo: number;
@@ -60,6 +66,18 @@ export default function CalculadoraFinanciamento({
       }),
     [vehiclePrice, vehicleYear, downPaymentPercent, installments, occupation],
   );
+
+  /** A oferta inteira — parcela, CET, total a prazo e à vista — no texto único do site. */
+  const detalheDaParcela = textoDaParcela({
+    valor: result.parcela_mensal,
+    prazo: installments,
+    entrada: vehiclePrice * (downPaymentPercent / 100),
+    taxaMes: result.taxa_aplicada_mes_pct,
+    cetAno: result.cet_anual_real_pct,
+    total: result.total_pago_ao_final,
+    aVista: vehiclePrice,
+    taxaVariaMais: ANO_DE_REFERENCIA_DAS_TAXAS - vehicleYear > IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
+  });
 
   const handleSimulateAction = () => {
     const downPaymentValue = vehiclePrice * (downPaymentPercent / 100);
@@ -229,14 +247,19 @@ Consegue verificar se aprova nessas condições?`;
             </div>
             <div className="mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
               {/* A taxa de juros e o CET são números diferentes: o rótulo
-                  antigo chamava a taxa de "CET". A regra de publicidade de
-                  crédito pede CET, quantidade e valor total junto da parcela. */}
-              {installments}× · taxa estimada {result.taxa_aplicada_mes_pct.toFixed(2).replace(".", ",")}% a.m. ·
-              CET {result.cet_anual_real_pct.toFixed(1).replace(".", ",")}% a.a.
+                  antigo chamava a taxa de "CET". E o total é o total A PRAZO,
+                  com a entrada, ao lado do preço à vista — "total" só das
+                  parcelas, perto da entrada, lia-se como custo muito menor.
+                  O texto sai de `lib/textoDaParcela`, o mesmo do Profiler. */}
+              {installments}× · {detalheDaParcela.detalhe} · IOF incluso
+              {detalheDaParcela.cautela && (
+                <>
+                  <br />
+                  {detalheDaParcela.cautela}
+                </>
+              )}
               <br />
-              Total R${" "}
-              {result.total_pago_ao_final.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ·
-              IOF incluso · média de mercado, sujeita a análise de crédito
+              {AVISO_DA_SIMULACAO}
             </div>
           </div>
         </div>

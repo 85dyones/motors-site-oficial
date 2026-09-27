@@ -1,5 +1,4 @@
-import { describe, it, expect } from "vitest";
-import { lerCodigo } from "./fonte";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   ANO_DE_REFERENCIA_DAS_TAXAS,
   calculateFinancing,
@@ -42,13 +41,17 @@ describe("simulador de financiamento sem TAC", () => {
 describe("simulador: taxas, ano e CET", () => {
   const base = { vehiclePrice: 60000, downPaymentValue: 20000, installments: 48, occupation: "clt" as const };
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("as três taxas saem da faixa do mercado, em ordem", () => {
-    // Doze bancos, jul–set/2026: de 1,05% (Caixa) a 3,24% (Daycoval) a.m.
+    // Dezoito instituições, jul–set/2026: de 1,05% (Caixa) a 3,34% (Omni CFI) a.m.
     expect(TAXAS_ESTIMADAS.excelente).toBeLessThan(TAXAS_ESTIMADAS.regular);
     expect(TAXAS_ESTIMADAS.regular).toBeLessThan(TAXAS_ESTIMADAS.risco);
     for (const t of Object.values(TAXAS_ESTIMADAS)) {
       expect(t).toBeGreaterThanOrEqual(0.0105);
-      expect(t).toBeLessThanOrEqual(0.0324);
+      expect(t).toBeLessThanOrEqual(0.0334);
     }
   });
 
@@ -60,18 +63,26 @@ describe("simulador: taxas, ano e CET", () => {
     expect(r.cet_anual_real_pct).toBeGreaterThan(25);
   });
 
-  it("o CET reproduz a parcela: o valor presente das parcelas é o valor liberado", () => {
+  it("o CET bate com um cálculo feito por fora", () => {
+    // R$ 60 mil, R$ 20 mil de entrada, 48×, CLT, carro de 3 anos: 1,95% a.m.
+    // Conferido na revisão de 27/09 por Newton sobre o fluxo (+liberado,
+    // −parcela × 48): parcela R$ 1.334,38 e CET 28,528% a.a. — um valor fixo,
+    // e não a mesma fórmula da implementação.
     const r = calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 3 });
-    const c = cetMensal(r.valor_liquido_financiado, r.parcela_mensal, 48);
-    const vp = (r.parcela_mensal * (1 - Math.pow(1 + c, -48))) / c;
-    expect(vp).toBeCloseTo(r.valor_liquido_financiado, 2);
+    expect(r.parcela_mensal).toBeCloseTo(1334.38, 2);
+    expect(r.cet_anual_real_pct).toBeCloseTo(28.528, 2);
+    expect(cetMensal(40000, 1334.38, 48)).toBeCloseTo(Math.pow(1.28528, 1 / 12) - 1, 5);
   });
 
   it("a idade do carro conta do ano de referência, e não do relógio", () => {
-    // Em 1º de janeiro nenhuma parcela sobe sozinha.
-    const codigo = lerCodigo("src/lib/finance-calculator.ts");
-    expect(codigo).not.toContain("getFullYear()");
-    const r = calculateFinancing({ ...base, downPaymentValue: 30000, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS });
-    expect(r.perfil_calculado).toBe("Excelente");
+    // Em 1º de janeiro nenhuma parcela sobe sozinha: a mesma simulação na
+    // véspera e no dia seguinte, com o relógio fingido.
+    const simular = () =>
+      calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 5 }).parcela_mensal;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${ANO_DE_REFERENCIA_DAS_TAXAS}-12-31T12:00:00Z`));
+    const vespera = simular();
+    vi.setSystemTime(new Date(`${ANO_DE_REFERENCIA_DAS_TAXAS + 1}-01-02T12:00:00Z`));
+    expect(simular()).toBe(vespera);
   });
 });

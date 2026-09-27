@@ -103,7 +103,9 @@ describe("POR MÊS na rota", () => {
     expect(r.filtros).toEqual(["parcela até R$ 1.500/mês em 48×, com R$ 20 mil de entrada", "4 portas ou mais"]);
   });
 
-  it("parcela forjada é ignorada: volta a faixa de preço", async () => {
+  it("parcela forjada é recusada — nunca vira busca sem teto", async () => {
+    // A tela do POR MÊS manda `max: null`: se a parcela inválida fosse só
+    // ignorada, a busca sairia sem teto nenhum.
     for (const parcela of [
       { max: 1500, entrada: 20000, prazo: 47 },
       { max: 99, entrada: 0, prazo: 48 },
@@ -112,9 +114,18 @@ describe("POR MÊS na rota", () => {
       { max: 1500, entrada: -5, prazo: 48 },
       "1500",
     ]) {
-      const r = await pedir({ perfil: { leva: "eu" }, orcamento: { min: 0, max: 75000, parcela } });
-      expect(r.filtros, JSON.stringify(parcela)).toEqual(["até R$ 75 mil"]);
+      const res = await POST(
+        new NextRequest("http://localhost/api/match", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ perfil: { leva: "eu" }, orcamento: { min: 0, max: null, parcela } }),
+        }),
+      );
+      expect(res.status, JSON.stringify(parcela)).toBe(400);
     }
+    // Sem a chave, ou com `null`, é a faixa de preço de sempre.
+    const r = await pedir({ perfil: { leva: "eu" }, orcamento: { min: 0, max: 75000, parcela: null } });
+    expect(r.filtros).toEqual(["até R$ 75 mil"]);
   });
 
   it("ocupação fora da lista vira CLT", async () => {

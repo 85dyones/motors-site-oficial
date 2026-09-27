@@ -557,10 +557,15 @@ describe("fase 2 · o entusiasta acha a Tiguan", () => {
 describe("fase 2 · POR MÊS: a faixa é a parcela", () => {
   // A mesma conta do simulador da ficha (`calculateFinancing`), sobre o pátio
   // de 25/09. A pessoa diz a parcela, a entrada que ela estima e o prazo.
-  const PEDIDOS = [800, 1200, 1500, 2500].flatMap((max) =>
-    [0, 20000, 40000].flatMap((entrada) =>
-      [36, 48, 60].flatMap((prazo) =>
-        ([null, "familia", "carga"] as const).map((leva) => ({ max, entrada, prazo, leva })),
+  // Entrada de R$ 150 mil zera a parcela de muita coisa — é onde moravam o
+  // "48× R$ 0" e o desempate errado do complemento (revisão de 27/09). E as
+  // cinco ocupações, porque cada uma muda a taxa.
+  const PEDIDOS = [800, 1200, 1500, 2500, 5000].flatMap((max) =>
+    [0, 20000, 40000, 150000].flatMap((entrada) =>
+      [24, 48, 60].flatMap((prazo) =>
+        (["clt", "publico", "autonomo"] as const).flatMap((ocupacao) =>
+          ([null, "familia", "carga"] as const).map((leva) => ({ max, entrada, prazo, ocupacao, leva })),
+        ),
       ),
     ),
   );
@@ -568,9 +573,13 @@ describe("fase 2 · POR MÊS: a faixa é a parcela", () => {
     const criterios = criteriosDoPerfil({
       orcamento: { min: 0, max: null },
       leva: p.leva,
-      parcela: { max: p.max, entrada: p.entrada, prazo: p.prazo, ocupacao: "clt" },
+      parcela: { max: p.max, entrada: p.entrada, prazo: p.prazo, ocupacao: p.ocupacao },
     });
-    return { chave: `${p.max}/mês · ${p.entrada} · ${p.prazo}× · ${p.leva ?? "-"}`, criterios, r: recomendar(ESTOQUE, criterios) };
+    return {
+      chave: `${p.max}/mês · ${p.entrada} · ${p.prazo}× · ${p.ocupacao} · ${p.leva ?? "-"}`,
+      criterios,
+      r: recomendar(ESTOQUE, criterios),
+    };
   });
 
   it("nenhum cartão da faixa passa da parcela; o abaixo da faixa diz quanto sobra", () => {
@@ -589,9 +598,22 @@ describe("fase 2 · POR MÊS: a faixa é a parcela", () => {
         // A regra de crédito: parcela com CET e total, e o CET acima dos juros.
         const jurosAoAno = (Math.pow(1 + p.taxaMes / 100, 12) - 1) * 100;
         if (p.valor > 0 && !(p.cetAno > jurosAoAno)) erros.push(`${chave}: CET abaixo dos juros`);
-        if (p.valor > 0 && !(p.total >= p.valor * p.prazo - 0.01)) erros.push(`${chave}: total errado`);
+        // O preço à vista que vai ao lado do total a prazo é o do carro.
+        if (p.aVista !== precoDoCarro(cartao.veiculo)) erros.push(`${chave}: à vista errado`);
+        if (p.entrada > p.aVista) erros.push(`${chave}: entrada maior que o carro`);
       }
       if (r.coringa?.parcela && r.coringa.parcela.valor > c.parcela!.max + 0.005) erros.push(`${chave}: coringa passa da parcela`);
+      // O complemento abaixo da faixa vem do mais perto para o mais longe:
+      // parcela maior primeiro e, no empate (duas em zero), o preço maior.
+      const abaixo = r.cartoes.filter((x) => x.lugar === "abaixo-da-faixa");
+      for (let i = 1; i < abaixo.length; i++) {
+        const [a, b] = [abaixo[i - 1], abaixo[i]];
+        const pa = a.parcela!.valor;
+        const pb = b.parcela!.valor;
+        if (pa < pb - 0.005 || (Math.abs(pa - pb) < 0.005 && precoDoCarro(a.veiculo) < precoDoCarro(b.veiculo))) {
+          erros.push(`${chave}: complemento fora de ordem`);
+        }
+      }
       // O preço não é filtro no POR MÊS: nada de teto de preço escondido.
       if (c.teto !== null || c.piso !== 0) erros.push(`${chave}: POR MÊS com faixa de preço`);
     }

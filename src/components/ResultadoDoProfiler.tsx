@@ -5,13 +5,14 @@ import { getVeiculoPdpUrl } from "../lib/supabase";
 import { precoDoCarro } from "../lib/fichaDoMotor";
 import {
   nomeCurto,
-  simularParcela,
+  parcelaDoPedido,
   type ChaveDeFiltro,
   type Coringa,
   type ParcelaDoCartao,
   type Recomendacao,
 } from "../lib/motorDoMatch";
 import { REFERENCIA_DAS_TAXAS } from "../lib/finance-calculator";
+import { AVISO_DA_SIMULACAO, textoDaParcela } from "../lib/textoDaParcela";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
 
 /**
@@ -133,8 +134,8 @@ export default function ResultadoDoProfiler({
         )}
         {parcelaPedida && (
           <p className="m-0 mt-3 text-[12px] leading-relaxed text-mt-inverso-suave">
-            Parcelas estimadas pela {REFERENCIA_DAS_TAXAS}, com IOF e a entrada que você disse. A taxa de verdade
-            depende da análise de crédito.
+            Parcelas estimadas pela {REFERENCIA_DAS_TAXAS}, com IOF e a entrada que você informou.{" "}
+            {AVISO_DA_SIMULACAO}
           </p>
         )}
         {avisos.map((aviso) => (
@@ -270,9 +271,8 @@ export default function ResultadoDoProfiler({
                       `${v.quilometragem.toLocaleString("pt-BR")} km`,
                       v.cambio,
                       reais(precoDoCarro(v)),
-                      parcelaPedida
-                        ? `≈ ${parcelaPedida.prazo}× ${reais(simularParcela(v, parcelaPedida).parcela_mensal)}`
-                        : null,
+                      // A parcela nunca vai sozinha: CET e total a prazo junto.
+                      parcelaPedida ? textoDaParcela(parcelaDoPedido(v, parcelaPedida)).compacto : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -394,7 +394,12 @@ function CartaJaPensouNeste({
             carta custa menos que o piso, e a frase antiga afirmava o contrário. */}
         <p className="m-0 mt-2 text-[13px] leading-relaxed text-mt-inverso-suave">
           Você não pediu, mas ele passa nos seus filtros
-          {coringa.abaixoDaFaixa ? ", custa menos que a sua faixa" : ""} e ganha do {coringa.comparadoCom} em{" "}
+          {coringa.abaixoDaFaixa
+            ? coringa.parcela
+              ? ", tem parcela menor que a sua faixa"
+              : ", custa menos que a sua faixa"
+            : ""}{" "}
+          e ganha do {coringa.comparadoCom} em{" "}
           {coringa.vantagens.length === 2 ? "dois pontos" : `${coringa.vantagens.length} pontos`}.
         </p>
         <div className="mt-4 text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
@@ -498,28 +503,17 @@ function Acoes({
 }
 
 /**
- * A parcela estimada de um carro, com o que a regra de publicidade de
- * crédito pede junto: quantidade de parcelas, CET e valor total. É a mesma
- * conta do simulador da ficha (`calculateFinancing`).
+ * A parcela estimada de um carro com o resto da oferta: CET, total das
+ * parcelas, total a prazo e preço à vista — o texto sai de
+ * `lib/textoDaParcela`, o mesmo da ficha e da lista "outros".
  */
 function LinhaDaParcela({ parcela }: { parcela: ParcelaDoCartao }) {
-  const dinheiro = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-  const pct = (n: number, casas: number) => n.toFixed(casas).replace(".", ",");
-  if (parcela.valor <= 0) {
-    return (
-      <p className="m-0 mt-3 text-[13px] font-extrabold text-mt-inverso">A entrada que você disse cobre o carro.</p>
-    );
-  }
+  const t = textoDaParcela(parcela);
   return (
     <div className="mt-3">
-      <p className="m-0 text-[17px] font-extrabold tracking-[-.02em] text-mt-inverso">
-        ≈ {parcela.prazo}× {dinheiro(parcela.valor)}
-      </p>
-      <p className="m-0 mt-1 text-[11px] leading-relaxed text-mt-inverso-suave">
-        {parcela.entrada > 0 ? `entrada ${dinheiro(parcela.entrada)} · ` : "sem entrada · "}
-        taxa estimada {pct(parcela.taxaMes, 2)}% a.m. · CET {pct(parcela.cetAno, 1)}% a.a. · total{" "}
-        {dinheiro(parcela.total)}
-      </p>
+      <p className="m-0 text-[17px] font-extrabold tracking-[-.02em] text-mt-inverso">{t.parcela}</p>
+      <p className="m-0 mt-1 text-[11px] leading-relaxed text-mt-inverso-suave">{t.detalhe}</p>
+      {t.cautela && <p className="m-0 mt-1 text-[11px] leading-relaxed text-mt-inverso-suave">{t.cautela}</p>}
     </div>
   );
 }

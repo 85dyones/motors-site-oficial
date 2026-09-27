@@ -31,6 +31,7 @@ import {
   type RespostasDoQuiz,
 } from "../lib/perguntasDoProfiler";
 import { REFERENCIA_DAS_TAXAS } from "../lib/finance-calculator";
+import { AVISO_DA_SIMULACAO } from "../lib/textoDaParcela";
 import {
   carrosNaFaixa,
   criteriosDoPerfil,
@@ -175,10 +176,15 @@ const OPCOES_PRAZO: readonly Opcao<Exclude<AnswerState["timeline"], "">>[] = [
   { id: "future", titulo: "Sem pressa, só olhando", desc: "", resumo: "Sondando" },
 ];
 
-/** Onde os controles do POR MÊS começam. A entrada é da pessoa; o número inicial só dá o ponto de partida. */
-const PORMES_INICIAL: PorMes = { parcela: 1500, entrada: 10000, prazo: 48, ocupacao: "clt", troca: false };
+/**
+ * Onde os controles do POR MÊS começam. A entrada começa em "Sem entrada":
+ * ela é a estimativa da pessoa, e um valor pré-posto viraria, no resultado,
+ * "a entrada que você informou" sem que ninguém tivesse informado nada
+ * (revisão de 27/09).
+ */
+const PORMES_INICIAL: PorMes = { parcela: 1500, entrada: 0, prazo: 48, ocupacao: "clt", troca: false };
 
-/** Os mesmos rótulos do simulador da ficha (`CalculadoraFinanciamento`). */
+/** A ocupação na voz do quiz. Muda a taxa estimada, pela pontuação do simulador. */
 const ROTULO_DA_OCUPACAO: Record<Ocupacao, string> = {
   clt: "CLT (carteira assinada)",
   publico: "Funcionário público",
@@ -582,11 +588,17 @@ export default function CarMatch() {
     // Os marcados em QUERO VER ESTE (a carta "Já pensou neste?" só com FAZ
     // SENTIDO), ou os três — ver `carrosDoLead` em lib/perguntasDoProfiler.
     const carros = carrosDoLead(recomendacao, escolhidos, modoDoLead);
-    // No POR MÊS a pessoa pensa em parcela: a mensagem leva a estimativa junto.
-    const nomeComPreco = (c: (typeof carros)[number]) =>
-      c.parcela !== null && answers.porMes
-        ? `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))}, ≈ ${answers.porMes.prazo}× ${formatPrice(c.parcela)})`
-        : `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))})`;
+    // No POR MÊS a pessoa pensa em parcela: a mensagem leva a estimativa junto
+    // — e a entrada que a gerou, senão o consultor lê "48× R$ 1.298" sem saber
+    // de onde saiu. Parcela zero não vira "48× R$ 0": é a entrada cobrindo.
+    const nomeComPreco = (c: (typeof carros)[number]) => {
+      const base = `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))}`;
+      if (!answers.porMes || c.parcela === null) return `${base})`;
+      if (!(c.parcela > 0)) return `${base}, a minha entrada cobre)`;
+      const entrada = Math.min(answers.porMes.entrada, precoDoCarro(c.veiculo));
+      const comEntrada = entrada > 0 ? `com ${formatPrice(entrada)} de entrada` : "sem entrada";
+      return `${base}; pelo site, ≈ ${answers.porMes.prazo}× ${formatPrice(c.parcela)} ${comEntrada})`;
+    };
     // A troca vai dita ao consultor — é ele quem avalia o carro.
     const troca = answers.porMes?.troca ? " Tenho carro para dar na troca." : "";
     const lista =
@@ -1096,7 +1108,11 @@ export default function CarMatch() {
         numero: "01",
         rotulo: "ORÇAMENTO",
         valor: answers.porMes
-          ? `Até ${answers.porMes.parcela.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}/mês`
+          ? [
+              `Até ${answers.porMes.parcela.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}/mês`,
+              `${answers.porMes.prazo}×`,
+              answers.porMes.entrada > 0 ? `entrada R$ ${formatShort(answers.porMes.entrada)}` : "sem entrada",
+            ].join(" · ")
           : answers.budgetMax
             ? textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax).replace(/^./, (l) => l.toUpperCase())
             : "",
@@ -1250,10 +1266,9 @@ export default function CarMatch() {
                 </h2>
 
                 {/* Modo de responder: faixa pronta, valor exato, parcela ou texto
-                    livre. Com quatro abas o grupo pode passar da largura do
-                    celular: ele rola sozinho, e a página não. */}
-                <div className="mt-8 max-w-full overflow-x-auto">
-                <div className="flex w-max border-2 border-mt-inverso-regua">
+                    livre. Quatro abas não cabem numa linha de celular: lá
+                    viram grade 2×2, e do tablet para cima voltam a ser linha. */}
+                <div className="mt-8 grid grid-cols-2 border-2 border-mt-inverso-regua sm:flex sm:w-max">
                   {([
                     { id: "presets", rotulo: "FAIXA" },
                     { id: "custom", rotulo: "VALOR EXATO" },
@@ -1265,8 +1280,10 @@ export default function CarMatch() {
                       type="button"
                       onClick={() => setBudgetTab(aba.id)}
                       aria-pressed={budgetTab === aba.id}
-                      className={`mt-foco px-3.5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors lg:px-7 lg:text-[13px] ${
-                        i > 0 ? "border-l-2 border-mt-inverso-regua" : ""
+                      className={`mt-foco px-3.5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors sm:px-5 lg:px-7 lg:text-[13px] ${
+                        i % 2 === 1 ? "border-l-2 border-mt-inverso-regua" : ""
+                      } ${i >= 2 ? "border-t-2 border-mt-inverso-regua sm:border-t-0" : ""} ${
+                        i === 2 ? "sm:border-l-2" : ""
                       } ${
                         budgetTab === aba.id
                           ? "bg-mt-accent text-mt-inverso"
@@ -1276,7 +1293,6 @@ export default function CarMatch() {
                       {aba.rotulo}
                     </button>
                   ))}
-                </div>
                 </div>
 
                 {budgetTab === "presets" && (
@@ -1350,6 +1366,7 @@ export default function CarMatch() {
                         value={r.parcela}
                         onChange={(e) => mudar({ parcela: Number(e.target.value) })}
                         aria-label="Parcela que cabe no mês"
+                        aria-valuetext={`${formatPrice(r.parcela)} por mês`}
                         className="mt-range mt-foco mt-4 [--mt-range-trilho:var(--mt-inverso-regua)]"
                       />
 
@@ -1367,6 +1384,7 @@ export default function CarMatch() {
                         value={r.entrada}
                         onChange={(e) => mudar({ entrada: Number(e.target.value) })}
                         aria-label="Entrada"
+                        aria-valuetext={r.entrada > 0 ? formatPrice(r.entrada) : "Sem entrada"}
                         className="mt-range mt-foco mt-4 [--mt-range-trilho:var(--mt-inverso-regua)]"
                       />
                       <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso-suave">
@@ -1382,6 +1400,11 @@ export default function CarMatch() {
                         />
                         Tenho carro para dar na troca
                       </label>
+                      {r.troca && r.entrada === 0 && (
+                        <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso">
+                          Se o carro da troca entra na entrada, some acima o valor que você espera dele.
+                        </p>
+                      )}
 
                       <Rotulo className="mt-7 block text-[10px] tracking-[.16em] text-mt-inverso-suave">PRAZO</Rotulo>
                       <div className="mt-2.5 flex w-max border-2 border-mt-inverso-regua">
@@ -1425,8 +1448,7 @@ export default function CarMatch() {
                         </p>
                       )}
                       <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-inverso-suave">
-                        Parcela estimada pela {REFERENCIA_DAS_TAXAS}, com IOF. A taxa de verdade depende da
-                        análise de crédito.
+                        Parcela estimada pela {REFERENCIA_DAS_TAXAS}, com IOF. {AVISO_DA_SIMULACAO}
                       </p>
                       <button type="button" onClick={confirmarPorMes} className="mt-btn mt-btn-primario mt-foco mt-6">
                         CONFIRMAR

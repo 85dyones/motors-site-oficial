@@ -433,16 +433,30 @@ estimadas, verifique a média de mercado em pelo menos 5 bancos"; a troca
 consultor separa "depende também" (fica o limite de hoje, três).
 
 - **Taxas.** Banco Central, "Taxas de juros de operações de crédito",
-  Aquisição de veículos – Prefixado – Pessoa Física, média das janelas de
-  10/07 a 11/09/2026 em 12 instituições que financiam seminovo em loja
-  multimarca (sem bancos de montadora nem regionais): Caixa 1,05 · Safra
-  1,69 · BB 1,78 · Santander 1,86 · Porto 1,94 · Bradesco Financiamentos
-  1,95 · C6 1,96 · Itaú 2,06 · BV 2,27 · Omni 2,27 · Pan 2,88 · Daycoval 3,24
-  (% a.m.). Média 2,08, mediana 1,95, quartis 1,84 e 2,27. O simulador (da
-  ficha e do Profiler) usa 1,84 / 1,95 / 2,27 para perfil bom, regular e de
-  risco — antes eram 1,45 / 1,95 / 2,65, sem fonte. O número do BC mistura
-  novo e usado, e por isso a tela diz sempre "estimativa" e "a taxa depende
-  da análise de crédito".
+  Aquisição de veículos – Prefixado – Pessoa Física, média das 41 janelas de
+  10/07 a 11/09/2026. Critério escrito: entra toda instituição da modalidade
+  menos os bancos de montadora e os públicos regionais, com taxa em pelo menos
+  metade das janelas — dezoito: Caixa 1,05 · Safra 1,69 · Inter 1,71 ·
+  Bradesco 1,76 · BB 1,78 · Sinosserra 1,84 · Santander 1,86 · Porto 1,94 ·
+  Bradesco Financ. 1,95 · C6 1,96 · Brasileiro de Crédito 2,01 · Itaú 2,06 ·
+  BV 2,27 · Agoracred 2,84 · Pan 2,88 · Finamax 3,21 · Daycoval 3,24 · Omni
+  CFI 3,34 (% a.m.). Média 2,19, mediana 1,95, quartis 1,79 e 2,70. O
+  simulador (da ficha e do Profiler) usa 1,79 / 1,95 / 2,70 para perfil bom,
+  regular e de risco — antes eram 1,45 / 1,95 / 2,65, sem fonte. A primeira
+  versão escolhia os bancos à mão e deixava de fora as financeiras de usado
+  mais caras, o que puxava a estimativa para baixo; a revisão de 27/09 pegou.
+  O número do BC mistura novo e usado, e por isso a tela diz sempre
+  "Simulação, não é oferta de crédito: o banco, a taxa e a aprovação saem da
+  análise de crédito".
+- **Texto de crédito num lugar só** (`lib/textoDaParcela`, CDC art. 54-B,
+  §3º): toda parcela vem com CET, total das parcelas, total a prazo (com a
+  entrada) e o preço à vista — no cartão, na carta, na lista "outros" e na
+  ficha. A primeira versão mostrava parcela sozinha na lista "outros" e
+  chamava de "total" só a soma das parcelas, ao lado da entrada. Carro com
+  mais de 5 anos ganha "aprovação e taxa variam mais de banco para banco".
+  Pendente com o dono: o ano mais antigo que a loja consegue financiar (hoje
+  um Fusca 1976 recebe parcela) e o agente financiador, que a lei pede na
+  oferta — o texto de agora a trata como simulação; vale validação jurídica.
 - **Ano de referência congelado** (decisão 3): a idade do carro conta de
   2026, e muda junto com a tabela de taxas, nunca pelo relógio.
 - **CET.** O simulador calculava `(total/financiado)^(1/n) − 1`, que dava
@@ -450,7 +464,8 @@ consultor separa "depende também" (fica o limite de hoje, três).
   ficha chamava a taxa mensal de "CET". Agora o CET é a taxa interna de
   retorno do fluxo (≈ 28,5% a.a. no mesmo caso), e a tela mostra taxa, CET,
   quantidade e total juntos — o que a regra de publicidade de crédito pede.
-- **A aba.** Parcela que cabe no mês, entrada (estimativa do cliente),
+- **A aba.** Parcela que cabe no mês, entrada (estimativa do cliente, que
+  começa em "Sem entrada" para nada ser dito por ela),
   "tenho carro para dar na troca", prazo (24 a 60×) e ocupação, que muda a
   taxa estimada. A faixa é a parcela de cada carro: passa quem cabe na
   parcela; de 70% a 100% dela é a faixa, e abaixo disso completa com rótulo
@@ -460,7 +475,9 @@ consultor separa "depende também" (fica o limite de hoje, três).
 - **Lead.** `intencao_busca.por_mes` (parcela, entrada estimada, prazo,
   ocupação, troca) e a parcela de cada carro; o card do kanban mostra "Por
   mês" e "Troca". Caso da Carla (R$ 1.500, R$ 20 mil, família): Kwid 2025 e
-  208 2023 a ≈ 48× R$ 1.298, Ka Sedan 2020 a ≈ R$ 1.206.
+  208 2023 a ≈ 48× R$ 1.298, Ka Sedan 2020 a ≈ R$ 1.311 (mais barato, mas com
+  mais de 5 anos: taxa de risco, 2,70% a.m.). `/api/match`
+  responde 400 a parcela inválida, em vez de buscar sem teto.
 
 ## 7. Finalistas que merecem teste depois
 

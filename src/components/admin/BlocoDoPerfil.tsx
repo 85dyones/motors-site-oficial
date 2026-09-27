@@ -62,7 +62,7 @@ export default function BlocoDoPerfil({ perfil }: { perfil: unknown }) {
     ? [
         pm.parcela !== null ? `até ${reais(pm.parcela)}/mês` : "",
         pm.prazo !== null ? `em ${pm.prazo}×` : "",
-        pm.entrada !== null ? (pm.entrada > 0 ? `entrada ${reais(pm.entrada)} (estimativa dele)` : "sem entrada") : "",
+        pm.entrada !== null ? (pm.entrada > 0 ? `entrada ${reais(pm.entrada)} (estimativa do cliente)` : "sem entrada") : "",
         pm.ocupacao,
       ]
         .filter(Boolean)

@@ -365,13 +365,28 @@ describe("4 · o quiz pergunta as cinco — e só o que separa carro", () => {
     expect(codigo).toMatch(/por_mes: answers\.porMes/);
     expect(codigo).toContain("parcela: c.parcela,");
     // A troca é só um aviso ao consultor e o link da avaliação — nada de FIPE.
-    expect(codigo).not.toMatch(/fipe/i);
     const resultado = lerCodigo("src/components/ResultadoDoProfiler.tsx");
+    for (const [nome, fonte] of [["CarMatch", codigo], ["ResultadoDoProfiler", resultado]]) {
+      expect(fonte, nome).not.toMatch(/fipe/i);
+    }
     expect(resultado).toContain('href="/avaliacao"');
-    // A regra de publicidade de crédito: parcela com CET e total, sempre juntos.
-    const linha = resultado.slice(resultado.indexOf("function LinhaDaParcela"));
-    expect(linha).toContain("CET");
-    expect(linha).toContain("total");
+    // Parcela zero não vai ao consultor como "48× R$ 0".
+    expect(codigo).toContain("!(c.parcela > 0)");
+  });
+
+  it("parcela só aparece pelo texto único de crédito (CDC, art. 54-B)", () => {
+    // Revisão de 27/09: a lista "outros" mostrava parcela sem CET nem total,
+    // e o "total" da ficha e dos cartões era só a soma das parcelas. O texto
+    // mora em `lib/textoDaParcela` e é testado lá; aqui se trava que as telas
+    // não formatam parcela por conta própria.
+    const resultado = lerCodigo("src/components/ResultadoDoProfiler.tsx");
+    expect(resultado).not.toContain("parcela_mensal");
+    expect(resultado).toContain("textoDaParcela(parcela)");
+    expect(resultado).toContain("textoDaParcela(parcelaDoPedido(v, parcelaPedida)).compacto");
+    const ficha = lerCodigo("src/components/CalculadoraFinanciamento.tsx");
+    expect(ficha).toContain("textoDaParcela({");
+    expect(ficha).not.toMatch(/total_pago_ao_final\.toLocaleString/);
+    expect(ficha).toContain("AVISO_DA_SIMULACAO");
   });
 
   it("a pergunta 01 nunca fica sem opção clicável", () => {

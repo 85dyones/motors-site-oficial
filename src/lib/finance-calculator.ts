@@ -29,30 +29,44 @@ export const ANO_DE_REFERENCIA_DAS_TAXAS = 2026;
  *
  * Fonte: Banco Central, "Taxas de juros de operações de crédito", modalidade
  * Aquisição de veículos – Prefixado, Pessoa Física (API Olinda `taxaJuros`,
- * `TaxasJurosDiariaPorInicioPeriodo`), média das janelas de 10/07 a
- * 11/09/2026, consultada em 27/09/2026. Doze instituições que financiam
- * seminovo em loja multimarca — ficaram de fora os bancos de montadora (taxa
- * promocional de carro novo da marca) e os regionais:
+ * `TaxasJurosDiariaPorInicioPeriodo`), média das 41 janelas de 10/07 a
+ * 11/09/2026, consultada em 27/09/2026.
  *
- *   Caixa 1,05 · Safra 1,69 · Banco do Brasil 1,78 · Santander 1,86 ·
- *   Porto 1,94 · Bradesco Financiamentos 1,95 · C6 1,96 · Itaú 2,06 ·
- *   BV 2,27 · Omni 2,27 · Pan 2,88 · Daycoval 3,24   (% a.m.)
+ * Critério da amostra, escrito para não ser escolha a dedo: entra toda
+ * instituição da modalidade MENOS os bancos de montadora (taxa promocional do
+ * carro novo da marca, de caminhão ou de moto) e os bancos públicos
+ * regionais, e só quem tem taxa em pelo menos metade das janelas. A primeira
+ * versão escolhia os bancos à mão, e deixou de fora financeiras de usado caras
+ * (Finamax, Agoracred, Omni CFI) — o que puxava a estimativa para baixo, a
+ * favor da loja (revisão de 27/09). Dezoito instituições, em % a.m.:
  *
- *   média 2,08 · mediana 1,95 · 1º quartil 1,84 · 3º quartil 2,27
+ *   Caixa 1,05 · Safra 1,69 · Inter 1,71 · Bradesco 1,76 · BB 1,78 ·
+ *   Sinosserra 1,84 · Santander 1,86 · Porto 1,94 · Bradesco Financ. 1,95 ·
+ *   C6 1,96 · Brasileiro de Crédito 2,01 · Itaú 2,06 · BV 2,27 ·
+ *   Agoracred 2,84 · Pan 2,88 · Finamax 3,21 · Daycoval 3,24 · Omni CFI 3,34
+ *
+ *   média 2,19 · mediana 1,95 · 1º quartil 1,79 · 3º quartil 2,70
  *
  * Perfil bom fica no 1º quartil, o regular na mediana, o de risco no 3º
  * quartil. O número do BC mistura carro novo e usado, e seminovo costuma sair
- * mais caro que a média — por isso a tela sempre diz que é estimativa e que a
+ * mais caro que a média — por isso a tela sempre diz que é simulação e que a
  * taxa depende da análise. Revisar junto com `ANO_DE_REFERENCIA_DAS_TAXAS`.
  */
 export const TAXAS_ESTIMADAS = {
-  excelente: 0.0184,
+  excelente: 0.0179,
   regular: 0.0195,
-  risco: 0.0227,
+  risco: 0.027,
 } as const;
 
 /** De quando são as taxas acima — vai no aviso da tela. */
-export const REFERENCIA_DAS_TAXAS = "média de 12 bancos, Banco Central, jul–set/2026";
+export const REFERENCIA_DAS_TAXAS = "média de 18 instituições, Banco Central, jul–set/2026";
+
+/**
+ * A partir desta idade o carro sai do último degrau da pontuação. É também
+ * onde a estimativa merece mais cautela: aprovação e taxa variam mais de
+ * banco para banco, e a tela diz isso no cartão.
+ */
+export const IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS = 5;
 
 export interface SimulationParams {
   vehiclePrice: number;
@@ -107,7 +121,7 @@ export function calculateFinancing(params: SimulationParams): SimulationResult {
   // Pontos Idade do Carro
   if (idade_carro <= 0) {
     pontos += 30;
-  } else if (idade_carro >= 1 && idade_carro <= 5) {
+  } else if (idade_carro >= 1 && idade_carro <= IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS) {
     pontos += 15;
   }
   
