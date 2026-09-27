@@ -46,7 +46,7 @@
 export type ModoDoPerfil = "carros" | "aviso" | "ajuda";
 
 /** A aba de orçamento que ele usou: faixas prontas, valor exato ou "descrever". */
-export type AbaDoOrcamento = "presets" | "custom" | "ai";
+export type AbaDoOrcamento = "presets" | "custom" | "porMes" | "ai";
 
 /**
  * Onde o carro apareceu na tela do resultado: os três cartões e a carta "Já
@@ -77,6 +77,20 @@ export interface CarroDoPerfil {
   lugar: LugarDoCarro | null;
   manchete: string;
   pesa_contra: string | null;
+  /** POR MÊS: a parcela estimada que a tela mostrou; `null` fora dele. */
+  parcela: number | null;
+}
+
+/**
+ * A aba POR MÊS, como o cliente a respondeu. A entrada é a ESTIMATIVA dele —
+ * o dinheiro e o que espera da troca —, e não avaliação da loja.
+ */
+export interface PorMesDoPerfil {
+  parcela: number | null;
+  entrada: number | null;
+  prazo: number | null;
+  ocupacao: string;
+  troca: boolean;
 }
 
 export interface PerfilDoLead {
@@ -93,6 +107,8 @@ export interface PerfilDoLead {
   /** Quantos carros passavam em tudo na faixa; `null` quando a busca falhou. */
   na_faixa: number | null;
   carros: CarroDoPerfil[];
+  /** `null` quando a pessoa respondeu o orçamento em preço, e nos leads de antes do POR MÊS. */
+  por_mes: PorMesDoPerfil | null;
 }
 
 /** O canal que o Profiler escreve no corpo — é o que separa esta forma das outras. */
@@ -139,7 +155,7 @@ export const ROTULO_DO_AFROUXADO: Record<FiltroAfrouxado, string> = {
 };
 
 /** A aba não aparece no card; a lista só diz quais valores gravar. */
-const ABAS_DO_ORCAMENTO: readonly string[] = ["presets", "custom", "ai"] satisfies AbaDoOrcamento[];
+const ABAS_DO_ORCAMENTO: readonly string[] = ["presets", "custom", "porMes", "ai"] satisfies AbaDoOrcamento[];
 
 // ---------------------------------------------------------------------------
 // Tetos
@@ -275,6 +291,7 @@ function carros(v: unknown): CarroDoPerfil[] {
       lugar: ehLugar(lugar) ? lugar : null,
       manchete: texto(campo(bruto, "manchete"), TETOS.frase),
       pesa_contra: texto(campo(bruto, "pesa_contra"), TETOS.frase) || null,
+      parcela: numero(campo(bruto, "parcela")),
     });
   }
   return saida;
@@ -310,6 +327,23 @@ function normalizar(bruto: Record<string, unknown>): PerfilDoLead {
     // Contagem é inteira: "2,5 carros na faixa" só pode ser número forjado.
     na_faixa: naFaixa !== null && Number.isInteger(naFaixa) ? naFaixa : null,
     carros: carros(campo(bruto, "carros")),
+    por_mes: porMes(campo(bruto, "por_mes")),
+  };
+}
+
+/** A aba POR MÊS: só com parcela legível; o resto, campo a campo. */
+function porMes(v: unknown): PorMesDoPerfil | null {
+  if (!ehObjetoSimples(v)) return null;
+  const parcela = numero(campo(v, "parcela"));
+  if (parcela === null || parcela === 0) return null;
+  const prazo = numero(campo(v, "prazo"));
+  return {
+    parcela,
+    entrada: numero(campo(v, "entrada")),
+    // Prazo é contagem de meses: inteiro, e nada acima de 10 anos.
+    prazo: prazo !== null && Number.isInteger(prazo) && prazo <= 120 ? prazo : null,
+    ocupacao: texto(campo(v, "ocupacao"), TETOS.rotulo),
+    troca: campo(v, "troca") === true,
   };
 }
 
@@ -330,7 +364,8 @@ function temConteudo(p: PerfilDoLead): boolean {
       p.perfil.leva ||
       p.perfil.cambio ||
       p.perfil.jeitos.length ||
-      p.perfil.nao_pode_faltar.length,
+      p.perfil.nao_pode_faltar.length ||
+      p.por_mes !== null,
   );
 }
 

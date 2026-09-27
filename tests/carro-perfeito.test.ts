@@ -355,6 +355,25 @@ describe("4 · o quiz pergunta as cinco — e só o que separa carro", () => {
     expect(codigo).not.toMatch(/trackCarMatch\((?!ids, )/);
   });
 
+  it("POR MÊS: a aba responde a 01 pela parcela, e a busca e o lead levam a parcela", () => {
+    // Decisões do dono em 25/09: taxas estimadas pela média de mercado; a
+    // entrada é a estimativa do cliente (dinheiro e o que ele espera da
+    // troca); a FIPE da troca nunca entra na conta.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).toContain('{ id: "porMes", rotulo: "POR MÊS" }');
+    expect(codigo).toContain("orcamento: { ...perfilAtual.orcamento, parcela: perfilAtual.parcela ?? null }");
+    expect(codigo).toMatch(/por_mes: answers\.porMes/);
+    expect(codigo).toContain("parcela: c.parcela,");
+    // A troca é só um aviso ao consultor e o link da avaliação — nada de FIPE.
+    expect(codigo).not.toMatch(/fipe/i);
+    const resultado = lerCodigo("src/components/ResultadoDoProfiler.tsx");
+    expect(resultado).toContain('href="/avaliacao"');
+    // A regra de publicidade de crédito: parcela com CET e total, sempre juntos.
+    const linha = resultado.slice(resultado.indexOf("function LinhaDaParcela"));
+    expect(linha).toContain("CET");
+    expect(linha).toContain("total");
+  });
+
   it("a pergunta 01 nunca fica sem opção clicável", () => {
     // O defeito que o dono relatou duas vezes, e que reproduzi no navegador:
     // `budgetRanges` nascia `[]` e a tela desenhava, no lugar das faixas,

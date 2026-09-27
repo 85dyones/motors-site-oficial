@@ -93,3 +93,35 @@ describe("o perfil da fase 2", () => {
     expect(r.filtros).toEqual(["até R$ 115 mil", "4 portas ou mais", "só automático", "SUV"]);
   });
 });
+
+describe("POR MÊS na rota", () => {
+  it("a parcela vira a faixa, e o preço sai", async () => {
+    const r = await pedir({
+      perfil: { leva: "familia" },
+      orcamento: { min: 50000, max: 75000, parcela: { max: 1500, entrada: 20000, prazo: 48, ocupacao: "clt" } },
+    });
+    expect(r.filtros).toEqual(["parcela até R$ 1.500/mês em 48×, com R$ 20 mil de entrada", "4 portas ou mais"]);
+  });
+
+  it("parcela forjada é ignorada: volta a faixa de preço", async () => {
+    for (const parcela of [
+      { max: 1500, entrada: 20000, prazo: 47 },
+      { max: 99, entrada: 0, prazo: 48 },
+      { max: 1e9, entrada: 0, prazo: 48 },
+      { max: "mil", entrada: 0, prazo: 48 },
+      { max: 1500, entrada: -5, prazo: 48 },
+      "1500",
+    ]) {
+      const r = await pedir({ perfil: { leva: "eu" }, orcamento: { min: 0, max: 75000, parcela } });
+      expect(r.filtros, JSON.stringify(parcela)).toEqual(["até R$ 75 mil"]);
+    }
+  });
+
+  it("ocupação fora da lista vira CLT", async () => {
+    const r = await pedir({
+      perfil: {},
+      orcamento: { parcela: { max: 1500, entrada: 20000, prazo: 48, ocupacao: "constructor" } },
+    });
+    expect(r.filtros[0]).toMatch(/^parcela até R\$ 1\.500/);
+  });
+});

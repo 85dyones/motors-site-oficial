@@ -156,6 +156,26 @@ nela a `manchete` lista o que o carro ganha e `pesa_contra` o que muda).
 listas: um nó que concatene o objeto em texto precisa tratá-las, senão sai
 `[object Object]`. A `mensagem` do lead já nomeia os carros em texto corrido.
 
+**POR MÊS (2026-09-27).** Quando o cliente responde o orçamento pela parcela,
+`budgetTab` vem `"porMes"` e `intencao_busca` ganha:
+
+```json
+"por_mes": {
+  "parcela": 1500,
+  "entrada": 20000,
+  "prazo": 48,
+  "ocupacao": "CLT (carteira assinada)",
+  "troca": true
+}
+```
+
+`entrada` é a **estimativa do cliente** (dinheiro e o que ele espera que o
+carro da troca cubra), não avaliação da loja; `troca: true` diz só que há
+carro para avaliar. Cada item de `carros` ganha `parcela` (a estimativa que a
+tela mostrou, pela média de mercado de 12 bancos; `null` fora do POR MÊS), e o
+primeiro filtro vira `"parcela até R$ 1.500/mês em 48×, com R$ 20 mil de
+entrada"`. Fora do POR MÊS, `por_mes` vem `null`.
+
 **Fase 2 (perguntas-fato, 2026-09-25).** `perfil` traz as respostas das
 perguntas 02 a 05 como o cliente as tocou (rótulo, não id); pergunta pulada
 ou não respondida vem `""` ou `[]` — a 03 some para quem leva carga, e a 04

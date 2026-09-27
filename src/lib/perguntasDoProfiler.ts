@@ -19,6 +19,7 @@ import {
   type ItemQueNaoPodeFaltar,
   type Jeito,
   type Leva,
+  type Ocupacao,
   type PerfilDoQuiz,
   type PreferenciaDeCambio,
   type Recomendacao,
@@ -35,6 +36,20 @@ export interface RespostasDoQuiz {
   naoPodeFaltar: ItemQueNaoPodeFaltar[] | null;
   /** Perguntado no resultado, e opcional: prazo não escolhe carro. */
   timeline: "immediate" | "researching" | "future" | "";
+  /**
+   * A aba POR MÊS da 01. Quando vem, ela é a faixa e o orçamento em preço
+   * não vale. `entrada` é a estimativa da própria pessoa (dinheiro e o que
+   * ela espera da troca); `troca` só avisa que há carro — o site não o avalia.
+   */
+  porMes: PorMes | null;
+}
+
+export interface PorMes {
+  parcela: number;
+  entrada: number;
+  prazo: number;
+  ocupacao: Ocupacao;
+  troca: boolean;
 }
 
 export const RESPOSTAS_EM_BRANCO: RespostasDoQuiz = {
@@ -45,6 +60,7 @@ export const RESPOSTAS_EM_BRANCO: RespostasDoQuiz = {
   cambio: "",
   naoPodeFaltar: null,
   timeline: "",
+  porMes: null,
 };
 
 export type EstadoQuiz = "intro" | "q1" | "q2" | "q3" | "q4" | "q5" | "loading" | "results";
@@ -72,6 +88,9 @@ export function tetoDe(budgetMax: number): number | null {
 export function perfilAteOJeito(a: RespostasDoQuiz): PerfilDoQuiz {
   return {
     orcamento: { min: a.budgetMin, max: tetoDe(a.budgetMax) },
+    parcela: a.porMes
+      ? { max: a.porMes.parcela, entrada: a.porMes.entrada, prazo: a.porMes.prazo, ocupacao: a.porMes.ocupacao }
+      : null,
     leva: a.leva || null,
     // Com carga a carroceria já está decidida, e a 03 nem aparece.
     jeitos: a.leva === "carga" ? [] : (a.jeitos ?? []),
@@ -189,9 +208,14 @@ export function comItemAlternado(a: RespostasDoQuiz, item: ItemQueNaoPodeFaltar)
  * e nada mais. Nunca o orçamento, nunca o texto livre, nunca rótulo.
  */
 export function idsDasRespostas(perfil: PerfilDoQuiz): string[] {
-  return [perfil.leva ?? "", ...(perfil.jeitos ?? []), perfil.cambio ?? "", ...(perfil.naoPodeFaltar ?? [])].filter(
-    Boolean,
-  );
+  return [
+    // Só a marca de que a pessoa usou o POR MÊS — nunca a parcela nem a entrada.
+    perfil.parcela ? "por-mes" : "",
+    perfil.leva ?? "",
+    ...(perfil.jeitos ?? []),
+    perfil.cambio ?? "",
+    ...(perfil.naoPodeFaltar ?? []),
+  ].filter(Boolean);
 }
 
 export interface CarroDoLead {
@@ -199,6 +223,8 @@ export interface CarroDoLead {
   lugar: string;
   manchete: string;
   pesaContra: string | null;
+  /** POR MÊS: a parcela estimada deste carro; `null` fora dele. */
+  parcela: number | null;
 }
 
 /**
@@ -219,6 +245,7 @@ export function carrosDoLead(
     lugar: c.lugar,
     manchete: c.manchete,
     pesaContra: c.pesaContra,
+    parcela: c.parcela?.valor ?? null,
   }));
   const coringa = recomendacao.coringa ?? null;
   const daCarta: CarroDoLead[] = coringa
@@ -228,6 +255,7 @@ export function carrosDoLead(
           lugar: "ja-pensou",
           manchete: `Já pensou neste? Contra o ${coringa.comparadoCom}: ${coringa.vantagens.join("; ")}.`,
           pesaContra: coringa.oQueMuda.length > 0 ? `O que muda: ${coringa.oQueMuda.join("; ")}.` : null,
+          parcela: coringa.parcela?.valor ?? null,
         },
       ]
     : [];

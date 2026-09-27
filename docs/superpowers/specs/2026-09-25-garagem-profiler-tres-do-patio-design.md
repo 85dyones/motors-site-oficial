@@ -425,7 +425,42 @@ consultor consegue separar por lead) e não entrou.
 - **Lead pronto.** `leads.perfil` (migração 20260925200000, com aceite) guarda
   o retrato montado no servidor a partir de `intencao_busca`, e o card do
   kanban o mostra (`BlocoDoPerfil`). A rota grava o lead mesmo sem a coluna.
-- Ficaram para depois: fronteira, contador diário do funil e a troca.
+- Ficaram para depois: fronteira e contador diário do funil.
+
+**POR MÊS (27/09), com as respostas do dono de 25/09:** "as taxas são
+estimadas, verifique a média de mercado em pelo menos 5 bancos"; a troca
+"depende, mas geralmente a entrada do cliente estimada"; quantos carros o
+consultor separa "depende também" (fica o limite de hoje, três).
+
+- **Taxas.** Banco Central, "Taxas de juros de operações de crédito",
+  Aquisição de veículos – Prefixado – Pessoa Física, média das janelas de
+  10/07 a 11/09/2026 em 12 instituições que financiam seminovo em loja
+  multimarca (sem bancos de montadora nem regionais): Caixa 1,05 · Safra
+  1,69 · BB 1,78 · Santander 1,86 · Porto 1,94 · Bradesco Financiamentos
+  1,95 · C6 1,96 · Itaú 2,06 · BV 2,27 · Omni 2,27 · Pan 2,88 · Daycoval 3,24
+  (% a.m.). Média 2,08, mediana 1,95, quartis 1,84 e 2,27. O simulador (da
+  ficha e do Profiler) usa 1,84 / 1,95 / 2,27 para perfil bom, regular e de
+  risco — antes eram 1,45 / 1,95 / 2,65, sem fonte. O número do BC mistura
+  novo e usado, e por isso a tela diz sempre "estimativa" e "a taxa depende
+  da análise de crédito".
+- **Ano de referência congelado** (decisão 3): a idade do carro conta de
+  2026, e muda junto com a tabela de taxas, nunca pelo relógio.
+- **CET.** O simulador calculava `(total/financiado)^(1/n) − 1`, que dava
+  menos que a própria taxa (≈ 12% a.a. para 1,95% a.m.); e a calculadora da
+  ficha chamava a taxa mensal de "CET". Agora o CET é a taxa interna de
+  retorno do fluxo (≈ 28,5% a.a. no mesmo caso), e a tela mostra taxa, CET,
+  quantidade e total juntos — o que a regra de publicidade de crédito pede.
+- **A aba.** Parcela que cabe no mês, entrada (estimativa do cliente),
+  "tenho carro para dar na troca", prazo (24 a 60×) e ocupação, que muda a
+  taxa estimada. A faixa é a parcela de cada carro: passa quem cabe na
+  parcela; de 70% a 100% dela é a faixa, e abaixo disso completa com rótulo
+  "SOBRAM R$ X POR MÊS". Cada cartão mostra ≈ parcela, entrada, taxa, CET e
+  total. Quem marcou troca vê "Quanto o seu carro cobre? AVALIAR MEU CARRO"
+  (/avaliacao). A FIPE da troca nunca entra na conta.
+- **Lead.** `intencao_busca.por_mes` (parcela, entrada estimada, prazo,
+  ocupação, troca) e a parcela de cada carro; o card do kanban mostra "Por
+  mês" e "Troca". Caso da Carla (R$ 1.500, R$ 20 mil, família): Kwid 2025 e
+  208 2023 a ≈ 48× R$ 1.298, Ka Sedan 2020 a ≈ R$ 1.206.
 
 ## 7. Finalistas que merecem teste depois
 

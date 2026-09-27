@@ -2,6 +2,7 @@ import type { Veiculo } from "../types";
 import { divergenciaDeCarroceria } from "./coerenciaDoCadastro";
 import { modeloEVersaoParaExibir } from "./estoqueTabela";
 import { nomeTemOAno } from "./nomeDoVeiculo";
+import { calculateFinancing, type SimulationParams, type SimulationResult } from "./finance-calculator";
 import {
   carroceriaDe,
   cilindradaDe,
@@ -185,9 +186,59 @@ export interface Criterios {
   /** Quilometragem máxima — "até 80 mil km". */
   kmMax: number | null;
   diesel: boolean;
+  /**
+   * POR MÊS: a parcela que cabe no mês. Quando existe, ela é a faixa — o
+   * carro passa se a parcela dele (a conta do simulador) couber, e o teto e
+   * o piso de PREÇO ficam de fora.
+   */
+  parcela: ParcelaPedida | null;
   preferencias: readonly ChaveDePreferencia[];
   /** Frases que a tela mostra antes dos carros ("esportivo não temos hoje"). */
   avisos: readonly string[];
+}
+
+export type Ocupacao = SimulationParams["occupation"];
+export const OCUPACOES: readonly Ocupacao[] = ["clt", "publico", "aposentado", "autonomo", "outros"];
+export const PRAZOS_DO_POR_MES = [24, 36, 48, 60] as const;
+
+/**
+ * O que a pessoa disse na aba POR MÊS.
+ *
+ * `entrada` é a estimativa DELA — o dinheiro e o que ela espera que o carro
+ * da troca cubra (decisão do dono em 25/09). O site nunca soma a FIPE da
+ * troca à entrada: quem avalia o carro é a /avaliacao, e o consultor.
+ */
+export interface ParcelaPedida {
+  /** A parcela que cabe no mês: o teto. */
+  max: number;
+  /** Abaixo disto o carro fica "abaixo da faixa" — 70% da parcela, como o VALOR EXATO. */
+  min: number;
+  entrada: number;
+  prazo: number;
+  ocupacao: Ocupacao;
+}
+
+/** A parcela deste carro para este pedido — a mesma conta do simulador da ficha. */
+export function simularParcela(v: Veiculo, p: ParcelaPedida): SimulationResult {
+  const preco = precoDoCarro(v);
+  return calculateFinancing({
+    vehiclePrice: preco,
+    vehicleYear: v.ano,
+    // Entrada maior que o carro não vira parcela negativa: o carro sai à vista.
+    downPaymentValue: Math.min(Math.max(0, p.entrada), preco),
+    installments: p.prazo,
+    occupation: p.ocupacao,
+  });
+}
+
+/** Onde o carro cai na faixa do cliente: o preço, ou a parcela no POR MÊS. */
+function valorNaFaixa(v: Veiculo, c: Criterios): number {
+  return c.parcela ? simularParcela(v, c.parcela).parcela_mensal : precoDoCarro(v);
+}
+
+/** O carro está na faixa (e não abaixo dela)? O teto já passou por `passaNosFiltros`. */
+export function naFaixaDoCliente(v: Veiculo, c: Criterios): boolean {
+  return valorNaFaixa(v, c) >= (c.parcela ? c.parcela.min : c.piso);
 }
 
 /** Picape de trabalho é Utilitário no cadastro (Saveiro Robust, decisão de 27/08). */
@@ -286,6 +337,7 @@ export function criteriosDasRespostas(r: RespostasDoProfiler): Criterios {
     anoMin: null,
     kmMax: null,
     diesel: false,
+    parcela: null,
     preferencias: unicas,
     avisos,
   };
@@ -356,6 +408,8 @@ const CARROCERIAS_DO_JEITO: Record<Jeito, readonly string[]> = {
 
 export interface PerfilDoQuiz {
   orcamento: { min: number; max: number | null };
+  /** POR MÊS — quando vem, é ela que faz a faixa, e `orcamento` é ignorado. */
+  parcela?: { max: number; entrada: number; prazo: number; ocupacao: Ocupacao } | null;
   leva?: Leva | null;
   jeitos?: readonly Jeito[];
   cambio?: PreferenciaDeCambio | null;
@@ -389,9 +443,21 @@ export function criteriosDoPerfil(p: PerfilDoQuiz): Criterios {
     }
   }
 
+  const parcela: ParcelaPedida | null =
+    p.parcela && p.parcela.max > 0
+      ? {
+          max: p.parcela.max,
+          min: Math.round(p.parcela.max * PISO_DO_VALOR_EXATO),
+          entrada: Math.max(0, p.parcela.entrada || 0),
+          prazo: p.parcela.prazo,
+          ocupacao: p.parcela.ocupacao,
+        }
+      : null;
+
   return {
-    piso: Math.max(0, p.orcamento.min || 0),
-    teto: p.orcamento.max && p.orcamento.max > 0 ? p.orcamento.max : null,
+    piso: parcela ? 0 : Math.max(0, p.orcamento.min || 0),
+    teto: parcela ? null : p.orcamento.max && p.orcamento.max > 0 ? p.orcamento.max : null,
+    parcela,
     portas4: p.leva === "familia",
     automatico: p.cambio === "so_automatico",
     carrocerias,
@@ -425,7 +491,7 @@ export function quantosNaFaixa(estoque: readonly Veiculo[], c: Criterios): numbe
 
 /** Os carros dessa conta — para a tela dizer quantos deles têm o item na ficha. */
 export function carrosNaFaixa(estoque: readonly Veiculo[], c: Criterios): Veiculo[] {
-  return estoque.filter((v) => elegivel(v) && passaNosFiltros(v, c) && precoDoCarro(v) >= c.piso);
+  return estoque.filter((v) => elegivel(v) && passaNosFiltros(v, c) && naFaixaDoCliente(v, c));
 }
 
 // ---------------------------------------------------------------------------
@@ -594,6 +660,7 @@ export function elegivel(v: Veiculo): boolean {
 /** Filtros de carro e teto; o piso fica de fora, porque ele só separa faixa. */
 export function passaNosFiltros(v: Veiculo, c: Criterios): boolean {
   if (c.teto !== null && precoDoCarro(v) > c.teto) return false;
+  if (c.parcela && simularParcela(v, c.parcela).parcela_mensal > c.parcela.max) return false;
   if (c.portas4 && !((v.portas ?? 0) >= 4)) return false;
   if (c.automatico && ehAutomatico(v) !== true) return false;
   if (c.carrocerias) {
@@ -628,6 +695,30 @@ export interface CartaoDoMatch {
   pedidos: PedidoNoCartao[];
   atende: number;
   pesaContra: string | null;
+  /** POR MÊS: a parcela estimada, com CET e total — o que a regra de crédito pede junto. */
+  parcela: ParcelaDoCartao | null;
+}
+
+export interface ParcelaDoCartao {
+  valor: number;
+  prazo: number;
+  entrada: number;
+  taxaMes: number;
+  cetAno: number;
+  total: number;
+}
+
+function parcelaDoCartao(v: Veiculo, c: Criterios): ParcelaDoCartao | null {
+  if (!c.parcela) return null;
+  const r = simularParcela(v, c.parcela);
+  return {
+    valor: r.parcela_mensal,
+    prazo: c.parcela.prazo,
+    entrada: Math.min(c.parcela.entrada, precoDoCarro(v)),
+    taxaMes: r.taxa_aplicada_mes_pct,
+    cetAno: r.cet_anual_real_pct,
+    total: r.total_pago_ao_final,
+  };
 }
 
 export interface SugestaoESe {
@@ -650,6 +741,8 @@ export interface Recomendacao {
   eSe: SugestaoESe[];
   /** `false` na faixa "acima de" e no texto livre sem valor: a tela não fala em teto. */
   temTeto: boolean;
+  /** POR MÊS: o que a pessoa disse — a tela fala em parcela, e não em teto de preço. */
+  parcelaPedida: ParcelaPedida | null;
   /** "Já pensou neste?" — ou `null` quando nenhum carro merece a carta. */
   coringa: Coringa | null;
 }
@@ -675,6 +768,7 @@ export interface Coringa {
   oQueMuda: string[];
   /** Custa menos que o piso da faixa: a tela não pode dizer "cabe na sua faixa". */
   abaixoDaFaixa: boolean;
+  parcela: ParcelaDoCartao | null;
 }
 
 const reais = (n: number) => `R$ ${Math.round(n).toLocaleString("pt-BR")}`;
@@ -697,6 +791,10 @@ export function nomeCurto(v: Pick<Veiculo, "marca" | "modelo" | "versao" | "ano"
 
 function filtrosLegiveis(c: Criterios): string[] {
   const saida: string[] = [];
+  if (c.parcela) {
+    const entrada = c.parcela.entrada > 0 ? `, com ${milhares(c.parcela.entrada)} de entrada` : ", sem entrada";
+    saida.push(`parcela até ${reais(c.parcela.max)}/mês em ${c.parcela.prazo}×${entrada}`);
+  }
   if (c.piso > 0 && c.teto !== null) saida.push(`de ${milhares(c.piso)} a ${milhares(c.teto)}`);
   else if (c.teto !== null) saida.push(`até ${milhares(c.teto)}`);
   else if (c.piso > 0) saida.push(`acima de ${milhares(c.piso)}`);
@@ -822,6 +920,11 @@ function explicar(
   if (unicoVencedor(todos, (x) => x.quilometragem, false) === v) vitorias.push("o de menor km");
   const maisBarato = unicoVencedor(todos, precoDoCarro, false) === v;
   if (maisBarato) vitorias.push("o mais barato");
+  // No POR MÊS a pergunta é a parcela: a menor pode não ser a do mais barato
+  // (carro com mais de 5 anos pega taxa maior).
+  const parcelaDe = (x: Veiculo) => (c.parcela ? simularParcela(x, c.parcela).parcela_mensal : 0);
+  const menorParcela = c.parcela !== null && unicoVencedor(todos, parcelaDe, false) === v;
+  if (menorParcela && !maisBarato) vitorias.push("a menor parcela");
   if (unicoCom(todos, (x) => ehAutomatico(x) === true) === v) vitorias.push("o único automático");
   if (unicoCom(todos, (x) => combustivelDe(x).includes("diesel")) === v) vitorias.push("o único diesel");
   if (carroceriaDe(v) && unicoCom(todos, (x) => normalizar(carroceriaDe(x)) === normalizar(carroceriaDe(v))) === v) {
@@ -834,6 +937,9 @@ function explicar(
     manchete = `${frase.charAt(0).toUpperCase()}${frase.slice(1)} ${grupo}.`;
     // No card abaixo da faixa a sobra já está no rótulo, logo acima.
     if (maisBarato && c.teto !== null && !abaixoDaFaixa) manchete += ` Sobram ${reais(c.teto - precoDoCarro(v))} do seu teto.`;
+    if (menorParcela && c.parcela && !abaixoDaFaixa) {
+      manchete += ` Sobram ${reais(c.parcela.max - parcelaDe(v))} por mês.`;
+    }
   } else if (abaixoDaFaixa) {
     // Nunca "passa em tudo": ele passa nos filtros, mas não na faixa de preço.
     manchete = "Passa nos seus filtros e custa menos do que a faixa que você escolheu.";
@@ -874,7 +980,7 @@ function explicar(
     }
   }
 
-  return { veiculo: v, manchete, pedidos, atende, pesaContra };
+  return { veiculo: v, manchete, pedidos, atende, pesaContra, parcela: parcelaDoCartao(v, c) };
 }
 
 // ---------------------------------------------------------------------------
@@ -1039,7 +1145,8 @@ function escolherCoringa(base: readonly Veiculo[], c: Criterios, cartoes: readon
     comparadoCom: nomeCurto(primeiro),
     vantagens: melhor.vantagens,
     oQueMuda: melhor.oQueMuda,
-    abaixoDaFaixa: precoDoCarro(melhor.v) < c.piso,
+    abaixoDaFaixa: !naFaixaDoCliente(melhor.v, c),
+    parcela: parcelaDoCartao(melhor.v, c),
   };
 }
 
@@ -1069,7 +1176,7 @@ const ROTULO_DO_E_SE: Record<ChaveDeFiltro, string> = {
 export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomendacao {
   const base = estoque.filter(elegivel);
   const passam = base.filter((v) => passaNosFiltros(v, c));
-  const naFaixa = ordenar(passam.filter((v) => precoDoCarro(v) >= c.piso), c.preferencias);
+  const naFaixa = ordenar(passam.filter((v) => naFaixaDoCliente(v, c)), c.preferencias);
 
   const tres = escolherTres(naFaixa);
 
@@ -1079,8 +1186,9 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
   // ordenava pela pontuação e completava 115–175 mil com um Soul de R$ 76.900,
   // pulando um X1 que ficava R$ 100 abaixo do piso — achado da revisão.
   const completando = passam
-    .filter((v) => precoDoCarro(v) < c.piso)
-    .sort((a, b) => precoDoCarro(b) - precoDoCarro(a) || pontuacao(b, c.preferencias) - pontuacao(a, c.preferencias))
+    .filter((v) => !naFaixaDoCliente(v, c))
+    // No POR MÊS, "mais perto" é a parcela mais alta dos que sobram.
+    .sort((a, b) => valorNaFaixa(b, c) - valorNaFaixa(a, c) || pontuacao(b, c.preferencias) - pontuacao(a, c.preferencias))
     .slice(0, Math.max(0, 3 - tres.length));
 
   const todos = [...tres, ...completando];
@@ -1094,9 +1202,11 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
 
     const rotuloDoLugar =
       lugar === "abaixo-da-faixa"
-        ? c.teto !== null
-          ? `ABAIXO DA SUA FAIXA · SOBRAM ${reais(c.teto - precoDoCarro(v))}`
-          : "ABAIXO DA SUA FAIXA"
+        ? c.parcela
+          ? `ABAIXO DA SUA FAIXA · SOBRAM ${reais(c.parcela.max - valorNaFaixa(v, c))} POR MÊS`
+          : c.teto !== null
+            ? `ABAIXO DA SUA FAIXA · SOBRAM ${reais(c.teto - precoDoCarro(v))}`
+            : "ABAIXO DA SUA FAIXA"
         : ROTULO_DO_LUGAR[lugar];
 
     return { ...explicar(v, todos, c, naFaixa.length, abaixoDaFaixa), lugar, rotuloDoLugar };
@@ -1119,7 +1229,7 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     for (const filtro of ativos) {
       const frouxo = semFiltro(c, filtro);
       const novos = ordenar(
-        base.filter((v) => !dentro.has(v.id) && passaNosFiltros(v, frouxo) && precoDoCarro(v) >= c.piso),
+        base.filter((v) => !dentro.has(v.id) && passaNosFiltros(v, frouxo) && naFaixaDoCliente(v, c)),
         frouxo.preferencias,
       );
       if (novos.length === 0) continue;
@@ -1143,6 +1253,7 @@ export function recomendar(estoque: readonly Veiculo[], c: Criterios): Recomenda
     avisos: [...c.avisos],
     eSe,
     temTeto: c.teto !== null,
+    parcelaPedida: c.parcela,
     coringa,
   };
 }

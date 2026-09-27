@@ -10,6 +10,8 @@ import {
   ITENS_QUE_NAO_PODEM_FALTAR,
   MAXIMO_DO_QUE_NAO_PODE_FALTAR,
   nomeCurto,
+  OCUPACOES,
+  PRAZOS_DO_POR_MES,
   recomendar,
   semFiltro,
   type ChaveDeFiltro,
@@ -17,6 +19,8 @@ import {
   type ItemQueNaoPodeFaltar,
   type Jeito,
   type Leva,
+  type Ocupacao,
+  type PerfilDoQuiz,
   type PreferenciaDeCambio,
 } from "../../../lib/motorDoMatch";
 
@@ -209,6 +213,25 @@ function daLista<T extends string>(lista: readonly T[], bruto: unknown): T | nul
   return typeof bruto === "string" && (lista as readonly string[]).includes(bruto) ? (bruto as T) : null;
 }
 
+/**
+ * POR MÊS, conferido: parcela de R$ 100 a R$ 50 mil, entrada até R$ 10
+ * milhões, prazo da lista e ocupação da lista (CLT se não veio). Fora disso,
+ * `null` — e a busca cai na faixa de preço, como se a aba não tivesse sido
+ * usada, em vez de filtrar por um número forjado.
+ */
+function parcelaDoCorpo(bruto: unknown): PerfilDoQuiz["parcela"] {
+  if (typeof bruto !== "object" || bruto === null) return null;
+  const p = bruto as Record<string, unknown>;
+  const max = valor(p.max);
+  // Sem entrada é zero; entrada que veio e não é número válido é corpo forjado.
+  const entrada = p.entrada === undefined ? 0 : valor(p.entrada);
+  const prazo = valor(p.prazo);
+  if (max === null || max < 100 || max > 50000) return null;
+  if (entrada === null || entrada > 10_000_000) return null;
+  if (prazo === null || !(PRAZOS_DO_POR_MES as readonly number[]).includes(prazo)) return null;
+  return { max, entrada, prazo, ocupacao: daLista<Ocupacao>(OCUPACOES, p.ocupacao) ?? "clt" };
+}
+
 /** Só os valores da lista, sem repetir, até `maximo`. */
 function listaDaLista<T extends string>(lista: readonly T[], bruto: unknown, maximo: number): T[] {
   if (!Array.isArray(bruto)) return [];
@@ -247,6 +270,7 @@ function criteriosDoCorpo(corpo: Record<string, unknown>): Criterios {
     const p = objeto(corpo.perfil);
     criterios = criteriosDoPerfil({
       orcamento: faixa,
+      parcela: parcelaDoCorpo(orcamento.parcela),
       leva: daLista(LEVAS, p.leva),
       jeitos: listaDaLista(JEITOS, p.jeitos, JEITOS.length),
       cambio: daLista(CAMBIOS, p.cambio),

@@ -553,3 +553,86 @@ describe("fase 2 · o entusiasta acha a Tiguan", () => {
     expect(r.coringa?.oQueMuda.join(" ")).toMatch(/2014/);
   });
 });
+
+describe("fase 2 · POR MÊS: a faixa é a parcela", () => {
+  // A mesma conta do simulador da ficha (`calculateFinancing`), sobre o pátio
+  // de 25/09. A pessoa diz a parcela, a entrada que ela estima e o prazo.
+  const PEDIDOS = [800, 1200, 1500, 2500].flatMap((max) =>
+    [0, 20000, 40000].flatMap((entrada) =>
+      [36, 48, 60].flatMap((prazo) =>
+        ([null, "familia", "carga"] as const).map((leva) => ({ max, entrada, prazo, leva })),
+      ),
+    ),
+  );
+  const RODADAS_POR_MES = PEDIDOS.map((p) => {
+    const criterios = criteriosDoPerfil({
+      orcamento: { min: 0, max: null },
+      leva: p.leva,
+      parcela: { max: p.max, entrada: p.entrada, prazo: p.prazo, ocupacao: "clt" },
+    });
+    return { chave: `${p.max}/mês · ${p.entrada} · ${p.prazo}× · ${p.leva ?? "-"}`, criterios, r: recomendar(ESTOQUE, criterios) };
+  });
+
+  it("nenhum cartão da faixa passa da parcela; o abaixo da faixa diz quanto sobra", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of RODADAS_POR_MES) {
+      for (const cartao of r.cartoes) {
+        const p = cartao.parcela;
+        if (!p) {
+          erros.push(`${chave}: cartão sem parcela`);
+          continue;
+        }
+        if (p.valor > c.parcela!.max + 0.005) erros.push(`${chave}: ${cartao.veiculo.id} passa da parcela`);
+        const abaixo = p.valor < c.parcela!.min;
+        if (abaixo !== (cartao.lugar === "abaixo-da-faixa")) erros.push(`${chave}: ${cartao.veiculo.id} fora do lugar`);
+        if (abaixo && !/SOBRAM R\$ [\d.]+ POR MÊS/.test(cartao.rotuloDoLugar)) erros.push(`${chave}: rótulo sem a sobra`);
+        // A regra de crédito: parcela com CET e total, e o CET acima dos juros.
+        const jurosAoAno = (Math.pow(1 + p.taxaMes / 100, 12) - 1) * 100;
+        if (p.valor > 0 && !(p.cetAno > jurosAoAno)) erros.push(`${chave}: CET abaixo dos juros`);
+        if (p.valor > 0 && !(p.total >= p.valor * p.prazo - 0.01)) erros.push(`${chave}: total errado`);
+      }
+      if (r.coringa?.parcela && r.coringa.parcela.valor > c.parcela!.max + 0.005) erros.push(`${chave}: coringa passa da parcela`);
+      // O preço não é filtro no POR MÊS: nada de teto de preço escondido.
+      if (c.teto !== null || c.piso !== 0) erros.push(`${chave}: POR MÊS com faixa de preço`);
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("o \"e se\" nunca afrouxa a parcela", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of RODADAS_POR_MES) {
+      for (const s of r.eSe) {
+        const depois = recomendar(ESTOQUE, semFiltro(c, s.filtro));
+        for (const cartao of depois.cartoes) {
+          if (cartao.parcela!.valor > c.parcela!.max + 0.005) erros.push(`${chave}: ${s.filtro} furou a parcela`);
+        }
+        if (depois.naFaixa - r.naFaixa !== s.entram) erros.push(`${chave}: ${s.filtro} promete ${s.entram}`);
+      }
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("a contagem antes do toque é a do resultado", () => {
+    for (const { chave, criterios: c, r } of RODADAS_POR_MES) {
+      expect(quantosNaFaixa(ESTOQUE, c), chave).toBe(r.naFaixa);
+    }
+  });
+
+  it("Carla: R$ 1.500 por mês, R$ 20 mil de entrada, família — o caso da spec", () => {
+    const r = recomendar(
+      ESTOQUE,
+      criteriosDoPerfil({
+        orcamento: { min: 0, max: null },
+        leva: "familia",
+        parcela: { max: 1500, entrada: 20000, prazo: 48, ocupacao: "clt" },
+      }),
+    );
+    expect(r.filtros[0]).toBe("parcela até R$ 1.500/mês em 48×, com R$ 20 mil de entrada");
+    // Kwid 2025 e 208 2023, os dois a R$ 58.900: a mesma parcela.
+    const [kwid, p208] = r.cartoes;
+    expect(kwid.veiculo.modelo).toMatch(/Kwid/);
+    expect(p208.veiculo.modelo).toMatch(/208/);
+    expect(Math.round(kwid.parcela!.valor)).toBe(Math.round(p208.parcela!.valor));
+    expect(r.parcelaPedida?.max).toBe(1500);
+  });
+});

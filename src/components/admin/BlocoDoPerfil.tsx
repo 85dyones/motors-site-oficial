@@ -55,8 +55,24 @@ export default function BlocoDoPerfil({ perfil }: { perfil: unknown }) {
   // do orçamento. Repetida na linha de baixo, é ruído.
   const filtros = p.filtros.filter((f) => f !== p.orcamento);
 
+  // POR MÊS: a parcela e a entrada são o que o CLIENTE disse — a entrada
+  // inclui o que ele espera da troca, e é o consultor quem avalia o carro.
+  const pm = p.por_mes;
+  const porMes = pm
+    ? [
+        pm.parcela !== null ? `até ${reais(pm.parcela)}/mês` : "",
+        pm.prazo !== null ? `em ${pm.prazo}×` : "",
+        pm.entrada !== null ? (pm.entrada > 0 ? `entrada ${reais(pm.entrada)} (estimativa dele)` : "sem entrada") : "",
+        pm.ocupacao,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
   const linhas: [string, string][] = [
     ["Orçamento", p.orcamento],
+    ["Por mês", porMes],
+    ["Troca", pm?.troca ? "Tem carro para dar na troca — avaliar" : ""],
     ["Quem vai", leva],
     ["Jeito", jeitos.join(", ")],
     ["Câmbio", cambio],
@@ -104,6 +120,7 @@ export default function BlocoDoPerfil({ perfil }: { perfil: unknown }) {
               <span className="block text-[11px] text-mt-ink">
                 <span className="font-semibold">{c.nome}</span>
                 {c.preco ? <span className="tabular-nums">{` · ${reais(c.preco)}`}</span> : null}
+                {c.parcela ? <span className="tabular-nums">{` · ≈ ${reais(c.parcela)}/mês`}</span> : null}
                 {c.lugar ? <span className="text-mt-neutral-600">{` · ${ROTULO_DO_LUGAR[c.lugar]}`}</span> : null}
               </span>
               {c.manchete && <span className="block">{c.manchete}</span>}

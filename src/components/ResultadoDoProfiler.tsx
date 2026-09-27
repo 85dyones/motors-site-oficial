@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { getVeiculoPdpUrl } from "../lib/supabase";
 import { precoDoCarro } from "../lib/fichaDoMotor";
-import { nomeCurto, type ChaveDeFiltro, type Coringa, type Recomendacao } from "../lib/motorDoMatch";
+import {
+  nomeCurto,
+  simularParcela,
+  type ChaveDeFiltro,
+  type Coringa,
+  type ParcelaDoCartao,
+  type Recomendacao,
+} from "../lib/motorDoMatch";
+import { REFERENCIA_DAS_TAXAS } from "../lib/finance-calculator";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
 
 /**
@@ -41,6 +49,7 @@ export default function ResultadoDoProfiler({
   onAlternar,
   coringaRecusado = false,
   onRecusarCoringa,
+  troca = false,
   prazo = "",
   opcoesDePrazo = [],
   onPrazo,
@@ -58,6 +67,8 @@ export default function ResultadoDoProfiler({
   /** A pessoa disse "NÃO É PRA MIM" à carta: ela some até refazer. */
   coringaRecusado?: boolean;
   onRecusarCoringa?: (id: string) => void;
+  /** POR MÊS com "tenho carro para dar na troca": a tela oferece a avaliação. */
+  troca?: boolean;
   /** O prazo, perguntado aqui desde a fase 2 — opcional, não muda os carros. */
   prazo?: string;
   opcoesDePrazo?: readonly { id: string; titulo: string }[];
@@ -86,6 +97,8 @@ export default function ResultadoDoProfiler({
   }
 
   const { cartoes, outros, naFaixa, filtros, avisos, eSe, temTeto } = recomendacao;
+  // `?? null`: resposta de antes do POR MÊS não traz o campo.
+  const parcelaPedida = recomendacao.parcelaPedida ?? null;
   // `?? null`: uma aba aberta antes do deploy recebe a resposta nova, mas o
   // contrário também acontece por um instante — resposta sem o campo.
   const coringa = coringaRecusado ? null : (recomendacao.coringa ?? null);
@@ -108,12 +121,20 @@ export default function ResultadoDoProfiler({
           {semNaFaixa ? "Nenhum carro passa" : naFaixa === 1 ? "1 carro passa" : `${naFaixa} carros passam`} em
           tudo o que você pediu{filtros.length > 0 ? `: ${filtros.join(" · ")}` : ""}.
           {semNaFaixa && cartoes.length > 0
-            ? " Abaixo, os que passam nos seus filtros e custam menos do que a sua faixa."
+            ? parcelaPedida
+              ? " Abaixo, os que passam nos seus filtros e têm parcela menor do que a sua faixa."
+              : " Abaixo, os que passam nos seus filtros e custam menos do que a sua faixa."
             : ""}
         </p>
         {afrouxados.length > 0 && (
           <p className="m-0 mt-1.5 text-[12px] text-mt-inverso-suave">
             Você afrouxou um filtro para ver mais opções.
+          </p>
+        )}
+        {parcelaPedida && (
+          <p className="m-0 mt-3 text-[12px] leading-relaxed text-mt-inverso-suave">
+            Parcelas estimadas pela {REFERENCIA_DAS_TAXAS}, com IOF e a entrada que você disse. A taxa de verdade
+            depende da análise de crédito.
           </p>
         )}
         {avisos.map((aviso) => (
@@ -136,6 +157,7 @@ export default function ResultadoDoProfiler({
                 <div className="text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
                   <CardVeiculo veiculo={v} href={getVeiculoPdpUrl(v)} />
                 </div>
+                {cartao.parcela && <LinhaDaParcela parcela={cartao.parcela} />}
 
                 <p className="m-0 mt-4 text-[15px] font-extrabold leading-snug">{cartao.manchete}</p>
 
@@ -201,9 +223,11 @@ export default function ResultadoDoProfiler({
           <p className="m-0 text-[15px] font-extrabold leading-snug">
             {semNaFaixa ? "Nenhum carro passa em tudo hoje. E se você afrouxar um filtro?" : "Quer ver mais opções? Afrouxe um filtro."}
           </p>
-          {temTeto && (
+          {(temTeto || parcelaPedida) && (
             <p className="m-0 mt-1.5 text-[12px] leading-relaxed text-mt-inverso-suave">
-              O teto do seu orçamento continua valendo em todas.
+              {parcelaPedida
+                ? "A parcela que você disse continua valendo em todas."
+                : "O teto do seu orçamento continua valendo em todas."}
             </p>
           )}
           <div className="mt-4 flex flex-col gap-2">
@@ -242,7 +266,14 @@ export default function ResultadoDoProfiler({
                 >
                   <span className="text-[13px] font-extrabold">{nomeCurto(v)}</span>
                   <span className="text-[12px] text-mt-inverso-suave">
-                    {[`${v.quilometragem.toLocaleString("pt-BR")} km`, v.cambio, reais(precoDoCarro(v))]
+                    {[
+                      `${v.quilometragem.toLocaleString("pt-BR")} km`,
+                      v.cambio,
+                      reais(precoDoCarro(v)),
+                      parcelaPedida
+                        ? `≈ ${parcelaPedida.prazo}× ${reais(simularParcela(v, parcelaPedida).parcela_mensal)}`
+                        : null,
+                    ]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>
@@ -261,6 +292,25 @@ export default function ResultadoDoProfiler({
           <button type="button" onClick={onAvisar} className="mt-btn mt-foco mt-4 border-2 border-mt-accent text-mt-inverso">
             ME AVISE QUANDO CHEGAR
           </button>
+        </div>
+      )}
+
+      {troca && (
+        <div className="mt-10 max-w-[720px] border-l-2 border-mt-accent pl-4">
+          <p className="m-0 text-[15px] font-extrabold leading-snug">Quanto o seu carro cobre?</p>
+          <p className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-inverso-suave">
+            A entrada acima é a sua estimativa. Avalie o carro com a gente e o consultor ajusta as parcelas com o
+            valor de verdade.
+          </p>
+          <Link
+            href="/avaliacao"
+            target="_blank"
+            rel="noopener"
+            className="mt-btn mt-foco mt-3 inline-flex border-2 border-mt-accent text-mt-inverso no-underline"
+          >
+            AVALIAR MEU CARRO
+            <Seta size={15} />
+          </Link>
         </div>
       )}
 
@@ -350,6 +400,7 @@ function CartaJaPensouNeste({
         <div className="mt-4 text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
           <CardVeiculo veiculo={v} href={getVeiculoPdpUrl(v)} />
         </div>
+        {coringa.parcela && <LinhaDaParcela parcela={coringa.parcela} />}
       </div>
 
       <div className="mt-6 flex flex-col lg:mt-0">
@@ -442,6 +493,33 @@ function Acoes({
       >
         REFAZER CURADORIA
       </button>
+    </div>
+  );
+}
+
+/**
+ * A parcela estimada de um carro, com o que a regra de publicidade de
+ * crédito pede junto: quantidade de parcelas, CET e valor total. É a mesma
+ * conta do simulador da ficha (`calculateFinancing`).
+ */
+function LinhaDaParcela({ parcela }: { parcela: ParcelaDoCartao }) {
+  const dinheiro = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  const pct = (n: number, casas: number) => n.toFixed(casas).replace(".", ",");
+  if (parcela.valor <= 0) {
+    return (
+      <p className="m-0 mt-3 text-[13px] font-extrabold text-mt-inverso">A entrada que você disse cobre o carro.</p>
+    );
+  }
+  return (
+    <div className="mt-3">
+      <p className="m-0 text-[17px] font-extrabold tracking-[-.02em] text-mt-inverso">
+        ≈ {parcela.prazo}× {dinheiro(parcela.valor)}
+      </p>
+      <p className="m-0 mt-1 text-[11px] leading-relaxed text-mt-inverso-suave">
+        {parcela.entrada > 0 ? `entrada ${dinheiro(parcela.entrada)} · ` : "sem entrada · "}
+        taxa estimada {pct(parcela.taxaMes, 2)}% a.m. · CET {pct(parcela.cetAno, 1)}% a.a. · total{" "}
+        {dinheiro(parcela.total)}
+      </p>
     </div>
   );
 }

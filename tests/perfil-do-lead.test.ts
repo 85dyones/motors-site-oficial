@@ -131,10 +131,10 @@ const INTENCAO = {
   },
   na_faixa: 7,
   carros: [
-    { id: "101", nome: "Onix Premier 2021", preco: 72900, lugar: "principal", manchete: "O único com câmera de ré na faixa", pesa_contra: null },
-    { id: "102", nome: "HB20 Platinum 2020", preco: 68500, lugar: "tambem", manchete: "O de menor km: 41 mil", pesa_contra: "Sem câmera de ré" },
-    { id: "103", nome: "T-Cross 200 TSI 2020", preco: 74900, lugar: "outro-caminho", manchete: "O único SUV", pesa_contra: null },
-    { id: "104", nome: "Tiguan 2.0 TSI 2017", preco: 70900, lugar: "ja-pensou", manchete: "Turbo e 4x4 pelo preço de um compacto", pesa_contra: "2017: mais antigo do que você pediu" },
+    { id: "101", nome: "Onix Premier 2021", preco: 72900, lugar: "principal", manchete: "O único com câmera de ré na faixa", pesa_contra: null, parcela: null },
+    { id: "102", nome: "HB20 Platinum 2020", preco: 68500, lugar: "tambem", manchete: "O de menor km: 41 mil", pesa_contra: "Sem câmera de ré", parcela: null },
+    { id: "103", nome: "T-Cross 200 TSI 2020", preco: 74900, lugar: "outro-caminho", manchete: "O único SUV", pesa_contra: null, parcela: null },
+    { id: "104", nome: "Tiguan 2.0 TSI 2017", preco: 70900, lugar: "ja-pensou", manchete: "Turbo e 4x4 pelo preço de um compacto", pesa_contra: "2017: mais antigo do que você pediu", parcela: null },
   ],
 };
 
@@ -169,7 +169,40 @@ describe("montarPerfilDoLead", () => {
       },
       na_faixa: 7,
       carros: INTENCAO.carros,
+      por_mes: null,
     });
+  });
+
+  it("POR MÊS: a parcela, a entrada que o cliente estimou e a troca vão para o card", () => {
+    const p = montarPerfilDoLead(
+      doProfiler({
+        ...INTENCAO,
+        budgetTab: "porMes",
+        por_mes: { parcela: 1500, entrada: 20000, prazo: 48, ocupacao: "CLT (carteira assinada)", troca: true },
+        carros: [{ ...INTENCAO.carros[0], parcela: 1298.4 }],
+      }),
+    )!;
+    expect(p.budgetTab).toBe("porMes");
+    expect(p.por_mes).toEqual({ parcela: 1500, entrada: 20000, prazo: 48, ocupacao: "CLT (carteira assinada)", troca: true });
+    expect(p.carros[0].parcela).toBe(1298.4);
+  });
+
+  it("POR MÊS forjado não vira parcela", () => {
+    for (const por_mes of [
+      "1500",
+      [1500],
+      { parcela: "1500", prazo: 48 },
+      { parcela: -1, prazo: 48 },
+      { parcela: 0, prazo: 48 },
+      { parcela: 1e12, prazo: 48 },
+    ]) {
+      expect(montarPerfilDoLead(doProfiler({ ...INTENCAO, por_mes }))!.por_mes, JSON.stringify(por_mes)).toBeNull();
+    }
+    const torto = montarPerfilDoLead(
+      doProfiler({ ...INTENCAO, por_mes: { parcela: 1500, prazo: 48.5, entrada: -3, troca: "sim", ocupacao: 7 } }),
+    )!.por_mes;
+    // `troca` só é verdade quando é `true` — "sim" não é.
+    expect(torto).toEqual({ parcela: 1500, prazo: null, entrada: null, ocupacao: "", troca: false });
   });
 
   it("outro canal não tem perfil — nem com `intencao_busca` na forma do Profiler", () => {
@@ -312,9 +345,9 @@ describe("montarPerfilDoLead", () => {
       }),
     )!;
     expect(p.carros).toEqual([
-      { id: "12345", nome: "Onix", preco: null, lugar: null, manchete: "", pesa_contra: null },
-      { id: null, nome: "HB20", preco: null, lugar: null, manchete: "", pesa_contra: null },
-      { id: null, nome: "Argo", preco: null, lugar: null, manchete: "", pesa_contra: null },
+      { id: "12345", nome: "Onix", preco: null, lugar: null, manchete: "", pesa_contra: null, parcela: null },
+      { id: null, nome: "HB20", preco: null, lugar: null, manchete: "", pesa_contra: null, parcela: null },
+      { id: null, nome: "Argo", preco: null, lugar: null, manchete: "", pesa_contra: null, parcela: null },
     ]);
   });
 });
@@ -372,7 +405,7 @@ describe("lerPerfilDoLead — o painel não cai por um perfil torto", () => {
       }
     }
     expect(lerPerfilDoLead(tortos[0])!.carros).toEqual([
-      { id: null, nome: "Onix", preco: null, lugar: null, manchete: "", pesa_contra: null },
+      { id: null, nome: "Onix", preco: null, lugar: null, manchete: "", pesa_contra: null, parcela: null },
     ]);
     expect(lerPerfilDoLead(tortos[1])!.perfil).toEqual({ leva: "", jeitos: [], cambio: "", nao_pode_faltar: [] });
     expect(lerPerfilDoLead(tortos[1])!.na_faixa).toBeNull();
@@ -532,7 +565,7 @@ describe("POST /api/leads grava o perfil do Profiler no lead", () => {
     });
     const perfil = lerPerfilDoLead(inserts[0].perfil)!;
     expect(perfil.modo).toBeNull();
-    expect(perfil.carros).toEqual([{ id: null, nome: "Onix", preco: null, lugar: null, manchete: "", pesa_contra: null }]);
+    expect(perfil.carros).toEqual([{ id: null, nome: "Onix", preco: null, lugar: null, manchete: "", pesa_contra: null, parcela: null }]);
   });
 
   it("sem a migração, o lead é gravado de novo sem o perfil — e o aviso nomeia a migração", async () => {

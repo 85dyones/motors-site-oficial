@@ -228,9 +228,15 @@ Consegue verificar se aprova nessas condições?`;
               R$ {result.parcela_mensal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
-              {installments}× · CET a partir de {result.taxa_aplicada_mes_pct.toFixed(2)}% a.m. ({result.perfil_calculado})
+              {/* A taxa de juros e o CET são números diferentes: o rótulo
+                  antigo chamava a taxa de "CET". A regra de publicidade de
+                  crédito pede CET, quantidade e valor total junto da parcela. */}
+              {installments}× · taxa estimada {result.taxa_aplicada_mes_pct.toFixed(2).replace(".", ",")}% a.m. ·
+              CET {result.cet_anual_real_pct.toFixed(1).replace(".", ",")}% a.a.
               <br />
-              Sujeito a aprovação de crédito · IOF incluso
+              Total R${" "}
+              {result.total_pago_ao_final.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ·
+              IOF incluso · média de mercado, sujeita a análise de crédito
             </div>
           </div>
         </div>

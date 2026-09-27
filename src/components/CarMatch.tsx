@@ -27,8 +27,10 @@ import {
   textoDaContagem,
   type EstadoQuiz,
   type IdDaPergunta,
+  type PorMes,
   type RespostasDoQuiz,
 } from "../lib/perguntasDoProfiler";
+import { REFERENCIA_DAS_TAXAS } from "../lib/finance-calculator";
 import {
   carrosNaFaixa,
   criteriosDoPerfil,
@@ -37,13 +39,17 @@ import {
   ITENS_QUE_NAO_PODEM_FALTAR,
   MAXIMO_DO_QUE_NAO_PODE_FALTAR,
   nomeCurto,
+  OCUPACOES,
+  PISO_DO_VALOR_EXATO,
   pisoDoValorExato,
+  PRAZOS_DO_POR_MES,
   PREFERENCIAS,
   type ChaveDeFiltro,
   type ChaveDePreferencia,
   type ItemQueNaoPodeFaltar,
   type Jeito,
   type Leva,
+  type Ocupacao,
   type PerfilDoQuiz,
   type PreferenciaDeCambio,
   type Recomendacao,
@@ -169,6 +175,18 @@ const OPCOES_PRAZO: readonly Opcao<Exclude<AnswerState["timeline"], "">>[] = [
   { id: "future", titulo: "Sem pressa, só olhando", desc: "", resumo: "Sondando" },
 ];
 
+/** Onde os controles do POR MÊS começam. A entrada é da pessoa; o número inicial só dá o ponto de partida. */
+const PORMES_INICIAL: PorMes = { parcela: 1500, entrada: 10000, prazo: 48, ocupacao: "clt", troca: false };
+
+/** Os mesmos rótulos do simulador da ficha (`CalculadoraFinanciamento`). */
+const ROTULO_DA_OCUPACAO: Record<Ocupacao, string> = {
+  clt: "CLT (carteira assinada)",
+  publico: "Funcionário público",
+  aposentado: "Aposentado ou pensionista",
+  autonomo: "Autônomo ou PJ",
+  outros: "Outro",
+};
+
 function formatShort(v: number): string {
   if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
   if (v >= 1000) return `${(v / 1000).toFixed(0)} mil`;
@@ -182,6 +200,13 @@ function formatShort(v: number): string {
  * antiga o imprimia: "até R$ 9007199254.7M" chegava ao WhatsApp da loja na voz
  * do cliente.
  */
+/** "parcela até R$ 1.500/mês em 48×, com R$ 20 mil de entrada". */
+function textoDoPorMes(p: PorMes): string {
+  const parcela = p.parcela.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  const entrada = p.entrada > 0 ? `com R$ ${formatShort(p.entrada)} de entrada` : "sem entrada";
+  return `parcela até ${parcela}/mês em ${p.prazo}×, ${entrada}${p.troca ? " (tenho carro na troca)" : ""}`;
+}
+
 function textoDoOrcamentoDe(min: number, max: number): string {
   const semTeto = !max || max >= Number.MAX_SAFE_INTEGER;
   if (semTeto) return min > 0 ? `acima de R$ ${formatShort(min)}` : "sem teto definido";
@@ -320,7 +345,13 @@ export default function CarMatch() {
     desc: string;
   }
   // Custom budget and upsell settings
-  const [budgetTab, setBudgetTab] = useState<"presets" | "custom" | "ai">("presets");
+  const [budgetTab, setBudgetTab] = useState<"presets" | "custom" | "porMes" | "ai">("presets");
+  /**
+   * A aba POR MÊS enquanto a pessoa mexe — vira resposta só no CONFIRMAR.
+   * A entrada é a estimativa DELA: dinheiro e o que espera da troca (decisão
+   * do dono em 25/09). O site não avalia o carro dela aqui.
+   */
+  const [rascunhoPorMes, setRascunhoPorMes] = useState<PorMes>(PORMES_INICIAL);
   /** `null` = ainda não mexeram no slider; o valor sai da mediana do pátio. */
   const [customMaxBudget, setCustomMaxBudget] = useState<number | null>(null);
   const [allowUpsell, setAllowUpsell] = useState<boolean>(true);
@@ -458,7 +489,8 @@ export default function CarMatch() {
     setAnswers((prev) => ({
       ...prev,
       budgetMin: pisoDoValorExato(orcamentoDoSlider),
-      budgetMax: orcamentoDoSlider
+      budgetMax: orcamentoDoSlider,
+      porMes: null,
     }));
     setTimeout(() => {
       setGameState("q2");
@@ -504,7 +536,10 @@ export default function CarMatch() {
       .join(", ");
 
   const semTeto = tetoDe(answers.budgetMax) === null;
-  const textoDoOrcamento = () => textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax);
+  const textoDoOrcamento = () =>
+    answers.porMes ? textoDoPorMes(answers.porMes) : textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax);
+  /** A 01 foi respondida — por faixa, valor exato, texto ou POR MÊS. */
+  const orcamentoRespondido = answers.budgetMax > 0 || answers.porMes !== null;
 
   const nomeDoQuiz = companySettings?.carMatchTitle || "Garagem Profiler";
 
@@ -547,8 +582,13 @@ export default function CarMatch() {
     // Os marcados em QUERO VER ESTE (a carta "Já pensou neste?" só com FAZ
     // SENTIDO), ou os três — ver `carrosDoLead` em lib/perguntasDoProfiler.
     const carros = carrosDoLead(recomendacao, escolhidos, modoDoLead);
+    // No POR MÊS a pessoa pensa em parcela: a mensagem leva a estimativa junto.
     const nomeComPreco = (c: (typeof carros)[number]) =>
-      `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))})`;
+      c.parcela !== null && answers.porMes
+        ? `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))}, ≈ ${answers.porMes.prazo}× ${formatPrice(c.parcela)})`
+        : `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))})`;
+    // A troca vai dita ao consultor — é ele quem avalia o carro.
+    const troca = answers.porMes?.troca ? " Tenho carro para dar na troca." : "";
     const lista =
       carros.length === 1
         ? `o ${nomeComPreco(carros[0])}`
@@ -560,10 +600,10 @@ export default function CarMatch() {
     const pedido = recomendacao?.filtros.length ? recomendacao.filtros.join(", ") : resumoDoPedido();
     const finalMsg =
       carros.length > 0
-        ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site e quero ver ${lista}. Estão disponíveis?${sufixoRef()}`
+        ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site e quero ver ${lista}. Estão disponíveis?${troca}${sufixoRef()}`
         : modoDoLead === "ajuda"
-          ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site (${pedido}). Podem me mostrar as opções do pátio?${sufixoRef()}`
-          : `Olá! Montei meu perfil no ${nomeDoQuiz} do site e não achei exatamente o que procuro: ${pedido}. Podem me avisar quando chegar um carro assim?${sufixoRef()}`;
+          ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site (${pedido}). Podem me mostrar as opções do pátio?${troca}${sufixoRef()}`
+          : `Olá! Montei meu perfil no ${nomeDoQuiz} do site e não achei exatamente o que procuro: ${pedido}. Podem me avisar quando chegar um carro assim?${troca}${sufixoRef()}`;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).
@@ -594,7 +634,7 @@ export default function CarMatch() {
       canal: "Garagem Match Profiler",
       mensagem: finalMsg,
       perfil_curadoria: {
-        orcamento_maximo: semTeto ? null : answers.budgetMax,
+        orcamento_maximo: semTeto || answers.porMes ? null : answers.budgetMax,
         orcamento_minimo: answers.budgetMin,
         quem_vai: formatLeva(perfilAtual.leva),
         jeito: formatJeitos(perfilAtual.jeitos ?? []).join(", "),
@@ -616,7 +656,7 @@ export default function CarMatch() {
               : answers.timeline === "future"
                 ? "BAIXO"
                 : "NÃO INFORMADO",
-        ticket: !semTeto && answers.budgetMax >= 200000 ? "PREMIUM" : "NORMAL"
+        ticket: !semTeto && !answers.porMes && answers.budgetMax >= 200000 ? "PREMIUM" : "NORMAL"
       },
       cliente: {
         nome: leadData.nome,
@@ -645,6 +685,17 @@ export default function CarMatch() {
           nao_pode_faltar: formatNaoPodeFaltar(perfilAtual.naoPodeFaltar ?? []),
         },
         na_faixa: recomendacao ? recomendacao.naFaixa : null,
+        // A aba POR MÊS, quando usada. A entrada é a estimativa do cliente
+        // (dinheiro e o que ele espera da troca) — não é avaliação nossa.
+        por_mes: answers.porMes
+          ? {
+              parcela: answers.porMes.parcela,
+              entrada: answers.porMes.entrada,
+              prazo: answers.porMes.prazo,
+              ocupacao: ROTULO_DA_OCUPACAO[answers.porMes.ocupacao],
+              troca: answers.porMes.troca,
+            }
+          : null,
         carros: carros.map((c) => ({
           id: c.veiculo.id,
           nome: nomeCurto(c.veiculo),
@@ -652,6 +703,7 @@ export default function CarMatch() {
           lugar: c.lugar,
           manchete: c.manchete,
           pesa_contra: c.pesaContra,
+          parcela: c.parcela,
         })),
       },
       agUid: agUid,
@@ -818,6 +870,7 @@ export default function CarMatch() {
       ...prev,
       budgetMin: 0,
       budgetMax: parsed.budgetMax,
+      porMes: null,
       leva: parsed.leva,
       jeitos: parsed.jeitos.length > 0 ? parsed.jeitos : null,
       cambio: parsed.cambio,
@@ -832,7 +885,16 @@ export default function CarMatch() {
   };
 
   const selectBudget = (range: BudgetRange) => {
-    setAnswers((prev) => ({ ...prev, budgetMin: range.min, budgetMax: range.max }));
+    setAnswers((prev) => ({ ...prev, budgetMin: range.min, budgetMax: range.max, porMes: null }));
+    setTimeout(() => { setGameState("q2"); }, 200);
+  };
+
+  /**
+   * POR MÊS responde a 01 pela parcela. O orçamento em preço fica zerado: a
+   * faixa passa a ser a parcela de cada carro, na conta do simulador.
+   */
+  const confirmarPorMes = () => {
+    setAnswers((prev) => ({ ...prev, budgetMin: 0, budgetMax: 0, porMes: { ...rascunhoPorMes } }));
     setTimeout(() => { setGameState("q2"); }, 200);
   };
 
@@ -919,7 +981,8 @@ export default function CarMatch() {
           cambio: perfilAtual.cambio,
           naoPodeFaltar: perfilAtual.naoPodeFaltar,
         },
-        orcamento: perfilAtual.orcamento,
+        // POR MÊS vai dentro do orçamento: é ele que faz a faixa.
+        orcamento: { ...perfilAtual.orcamento, parcela: perfilAtual.parcela ?? null },
         afrouxar: afrouxados,
         // Quem recusou o rastreamento não manda identificador para a consulta.
         ag_uid: rastreamentoRecusado() ? undefined : getActiveAgUid(),
@@ -966,6 +1029,7 @@ export default function CarMatch() {
   const handleReset = () => {
     setAnswers(RESPOSTAS_EM_BRANCO);
     setBudgetTab("presets");
+    setRascunhoPorMes(PORMES_INICIAL);
     setAllowUpsell(true);
     setAiQuery("");
     setIsAiCuratorActive(false);
@@ -1031,9 +1095,11 @@ export default function CarMatch() {
       {
         numero: "01",
         rotulo: "ORÇAMENTO",
-        valor: answers.budgetMax
-          ? textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax).replace(/^./, (l) => l.toUpperCase())
-          : "",
+        valor: answers.porMes
+          ? `Até ${answers.porMes.parcela.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}/mês`
+          : answers.budgetMax
+            ? textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax).replace(/^./, (l) => l.toUpperCase())
+            : "",
       },
       { numero: "02", rotulo: "QUEM VAI", valor: resumo(OPCOES_LEVA, answers.leva) },
       { numero: "03", rotulo: "JEITO", valor: jeito },
@@ -1183,18 +1249,23 @@ export default function CarMatch() {
                   Qual a faixa de investimento para a próxima garagem?
                 </h2>
 
-                {/* Modo de responder: faixa pronta, valor exato ou texto livre */}
-                <div className="mt-8 flex w-max border-2 border-mt-inverso-regua">
+                {/* Modo de responder: faixa pronta, valor exato, parcela ou texto
+                    livre. Com quatro abas o grupo pode passar da largura do
+                    celular: ele rola sozinho, e a página não. */}
+                <div className="mt-8 max-w-full overflow-x-auto">
+                <div className="flex w-max border-2 border-mt-inverso-regua">
                   {([
                     { id: "presets", rotulo: "FAIXA" },
                     { id: "custom", rotulo: "VALOR EXATO" },
+                    { id: "porMes", rotulo: "POR MÊS" },
                     { id: "ai", rotulo: "DESCREVER" },
                   ] as const).map((aba, i) => (
                     <button
                       key={aba.id}
                       type="button"
                       onClick={() => setBudgetTab(aba.id)}
-                      className={`mt-foco px-5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors lg:px-7 lg:text-[13px] ${
+                      aria-pressed={budgetTab === aba.id}
+                      className={`mt-foco px-3.5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors lg:px-7 lg:text-[13px] ${
                         i > 0 ? "border-l-2 border-mt-inverso-regua" : ""
                       } ${
                         budgetTab === aba.id
@@ -1205,6 +1276,7 @@ export default function CarMatch() {
                       {aba.rotulo}
                     </button>
                   ))}
+                </div>
                 </div>
 
                 {budgetTab === "presets" && (
@@ -1254,6 +1326,115 @@ export default function CarMatch() {
                     </button>
                   </div>
                 )}
+
+                {budgetTab === "porMes" && (() => {
+                  const r = rascunhoPorMes;
+                  const mudar = (m: Partial<PorMes>) => setRascunhoPorMes((atual) => ({ ...atual, ...m }));
+                  const piso = Math.round(r.parcela * PISO_DO_VALOR_EXATO);
+                  // A mesma conta do resultado: quantos têm parcela entre 70%
+                  // e 100% do que a pessoa disse, com os filtros já respondidos.
+                  const n = semContagem ? null : sobramCom({ ...answers, budgetMin: 0, budgetMax: 0, porMes: r });
+                  return (
+                    <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
+                      <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                        PARCELA QUE CABE NO MÊS
+                      </Rotulo>
+                      <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
+                        {formatPrice(r.parcela)}
+                      </div>
+                      <input
+                        type="range"
+                        min={500}
+                        max={5000}
+                        step={50}
+                        value={r.parcela}
+                        onChange={(e) => mudar({ parcela: Number(e.target.value) })}
+                        aria-label="Parcela que cabe no mês"
+                        className="mt-range mt-foco mt-4 [--mt-range-trilho:var(--mt-inverso-regua)]"
+                      />
+
+                      <Rotulo className="mt-7 block text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                        ENTRADA
+                      </Rotulo>
+                      <div className="mt-1.5 text-2xl font-extrabold tracking-[-.03em]">
+                        {r.entrada > 0 ? formatPrice(r.entrada) : "Sem entrada"}
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={150000}
+                        step={1000}
+                        value={r.entrada}
+                        onChange={(e) => mudar({ entrada: Number(e.target.value) })}
+                        aria-label="Entrada"
+                        className="mt-range mt-foco mt-4 [--mt-range-trilho:var(--mt-inverso-regua)]"
+                      />
+                      <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso-suave">
+                        Conte o dinheiro e, se tiver carro para a troca, quanto você espera que ele cubra. É a
+                        sua estimativa: o carro é avaliado com a gente, depois.
+                      </p>
+                      <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-[13px]">
+                        <input
+                          type="checkbox"
+                          checked={r.troca}
+                          onChange={(e) => mudar({ troca: e.target.checked })}
+                          className="mt-foco h-4 w-4 accent-[var(--mt-accent)]"
+                        />
+                        Tenho carro para dar na troca
+                      </label>
+
+                      <Rotulo className="mt-7 block text-[10px] tracking-[.16em] text-mt-inverso-suave">PRAZO</Rotulo>
+                      <div className="mt-2.5 flex w-max border-2 border-mt-inverso-regua">
+                        {PRAZOS_DO_POR_MES.map((prazo, i) => (
+                          <button
+                            key={prazo}
+                            type="button"
+                            onClick={() => mudar({ prazo })}
+                            aria-pressed={r.prazo === prazo}
+                            className={`mt-foco px-4 py-2 text-xs font-extrabold transition-colors ${
+                              i > 0 ? "border-l-2 border-mt-inverso-regua" : ""
+                            } ${r.prazo === prazo ? "bg-mt-accent text-mt-inverso" : "text-mt-inverso-suave hover:text-mt-inverso"}`}
+                          >
+                            {prazo}×
+                          </button>
+                        ))}
+                      </div>
+
+                      <label className="mt-7 block">
+                        <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                          OCUPAÇÃO · MUDA A TAXA ESTIMADA
+                        </Rotulo>
+                        <select
+                          value={r.ocupacao}
+                          onChange={(e) => mudar({ ocupacao: e.target.value as Ocupacao })}
+                          className="mt-campo mt-foco mt-2 w-full border-b-2 border-mt-inverso-regua bg-transparent pb-2 text-mt-inverso"
+                        >
+                          {OCUPACOES.map((o) => (
+                            <option key={o} value={o} className="bg-mt-inverso-fundo">
+                              {ROTULO_DA_OCUPACAO[o]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {n !== null && (
+                        <p className="m-0 mt-7 text-[13px] font-extrabold leading-snug" aria-live="polite">
+                          {n === 0
+                            ? `Nenhum carro do pátio com parcela entre ${formatPrice(piso)} e ${formatPrice(r.parcela)} hoje.`
+                            : `${n === 1 ? "1 carro" : `${n} carros`} com parcela entre ${formatPrice(piso)} e ${formatPrice(r.parcela)}.`}
+                        </p>
+                      )}
+                      <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-inverso-suave">
+                        Parcela estimada pela {REFERENCIA_DAS_TAXAS}, com IOF. A taxa de verdade depende da
+                        análise de crédito.
+                      </p>
+                      <button type="button" onClick={confirmarPorMes} className="mt-btn mt-btn-primario mt-foco mt-6">
+                        CONFIRMAR
+                        <Seta size={15} />
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 {budgetTab === "ai" && (
                   <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
@@ -1444,7 +1625,7 @@ export default function CarMatch() {
 
             {/* No celular o painel fica lá embaixo; a conta que importa
                 acompanha a pergunta. */}
-            {!semContagem && answers.budgetMax > 0 && (
+            {!semContagem && orcamentoRespondido && (
               <div className="sticky bottom-0 z-10 -mx-[18px] mt-6 border-t-2 border-mt-inverso-regua bg-mt-inverso-fundo px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 lg:hidden">
                 <span className="text-[11px] font-extrabold tracking-[.12em]">
                   SOBRAM {restantes.length} DE {carrosDoPatio.length}
@@ -1483,6 +1664,7 @@ export default function CarMatch() {
               recomendacao?.coringa ? coringasRecusados.includes(recomendacao.coringa.veiculo.id) : false
             }
             onRecusarCoringa={recusarCoringa}
+            troca={answers.porMes?.troca ?? false}
             prazo={answers.timeline}
             opcoesDePrazo={OPCOES_PRAZO}
             onPrazo={(id) => escolherPrazo(id as AnswerState["timeline"])}
@@ -1535,7 +1717,7 @@ export default function CarMatch() {
           {composicaoEstoque.length > 0 && (
             <div className="mt-8">
               <Rotulo className="text-[11px] tracking-[.16em]">
-                {answers.budgetMax
+                {orcamentoRespondido
                   ? "O QUE SOBRA COM SUAS RESPOSTAS"
                   : "COMPOSIÇÃO DO ESTOQUE"}
               </Rotulo>
@@ -1575,7 +1757,7 @@ export default function CarMatch() {
               <div className="mt-3.5 flex items-center gap-2.5">
                 <span className="mt-pulso h-2 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
                 <span className="text-[11px] tracking-[.1em] text-mt-neutral-600">
-                  {answers.budgetMax
+                  {orcamentoRespondido
                     ? `SOBRAM ${restantes.length} DE ${carrosDoPatio.length}`
                     : `${carrosDoPatio.length} CARROS NO PÁTIO`}
                 </span>

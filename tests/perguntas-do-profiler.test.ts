@@ -289,3 +289,37 @@ describe("o que sai do quiz", () => {
     });
   });
 });
+
+describe("POR MÊS", () => {
+  const porMes = { parcela: 1500, entrada: 20000, prazo: 48, ocupacao: "clt" as const, troca: true };
+
+  it("a parcela vira a faixa, e o orçamento em preço deixa de valer", () => {
+    // A tela zera o orçamento em preço ao confirmar o POR MÊS; mesmo que um
+    // valor antigo sobrasse, a faixa é a parcela.
+    const a = naFaixa("R$ 75mil a R$ 115mil", { leva: "familia", porMes });
+    const c = criteriosDoPerfil(perfilDe(a, CARROS));
+    expect(c.parcela).toMatchObject({ max: 1500, min: 1050, entrada: 20000, prazo: 48 });
+    expect(c.teto).toBeNull();
+    expect(c.piso).toBe(0);
+    expect(quantosSobram(a, CARROS)).toBe(recomendar(ESTOQUE_DE_25_09, c).naFaixa);
+  });
+
+  it("a busca marca que foi por mês — e não leva parcela, entrada nem troca", () => {
+    const ids = idsDasRespostas(perfilDe({ ...RESPOSTAS_EM_BRANCO, leva: "familia", porMes }, CARROS));
+    expect(ids).toEqual(["por-mes", "familia"]);
+    expect(ids.join(" ")).not.toMatch(/\d/);
+  });
+
+  it("o lead leva a parcela de cada carro escolhido", () => {
+    const r = recomendar(
+      ESTOQUE_DE_25_09,
+      criteriosDoPerfil(perfilDe({ ...RESPOSTAS_EM_BRANCO, leva: "familia", porMes }, CARROS)),
+    );
+    const lead = carrosDoLead(r, [], "carros");
+    expect(lead.length).toBeGreaterThan(0);
+    for (const c of lead) {
+      expect(c.parcela).not.toBeNull();
+      expect(c.parcela!).toBeLessThanOrEqual(1500);
+    }
+  });
+});
