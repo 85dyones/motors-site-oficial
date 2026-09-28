@@ -311,6 +311,49 @@
   background: var(--mt-accent);
 }
 
+/* — régua de duas pontas (`FaixaComCaixas`) —
+   Dois `.mt-range` empilhados no mesmo trilho. O corpo dos dois não recebe
+   ponteiro e só os pegadores recebem: sem isso o input de cima engole o
+   arraste do de baixo. Os trilhos nativos ficam transparentes — o de cima
+   cobriria o trecho escolhido — e o trilho visível é o `::before`, com o
+   `.mt-range-trecho` por cima dele e por baixo dos pegadores. */
+.mt-range-duplo {
+  position: relative;
+  height: 24px;
+}
+.mt-range-duplo::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 11px;
+  height: 2px;
+  background: var(--mt-range-trilho, var(--mt-regua-media));
+}
+.mt-range-duplo .mt-range {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.mt-range-duplo .mt-range::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.mt-range-duplo .mt-range::-moz-range-track {
+  background: transparent;
+}
+.mt-range-duplo .mt-range::-webkit-slider-thumb {
+  pointer-events: auto;
+}
+.mt-range-duplo .mt-range::-moz-range-thumb {
+  pointer-events: auto;
+}
+.mt-range-trecho {
+  position: absolute;
+  top: 11px;
+  height: 2px;
+  background: var(--mt-accent);
+}
+
 /* — foco visível —
    Herdado do DS: contorno de acento, sem raio. */
 .mt-foco:focus-visible {

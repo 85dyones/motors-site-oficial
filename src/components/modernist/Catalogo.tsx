@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { QuickTag, StockOverrides, Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
@@ -11,6 +11,19 @@ import {
   resolveTipoCombustivel,
 } from "../../lib/regrasEstoque";
 import { slugifyTag } from "../../lib/tagUtils";
+import {
+  ajustarFaixa,
+  catalogoDeOpcionais,
+  dentroDaFaixa,
+  enderecoComFiltro,
+  estadoDaUrl,
+  limitesDaRegua,
+  rotuloDaFaixa,
+  SEM_FAIXA,
+  temTodosOsOpcionais,
+  type Faixa,
+  type Ordenacao,
+} from "../../lib/filtrosDoEstoque";
 import {
   CAIXA_DA_BUSCA,
   casaComABusca,
@@ -23,7 +36,9 @@ import {
   rotuloDosResultados,
   termosDaBusca,
 } from "../../lib/vitrine";
-import { CardVeiculo, formatarPreco } from "./primitivos";
+import CampoDeOpcionais from "./CampoDeOpcionais";
+import FaixaComCaixas, { PontaDaFaixa } from "./FaixaComCaixas";
+import { CardVeiculo, formatarKm, formatarPreco } from "./primitivos";
 
 /**
  * Catálogo — tela 02 do design doc.
@@ -42,7 +57,30 @@ import { CardVeiculo, formatarPreco } from "./primitivos";
 
 const PAGINA = 9;
 
-type Ordenacao = "recentes" | "menor-preco" | "menor-km";
+/**
+ * O passo das réguas de preço e de quilometragem.
+ *
+ * É só o passo do ARRASTE: as caixas embaixo de cada régua aceitam o número
+ * exato. Com o estoque de 28/09 (R$ 26.900 a R$ 318.900), dá 59 posições no
+ * preço — fino o bastante para o dedo, sem virar um trilho de mil paradas.
+ */
+const PASSO_DO_PRECO = 5000;
+const PASSO_DO_KM = 5000;
+
+/** As três faixas do painel, num estado só: mudam juntas no "limpar tudo". */
+interface Faixas {
+  preco: Faixa;
+  km: Faixa;
+  ano: Faixa;
+}
+
+const SEM_FAIXAS: Faixas = { preco: SEM_FAIXA, km: SEM_FAIXA, ano: SEM_FAIXA };
+
+/** O chip de uma faixa, ou nenhum quando ela não filtra. */
+function chipDaFaixa(chave: keyof Faixas, faixa: Faixa, formatar: (n: number) => string) {
+  const rotulo = rotuloDaFaixa(faixa, formatar);
+  return rotulo ? [{ chave, valor: "", rotulo }] : [];
+}
 
 const ORDENACOES: { id: Ordenacao; rotulo: string }[] = [
   { id: "recentes", rotulo: "MAIS RECENTES" },
@@ -54,19 +92,19 @@ interface GrupoFiltro {
   chave: string;
   titulo: string;
   opcoes: { valor: string; rotulo: string; total: number }[];
-  /** Quantas opções mostrar antes de cortar. `Infinity` não corta. */
+  /** Quantas opções mostrar antes do "VER TODAS". */
   limite: number;
 }
 
 /**
- * O corte de opções que MARCA, CÂMBIO, CARROCERIA e COMBUSTÍVEL usam.
+ * Quantas opções um grupo mostra antes do "VER TODAS".
  *
- * Era um `.slice(0, 8)` cru no render, igual para todo grupo — até o ANO
- * quebrar essa premissa. Medido em produção em 16/09: `/estoque` tem 46
- * carros em 15 anos-modelo distintos (2025 a 1976), e o corte em 8 escondia
- * 2014 para trás — exatamente os carros mais em conta, que é o que a
- * pessoa mais busca por ano. ANO passou a usar `Infinity` (sem corte); os
- * outros grupos continuam neste número, sem mudança.
+ * Até 28/09 era um CORTE, sem caminho para o resto: medido no ar naquele dia,
+ * MARCA mostrava 8 das 14 marcas, e Mercedes-Benz, Kia, Hyundai, Toyota,
+ * Peugeot e Mitsubishi não tinham caixa nenhuma — a vitrine escondendo carro,
+ * o que a regra 6 do CLAUDE.md proíbe. O mesmo corte já tinha escondido os
+ * anos de 2014 para trás em 16/09. Agora o grupo abre inteiro num botão, e a
+ * opção marcada fica à vista mesmo com ele fechado.
  */
 const LIMITE_DE_OPCOES_NO_PAINEL = 8;
 
@@ -81,25 +119,25 @@ export default function Catalogo({
 }) {
   const searchParams = useSearchParams();
 
-  // Filtros vindos da busca da home entram como estado inicial
-  const [selecionados, setSelecionados] = useState<Record<string, string[]>>(() => {
-    const inicial: Record<string, string[]> = {};
-    for (const chave of ["marca", "modelo", "ano", "cambio", "carroceria", "combustivel", "destaque"]) {
-      const valor = searchParams.get(chave);
-      if (valor) inicial[chave] = [valor];
-    }
-    return inicial;
+  // O endereço é o estado inicial: a busca da home, o link de campanha ou de
+  // atendimento ("Onix automático até 80 mil"), e o botão voltar depois de
+  // abrir uma ficha. Lido UMA vez; daqui em diante quem escreve no endereço é
+  // o efeito lá embaixo, e não o contrário.
+  const [inicial] = useState(() => estadoDaUrl(searchParams));
+  const [selecionados, setSelecionados] = useState<Record<string, string[]>>(inicial.selecionados);
+  const [faixas, setFaixas] = useState<Faixas>({
+    preco: inicial.preco,
+    km: inicial.km,
+    ano: inicial.ano,
   });
-  const [precoMax, setPrecoMax] = useState<number | null>(() => {
-    const v = searchParams.get("precoMax");
-    return v ? Number(v) : null;
-  });
-  const [ordem, setOrdem] = useState<Ordenacao>("recentes");
+  const [opcionais, setOpcionais] = useState<string[]>(inicial.opcionais);
+  const [ordem, setOrdem] = useState<Ordenacao>(inicial.ordem);
   const [visiveis, setVisiveis] = useState(PAGINA);
-  // A busca por digitação também entra por parâmetro: é o que permite mandar
-  // um link de "Onix automático" pronto, de campanha ou de atendimento.
-  const [busca, setBusca] = useState(() => searchParams.get("q") ?? "");
+  const [busca, setBusca] = useState(inicial.busca);
   const termos = useMemo(() => termosDaBusca(busca), [busca]);
+  // Grupos abertos no "VER TODAS". Estado de tela, não de filtro: não vai
+  // para o endereço.
+  const [gruposAbertos, setGruposAbertos] = useState<string[]>([]);
   // Recolhido é o estado inicial, e é o mesmo nos dois lados da hidratação:
   // nada aqui mede a janela. Quem está no desktop nunca vê diferença — lá o
   // painel não obedece a este estado.
@@ -182,10 +220,21 @@ export default function Catalogo({
 
   const limparTudo = () => {
     setSelecionados({});
-    setPrecoMax(null);
+    setFaixas(SEM_FAIXAS);
+    setOpcionais([]);
     setBusca("");
     setVisiveis(PAGINA);
   };
+
+  const mudarFaixa = (qual: keyof Faixas, faixa: Faixa) => {
+    setFaixas((atuais) => ({ ...atuais, [qual]: faixa }));
+    setVisiveis(PAGINA);
+  };
+
+  const alternarGrupo = (chave: string) =>
+    setGruposAbertos((abertos) =>
+      abertos.includes(chave) ? abertos.filter((c) => c !== chave) : [...abertos, chave],
+    );
 
   const valorDoCampo = (v: Veiculo, chave: string): string => {
     switch (chave) {
@@ -219,9 +268,10 @@ export default function Catalogo({
         return false;
       }
     }
-    if (ignorar !== "preco" && precoMax !== null && precoVigente(v) > precoMax) {
-      return false;
-    }
+    if (ignorar !== "preco" && !dentroDaFaixa(precoVigente(v), faixas.preco)) return false;
+    if (ignorar !== "km" && !dentroDaFaixa(v.quilometragem, faixas.km)) return false;
+    if (ignorar !== "ano" && !dentroDaFaixa(v.ano, faixas.ano)) return false;
+    if (ignorar !== "opcional" && !temTodosOsOpcionais(v, opcionais)) return false;
     // A busca vale também para a contagem ao lado de cada caixa: digitar
     // "onix" e continuar vendo "MARCA · FIAT (7)" seria a lista mentindo
     // sobre o que ela vai mostrar.
@@ -236,7 +286,7 @@ export default function Catalogo({
 
   /** Contagem por opção calculada ignorando o próprio grupo, para o número
       ao lado do rótulo não zerar assim que o usuário marca uma caixa. */
-  const grupos = useMemo<GrupoFiltro[]>(() => {
+  const { grupos, anos, opcoesDeOpcional } = useMemo(() => {
     const contar = (chave: string) => {
       const base = estoque.filter((v) => passaNosFiltros(v, chave));
       const mapa = new Map<string, number>();
@@ -251,8 +301,8 @@ export default function Catalogo({
     };
 
     /**
-     * ANO usa a MESMA contagem de `contar("ano")` — ela já ignora o próprio
-     * grupo e respeita os demais filtros marcados — mas reordena o resultado
+     * ANO usa a MESMA contagem de `contar("ano")` — ela já ignora a própria
+     * faixa e respeita os demais filtros marcados — mas reordena o resultado
      * por valor numérico decrescente.
      *
      * `contar` ordena por popularidade (a contagem, decrescente), o padrão
@@ -260,8 +310,25 @@ export default function Catalogo({
      * o dono pediu "igual à home": lista única, ordem decrescente de ano — não
      * de popularidade, e não alfabética, que compara caractere a caractere e
      * poria "2019" depois de "2107" e antes de "2020".
+     *
+     * A ponta escolhida entra mesmo sem carro (um `?ano=1999` num link
+     * velho): sem ela, a lista mostraria "Mais antigo" com a vitrine vazia, e
+     * a pessoa não teria como ver o que está filtrando.
      */
-    const anos = [...contar("ano")].sort((a, b) => Number(b.valor) - Number(a.valor));
+    const anosComCarro = contar("ano");
+    const pontas = [faixas.ano.min, faixas.ano.max]
+      .filter((ano): ano is number => ano !== null)
+      .map(String)
+      .filter((ano) => !anosComCarro.some((o) => o.valor === ano))
+      .map((ano) => ({ valor: ano, rotulo: ano, total: 0 }));
+    const anos = [...anosComCarro, ...new Map(pontas.map((p) => [p.valor, p])).values()].sort(
+      (a, b) => Number(b.valor) - Number(a.valor),
+    );
+
+    // Contados sobre o que está NA TELA, com os opcionais já escolhidos: a
+    // escolha é "todos", então o número de uma sugestão é quantos carros
+    // sobram se ela entrar.
+    const opcoesDeOpcional = catalogoDeOpcionais(estoque.filter((v) => passaNosFiltros(v)));
 
     const destaques = quickTags
       .map((tag) => {
@@ -277,7 +344,7 @@ export default function Catalogo({
       })
       .filter((o) => o.total > 0);
 
-    return [
+    const grupos: GrupoFiltro[] = [
       {
         chave: "destaque",
         titulo: "DESTAQUES RÁPIDOS",
@@ -296,8 +363,8 @@ export default function Catalogo({
         opcoes: contar("marca"),
         limite: LIMITE_DE_OPCOES_NO_PAINEL,
       },
-      // Sem corte: ver o porquê no comentário de `LIMITE_DE_OPCOES_NO_PAINEL`.
-      { chave: "ano", titulo: "ANO", opcoes: anos, limite: Infinity },
+      // ANO vem logo depois daqui, mas não é grupo de caixas desde 28/09: são
+      // duas listas, DE e ATÉ — ver `blocoDoAno` no render.
       {
         chave: "cambio",
         titulo: "CÂMBIO",
@@ -311,7 +378,28 @@ export default function Catalogo({
         limite: LIMITE_DE_OPCOES_NO_PAINEL,
       },
     ].filter((g) => g.opcoes.length > 0);
-  }, [estoque, selecionados, precoMax, termos, quickTags, stockOverrides]);
+
+    return { grupos, anos, opcoesDeOpcional };
+  }, [estoque, selecionados, faixas, opcionais, termos, quickTags, stockOverrides]);
+
+  // As pontas das réguas vêm do estoque INTEIRO, não do filtrado: a régua que
+  // encolhe a cada caixa marcada move os pegadores debaixo do dedo.
+  const limitesDoPreco = useMemo(
+    () => limitesDaRegua(estoque.map(precoVigente).filter((p) => p > 0), PASSO_DO_PRECO),
+    [estoque],
+  );
+  const limitesDoKm = useMemo(
+    () => limitesDaRegua(estoque.map((v) => v.quilometragem), PASSO_DO_KM),
+    [estoque],
+  );
+  // O nome de cada opcional vem do estoque inteiro: o chip de um opcional
+  // escolhido continua com nome mesmo quando outro filtro tira da tela o
+  // último carro que o tinha.
+  const rotulosDeOpcional = useMemo(
+    () => new Map(catalogoDeOpcionais(estoque).map((o) => [o.chave, o.rotulo])),
+    [estoque],
+  );
+  const rotuloDoOpcional = (chave: string) => rotulosDeOpcional.get(chave) ?? chave;
 
   const filtrados = useMemo(() => {
     const lista = estoque.filter((v) => passaNosFiltros(v));
@@ -323,7 +411,39 @@ export default function Catalogo({
       default:
         return lista;
     }
-  }, [estoque, selecionados, precoMax, termos, ordem]);
+  }, [estoque, selecionados, faixas, opcionais, termos, ordem]);
+
+  /**
+   * O filtro escrito no endereço, a cada mudança.
+   *
+   * Até 28/09 ele vivia só neste componente. Medido no ar: marcar VOLKSWAGEN
+   * (9 carros), abrir uma ficha e voltar devolvia os 37 — o cliente refazia o
+   * filtro a cada carro que abria. Com o filtro no endereço, o voltar do
+   * navegador abre `/estoque?marca=Volkswagen`, e `estadoDaUrl` remonta o
+   * mesmo painel. De brinde, o link copiado é o filtro.
+   *
+   * `replaceState` e não `pushState`: cada caixa marcada não pode virar um
+   * degrau no botão voltar — ele levaria a pessoa de volta pelas próprias
+   * caixas, uma a uma, antes de sair da página. O Next integra as duas
+   * chamadas nativas ao roteador desde a 14.1, sem ida ao servidor.
+   *
+   * `enderecoComFiltro` e não `urlDoEstado` cru: o endereço também carrega
+   * `utm_*`, `gclid` e `fbclid` de quem chegou por anúncio, e o rastreamento
+   * os lê depois da hidratação. Só o que é do painel é reescrito.
+   */
+  useEffect(() => {
+    const query = enderecoComFiltro(window.location.search, {
+      selecionados,
+      ...faixas,
+      opcionais,
+      busca,
+      ordem,
+    });
+    const destino = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    if (destino !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(null, "", destino);
+    }
+  }, [selecionados, faixas, opcionais, busca, ordem]);
 
   const chipsAtivos = [
     ...Object.entries(selecionados).flatMap(([chave, valores]) =>
@@ -333,9 +453,14 @@ export default function Catalogo({
         return { chave, valor, rotulo: (opcao?.rotulo ?? valor).toUpperCase() };
       }),
     ),
-    ...(precoMax !== null
-      ? [{ chave: "preco", valor: "", rotulo: `ATÉ ${formatarPreco(precoMax)}` }]
-      : []),
+    ...chipDaFaixa("ano", faixas.ano, String),
+    ...chipDaFaixa("preco", faixas.preco, formatarPreco),
+    ...chipDaFaixa("km", faixas.km, (km) => formatarKm(km).toUpperCase()),
+    ...opcionais.map((chave) => ({
+      chave: "opcional",
+      valor: chave,
+      rotulo: rotuloDoOpcional(chave).toUpperCase(),
+    })),
     // A busca entra na régua como qualquer outro filtro. Sem isto, o campo
     // some junto com o painel no celular e a vitrine fica recortada sem que
     // nada na tela diga por quê — o mesmo defeito que a contagem de filtros
@@ -346,6 +471,64 @@ export default function Catalogo({
   const totalFiltrado = filtrados.length;
   const mostrando = Math.min(visiveis, totalFiltrado);
   const filtro = painelDeFiltro(filtroAberto);
+
+  /**
+   * ANO em duas listas, DE e ATÉ — pedido do dono em 28/09, "para diminuir
+   * espaço e otimizar o menu". Eram 12 caixas empilhadas.
+   *
+   * Lista nativa, e não calendário: calendário escolhe dia, aqui se escolhe
+   * ano, e no celular a lista nativa abre a roleta do próprio aparelho. O
+   * "DE" / "ATÉ" em cima de cada lista diz de que lado é a ponta, e a opção
+   * vazia é "Qualquer" — "Mais antigo" saía cortado nos 107px do campo.
+   *
+   * Sem régua, `ajustarFaixa` só troca as pontas invertidas.
+   */
+  const escolherAno = (ponta: "min" | "max", valor: string) =>
+    mudarFaixa(
+      "ano",
+      ajustarFaixa({ ...faixas.ano, [ponta]: valor === "" ? null : Number(valor) }, null),
+    );
+  const blocoDoAno = anos.length > 0 && (
+    <fieldset className="border-b border-mt-regua-fina pb-4 pt-5">
+      <legend className="mb-3 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
+        ANO
+      </legend>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="min-w-0">
+          <PontaDaFaixa>DE</PontaDaFaixa>
+          <span className="sr-only">Ano mínimo</span>
+          <select
+            value={faixas.ano.min ?? ""}
+            onChange={(e) => escolherAno("min", e.target.value)}
+            className="mt-campo-caixa mt-foco cursor-pointer px-2 text-[13px] font-semibold"
+          >
+            <option value="">Qualquer</option>
+            {anos.map((a) => (
+              <option key={a.valor} value={a.valor}>
+                {a.valor} ({a.total})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="min-w-0">
+          <PontaDaFaixa>ATÉ</PontaDaFaixa>
+          <span className="sr-only">Ano máximo</span>
+          <select
+            value={faixas.ano.max ?? ""}
+            onChange={(e) => escolherAno("max", e.target.value)}
+            className="mt-campo-caixa mt-foco cursor-pointer px-2 text-[13px] font-semibold"
+          >
+            <option value="">Qualquer</option>
+            {anos.map((a) => (
+              <option key={a.valor} value={a.valor}>
+                {a.valor} ({a.total})
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </fieldset>
+  );
 
   return (
     <div className="font-modernist">
@@ -545,14 +728,25 @@ export default function Catalogo({
             )}
           </div>
 
-          {grupos.map((grupo) => (
-            <fieldset key={grupo.chave} className="border-b border-mt-regua-fina pb-4 pt-5">
+          {grupos.map((grupo) => {
+            const marcados = selecionados[grupo.chave] ?? [];
+            const corta = grupo.opcoes.length > grupo.limite;
+            const aberto = gruposAbertos.includes(grupo.chave);
+            // Fechado, o grupo mostra as primeiras E as marcadas: a Mitsubishi
+            // que chegou marcada por um link não pode ficar sem caixa à vista.
+            const naTela =
+              corta && !aberto
+                ? grupo.opcoes.filter((o, i) => i < grupo.limite || marcados.includes(o.valor))
+                : grupo.opcoes;
+            return (
+            <Fragment key={grupo.chave}>
+            <fieldset className="border-b border-mt-regua-fina pb-4 pt-5">
               <legend className="mb-3 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
                 {grupo.titulo}
               </legend>
               <div className="flex flex-col gap-2.5">
-                {grupo.opcoes.slice(0, grupo.limite).map((opcao) => {
-                  const marcado = (selecionados[grupo.chave] ?? []).includes(opcao.valor);
+                {naTela.map((opcao) => {
+                  const marcado = marcados.includes(opcao.valor);
                   return (
                     <label
                       key={opcao.valor}
@@ -580,35 +774,77 @@ export default function Catalogo({
                   );
                 })}
               </div>
+              {/* O botão troca de rótulo e continua no lugar: o foco de quem
+                  o aciona não se perde, ao contrário dos que limpam. */}
+              {corta && (
+                <button
+                  type="button"
+                  aria-expanded={aberto}
+                  onClick={() => alternarGrupo(grupo.chave)}
+                  className="mt-foco mt-3 text-[11px] font-semibold tracking-[.08em] text-mt-accent"
+                >
+                  {aberto ? "VER MENOS" : `VER TODAS (${grupo.opcoes.length})`}
+                </button>
+              )}
             </fieldset>
-          ))}
+            {grupo.chave === "marca" && blocoDoAno}
+            </Fragment>
+            );
+          })}
+          {/* Sem grupo de marca (estoque sem marca preenchida), o ano não
+              pode sumir junto. */}
+          {!grupos.some((g) => g.chave === "marca") && blocoDoAno}
 
-          <div className="py-5">
-            <label
-              htmlFor="faixa-preco"
-              className="mb-3.5 block text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600"
-            >
-              PREÇO MÁXIMO
-            </label>
-            <input
-              id="faixa-preco"
-              type="range"
-              min={50000}
-              max={1000000}
-              step={10000}
-              value={precoMax ?? 1000000}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setPrecoMax(v >= 1000000 ? null : v);
+          {rotulosDeOpcional.size > 0 && (
+            <CampoDeOpcionais
+              catalogo={opcoesDeOpcional}
+              escolhidos={opcionais}
+              rotuloDe={rotuloDoOpcional}
+              onEscolher={(chave) => {
+                setOpcionais((atuais) => (atuais.includes(chave) ? atuais : [...atuais, chave]));
                 setVisiveis(PAGINA);
               }}
-              className="mt-range mt-foco"
+              onRemover={(chave) => {
+                setOpcionais((atuais) => atuais.filter((c) => c !== chave));
+                setVisiveis(PAGINA);
+              }}
             />
-            <div className="mt-3 flex justify-between text-xs font-semibold">
-              <span>R$ 50 mil</span>
-              <span>{precoMax === null ? "Sem teto" : formatarPreco(precoMax)}</span>
-            </div>
-          </div>
+          )}
+
+          {limitesDoPreco && (
+            <FaixaComCaixas
+              titulo="PREÇO"
+              limites={limitesDoPreco}
+              passo={PASSO_DO_PRECO}
+              faixa={faixas.preco}
+              onChange={(faixa) => mudarFaixa("preco", faixa)}
+              formatar={formatarPreco}
+              nomes={{
+                min: "Preço mínimo",
+                max: "Preço máximo",
+                digiteMin: "Digite o preço mínimo",
+                digiteMax: "Digite o preço máximo",
+              }}
+            />
+          )}
+
+          {limitesDoKm && (
+            <FaixaComCaixas
+              titulo="QUILOMETRAGEM"
+              limites={limitesDoKm}
+              passo={PASSO_DO_KM}
+              faixa={faixas.km}
+              onChange={(faixa) => mudarFaixa("km", faixa)}
+              formatar={formatarKm}
+              nomes={{
+                min: "Quilometragem mínima",
+                max: "Quilometragem máxima",
+                digiteMin: "Digite a quilometragem mínima",
+                digiteMax: "Digite a quilometragem máxima",
+              }}
+            />
+          )}
+
 
           {/* A saída do painel no celular, com o resultado já contado.
               Sem ela o cliente que abriu o filtro precisa rolar de volta até o
@@ -620,7 +856,7 @@ export default function Catalogo({
           <button
             type="button"
             onClick={fecharFiltro}
-            className={`mt-btn mt-btn-tinta mt-foco w-full ${filtro.classeDoBotao}`}
+            className={`mt-btn mt-btn-tinta mt-foco mt-5 w-full ${filtro.classeDoBotao}`}
           >
             VER {totalFiltrado} {totalFiltrado === 1 ? "VEÍCULO" : "VEÍCULOS"}
           </button>
@@ -647,7 +883,10 @@ export default function Catalogo({
                   key={`${chip.chave}-${chip.valor}`}
                   type="button"
                   onClick={() => {
-                    if (chip.chave === "preco") setPrecoMax(null);
+                    if (chip.chave === "preco" || chip.chave === "km" || chip.chave === "ano")
+                      mudarFaixa(chip.chave, SEM_FAIXA);
+                    else if (chip.chave === "opcional")
+                      setOpcionais((atuais) => atuais.filter((c) => c !== chip.valor));
                     else if (chip.chave === "busca") setBusca("");
                     else alternar(chip.chave, chip.valor);
                   }}
