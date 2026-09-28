@@ -101,12 +101,13 @@ export const AREAS_DA_HOME: DefinicaoDeArea[] = [
   // A faixa do repasse entrou em 2026-09-25 (spec 2026-09-24 §10, PR 4). Com
   // a ordem salva em produção, `normalizarAreas` a põe logo depois de
   // `faixas_de_preco`, a vizinha que a precede aqui, sem passo no painel. O
-  // lugar definitivo é do dono, na tela A3. Some sozinha com menos de três
-  // carros abertos a todos (`lib/portasDoRepasse.ts`).
+  // lugar definitivo é do dono, na tela A3. Desde 28/09 não some sozinha:
+  // com qualquer número de carros abertos a todos (até três) ela aparece, e
+  // sem nenhum vira só o chamado para o repasse (`lib/portasDoRepasse.ts`).
   {
     id: "repasse",
     nome: "Repasse Motors",
-    descricao: "Três carros de repasse abertos a todos; some com menos de três.",
+    descricao: "Até três carros de repasse abertos a todos; sem carro aberto, chama para o repasse.",
     tipo: "DINÂMICO",
     editarEm: "/admin/repasse",
   },

@@ -3,10 +3,12 @@ import { repasseDeTeste } from "./repasseDeTeste";
 
 /**
  * A regra das portas do repasse (spec 2026-09-24 §10; decisões 2, 3 e 6 do
- * plano do PR 4): a faixa do /estoque com 1 ou mais carros abertos a todos; a
- * da home com os 3 abertos mais recentes, e só com 3 ou mais; e a leitura que
- * troca a pane por lista vazia, registrando a falha para a faixa não sumir
- * sem ninguém saber.
+ * plano do PR 4; ordem do dono de 28/09, "faça aparecer independente do
+ * número"): as duas faixas existem SEMPRE. A do /estoque leva a contagem dos
+ * carros abertos a todos, que pode ser zero; a da home leva até os 3 abertos
+ * mais recentes, que podem ser 0, 1 ou 2; e a leitura troca a pane por lista
+ * vazia, registrando a falha para a faixa sem carros não passar sem ninguém
+ * saber.
  */
 // `falha` é uma caixa, e não o erro solto: só assim o dublê consegue rejeitar
 // com um valor falso (`undefined`), que `if (estado.falha)` deixaria passar.
@@ -26,9 +28,7 @@ vi.mock("../src/lib/leituraDosRepasses", () => ({
 }));
 vi.mock("../src/lib/observabilidade", () => ({ registrarFalha }));
 
-const { CARROS_NA_FAIXA_DA_HOME, faixaNaHome, faixaNoEstoque, lerRepassesDasPortas } = await import(
-  "../src/lib/portasDoRepasse"
-);
+const { faixaNaHome, faixaNoEstoque, lerRepassesDasPortas } = await import("../src/lib/portasDoRepasse");
 
 const AGORA = new Date("2026-09-24T15:00:00Z");
 const aberto = (n: number, aberto_ao_publico_em: string) =>
@@ -76,39 +76,56 @@ beforeEach(() => {
 });
 
 describe("a faixa do /estoque", () => {
-  it("sem carro nenhum, não há faixa", () => {
-    expect(faixaNoEstoque([], AGORA)).toBeNull();
+  it("sem carro nenhum, a faixa existe, com zero abertos", () => {
+    expect(faixaNoEstoque([], AGORA)).toEqual({ abertos: 0 });
   });
 
-  it("com lote mas nenhum aberto a todos, também não: só-lojistas, reservado e vendido não contam", () => {
-    expect(faixaNoEstoque([LOJISTAS, RESERVADO, VENDIDO], AGORA)).toBeNull();
+  it("com lote mas nenhum aberto a todos, também zero: só-lojistas, reservado e vendido não contam", () => {
+    expect(faixaNoEstoque([LOJISTAS, RESERVADO, VENDIDO], AGORA)).toEqual({ abertos: 0 });
   });
 
-  it("um aberto basta, e a contagem é só dos abertos", () => {
+  it("um aberto já conta, e a contagem é só dos abertos", () => {
     expect(faixaNoEstoque([ABERTO_1], AGORA)).toEqual({ abertos: 1 });
     expect(faixaNoEstoque([LOJISTAS, ABERTO_1, RESERVADO, ABERTO_2, VENDIDO], AGORA)).toEqual({ abertos: 2 });
   });
 });
 
 describe("a faixa da home", () => {
-  it("com dois abertos some, mesmo com o lote maior que três", () => {
-    expect(faixaNaHome([LOJISTAS, RESERVADO, ABERTO_1, ABERTO_2], AGORA)).toBeNull();
+  it("sem carro nenhum, a faixa existe, sem carros e com o lote em zero", () => {
+    expect(faixaNaHome([], AGORA)).toEqual({ carros: [], totalNoLote: 0 });
   });
 
-  it("com exatamente três abertos, sai", () => {
-    expect(faixaNaHome([ABERTO_3, ABERTO_1, ABERTO_2], AGORA)?.carros).toHaveLength(CARROS_NA_FAIXA_DA_HOME);
+  it("com lote mas nenhum aberto a todos, sem carros: a faixa não mostra o que o público não pode comprar", () => {
+    // Só-lojistas e reservado entram no lote (2); o vendido fica fora.
+    const faixa = faixaNaHome([LOJISTAS, RESERVADO, VENDIDO], AGORA);
+    expect(faixa.carros).toEqual([]);
+    expect(faixa.totalNoLote).toBe(2);
+  });
+
+  it("com um aberto, só ele", () => {
+    expect(faixaNaHome([LOJISTAS, ABERTO_1], AGORA).carros.map((r) => r.slug)).toEqual([ABERTO_1.slug]);
+  });
+
+  it("com dois abertos, os dois, mesmo com o lote maior que três", () => {
+    const faixa = faixaNaHome([LOJISTAS, RESERVADO, ABERTO_2, ABERTO_1], AGORA);
+    expect(faixa.carros.map((r) => r.slug)).toEqual([ABERTO_1.slug, ABERTO_2.slug]);
+    expect(faixa.totalNoLote).toBe(4);
+  });
+
+  it("com exatamente três abertos, os três", () => {
+    expect(faixaNaHome([ABERTO_3, ABERTO_1, ABERTO_2], AGORA).carros).toHaveLength(3);
   });
 
   it("os três abertos mais recentes, na ordem do lote, qualquer que seja a ordem de entrada", () => {
     const faixa = faixaNaHome([ABERTO_4, LOJISTAS, ABERTO_2, RESERVADO, ABERTO_1, ABERTO_3, VENDIDO], AGORA);
-    expect(faixa?.carros.map((r) => r.slug)).toEqual([ABERTO_1.slug, ABERTO_2.slug, ABERTO_3.slug]);
+    expect(faixa.carros.map((r) => r.slug)).toEqual([ABERTO_1.slug, ABERTO_2.slug, ABERTO_3.slug]);
   });
 
   it("o total do CTA é o lote inteiro, o mesmo número do herói do /repasse", () => {
     // Publicado (aberto ou só-lojistas) e reservado: 4 abertos + 1 + 1. O
     // vendido fica fora, como em `resumoDoLote`.
     const faixa = faixaNaHome([ABERTO_4, LOJISTAS, ABERTO_2, RESERVADO, ABERTO_1, ABERTO_3, VENDIDO], AGORA);
-    expect(faixa?.totalNoLote).toBe(6);
+    expect(faixa.totalNoLote).toBe(6);
   });
 });
 
