@@ -22,6 +22,8 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) =>
     createElement("a", { href, ...resto } as never, children as never),
 }));
+// O botão do WhatsApp do card abre o pré-cadastro, que lê o tema (28/09).
+vi.mock("../src/app/ThemeContext", () => ({ useTheme: () => ({ companySettings: {} }) }));
 
 const { default: CardDoRepasse } = await import("../src/components/repasse/CardDoRepasse");
 
@@ -109,12 +111,13 @@ describe("o card nos quatro estados", () => {
   const html = (r: Repasse) =>
     renderToStaticMarkup(createElement(CardDoRepasse, { repasse: r, whatsappDaLoja: LOJA })).replace(/\s+/g, " ");
 
-  it("aberto: etiqueta, conta, histórico, WhatsApp com a referência e a ficha de estado", () => {
+  it("aberto: etiqueta, conta, histórico, WhatsApp pelo pré-cadastro e a ficha de estado", () => {
     const h = html(ABERTO);
     expect(h).toContain("REPARO ORÇADO");
-    expect(h).toContain(CARD_DO_REPASSE.quero);
-    expect(h).toContain("https://wa.me/5541997372165?text=");
-    expect(h).toContain(encodeURIComponent("Ref.: repasse"));
+    // Botão que abre o modal (28/09), não link: a referência vai na mensagem
+    // montada no envio (`whatsapp-do-repasse-fiacao`).
+    expect(h).toMatch(new RegExp(`<button type="button"[^>]*>.*?${CARD_DO_REPASSE.quero}</button>`));
+    expect(h).not.toContain("wa.me");
     expect(h).toContain(`href="/repasse/${ABERTO.slug}#ficha-de-estado"`);
     expect(h).toContain("Laudo: aprovado, sai a pedido");
     expect(h).toContain("R$ 36.900");

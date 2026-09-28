@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
+import { carroDoWhatsApp } from "../../lib/leadDoRepasse";
 import type { WhatsappDaLoja } from "../../lib/loteDoRepasse";
-import { mensagemDoRepasse } from "../../lib/mensagensDoVeiculo";
 import {
   ANCORA_DA_FICHA_DE_ESTADO,
   ANCORA_DA_LISTA,
@@ -14,20 +14,21 @@ import {
   linhaDoHistoricoNoCard,
 } from "../../lib/paginaDoRepasse";
 import { estadoDoRepasse, etiquetaDoRepasse, type Repasse } from "../../lib/repasse";
-import { linkWhatsApp } from "../../lib/whatsapp";
-import BotaoWhatsApp from "../modernist/BotaoWhatsApp";
 import { Etiqueta, formatarKm } from "../modernist/primitivos";
 import ContaDoRepasse from "./ContaDoRepasse";
+import WhatsAppDoRepasse from "./WhatsAppDoRepasse";
 
 /**
  * O card do repasse (prancha "Card do repasse e estados"). Quatro estados:
  *   - aberto a todos: etiqueta (com laudo, sem laudo, reparo orçado) e
- *     "QUERO ESTE REPASSE" no WhatsApp, com a referência do carro;
+ *     "QUERO ESTE REPASSE", que abre o pré-cadastro e depois o WhatsApp com
+ *     a referência do carro (`WhatsAppDoRepasse`, 28/09);
  *   - só para lojistas: a camada, "CADASTRAR MEU CNPJ" e "AVISE QUANDO ABRIR
  *     PARA TODOS" — sem WhatsApp (decisão 4);
  *   - reservado e vendido: a camada e a lista do repasse, preço apagado.
- * Todo card leva "VER A FICHA DE ESTADO". Sem estado de React: desenha igual
- * no servidor ("já saíram") e dentro da ilha do lote.
+ * Todo card leva "VER A FICHA DE ESTADO". O card não tem estado de React:
+ * desenha igual no servidor ("já saíram") e dentro da ilha do lote; quem tem
+ * estado é o botão do WhatsApp, que é ilha própria.
  */
 export default function CardDoRepasse({
   repasse: r,
@@ -46,7 +47,6 @@ export default function CardDoRepasse({
   const defeitos = r.itens_de_estado.filter((item) => item.foto).length;
   const totalDeFotos = r.web_full_images.length + defeitos;
   const etiqueta = etiquetaDoRepasse(r);
-  const whatsapp = estado === "aberto" ? linkWhatsApp(whatsappDaLoja, mensagemDoRepasse(r, "aberto")) : "";
   const camada =
     estado === "lojistas" ? CARD_DO_REPASSE.soLojistas : estado === "reservado" ? CARD_DO_REPASSE.reservado : estado === "vendido" ? CARD_DO_REPASSE.vendido : null;
 
@@ -105,10 +105,10 @@ export default function CardDoRepasse({
         </div>
         <p className="m-0 mt-2 text-[11px] leading-snug text-mt-neutral-700">{linhaDoHistoricoNoCard(r)}</p>
         <div className="mt-3 flex flex-col items-start gap-3">
-          {estado === "aberto" && whatsapp && (
-            <BotaoWhatsApp href={whatsapp} origem="repasse-card">
+          {estado === "aberto" && (
+            <WhatsAppDoRepasse assunto={{ carro: carroDoWhatsApp(r), estado }} whatsappDaLoja={whatsappDaLoja} origem="repasse-card">
               {CARD_DO_REPASSE.quero}
-            </BotaoWhatsApp>
+            </WhatsAppDoRepasse>
           )}
           {/* Âncora da lista é <a> puro: o card mora no próprio /repasse, e o
               next/link resolveria o hash por pushState, sem `hashchange` — a

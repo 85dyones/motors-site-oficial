@@ -139,6 +139,13 @@ describe("/repasse com carro no lote", () => {
     expect(html).not.toMatch(/n[ãa]o\s+gir/i);
   });
 
+  it("nenhum wa.me direto: o card e as perguntas abrem o pré-cadastro (28/09)", async () => {
+    const html = await servida([ABERTO, LOJISTAS, RESERVADO, VENDIDO]);
+    expect(html).not.toContain("wa.me");
+    expect(html).toMatch(/<button type="button"[^>]*>.*?QUERO ESTE REPASSE<\/button>/);
+    expect(html).toMatch(/<button type="button"[^>]*>.*?PERGUNTAR NO WHATSAPP<\/button>/);
+  });
+
   it("são CINCO nós — cortar o array publicado tem que quebrar aqui", async () => {
     expect(nos(await servida([ABERTO]))).toHaveLength(5);
   });

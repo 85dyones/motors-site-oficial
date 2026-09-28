@@ -104,8 +104,12 @@ async function enviar() {
   }
 }
 
-describe("a ação do captcha nos dois formulários (a outra metade do par)", () => {
-  it.each(["src/components/repasse/ListaDoRepasse.tsx", "src/components/repasse/ExameNoPatio.tsx"])(
+describe("a ação do captcha nos formulários do repasse (a outra metade do par)", () => {
+  it.each([
+    "src/components/repasse/ListaDoRepasse.tsx",
+    "src/components/repasse/ExameNoPatio.tsx",
+    "src/components/repasse/WhatsAppDoRepasse.tsx",
+  ])(
     "%s declara action={ACOES.repasse}",
     (arquivo) => {
       expect(lerCodigo(arquivo)).toMatch(/action=\{ACOES\.repasse\}/);

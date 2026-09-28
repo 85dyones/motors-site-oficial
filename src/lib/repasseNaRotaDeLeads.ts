@@ -9,18 +9,37 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decidirInscricao, type CarroDoExame, type InscricaoNaLista } from "./leadDoRepasse";
 import { ERROS_DO_REPASSE } from "./paginaDoRepasse";
+import { aparecePublicamente, type SituacaoDoRepasse } from "./repasse";
 
-export type ConferenciaDoExame =
-  | { ok: true; carro: CarroDoExame & { id: string; preco: number | null } }
-  | { ok: false; status: 409 | 500; erro: string };
+export type CarroConferido = CarroDoExame & { id: string; preco: number | null };
+
+export type ConferenciaDoExame = { ok: true; carro: CarroConferido } | { ok: false; status: 409 | 500; erro: string };
+
+/**
+ * A linha de `repasses` como carro, ou `null` quando falta o que nomeia o
+ * carro. O `preco` é o valor do Lead na CAPI (decisão (e) da final-review,
+ * 25/09): o pixel manda `carro.preco`, e o servidor lê o mesmo número do
+ * banco, não do corpo. Sem preço válido, `null`, e a CAPI sai sem `value`.
+ */
+function carroDaLinha(linha: Record<string, unknown> | null): CarroConferido | null {
+  const marca = linha?.marca;
+  const modelo = linha?.modelo;
+  const anoModelo = Number(linha?.ano_modelo);
+  if (!linha || typeof marca !== "string" || typeof modelo !== "string" || !Number.isFinite(anoModelo)) return null;
+  const preco = Number(linha.preco);
+  return {
+    id: String(linha.id),
+    marca,
+    modelo,
+    versao: typeof linha.versao === "string" ? linha.versao : null,
+    ano_modelo: anoModelo,
+    preco: Number.isFinite(preco) && preco > 0 ? preco : null,
+  };
+}
 
 /**
  * O exame só vale para carro publicado (decisão 4 do PR 3). Reservado,
  * vendido, arquivado ou id que não existe: 409 com a mensagem da ficha.
- *
- * O `preco` é o valor do Lead na CAPI (decisão (e) da final-review, 25/09):
- * o pixel manda `carro.preco`, e o servidor lê o mesmo número do banco, não
- * do corpo. Sem preço válido, `null`, e a CAPI sai sem `value` como antes.
  */
 export async function carroDoExame(admin: SupabaseClient, repasseId: string): Promise<ConferenciaDoExame> {
   const { data, error } = await admin
@@ -30,24 +49,53 @@ export async function carroDoExame(admin: SupabaseClient, repasseId: string): Pr
     .maybeSingle();
   if (error) return { ok: false, status: 500, erro: ERROS_DO_REPASSE.conferencia };
   const linha = (data ?? null) as Record<string, unknown> | null;
-  const marca = linha?.marca;
-  const modelo = linha?.modelo;
-  const anoModelo = Number(linha?.ano_modelo);
-  if (!linha || linha.situacao !== "publicado" || typeof marca !== "string" || typeof modelo !== "string" || !Number.isFinite(anoModelo)) {
-    return { ok: false, status: 409, erro: ERROS_DO_REPASSE.exameFechado };
+  const carro = linha?.situacao === "publicado" ? carroDaLinha(linha) : null;
+  if (!carro) return { ok: false, status: 409, erro: ERROS_DO_REPASSE.exameFechado };
+  return { ok: true, carro };
+}
+
+/**
+ * O carro do contato pelo WhatsApp (28/09) — o irmão de `carroDoExame` que
+ * não exige "publicado": liga o lead a todo carro que o site ainda mostra
+ * (`aparecePublicamente`: publicado, reservado e vendido na carência), porque
+ * a ficha reservada e a vendida também têm o botão do WhatsApp.
+ *
+ * E NUNCA recusa: carro que não existe, que saiu do ar ou leitura que falhou
+ * devolvem `null`, e o lead entra sem o elo. É a régua da ficha do estoque,
+ * em que o lead nunca segura o visitante a caminho do WhatsApp. O cliente
+ * entra por função para que nem a criação dele, que lança sem a chave de
+ * serviço, derrube o contato.
+ */
+export async function carroDoContato(
+  criarAdmin: () => SupabaseClient,
+  repasseId: string,
+  agora: Date,
+): Promise<CarroConferido | null> {
+  try {
+    const { data, error } = await criarAdmin()
+      .from("repasses")
+      .select("id, situacao, vendido_em, marca, modelo, versao, ano_modelo, preco")
+      .eq("id", repasseId)
+      .maybeSingle();
+    if (error) {
+      console.warn("[Leads API] Carro do WhatsApp não conferido (lead segue sem o elo):", error.message);
+      return null;
+    }
+    const linha = (data ?? null) as Record<string, unknown> | null;
+    const noSite =
+      linha !== null &&
+      aparecePublicamente(
+        {
+          situacao: linha.situacao as SituacaoDoRepasse,
+          vendido_em: typeof linha.vendido_em === "string" ? linha.vendido_em : null,
+        },
+        agora,
+      );
+    return noSite ? carroDaLinha(linha) : null;
+  } catch (erro) {
+    console.warn("[Leads API] Carro do WhatsApp não conferido (lead segue sem o elo):", (erro as Error)?.message);
+    return null;
   }
-  const preco = Number(linha.preco);
-  return {
-    ok: true,
-    carro: {
-      id: String(linha.id),
-      marca,
-      modelo,
-      versao: typeof linha.versao === "string" ? linha.versao : null,
-      ano_modelo: anoModelo,
-      preco: Number.isFinite(preco) && preco > 0 ? preco : null,
-    },
-  };
 }
 
 /**

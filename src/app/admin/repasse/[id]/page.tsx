@@ -4,7 +4,7 @@ import PedidosDeExame from "../../../../components/admin/repasse/PedidosDeExame"
 import { COLUNAS_DO_INSCRITO, inscritoDaLinha, type InscritoDoRepasse } from "../../../../lib/avisosDoRepasse";
 import { validaRepasse } from "../../../../lib/edicaoDoRepasse";
 import { papelPadraoPorEmail } from "../../../../lib/papelPadrao";
-import { COLUNAS_DO_PEDIDO_DE_EXAME, pedidoDeExameDaLinha } from "../../../../lib/pedidosDeExame";
+import { CANAL_DO_PEDIDO_DE_EXAME, COLUNAS_DO_PEDIDO_DE_EXAME, pedidoDeExameDaLinha } from "../../../../lib/pedidosDeExame";
 import { ehStaff, perfisDe } from "../../../../lib/permissoes";
 import { ehIdDeRepasse } from "../../../../lib/repasse";
 import { repasseDoPainelDaLinha } from "../../../../lib/repasseDoPainel";
@@ -43,10 +43,13 @@ export default async function RepassePage({ params }: { params: Promise<{ id: st
 
   // Os pedidos de exame deste carro (spec §4.4). Com a SESSÃO: `leads` é
   // lida por toda a equipe (`leads_leitura_staff`), a mesma régua do Kanban.
+  // Pelo carro E pelo canal: o WhatsApp do repasse também grava `repasse_id`
+  // (28/09), e contato não é pedido de horário.
   const { data: linhasDosPedidos } = await supabase
     .from("leads")
     .select(COLUNAS_DO_PEDIDO_DE_EXAME)
     .eq("repasse_id", id)
+    .eq("canal", CANAL_DO_PEDIDO_DE_EXAME)
     .order("created_at", { ascending: false })
     .limit(50);
   const pedidos = ((linhasDosPedidos ?? []) as unknown as Record<string, unknown>[]).flatMap((linha) => {

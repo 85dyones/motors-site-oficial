@@ -19,7 +19,6 @@ import { patioEmDestaque } from "../../lib/fichaPerdida";
 import { grafoDaPaginaDoRepasse } from "../../lib/grafoDoRepasse";
 import { lerRepassesPublicos } from "../../lib/leituraDosRepasses";
 import { resumoDoLote, type WhatsappDaLoja } from "../../lib/loteDoRepasse";
-import { mensagemDePerguntaDoRepasse } from "../../lib/mensagensDoVeiculo";
 import { nomeComAno } from "../../lib/nomeDoVeiculo";
 import {
   ANCORA_DO_ESTOQUE,
@@ -46,7 +45,6 @@ import type { Repasse } from "../../lib/repasse";
 import { blocoJsonLd } from "../../lib/schemaListagem";
 import { getCachedSettings } from "../../lib/settings";
 import { getEstoque, getVeiculoPdpUrl } from "../../lib/supabase";
-import { linkWhatsApp } from "../../lib/whatsapp";
 import type { Veiculo } from "../../types";
 
 /**
@@ -99,7 +97,6 @@ export default async function PaginaDoRepasse() {
     whatsappRaw: companySettings?.whatsappRaw ?? "",
     whatsapp: companySettings?.whatsapp ?? "",
   };
-  const pergunta = linkWhatsApp(whatsappDaLoja, mensagemDePerguntaDoRepasse());
   const grafo = grafoDaPaginaDoRepasse({
     repasses: resumo.lote,
     perguntas: PERGUNTAS_DO_REPASSE,
@@ -235,7 +232,7 @@ export default async function PaginaDoRepasse() {
           <ListaDoRepasse contexto="pagina" />
         </div>
       )}
-      <PerguntasDoRepasse whatsapp={pergunta} />
+      <PerguntasDoRepasse whatsappDaLoja={whatsappDaLoja} />
     </div>
   );
 }

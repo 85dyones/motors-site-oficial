@@ -16,7 +16,7 @@ import {
 } from "../../../lib/leadDoRepasse";
 import { registrarFalha } from "../../../lib/observabilidade";
 import { ERROS_DO_REPASSE } from "../../../lib/paginaDoRepasse";
-import { carroDoExame, gravarInscricao } from "../../../lib/repasseNaRotaDeLeads";
+import { carroDoContato, carroDoExame, gravarInscricao } from "../../../lib/repasseNaRotaDeLeads";
 import { colunaDoPerfilAusente, montarPerfilDoLead, type PerfilDoLead } from "../../../lib/perfilDoLead";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Dados de contato do cliente ausentes (nome obrigatório)." }, { status: 400 });
     }
 
-    // 2.5 Repasse (spec 2026-09-24 §8) — a lista e o exame no pátio.
+    // 2.5 Repasse (spec 2026-09-24 §8) — a lista, o exame no pátio e, desde
+    // 28/09, o pré-cadastro antes do WhatsApp.
     //
     // Aditivo: só entra quando o canal começa com "repasse", e nenhum campo
     // dos outros canais muda de sentido. A régua é pura
@@ -96,10 +97,15 @@ export async function POST(request: NextRequest) {
     // a equipe, e CNPJ, faixa e tipos de carro ficam fora de `leads`: vão
     // para `repasse_inscritos`, que só quem valida lê (e ao n8n, dentro de
     // `intencao_busca`). Um navegador que mandasse o CNPJ na `mensagem` não
-    // o levaria ao Kanban.
+    // o levaria ao Kanban. O WhatsApp é a exceção: a mensagem dele é a
+    // conversa que a pessoa manda, e o modal não pede nada além do contato.
     let mensagemDoLead: unknown = body.mensagem;
     let repasseIdDoLead: string | null = null;
-    let valorDoExame: number | undefined;
+    // O preço do carro, lido do banco, é o valor do Lead na CAPI (o pixel manda o mesmo).
+    let valorDoRepasse: number | undefined;
+    let interesseDoRepasse: string | null = null;
+    // Só o exame bloqueia quando o lead não grava (5.2.1); o WhatsApp nunca.
+    let exameDoRepasse = false;
     let inscricaoDoRepasse: InscricaoNaLista | null = null;
     if (ehCanalDoRepasse(body.canal)) {
       const decisao = decidirLeadDoRepasse(body, new Date());
@@ -109,6 +115,20 @@ export async function POST(request: NextRequest) {
       if (decisao.pedido.tipo === "lista") {
         inscricaoDoRepasse = decisao.pedido.inscricao;
         mensagemDoLead = MENSAGEM_DA_INSCRICAO[inscricaoDoRepasse.trilha];
+      } else if (decisao.pedido.tipo === "whatsapp") {
+        // O contato pelo WhatsApp (pedido do dono em 28/09) nunca recusa: o
+        // visitante está a caminho do WhatsApp, como na ficha do estoque.
+        // Carro que o site ainda mostra liga o lead a ele, e o interesse é o
+        // nome do carro pela régua do campo (`interesseDoLead`, sem o ano).
+        // Carro que sumiu, saiu do ar ou não deu para ler: o lead entra sem o
+        // elo, e o interesse cai na mensagem, que já nomeia o carro.
+        const { repasseId } = decisao.pedido.contato;
+        const carro = repasseId ? await carroDoContato(createAdminSupabaseClient, repasseId, new Date()) : null;
+        if (carro) {
+          repasseIdDoLead = carro.id;
+          valorDoRepasse = carro.preco ?? undefined;
+          interesseDoRepasse = interesseDoLead({ veiculo: carro });
+        }
       } else {
         // O exame só vale para carro publicado: reservado, vendido ou
         // arquivado não recebe pedido de horário, e o 409 diz isso.
@@ -116,8 +136,9 @@ export async function POST(request: NextRequest) {
         if (!conferido.ok) {
           return NextResponse.json({ error: conferido.erro }, { status: conferido.status });
         }
+        exameDoRepasse = true;
         repasseIdDoLead = conferido.carro.id;
-        valorDoExame = conferido.carro.preco ?? undefined;
+        valorDoRepasse = conferido.carro.preco ?? undefined;
         mensagemDoLead = mensagemDoExame(conferido.carro, decisao.pedido.exame);
       }
     }
@@ -243,11 +264,14 @@ export async function POST(request: NextRequest) {
       // veículo da ficha, senão o que ela digitou, senão a busca que fazia.
       // O nome do veículo sai pela régua da ficha, sem repetir a versão: ver
       // `lib/interesseDoLead.ts`.
-      const interesse = interesseDoLead({
-        veiculo,
-        mensagem: mensagemDoLead,
-        intencaoBusca: intencao_busca,
-      });
+      // O WhatsApp do repasse com o carro conferido já traz o nome dele (2.5).
+      const interesse =
+        interesseDoRepasse ??
+        interesseDoLead({
+          veiculo,
+          mensagem: mensagemDoLead,
+          intencaoBusca: intencao_busca,
+        });
 
       const inserir = (comPerfil: boolean) =>
         supabaseAdmin.from("leads").insert({
@@ -300,8 +324,9 @@ export async function POST(request: NextRequest) {
           ...contextoDeMidiaDoLead(body),
           ...(comPerfil && perfil ? { perfil } : {}),
           // O exame no pátio liga o lead ao carro de repasse (spec §4.4): é
-          // por esta coluna que o pedido aparece no editor do carro. Só o
-          // exame a preenche; nos outros canais a chave nem entra.
+          // por esta coluna, com o canal do exame, que o pedido aparece no
+          // editor do carro. Desde 28/09 o WhatsApp com o carro no site também
+          // a preenche; nos outros canais a chave nem entra.
           ...(repasseIdDoLead ? { repasse_id: repasseIdDoLead } : {}),
         });
 
@@ -337,8 +362,9 @@ export async function POST(request: NextRequest) {
     // para o WhatsApp: ele lê "Pedido enviado" e espera a loja. Se a linha
     // não existe e o n8n também falhou, o pedido sumia sem ninguém saber.
     // Mesma régua do 5.3: triagem, 500, e o return antes da CAPI (o
-    // navegador só mede depois do 2xx). Os outros canais não entram aqui.
-    if (repasseIdDoLead && erroDoLead !== null) {
+    // navegador só mede depois do 2xx). Os outros canais não entram aqui — nem
+    // o WhatsApp do repasse, que também grava `repasse_id` e nunca bloqueia.
+    if (exameDoRepasse && erroDoLead !== null) {
       await registrarFalha("quebra", "repasse-exame", erroDoLead, { rota: "/api/leads", origem: "servidor" });
       return NextResponse.json({ error: ERROS_DO_REPASSE.generico }, { status: 500 });
     }
@@ -402,9 +428,10 @@ export async function POST(request: NextRequest) {
             content_name: veiculo
               ? `${veiculo.marca} ${veiculo.modelo}`
               : body.contentName || undefined,
-            // Exame no pátio: o preço do carro, lido do banco (o pixel manda
-            // o mesmo). Fora dele `valorDoExame` é undefined e vale o de antes.
-            value: valorDoExame ?? veiculo?.preco,
+            // Exame no pátio e WhatsApp do repasse: o preço do carro, lido do
+            // banco (o pixel manda o mesmo). Fora deles `valorDoRepasse` é
+            // undefined e vale o de antes.
+            value: valorDoRepasse ?? veiculo?.preco,
             currency: "BRL",
           },
           pixelId,
