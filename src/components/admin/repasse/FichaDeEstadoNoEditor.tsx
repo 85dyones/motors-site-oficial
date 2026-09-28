@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ITEM_VAZIO, comItem, semItem } from "../../../lib/fichaDeEstado";
 import { BUCKET_DE_FOTOS, caminhoDaFotoDoRepasse, novoLote, validarFoto } from "../../../lib/fotosDoVeiculo";
 import { processarFotoDeVeiculo } from "../../../lib/imageProcessor";
@@ -76,6 +76,29 @@ export default function FichaDeEstadoNoEditor({
   const [erro, setErro] = useState<{ indice: number; mensagem: string } | null>(null);
   const reparo = contaDoRepasse({ preco: 0, fipe_valor: null, itens_de_estado: itens }).reparoOrcado;
 
+  /**
+   * Fora dos quadros, um `drop` de imagem é a navegação padrão do navegador
+   * para o arquivo — substitui a página inteira. Como o editor não salva
+   * sozinho (é botão "Salvar" explícito, sem autosave), errar o alvo ao
+   * arrastar a foto perderia toda edição não salva da ficha sem aviso. Os
+   * quadros mantêm o handler deles (marcados com `data-quadro-da-foto`); este
+   * guard só neutraliza o padrão do navegador para o resto da página.
+   */
+  useEffect(() => {
+    if (!podeEditar) return;
+    const neutralizarForaDoQuadro = (e: DragEvent) => {
+      const alvo = e.target;
+      if (alvo instanceof Element && alvo.closest('[data-quadro-da-foto="true"]')) return;
+      e.preventDefault();
+    };
+    window.addEventListener("dragover", neutralizarForaDoQuadro);
+    window.addEventListener("drop", neutralizarForaDoQuadro);
+    return () => {
+      window.removeEventListener("dragover", neutralizarForaDoQuadro);
+      window.removeEventListener("drop", neutralizarForaDoQuadro);
+    };
+  }, [podeEditar]);
+
   async function enviarFoto(indice: number, arquivo: File) {
     const problema = validarFoto(arquivo);
     if (problema) {
@@ -125,25 +148,30 @@ export default function FichaDeEstadoNoEditor({
           {itens.map((item, i) => {
             const idFoto = `foto-defeito-${i}`;
             const erroDoItem = erro?.indice === i ? erro.mensagem : null;
+            // `sr-only` (não `hidden`/display:none) para o input continuar no
+            // Tab; `peer` para o rótulo visível herdar o anel de foco dele
+            // via `peer-focus-visible`. Um só elemento, repetido nos dois
+            // ramos abaixo (nunca os dois ao mesmo tempo) sempre IMEDIATAMENTE
+            // antes do `<label>` correspondente — é isso que faz o seletor
+            // `peer-focus-visible` do Tailwind (irmão geral) alcançá-lo.
+            const inputDeArquivo = podeEditar && (
+              <input
+                id={idFoto}
+                type="file"
+                accept="image/*"
+                aria-label={`Foto do defeito ${i + 1}`}
+                disabled={enviando !== null}
+                className="peer sr-only"
+                onChange={(e) => {
+                  const arquivo = e.target.files?.[0];
+                  e.target.value = "";
+                  if (arquivo) void enviarFoto(i, arquivo);
+                }}
+              />
+            );
             return (
               <div key={i} className="flex flex-col gap-3 border-l-[3px] border-mt-regua-fina p-3 md:flex-row">
                 <div className="flex w-full flex-col gap-1.5 md:w-40 md:flex-none">
-                  {podeEditar && (
-                    <input
-                      id={idFoto}
-                      type="file"
-                      accept="image/*"
-                      aria-label={`Foto do defeito ${i + 1}`}
-                      disabled={enviando !== null}
-                      className="hidden"
-                      onChange={(e) => {
-                        const arquivo = e.target.files?.[0];
-                        e.target.value = "";
-                        if (arquivo) void enviarFoto(i, arquivo);
-                      }}
-                    />
-                  )}
-
                   {item.foto ? (
                     <div className="flex flex-col gap-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element -- miniatura do painel, foto do nosso bucket */}
@@ -154,9 +182,10 @@ export default function FichaDeEstadoNoEditor({
                       />
                       {podeEditar && (
                         <div className="flex gap-3 text-[10px] font-semibold uppercase tracking-[.06em]">
+                          {inputDeArquivo}
                           <label
                             htmlFor={idFoto}
-                            className={`mt-foco cursor-pointer text-mt-neutral-800 underline hover:text-mt-ink ${
+                            className={`mt-foco cursor-pointer rounded-sm text-mt-neutral-800 underline hover:text-mt-ink peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-mt-accent ${
                               enviando !== null ? "pointer-events-none opacity-40" : ""
                             }`}
                           >
@@ -174,29 +203,33 @@ export default function FichaDeEstadoNoEditor({
                       )}
                     </div>
                   ) : podeEditar ? (
-                    <label
-                      htmlFor={idFoto}
-                      onDragOver={(e) => {
-                        if (enviando !== null) return;
-                        e.preventDefault();
-                        setArrastandoSobre(i);
-                      }}
-                      onDragLeave={() => setArrastandoSobre((a) => (a === i ? null : a))}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setArrastandoSobre(null);
-                        if (enviando !== null) return;
-                        const arquivo = e.dataTransfer.files?.[0];
-                        if (arquivo) void enviarFoto(i, arquivo);
-                      }}
-                      className={`mt-foco flex h-[120px] w-full flex-col items-center justify-center gap-0.5 border border-dashed px-2 text-center md:w-40 ${
-                        arrastandoSobre === i ? "border-mt-accent bg-mt-accent-100" : "border-mt-regua-fina bg-mt-surface"
-                      } ${enviando !== null ? "pointer-events-none opacity-40" : "cursor-pointer"}`}
-                    >
-                      <IconeCamera />
-                      <span className="text-[11px] font-semibold text-mt-neutral-800">Adicionar foto</span>
-                      <span className="text-[10px] text-mt-neutral-600">ou arraste a imagem</span>
-                    </label>
+                    <>
+                      {inputDeArquivo}
+                      <label
+                        htmlFor={idFoto}
+                        data-quadro-da-foto="true"
+                        onDragOver={(e) => {
+                          if (enviando !== null) return;
+                          e.preventDefault();
+                          setArrastandoSobre(i);
+                        }}
+                        onDragLeave={() => setArrastandoSobre((a) => (a === i ? null : a))}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setArrastandoSobre(null);
+                          if (enviando !== null) return;
+                          const arquivo = e.dataTransfer.files?.[0];
+                          if (arquivo) void enviarFoto(i, arquivo);
+                        }}
+                        className={`mt-foco flex h-[120px] w-full flex-col items-center justify-center gap-0.5 rounded-sm border border-dashed px-2 text-center md:w-40 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-mt-accent ${
+                          arrastandoSobre === i ? "border-mt-accent bg-mt-accent-100" : "border-mt-regua-fina bg-mt-surface"
+                        } ${enviando !== null ? "pointer-events-none opacity-40" : "cursor-pointer"}`}
+                      >
+                        <IconeCamera />
+                        <span className="text-[11px] font-semibold text-mt-neutral-800">Adicionar foto</span>
+                        <span className="text-[10px] text-mt-neutral-600">ou arraste a imagem</span>
+                      </label>
+                    </>
                   ) : (
                     <span className="text-[11px] text-mt-accent-800">Sem foto</span>
                   )}

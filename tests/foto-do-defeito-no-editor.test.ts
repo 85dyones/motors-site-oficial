@@ -164,4 +164,32 @@ describe("FichaDeEstadoNoEditor: o quadro da foto do defeito", () => {
     );
     expect(container.textContent).toContain("Sem foto");
   });
+
+  it("o input do arquivo é alcançável por teclado — sem a classe 'hidden' (display:none tira do Tab) — e cada card mantém seu próprio nome", async () => {
+    await montar();
+
+    const inputs = [...container.querySelectorAll<HTMLInputElement>('input[type="file"]')];
+    expect(inputs, "os dois itens (sem foto) precisam ter o input").toHaveLength(2);
+    for (const input of inputs) {
+      expect(
+        input.classList.contains("hidden"),
+        "o input não pode ter a classe 'hidden' — ela é display:none e tira o elemento do Tab",
+      ).toBe(false);
+      expect(input.hasAttribute("hidden")).toBe(false);
+    }
+    expect(inputs[0].getAttribute("aria-label")).toBe("Foto do defeito 1");
+    expect(inputs[1].getAttribute("aria-label")).toBe("Foto do defeito 2");
+  });
+
+  it("soltar um arquivo FORA de qualquer quadro não deixa o navegador navegar para a imagem (perderia a ficha não salva)", async () => {
+    await montar();
+
+    const evento = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(evento, "dataTransfer", { value: { files: [new File(["x"], "foto.jpg", { type: "image/jpeg" })] } });
+    await act(async () => {
+      document.body.dispatchEvent(evento);
+    });
+
+    expect(evento.defaultPrevented, "o guard da janela precisa neutralizar o drop fora de qualquer quadro").toBe(true);
+  });
 });
