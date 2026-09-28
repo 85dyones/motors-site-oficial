@@ -110,9 +110,19 @@ describe("/repasse com carro no lote", () => {
 
   it("o quadro do herói é do carro de verdade, nunca o da prancha", async () => {
     const html = await servida([ABERTO, LOJISTAS]);
-    expect(html).toContain("A conta do Renault Kwid Zen 1.0 2021");
+    expect(html).toContain("A conta do Kwid 2021");
     expect(html).not.toContain("Kwid Zen 2020");
     expect(html).not.toContain("FORD KA SE 2017");
+  });
+
+  // Título aprovado pelo dono em 28/09: modelo e ano na grafia de sempre,
+  // como a prancha. Era "A conta do FIAT PALIO 1.0 ECONOMY FIRE FLEX 8V 4P 2010".
+  it("o título do quadro é modelo e ano, na grafia canônica, mesmo com o cadastro em maiúsculas", async () => {
+    const palio = { ...ABERTO, marca: "FIAT", modelo: "PALIO", versao: "1.0 ECONOMY FIRE FLEX 8V 4P", ano_modelo: 2010 };
+    const html = await servida([palio]);
+    expect(html).toContain("A conta do Palio 2010");
+    expect(html).not.toContain("A conta do FIAT");
+    expect(html).not.toContain("A conta do PALIO");
   });
 
   it("o texto do herói é o do item 2, separado da busca e do compartilhamento", async () => {

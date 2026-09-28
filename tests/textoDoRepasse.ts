@@ -58,7 +58,7 @@ export const FUNCOES_COM_AMOSTRA = [
 
 export function textosMontadosDoRepasse(): string[] {
   return [
-    pagina.tituloDaContaDoCarro("Renault Kwid Zen 1.0 2021"),
+    pagina.tituloDaContaDoCarro({ modelo: "Kwid", versao: "Zen 1.0", ano_modelo: 2021 }),
     pagina.linhaDoReparo(["Embreagem patinando nas arrancadas", "Pneus dianteiros no fim da vida útil"]),
     pagina.rotuloDaFipe("setembro de 2026"),
     pagina.rotuloDaFipe(null),

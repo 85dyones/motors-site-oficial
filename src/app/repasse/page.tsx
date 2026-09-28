@@ -19,7 +19,6 @@ import { patioEmDestaque } from "../../lib/fichaPerdida";
 import { grafoDaPaginaDoRepasse } from "../../lib/grafoDoRepasse";
 import { lerRepassesPublicos } from "../../lib/leituraDosRepasses";
 import { resumoDoLote, type WhatsappDaLoja } from "../../lib/loteDoRepasse";
-import { nomeComAno } from "../../lib/nomeDoVeiculo";
 import {
   ANCORA_DO_ESTOQUE,
   ANCORA_DO_LOTE,
@@ -41,7 +40,6 @@ import {
   tituloDoLote,
 } from "../../lib/paginaDoRepasse";
 import { disponiveisDe } from "../../lib/regrasEstoque";
-import type { Repasse } from "../../lib/repasse";
 import { blocoJsonLd } from "../../lib/schemaListagem";
 import { getCachedSettings } from "../../lib/settings";
 import { getEstoque, getVeiculoPdpUrl } from "../../lib/supabase";
@@ -111,7 +109,6 @@ export default async function PaginaDoRepasse() {
   const reparosDoExemplo = exemplo
     ? exemplo.itens_de_estado.filter((i) => typeof i.orcamento === "number" && i.orcamento > 0).map((i) => i.descricao)
     : [];
-  const nomeDe = (r: Repasse) => nomeComAno({ marca: r.marca, modelo: r.modelo, versao: r.versao, ano: r.ano_modelo });
 
   const jaSairam =
     resumo.sairam.length > 0 ? (
@@ -155,7 +152,7 @@ export default async function PaginaDoRepasse() {
           {exemplo && (
             <aside className="self-start border-2 border-mt-inverso-regua p-5">
               <p className="m-0 text-[11px] font-extrabold tracking-[.14em] text-mt-accent">{COMO_LER_UM_REPASSE.rotulo}</p>
-              <p className="m-0 mt-2 text-[20px] font-extrabold">{tituloDaContaDoCarro(nomeDe(exemplo))}</p>
+              <p className="m-0 mt-2 text-[20px] font-extrabold">{tituloDaContaDoCarro(exemplo)}</p>
               {reparosDoExemplo.length > 0 && (
                 <p className="m-0 mt-1 text-[13px] text-mt-inverso-suave">{linhaDoReparo(reparosDoExemplo)}</p>
               )}
