@@ -740,10 +740,11 @@ export const NAO_ENCONTRADO_NO_REPASSE = {
 // ---------------------------------------------------------------------------
 
 /**
- * Prancha "Portas de entrada", seções 2 e 3, letra por letra. Quem decide se
- * cada faixa aparece é `lib/portasDoRepasse.ts`; o CTA da home é
- * `verOsCarros` e a linha do card é `abaixoDaFipeNaBarra`, as mesmas do
- * `/repasse`.
+ * Prancha "Portas de entrada", seções 2 e 3, letra por letra. Quem escolhe os
+ * carros de cada faixa é `lib/portasDoRepasse.ts` (as duas aparecem sempre);
+ * o CTA da home com carros é `verOsCarros` e a linha do card é
+ * `abaixoDaFipeNaBarra`, as mesmas do `/repasse`. Sem carros, o CTA da home
+ * é o `estoque.botao`.
  */
 export const PORTAS_DO_REPASSE = {
   rotulo: "REPASSE MOTORS",
@@ -767,7 +768,8 @@ export const PORTAS_DO_REPASSE = {
  * "Hoje são 6 carros abertos." O fim do texto da faixa do /estoque, com a
  * contagem dos abertos a todos. A prancha só desenha o plural; o singular é
  * texto novo (lista do dono no plano do PR 4). Zero não chega aqui: sem
- * carro aberto a faixa nem é montada.
+ * carro aberto a faixa continua na página (ordem do dono, 28/09), mas o
+ * componente cala esta frase e deixa só o texto.
  */
 export function abertosHoje(total: number): string {
   return total === 1 ? "Hoje há 1 carro aberto." : `Hoje são ${total} carros abertos.`;

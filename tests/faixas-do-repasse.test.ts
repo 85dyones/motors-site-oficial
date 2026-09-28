@@ -13,10 +13,15 @@ import { repasseDeTeste } from "./repasseDeTeste";
 
 /**
  * As duas faixas das portas e o card simplificado (prancha "Portas de
- * entrada", seções 2 e 3; decisão 4 do plano do PR 4), renderizados. O HTML
- * NÃO é normalizado com `\s+`: o `emReais` usa espaço inseparável, que o `\s`
- * do JavaScript também casa.
+ * entrada", seções 2 e 3; decisão 4 do plano do PR 4), renderizados, com
+ * qualquer número de carros abertos (ordem do dono de 28/09, "faça aparecer
+ * independente do número"). O HTML NÃO é normalizado com `\s+`: o `emReais`
+ * usa espaço inseparável, que o `\s` do JavaScript também casa.
  */
+// A regra (`portasDoRepasse`) importa a leitura do banco; aqui só se usa
+// `faixaNaHome`, que não lê nada.
+vi.mock("../src/lib/leituraDosRepasses", () => ({ lerRepassesPublicos: async () => [] }));
+vi.mock("../src/lib/observabilidade", () => ({ registrarFalha: async () => {} }));
 vi.mock("next/image", () => ({
   default: (props: Record<string, unknown>) => {
     const { fill: _fill, sizes: _sizes, priority: _priority, unoptimized: _uo, ...resto } = props;
@@ -30,6 +35,7 @@ vi.mock("next/link", () => ({
 
 const { default: FaixaDoRepasseNoEstoque } = await import("../src/components/repasse/FaixaDoRepasseNoEstoque");
 const { default: FaixaDoRepasseNaHome } = await import("../src/components/repasse/FaixaDoRepasseNaHome");
+const { faixaNaHome } = await import("../src/lib/portasDoRepasse");
 
 const aberto = {
   situacao: "publicado" as const,
@@ -103,6 +109,16 @@ describe("a faixa do /estoque", () => {
     expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${PORTAS_DO_REPASSE.estoque.botao}<svg`));
     expect(h).toContain(abertosHoje(1));
   });
+
+  it("sem carro aberto, o mesmo texto sem a frase da contagem, e o botão continua", () => {
+    const h = html(createElement(FaixaDoRepasseNoEstoque, { faixa: { abertos: 0 } }));
+    expect(h).toContain(PORTAS_DO_REPASSE.rotulo);
+    expect(h).toContain(PORTAS_DO_REPASSE.estoque.titulo);
+    // O parágrafo termina no texto: sem espaço sobrando nem contagem emendada.
+    expect(h).toContain(`${PORTAS_DO_REPASSE.estoque.texto}</p>`);
+    expect(h).not.toMatch(/Hoje (são|há)/);
+    expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${PORTAS_DO_REPASSE.estoque.botao}<svg`));
+  });
 });
 
 describe("a faixa da home", () => {
@@ -157,5 +173,65 @@ describe("a faixa da home", () => {
     expect(h).not.toContain("wa.me");
     expect(h).not.toContain(CARD_DO_REPASSE.quero);
     expect(h).not.toContain(CARD_DO_REPASSE.verFicha);
+  });
+
+  describe("com qualquer número de carros abertos", () => {
+    const SEM_CARRO = { carros: [], totalNoLote: 0 };
+
+    it("sem carro nenhum: o texto e o CTA do estoque, e nenhuma grade, nem vazia nem com marcador", () => {
+      const h = html(createElement(FaixaDoRepasseNaHome, { faixa: SEM_CARRO }));
+      expect(h).toContain(PORTAS_DO_REPASSE.rotulo);
+      expect(h).toContain(PORTAS_DO_REPASSE.home.titulo);
+      expect(h).toContain(PORTAS_DO_REPASSE.home.texto);
+      expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${PORTAS_DO_REPASSE.estoque.botao}<`));
+      expect(h).not.toContain("<ul");
+      expect(h).not.toContain("<li>");
+      expect(h).not.toContain("VER OS ");
+      expect(h).not.toContain("VER O CARRO");
+    });
+
+    it("sem carro aberto mas com lote (só-lojistas, reservado): o CTA continua o do estoque, não o do lote", () => {
+      // 2 no lote, 0 abertos: "VER OS 2 CARROS" levaria a um lote que a faixa não mostra.
+      const h = html(createElement(FaixaDoRepasseNaHome, { faixa: { carros: [], totalNoLote: 2 } }));
+      expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${PORTAS_DO_REPASSE.estoque.botao}<`));
+      expect(h).not.toContain(verOsCarros(2));
+      expect(h).not.toContain("<ul");
+    });
+
+    it("um carro: só ele, o CTA no singular, e a grade continua de três colunas (o card não estica)", () => {
+      const h = html(createElement(FaixaDoRepasseNaHome, { faixa: { carros: [COM_REPARO], totalNoLote: 1 } }));
+      const lista = cards(h);
+      expect(lista).toHaveLength(1);
+      expect(lista[0]).toContain(`href="/repasse/${COM_REPARO.slug}"`);
+      expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${verOsCarros(1)}<`));
+      expect(h).toMatch(/<ul[^>]*sm:grid-cols-3/);
+    });
+
+    it("dois carros: só os dois, na ordem, com o lote inteiro no CTA e a grade de três colunas", () => {
+      const h = html(
+        createElement(FaixaDoRepasseNaHome, { faixa: { carros: [COM_REPARO, COM_LAUDO], totalNoLote: 5 } }),
+      );
+      const lista = cards(h);
+      expect(lista).toHaveLength(2);
+      expect(lista[0]).toContain(`href="/repasse/${COM_REPARO.slug}"`);
+      expect(lista[1]).toContain(`href="/repasse/${COM_LAUDO.slug}"`);
+      expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${verOsCarros(5)}<`));
+      expect(h).toMatch(/<ul[^>]*sm:grid-cols-3/);
+    });
+
+    it("quatro abertos, pela regra: a faixa renderiza três cards, os três mais recentes", () => {
+      const abertos = [1, 2, 3, 4].map((n) =>
+        repasseDeTeste({
+          ...aberto,
+          id: `f${n}000000-0000-4000-8000-00000000000${n}`,
+          slug: `aberto-${n}-f${n}0000`,
+          aberto_ao_publico_em: `2026-09-2${5 - n}T12:00:00Z`,
+        }),
+      );
+      const faixaDaRegra = faixaNaHome(abertos, new Date("2026-09-25T15:00:00Z"));
+      const lista = cards(html(createElement(FaixaDoRepasseNaHome, { faixa: faixaDaRegra })));
+      expect(lista).toHaveLength(3);
+      [abertos[0], abertos[1], abertos[2]].forEach((r, i) => expect(lista[i]).toContain(`href="/repasse/${r.slug}"`));
+    });
   });
 });

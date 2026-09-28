@@ -92,7 +92,7 @@ export default async function EstoquePage() {
     getCachedSettings(),
     // A faixa do repasse (spec 2026-09-24 §10). Pane aqui não derruba a
     // página: `lerRepassesDasPortas` devolve lista vazia, registra a falha e
-    // a faixa some. Nunca `lerRepassesPublicos` direto.
+    // a faixa sai sem a contagem. Nunca `lerRepassesPublicos` direto.
     lerRepassesDasPortas(agora, "/estoque"),
   ]);
   const faixaDoRepasse = faixaNoEstoque(repasses, agora);
@@ -307,10 +307,10 @@ export default async function EstoquePage() {
 
       {/* A faixa do repasse, "depois da grade" (spec 2026-09-24 §10). Fora do
           <Suspense>, e filha direta da página: sai no HTML servido e não
-          depende do `Catalogo`. Sem carro aberto a todos, nada — a spec
-          proíbe promessa vazia. A trava é
-          `tests/faixa-do-repasse-no-estoque.test.ts`. */}
-      {faixaDoRepasse && <FaixaDoRepasseNoEstoque faixa={faixaDoRepasse} />}
+          depende do `Catalogo`. Sempre presente (ordem do dono, 28/09): sem
+          carro aberto a todos, ou com a leitura em pane, sai sem a frase da
+          contagem. A trava é `tests/faixa-do-repasse-no-estoque.test.ts`. */}
+      <FaixaDoRepasseNoEstoque faixa={faixaDoRepasse} />
 
       {/* Índice do estoque — link interno de verdade, no HTML servido.
           É o que liga /estoque aos hubs perenes e, por eles, às fichas. Sem

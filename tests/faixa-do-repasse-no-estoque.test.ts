@@ -7,9 +7,11 @@ import { repasseDeTeste } from "./repasseDeTeste";
 
 /**
  * A faixa do repasse na `/estoque`, renderizada (spec 2026-09-24 §10;
- * decisões 2 e 6 do plano do PR 4): depois da grade e fora do `<Suspense>`,
- * só com carro aberto a todos, e uma pane na leitura do repasse não derruba a
- * segunda página mais visitada do site. Mocks no molde de
+ * decisões 2 e 6 do plano do PR 4; ordem do dono de 28/09, "faça aparecer
+ * independente do número"): depois da grade e fora do `<Suspense>`, SEMPRE —
+ * com carro aberto a todos leva a contagem, sem carro (ou com a leitura do
+ * repasse em pane) fica só com o texto e o botão. A pane na leitura não
+ * derruba a segunda página mais visitada do site. Mocks no molde de
  * `paginas-de-entidade.test.ts`.
  */
 const EMPRESA: CompanySettings = {
@@ -93,8 +95,12 @@ describe("a faixa do repasse na /estoque", () => {
     expect(h).toContain(abertosHoje(2));
   });
 
-  it("depois da grade, fora do <Suspense> e antes do índice do estoque", async () => {
-    estado.repasses = [ABERTO_1];
+  it.each([
+    ["com um carro aberto", [ABERTO_1]],
+    ["sem carro aberto a todos", [LOJISTAS, RESERVADO]],
+    ["sem repasse nenhum", []],
+  ])("depois da grade, fora do <Suspense> e antes do índice do estoque, %s", async (_caso, repasses) => {
+    estado.repasses = repasses;
     const pagina = (await EstoquePage()) as ReactElement<{ children: ReactNode }>;
     const tipos = Children.toArray(pagina.props.children).map((filho) => (filho as ReactElement).type);
 
@@ -106,22 +112,37 @@ describe("a faixa do repasse na /estoque", () => {
     expect(indice, "o índice do estoque vem depois da faixa").toBeGreaterThan(faixa);
   });
 
-  it("sem carro aberto a todos, nenhum pedaço da faixa", async () => {
+  it("sem carro aberto a todos, a faixa fica com o texto, sem a frase da contagem, e o botão continua", async () => {
     estado.repasses = [LOJISTAS, RESERVADO];
     const h = await servida();
-    expect(h).not.toContain(PORTAS_DO_REPASSE.estoque.titulo);
-    expect(h).not.toContain(PORTAS_DO_REPASSE.rotulo);
-    expect(h).not.toContain('href="/repasse"');
+    expect(h).toContain(PORTAS_DO_REPASSE.rotulo);
+    expect(h).toContain(PORTAS_DO_REPASSE.estoque.titulo);
+    // O parágrafo termina no texto: nada emendado depois dele.
+    expect(h).toContain(`${PORTAS_DO_REPASSE.estoque.texto}</p>`);
+    expect(h).not.toMatch(/Hoje (são|há)/);
+    expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${PORTAS_DO_REPASSE.estoque.botao}<svg`));
   });
 
-  it("pane na leitura do repasse: a página inteira fica, a faixa some e a falha é registrada", async () => {
+  it("sem repasse nenhum, a mesma faixa: texto, sem contagem, botão", async () => {
+    estado.repasses = [];
+    const h = await servida();
+    expect(h).toContain(PORTAS_DO_REPASSE.estoque.titulo);
+    expect(h).toContain(`${PORTAS_DO_REPASSE.estoque.texto}</p>`);
+    expect(h).not.toMatch(/Hoje (são|há)/);
+    expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${PORTAS_DO_REPASSE.estoque.botao}<svg`));
+  });
+
+  it("pane na leitura do repasse: a página inteira fica, a faixa também (sem contagem) e a falha é registrada", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     estado.falha = new Error("Leitura dos repasses falhou: banco fora");
     const h = await servida();
 
     expect(h).toContain("Carros seminovos em Curitiba</h1>");
     expect(h).toContain('aria-label="Índice do estoque"');
-    expect(h).not.toContain(PORTAS_DO_REPASSE.estoque.titulo);
+    expect(h).toContain(PORTAS_DO_REPASSE.estoque.titulo);
+    expect(h).toContain(`${PORTAS_DO_REPASSE.estoque.texto}</p>`);
+    expect(h).not.toMatch(/Hoje (são|há)/);
+    expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${PORTAS_DO_REPASSE.estoque.botao}<svg`));
     expect(registrarFalha).toHaveBeenCalledWith("quebra", "repasse-leitura-das-portas", estado.falha, {
       rota: "/estoque",
       origem: "servidor",

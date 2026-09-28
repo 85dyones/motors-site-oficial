@@ -5,8 +5,10 @@ import { Seta } from "../modernist/primitivos";
 
 /**
  * A faixa escura do `/estoque`, depois da grade (spec 2026-09-24 §10;
- * prancha "Portas de entrada", seção 2). Quem decide se ela aparece é
- * `faixaNoEstoque`: sem carro aberto a todos, a página nem a monta.
+ * prancha "Portas de entrada", seção 2). Aparece sempre (ordem do dono de
+ * 28/09): com carro aberto a todos o texto leva "Hoje são N carros abertos";
+ * sem carro aberto, ou com a leitura do repasse em pane, sai só o texto, sem
+ * a frase da contagem. O botão é o mesmo nos dois casos.
  */
 export default function FaixaDoRepasseNoEstoque({ faixa }: { faixa: FaixaNoEstoque }) {
   return (
@@ -21,7 +23,9 @@ export default function FaixaDoRepasseNoEstoque({ faixa }: { faixa: FaixaNoEstoq
             {PORTAS_DO_REPASSE.estoque.titulo}
           </h2>
           <p className="m-0 mt-3 text-[14px] leading-relaxed text-mt-inverso-suave lg:text-[15px]">
-            {`${PORTAS_DO_REPASSE.estoque.texto} ${abertosHoje(faixa.abertos)}`}
+            {faixa.abertos > 0
+              ? `${PORTAS_DO_REPASSE.estoque.texto} ${abertosHoje(faixa.abertos)}`
+              : PORTAS_DO_REPASSE.estoque.texto}
           </p>
         </div>
         <Link href={CAMINHO_DO_REPASSE} className="mt-btn mt-btn-primario mt-foco shrink-0 self-start lg:self-center">

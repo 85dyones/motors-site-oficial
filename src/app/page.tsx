@@ -121,7 +121,8 @@ export default async function Home() {
     // somaria a latência das duas ao TTFB da home.
     getReputacaoGoogle(),
     // A faixa do repasse (spec 2026-09-24 §10), com o mesmo cuidado: pane
-    // aqui vira lista vazia e a área some. Nunca `lerRepassesPublicos` direto.
+    // aqui vira lista vazia e a faixa sai sem carros. Nunca
+    // `lerRepassesPublicos` direto.
     lerRepassesDasPortas(agora, "/"),
   ]);
   const faixaDoRepasse = faixaNaHome(repasses, agora);
@@ -297,12 +298,13 @@ export default async function Home() {
     ),
 
     /* ─── Repasse Motors ───
-       A faixa clara do repasse (spec 2026-09-24 §10): os três carros abertos
-       a todos mais recentes, e só com três ou mais. Com menos, a área
-       inteira some, sem cabeçalho nem promessa vazia — a mesma regra da
-       reputação e do Instagram, logo abaixo. Quem decide é
-       `lib/portasDoRepasse.ts`. */
-    repasse: faixaDoRepasse && <FaixaDoRepasseNaHome faixa={faixaDoRepasse} />,
+       A faixa clara do repasse (spec 2026-09-24 §10): até os três carros
+       abertos a todos mais recentes, com qualquer número de abertos (ordem
+       do dono, 28/09). Com zero a faixa sai sem grade e com o botão do
+       repasse; só o interruptor da área na tela A3 a tira. Diferente da
+       reputação e do Instagram, logo abaixo, que somem sem o que mostrar.
+       Quem escolhe os carros é `lib/portasDoRepasse.ts`. */
+    repasse: <FaixaDoRepasseNaHome faixa={faixaDoRepasse} />,
 
     /* ─── 02 Consultoria ─── */
     consultoria: (
