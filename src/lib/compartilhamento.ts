@@ -93,7 +93,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Garagem Profiler",
     tituloPadrao: "Descubra o carro certo para o seu uso",
     descricaoPadrao:
-      "Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e um consultor envia três sugestões reais do estoque no WhatsApp.",
+      "Cinco perguntas, trinta segundos. Três carros do nosso pátio para o seu perfil, com o que cada um atende e o que pesa contra.",
   },
   {
     id: "sobre",

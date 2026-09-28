@@ -121,14 +121,21 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
 
         {/* Links internos de SEO — fora do design doc, mantidos de produção.
             Só aparece depois que o estoque responde: cabeçalho sem lista é
-            ruído para o leitor e link morto para o rastreador. */}
+            ruído para o leitor e link morto para o rastreador.
+
+            `h2`, e não `h4` (2026-09-25): o rodapé vem depois do conteúdo de
+            qualquer página, e o título anterior costuma ser um `h2` — o `h4`
+            pulava um nível em TODA página (auditoria axe, `heading-order`), e
+            o leitor de tela que navega por títulos achava que tinha perdido
+            uma seção. `h2` nunca pula: descer de nível é sempre permitido. O
+            tamanho continua o das classes. */}
         {(marcas.length > 0 || modelos.length > 0) && (
           <div className="flex flex-col gap-5 border-b border-mt-inverso-regua-fina py-7">
             {marcas.length > 0 && (
               <div className="flex flex-col gap-2">
-                <h4 className="text-[10px] font-extrabold tracking-[.16em] text-mt-inverso">
+                <h2 className="text-[10px] font-extrabold tracking-[.16em] text-mt-inverso">
                   MARCAS DISPONÍVEIS
-                </h4>
+                </h2>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
                   {marcas.map((marca) => (
                     <Link
@@ -145,9 +152,9 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
 
             {modelos.length > 0 && (
               <div className="flex flex-col gap-2">
-                <h4 className="text-[10px] font-extrabold tracking-[.16em] text-mt-inverso">
+                <h2 className="text-[10px] font-extrabold tracking-[.16em] text-mt-inverso">
                   MODELOS EM DESTAQUE
-                </h4>
+                </h2>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
                   {modelos.map((modelo) => (
                     <Link

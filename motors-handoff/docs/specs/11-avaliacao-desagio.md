@@ -18,3 +18,11 @@ Painel (F2): histograma do deságio praticado sobre a curva alvo + margem realiz
 (recalibração trimestral com dado próprio do razão).
 Km baixo: não gera desconto além do degrau de estado excepcional; km baixo demais = alerta de
 hodômetro, não prêmio.
+
+Leituras ratificadas pelo dono em 2026-09-25 (código: src/lib/avaliacaoRecomendacao.ts, regra
+curva_spec11_2026_09_25):
+- Idade em anos = tempo desde 1º de janeiro do ano-modelo, com fração (um 2020 em setembro de 2026
+  tem ~6,7 anos). Sem mínimo; o único piso é zero (ano-modelo que ainda não começou).
+- Km baixo demais = abaixo do esperado por mais que o maior degrau fechado de degraus_km (50.000 km
+  na semente). Só gera alerta de hodômetro; não muda o deságio. Se um degrau novo for criado, o
+  limite acompanha.

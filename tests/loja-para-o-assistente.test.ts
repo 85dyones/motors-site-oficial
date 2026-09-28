@@ -96,7 +96,8 @@ describe("a fonte é a mesma que o site publica", () => {
     expect(fonte).toMatch(/TEXTO_DE_GARANTIA/);
     expect(fonte).toMatch(/TEXTO_DE_FINANCIAMENTO/);
     expect(fonte).toMatch(/PERGUNTAS_DE_GARANTIA/);
-    expect(fonte).toMatch(/PERGUNTAS_DE_FINANCIAMENTO/);
+    // O FAQ de financiamento é função do ano mais antigo da vigência (28/09/2026).
+    expect(fonte).toMatch(/perguntasDeFinanciamento\(condicoes\.anoMaisAntigo\)/);
     expect(fonte).toMatch(/SECOES_DE_GARANTIA/);
   });
 

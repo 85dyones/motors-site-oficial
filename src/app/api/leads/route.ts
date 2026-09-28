@@ -17,6 +17,7 @@ import {
 import { registrarFalha } from "../../../lib/observabilidade";
 import { ERROS_DO_REPASSE } from "../../../lib/paginaDoRepasse";
 import { carroDoExame, gravarInscricao } from "../../../lib/repasseNaRotaDeLeads";
+import { colunaDoPerfilAusente, montarPerfilDoLead, type PerfilDoLead } from "../../../lib/perfilDoLead";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +213,27 @@ export async function POST(request: NextRequest) {
     let idDoLead: string | null = null;
     // Só o exame no pátio lê isto (5.2.1): para os outros canais a regra acima vale inteira.
     let erroDoLead: string | null = null;
+    //
+    // Desde 2026-09-25 o lead do Garagem Match Profiler leva também o perfil
+    // (`leads.perfil`): o que o cliente respondeu, os filtros que aceitou
+    // tirar e os carros que o site mostrou. Tudo isso já chegava neste corpo,
+    // em `intencao_busca`, e ia só para o n8n — ver `lib/perfilDoLead.ts`.
+    // Os outros canais não têm perfil, e o insert deles não ganha a chave.
+    //
+    // Mesma rede de `/api/avaliacao`: se a migração 20260925200000 ainda não
+    // estiver aplicada, a coluna não existe e o insert INTEIRO seria recusado;
+    // aí o lead é gravado de novo sem ela. Perder o perfil é ruim; perder o
+    // lead é voltar ao insert recusado em silêncio de antes da migração
+    // 20260811130000.
+    //
+    // O perfil é montado FORA do `try` do insert e com a própria rede: se um
+    // dia a montagem lançar, o lead sai sem ele, e não deixa de sair.
+    let perfil: PerfilDoLead | null = null;
+    try {
+      perfil = montarPerfilDoLead(body);
+    } catch (erroDoPerfil) {
+      console.warn("[Leads API] Perfil do Profiler não montado:", (erroDoPerfil as Error)?.message);
+    }
     try {
       // `insert` na tabela `leads` exige contornar a RLS (não há policy de
       // INSERT para anônimo, de propósito), então usa a chave de serviço.
@@ -227,64 +249,74 @@ export async function POST(request: NextRequest) {
         intencaoBusca: intencao_busca,
       });
 
-      const insercao = supabaseAdmin.from("leads").insert({
-        nome: cliente.nome,
-        telefone: formattedPhone || null,
-        interesse,
-        canal: body.canal || body.tipo || "site",
-        // `veiculo.id` é o número do anúncio no RevendaMais — `estoque_motors.id`
-        // é integer (baseline 20260803120000), não UUID. `Number` é a conversão
-        // certa; só as fixtures de dev usam slug como id, e nelas o NaN vira
-        // null porque não há estoque real para apontar.
-        veiculo_id: veiculo?.id ? Number(veiculo.id) || null : null,
-        // `email` já existia na tabela e alguns formulários do site o
-        // coletam — aproveitar a coluna evita perder o dado que já chega.
-        email: cliente.email || null,
-        // Coluna herdada da tabela de marketing que já existia em produção
-        // (ver migração 20260811130000). Era `not null` sem default e sem
-        // ninguém preenchendo, o que fazia TODO insert de lead ser recusado
-        // — em silêncio, porque esta gravação não bloqueia o visitante.
-        //
-        // Agora é nulável, e preenchemos quando o cliente mandou o id do
-        // evento: é o mesmo que vai para a CAPI do Meta, então o lead passa
-        // a dar para cruzar com `capi_meta_*` na mesma linha.
-        event_id: body.eventId || null,
-        /**
-         * O elo entre quem NAVEGA e quem VIROU lead.
-         *
-         * A coluna existia desde a tabela de marketing e nunca foi preenchida:
-         * medido em 2026-09-02, 0 dos 11 leads tinham `ag_uid`. E o valor
-         * estava aqui do lado o tempo todo — `resolvedAgUid` é resolvido na
-         * entrada da rota e já viaja como `external_id` para o Meta, logo
-         * abaixo. Gravava-se para o Meta e não para a própria casa.
-         *
-         * Sem ele, o servidor não tem como saber que o visitante que está
-         * abrindo uma ficha agora é a pessoa que deixou telefone semana
-         * passada — que é exatamente o que a CAPI usa para elevar a
-         * correspondência. A ausência não dá erro: dá 0% de e-mail e telefone
-         * no relatório de qualidade do pixel, sem nada explicando por quê.
-         *
-         * `ag_ref_nao_localizado` é o sentinela de quem chegou sem rastreio;
-         * vira `null` para a coluna não guardar texto que não identifica
-         * ninguém, e para `count(ag_uid)` continuar significando o que parece.
-         */
-        ag_uid: resolvedAgUid !== "ag_ref_nao_localizado" ? resolvedAgUid : null,
-        // De onde o lead veio: `utm_*`, `gclid`, `fbclid`, `fbp`, `fbc`. Os
-        // valores já chegavam neste corpo e seguiam para o n8n e a CAPI, mas
-        // não para a linha — 0 de 14 leads com qualquer um deles em
-        // 2026-09-20. Sem o `gclid` aqui não há conversão offline quando o
-        // negócio fecha. Regras e limites em `lib/contextoDeMidia.ts`.
-        ...contextoDeMidiaDoLead(body),
-        // O exame no pátio liga o lead ao carro de repasse (spec §4.4): é
-        // por esta coluna que o pedido aparece no editor do carro. Só o
-        // exame a preenche; nos outros canais a chave nem entra.
-        ...(repasseIdDoLead ? { repasse_id: repasseIdDoLead } : {}),
-      });
-      // `.select("id")` separado do insert, por uma variável: a lista do
-      // repasse guarda o elo com o lead (`repasse_inscritos.lead_id`), e o
-      // texto `.from("leads").insert({ … });` fica inteiro para as travas
-      // de `pre-voo-das-conversoes` e `leads-insert-destravado`.
-      const { data: leadGravado, error: erroLead } = await insercao.select("id").maybeSingle();
+      const inserir = (comPerfil: boolean) =>
+        supabaseAdmin.from("leads").insert({
+          nome: cliente.nome,
+          telefone: formattedPhone || null,
+          interesse,
+          canal: body.canal || body.tipo || "site",
+          // `veiculo.id` é o número do anúncio no RevendaMais — `estoque_motors.id`
+          // é integer (baseline 20260803120000), não UUID. `Number` é a conversão
+          // certa; só as fixtures de dev usam slug como id, e nelas o NaN vira
+          // null porque não há estoque real para apontar.
+          veiculo_id: veiculo?.id ? Number(veiculo.id) || null : null,
+          // `email` já existia na tabela e alguns formulários do site o
+          // coletam — aproveitar a coluna evita perder o dado que já chega.
+          email: cliente.email || null,
+          // Coluna herdada da tabela de marketing que já existia em produção
+          // (ver migração 20260811130000). Era `not null` sem default e sem
+          // ninguém preenchendo, o que fazia TODO insert de lead ser recusado
+          // — em silêncio, porque esta gravação não bloqueia o visitante.
+          //
+          // Agora é nulável, e preenchemos quando o cliente mandou o id do
+          // evento: é o mesmo que vai para a CAPI do Meta, então o lead passa
+          // a dar para cruzar com `capi_meta_*` na mesma linha.
+          event_id: body.eventId || null,
+          /**
+           * O elo entre quem NAVEGA e quem VIROU lead.
+           *
+           * A coluna existia desde a tabela de marketing e nunca foi preenchida:
+           * medido em 2026-09-02, 0 dos 11 leads tinham `ag_uid`. E o valor
+           * estava aqui do lado o tempo todo — `resolvedAgUid` é resolvido na
+           * entrada da rota e já viaja como `external_id` para o Meta, logo
+           * abaixo. Gravava-se para o Meta e não para a própria casa.
+           *
+           * Sem ele, o servidor não tem como saber que o visitante que está
+           * abrindo uma ficha agora é a pessoa que deixou telefone semana
+           * passada — que é exatamente o que a CAPI usa para elevar a
+           * correspondência. A ausência não dá erro: dá 0% de e-mail e telefone
+           * no relatório de qualidade do pixel, sem nada explicando por quê.
+           *
+           * `ag_ref_nao_localizado` é o sentinela de quem chegou sem rastreio;
+           * vira `null` para a coluna não guardar texto que não identifica
+           * ninguém, e para `count(ag_uid)` continuar significando o que parece.
+           */
+          ag_uid: resolvedAgUid !== "ag_ref_nao_localizado" ? resolvedAgUid : null,
+          // De onde o lead veio: `utm_*`, `gclid`, `fbclid`, `fbp`, `fbc`. Os
+          // valores já chegavam neste corpo e seguiam para o n8n e a CAPI, mas
+          // não para a linha — 0 de 14 leads com qualquer um deles em
+          // 2026-09-20. Sem o `gclid` aqui não há conversão offline quando o
+          // negócio fecha. Regras e limites em `lib/contextoDeMidia.ts`.
+          ...contextoDeMidiaDoLead(body),
+          ...(comPerfil && perfil ? { perfil } : {}),
+          // O exame no pátio liga o lead ao carro de repasse (spec §4.4): é
+          // por esta coluna que o pedido aparece no editor do carro. Só o
+          // exame a preenche; nos outros canais a chave nem entra.
+          ...(repasseIdDoLead ? { repasse_id: repasseIdDoLead } : {}),
+        });
+
+      // `.select("id")` fora do insert: a lista do repasse guarda o elo com o
+      // lead (`repasse_inscritos.lead_id`), e o texto `.from("leads").insert({ … });`
+      // fica inteiro para as travas de `pre-voo-das-conversoes` e
+      // `leads-insert-destravado`. A nova tentativa sem o perfil devolve o id também.
+      let { data: leadGravado, error: erroLead } = await inserir(true).select("id").maybeSingle();
+      if (erroLead && colunaDoPerfilAusente(erroLead)) {
+        console.warn(
+          "[Leads API] Coluna `perfil` ausente — lead gravado sem o perfil do Profiler. " +
+            "Aplique a migração 20260925200000_perfil_no_lead.sql.",
+        );
+        ({ data: leadGravado, error: erroLead } = await inserir(false).select("id").maybeSingle());
+      }
 
       if (erroLead) {
         erroDoLead = erroLead.message;

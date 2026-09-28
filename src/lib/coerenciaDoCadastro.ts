@@ -80,7 +80,12 @@ export const REGRAS_DE_COERENCIA: readonly RegraDeCoerencia[] = [
     // de cabine simples comprada para trabalho é utilitário na prática, e ele
     // classificou a Saveiro Robust assim. O que a regra continua pegando é o
     // erro de verdade — Saveiro ou Strada em `Hatch`, que foi o caso do feed.
-    termos: ["saveiro", "strada", "titano", "toro", "montana", "oroch", "hilux", "s10", "ranger", "amarok"],
+    //
+    // A Ford F-250 entrou em 25/09: chegou do feed como `Hatch`, sem nenhuma
+    // regra que a pegasse, e o Garagem Profiler a oferecia a quem pedia hatch.
+    // F-1000, L200 e Frontier vieram junto por serem o mesmo caso no mercado
+    // de seminovos de Curitiba, com nome inconfundível.
+    termos: ["saveiro", "strada", "titano", "toro", "montana", "oroch", "hilux", "s10", "ranger", "amarok", "f-250", "f-1000", "l200", "frontier"],
     carrocerias: ["Picape", "Utilitário"],
     porque: "é picape — caçamba aberta. `Utilitário` também vale para cabine simples de trabalho",
   },
@@ -106,6 +111,10 @@ export const REGRAS_DE_COERENCIA: readonly RegraDeCoerencia[] = [
     termos: ["voyage", "prisma", "virtus", "cruze", "corolla", "fluence", "sentra", "versa", "logan", "siena", "grand siena"],
     carrocerias: ["Sedan"],
     porque: "é sedã de três volumes",
+    // O Corolla Cross é SUV, e "corolla" o acusava de sedã: o editor mostrava
+    // um alerta falso, e o Profiler — que tira da busca o carro com
+    // divergência — o escondia de quem pedia SUV. Achado em 25/09.
+    exceto: ["corolla cross"],
   },
   {
     // "Onix Plus" e "Ka Sedan" precisam do par de palavras: "Onix" sozinho é

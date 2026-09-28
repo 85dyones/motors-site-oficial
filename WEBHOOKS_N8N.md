@@ -111,6 +111,80 @@ não o endereço. Configurar URLs distintas no painel é opcional.
 | `cliente.email` / `cliente.whatsapp` | podem ser `""` |
 | `veiculo` | objeto do estoque ou `null` |
 | `ag_uid` | `"ag_ref_nao_localizado"` quando não há cookie |
+| `intencao_busca` | objeto livre, `{}` por padrão. No canal `Garagem Match Profiler` (desde 2026-09-25) traz o pedido e os carros — ver abaixo |
+
+**`intencao_busca` do Garagem Profiler.** O `perfil_curadoria` que o
+`CarMatch` monta **não** chega aqui: a rota repassa só os campos da tabela
+acima. Por isso o que o consultor precisa ler vai em `intencao_busca`:
+
+```json
+{
+  "aiQuery": "",
+  "budgetTab": "presets",
+  "modo": "carros",
+  "orcamento": "de R$ 75 mil a R$ 115 mil",
+  "filtros": ["de R$ 75 mil a R$ 115 mil", "4 portas ou mais"],
+  "afrouxados": [],
+  "prazo": "No próximo mês",
+  "perfil": {
+    "leva": "Família, criança na cadeirinha",
+    "jeitos": ["SUV", "Sedã"],
+    "cambio": "Prefiro automático",
+    "nao_pode_faltar": ["Câmera de ré"]
+  },
+  "na_faixa": 4,
+  "carros": [
+    {
+      "id": "8449096",
+      "nome": "Kia Soul 2016",
+      "preco": 76900,
+      "lugar": "principal",
+      "manchete": "O mais barato dos três. Sobram R$ 38.100 do seu teto.",
+      "pesa_contra": "Não atende 2020 ou mais novo: é 2016."
+    }
+  ]
+}
+```
+
+`modo` é `carros` (QUERO VER ESTE — `carros` traz os escolhidos, ou os três
+do resultado), `aviso` (ME AVISE QUANDO CHEGAR — `carros` vazio) ou `ajuda`
+(a consulta ao estoque falhou — `carros` vazio). `lugar` é `principal`,
+`tambem`, `outro-caminho`, `abaixo-da-faixa` ou, desde a fase 2, `ja-pensou`
+(a carta "Já pensou neste?", que só entra quando o cliente tocou FAZ SENTIDO;
+nela a `manchete` lista o que o carro ganha e `pesa_contra` o que muda).
+`filtros`, `afrouxados`, `perfil.jeitos` e `perfil.nao_pode_faltar` são
+listas: um nó que concatene o objeto em texto precisa tratá-las, senão sai
+`[object Object]`. A `mensagem` do lead já nomeia os carros em texto corrido.
+
+**POR MÊS (2026-09-27).** Quando o cliente responde o orçamento pela parcela,
+`budgetTab` vem `"porMes"` e `intencao_busca` ganha:
+
+```json
+"por_mes": {
+  "parcela": 1500,
+  "entrada": 20000,
+  "prazo": 48,
+  "ocupacao": "CLT (carteira assinada)",
+  "troca": true
+}
+```
+
+`entrada` é a **estimativa do cliente** (dinheiro e o que ele espera que o
+carro da troca cubra), não avaliação da loja; `troca: true` diz só que há
+carro para avaliar. Cada item de `carros` ganha `parcela` (a estimativa que a
+tela mostrou, pela média de mercado de 12 bancos; `null` fora do POR MÊS), e o
+primeiro filtro vira `"parcela até R$ 1.500/mês em 48×, com R$ 20 mil de
+entrada"`. Fora do POR MÊS, `por_mes` vem `null`.
+
+**Fase 2 (perguntas-fato, 2026-09-25).** `perfil` traz as respostas das
+perguntas 02 a 05 como o cliente as tocou (rótulo, não id); pergunta pulada
+ou não respondida vem `""` ou `[]` — a 03 some para quem leva carga, e a 04
+some quando tudo o que sobrou tem o mesmo câmbio. `prazo` deixou de ser
+pergunta do quiz e virou escolha opcional no resultado: vem `""` quando o
+cliente não tocou. `na_faixa` é quantos carros passavam em tudo na faixa
+(`null` quando a consulta ao estoque falhou). Leads do Profiler anteriores à
+fase 2 não têm `perfil` nem `na_faixa`. O mesmo objeto, validado, é gravado
+em `leads.perfil` e aparece no card do kanban (`lib/perfilDoLead.ts`).
 
 **Captcha:** todo canal que nasce no modal de captura (`LeadCaptureModal`)
 exige token Turnstile válido — ou seja, todos os valores em uso acima, exceto

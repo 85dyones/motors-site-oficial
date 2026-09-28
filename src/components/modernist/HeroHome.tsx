@@ -241,7 +241,11 @@ export default function HeroHome({
                 key={v.id}
                 type="button"
                 onClick={() => setAtual(i)}
-                aria-label={`Ver ${v.marca} ${v.modelo}`}
+                // O nome começa pelo que está escrito no botão ("01"). Era só
+                // "Ver Renault Kwid…", e quem usa comando de voz dizia "01" e
+                // nada acontecia — o nome não continha o texto visível (WCAG
+                // 2.5.3, auditoria axe `label-content-name-mismatch`, 25/09).
+                aria-label={`${String(i + 1).padStart(2, "0")} — ver ${v.marca} ${v.modelo}`}
                 aria-current={i === atual}
                 /* 64px abaixo de `sm` porque a régua é de largura FIXA: com
                    quatro slides, 4x76 + 3x16 = 352px estoura os 343px úteis de

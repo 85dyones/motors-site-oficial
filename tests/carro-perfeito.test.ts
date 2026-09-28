@@ -10,6 +10,13 @@ import {
 import { SLUGS_DE_PERFIL } from "../src/lib/perfisDeUso";
 import { CARROCERIAS } from "../src/lib/classificacaoVeiculo";
 import { slugificar } from "../src/lib/veiculoUrl";
+import {
+  faixasDoPatio,
+  CORTES_DE_RESERVA,
+  criteriosDoPerfil,
+  ITENS_QUE_NAO_PODEM_FALTAR,
+  type PerfilDoQuiz,
+} from "../src/lib/motorDoMatch";
 import type { Veiculo } from "../src/types";
 
 /**
@@ -33,9 +40,15 @@ import type { Veiculo } from "../src/types";
  * sugestão.
  */
 
+/**
+ * Os ids das respostas da fase 1. A tela deixou de perguntá-los em 25/09
+ * (fase 2, perguntas-fato), mas `/api/match` ainda aceita o formato — uma
+ * aba aberta antes do deploy manda `respostas` — e os leads antigos os
+ * guardam. O prazo continua na tela, agora no resultado.
+ */
 const RESPOSTAS_DO_QUIZ = {
   objetivo: ["family", "status", "efficiency", "offroad"],
-  estilo: ["suv", "sedan", "sport", "pickup", "open"],
+  estilo: ["suv", "sedan", "hatch", "sport", "pickup", "open"],
   experiencia: ["performance", "comfort", "tech", "economy"],
   prazo: ["immediate", "researching", "future"],
 } as const;
@@ -71,16 +84,22 @@ describe("1 · toda resposta do quiz é traduzível", () => {
     }
   });
 
-  it("as respostas do quiz batem com as opções da tela", () => {
-    // A tabela e a tela envelhecem separadas: acrescentar uma alternativa no
-    // componente sem traduzi-la aqui devolve o quiz ao estado anterior, e
-    // nada avisa.
+  it("as opções da tela são as que o motor sabe ler", () => {
+    // A tela e o motor envelhecem separados: uma opção na tela que o motor
+    // não conhece chega a `/api/match`, é descartada pela validação da rota e
+    // não filtra nada — a pessoa responde e o resultado a ignora, calado.
     const fonte = ler("src/components/CarMatch.tsx");
-    for (const grupo of Object.values(RESPOSTAS_DO_QUIZ)) {
-      for (const resposta of grupo) {
-        expect(fonte, `${resposta} sumiu da tela`).toContain(`id: "${resposta}"`);
-      }
+    const daTela = [
+      ...["eu", "familia", "carga"],
+      ...["Hatch", "Sedan", "SUV", "Perua"],
+      ...["so_automatico", "prefiro_automatico", "tanto_faz", "prefiro_manual"],
+      ...RESPOSTAS_DO_QUIZ.prazo,
+    ];
+    for (const id of daTela) {
+      expect(fonte, `${id} sumiu da tela`).toContain(`id: "${id}"`);
     }
+    // A 05 não tem lista própria: sai da do motor.
+    expect(fonte).toContain("ITENS_QUE_NAO_PODEM_FALTAR.map(");
   });
 
   it("PRAZO não filtra carro nenhum", () => {
@@ -220,7 +239,7 @@ describe("3 · nenhuma combinação de respostas fica sem resposta", () => {
   });
 });
 
-describe("4 · o quiz pergunta as cinco", () => {
+describe("4 · o quiz pergunta as cinco — e só o que separa carro", () => {
   const fonte = ler("src/components/CarMatch.tsx");
 
   it("a aba DESCREVER responde a pergunta 01 e segue para a 02", () => {
@@ -237,8 +256,9 @@ describe("4 · o quiz pergunta as cinco", () => {
     const bloco = fonte.slice(fonte.indexOf("const parseFreeTextQuery"), fonte.indexOf("const selectBudget"));
     expect(bloco).not.toContain('experience: "tech"');
     expect(bloco).not.toContain('timeline: "researching"');
-    // E o objetivo, quando o texto não diz, fica em branco em vez de "status".
-    expect(bloco).toContain('let obj: AnswerState["objective"] = "";');
+    // E o que o texto não diz fica em branco — nada de "status" por padrão.
+    expect(bloco).toContain('let leva: AnswerState["leva"] = "";');
+    expect(bloco).toContain('let cambio: AnswerState["cambio"] = "";');
   });
 
   it("o consultor lê exatamente o que o cliente clicou", () => {
@@ -251,7 +271,7 @@ describe("4 · o quiz pergunta as cinco", () => {
     // carro melhor que o meu" e o `switch` seguiria mandando "Status,
     // Exclusividade & Design".
     const codigo = lerCodigo("src/components/CarMatch.tsx");
-    for (const fn of ["formatObjective", "formatExperience", "formatStyle", "formatTimeline"]) {
+    for (const fn of ["formatLeva", "formatJeitos", "formatCambio", "formatNaoPodeFaltar", "formatTimeline"]) {
       const linha = codigo.slice(codigo.indexOf(`const ${fn} =`));
       expect(linha.slice(0, 160), fn).toContain("rotuloDaOpcao(");
     }
@@ -263,26 +283,122 @@ describe("4 · o quiz pergunta as cinco", () => {
     // "Status, Exclusividade & Design" e "Tecnologia, Inovação & Eficiência"
     // descreviam outra vitrine — o dono apontou o passo duas vezes.
     const fonte = ler("src/components/CarMatch.tsx");
-    const bloco = fonte.slice(fonte.indexOf("const OPCOES_OBJETIVO"), fonte.indexOf("const OPCOES_ESTILO"));
+    const bloco = fonte.slice(fonte.indexOf("const OPCOES_LEVA"), fonte.indexOf("const OPCOES_PRAZO"));
     for (const morto of ["Status, Exclusividade", "Tecnologia, Inovação", "Força, Aventura", "Performance & Potência"]) {
       expect(bloco, morto).not.toContain(`titulo: "${morto}`);
     }
-    expect(bloco).toContain('titulo: "Espaço para a família"');
-    expect(bloco).toContain('titulo: "Rodar barato na cidade"');
+    expect(bloco).toContain('titulo: "Família, criança na cadeirinha"');
+    expect(bloco).toContain('titulo: "Só automático"');
   });
 
-  it("as perguntas 02 e 03 não perguntam a mesma coisa", () => {
-    // "Tecnologia, Inovação & Eficiência" na 02 e "Tecnologia &
-    // Conectividade" na 03: quem respondia a primeira não sabia o que a
-    // segunda queria de diferente. A 02 pergunta PARA QUE serve; a 03, o que
-    // PESA na escolha.
+  it("as perguntas de desejo saíram; cada resposta diz o que faz com o pátio", () => {
+    // "Qual o principal objetivo?" e "O que mais pesa na sua escolha?" eram a
+    // mesma pergunta com palavras diferentes, e nenhuma separava carro: a
+    // resposta virava preferência que só reordenava. É a causa nº 1 do
+    // resultado genérico medida em 25/09.
     const fonte = ler("src/components/CarMatch.tsx");
-    expect(fonte).toContain('titulo="O que mais pesa na sua escolha?"');
-    const objetivo = fonte.slice(fonte.indexOf("const OPCOES_OBJETIVO"), fonte.indexOf("const OPCOES_EXPERIENCIA"));
-    const experiencia = fonte.slice(fonte.indexOf("const OPCOES_EXPERIENCIA"), fonte.indexOf("const OPCOES_ESTILO"));
-    const titulos = (b: string) => [...b.matchAll(/titulo: "([^"]+)"/g)].map((m) => m[1].toLowerCase());
-    for (const t of titulos(objetivo)) {
-      expect(titulos(experiencia), `"${t}" repete entre a 02 e a 03`).not.toContain(t);
+    expect(fonte).not.toContain('titulo="O que mais pesa na sua escolha?"');
+    expect(fonte).not.toContain('titulo="Qual o principal objetivo na sua próxima compra?"');
+    expect(fonte).toContain('titulo="O que o carro vai levar?"');
+    expect(fonte).toContain('titulo="Trocar marcha no trânsito?"');
+  });
+
+  it("toda opção que não é 'tanto faz' muda o que o motor faz", () => {
+    // Pela régua da spec: resposta que não muda filtro nem ordem é enfeite.
+    // As neutras ("Eu e mais um", "Tanto faz") são as únicas que não mudam —
+    // e é o que elas dizem.
+    const base: PerfilDoQuiz = { orcamento: { min: 0, max: null } };
+    const igualABase = (p: PerfilDoQuiz) => JSON.stringify(criteriosDoPerfil(p)) === JSON.stringify(criteriosDoPerfil(base));
+
+    expect(igualABase({ ...base, leva: "eu" })).toBe(true);
+    expect(igualABase({ ...base, cambio: "tanto_faz" })).toBe(true);
+    for (const leva of ["familia", "carga"] as const) expect(igualABase({ ...base, leva }), leva).toBe(false);
+    for (const jeito of ["Hatch", "Sedan", "SUV", "Perua"] as const) {
+      expect(igualABase({ ...base, jeitos: [jeito] }), jeito).toBe(false);
+    }
+    for (const cambio of ["so_automatico", "prefiro_automatico", "prefiro_manual"] as const) {
+      expect(igualABase({ ...base, cambio }), cambio).toBe(false);
+    }
+    for (const item of ITENS_QUE_NAO_PODEM_FALTAR) {
+      // Diesel só vale com carga: a comparação é contra quem já leva carga.
+      const semItem: PerfilDoQuiz = { ...base, leva: item.soComCarga ? "carga" : undefined };
+      expect(JSON.stringify(criteriosDoPerfil({ ...semItem, naoPodeFaltar: [item.id] })), item.id).not.toBe(
+        JSON.stringify(criteriosDoPerfil(semItem)),
+      );
+    }
+  });
+
+  it("o número de cada opção sai da transição que o toque grava", () => {
+    // A primeira versão contava com `{ ...perfilAtual, ...mudanca }` — o perfil
+    // de ANTES do toque, com as regras de pulo do caminho antigo — e 367
+    // opções prometiam um número e entregavam outro (revisão de 25/09). As
+    // transições e a conta moram em `lib/perguntasDoProfiler`, testadas lá;
+    // aqui se trava que a tela as usa.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).not.toMatch(/\.\.\.perfilAtual,\s*\.\.\.mudanca/);
+    expect(codigo).toContain("sobramCom(comLeva(answers, o.id))");
+    expect(codigo).toContain("sobramCom(comCambio(answers, o.id))");
+    expect(codigo).toContain("sobramCom(comItemAlternado(answers, o.id))");
+    expect(codigo).toContain("const novas = comLeva(answers, leva);");
+    expect(codigo).toContain("const novas = comCambio(answers, cambio);");
+    expect(codigo).toContain("comJeitoAlternado(prev, jeito)");
+    expect(codigo).toContain("comItemAlternado(prev, item)");
+  });
+
+  it("o lead e a busca saem das funções testadas", () => {
+    // `carrosDoLead` decide se a carta "Já pensou neste?" vai no lead;
+    // `idsDasRespostas` decide o que vai ao GA4, ao Pixel e à CAPI.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).toContain("carrosDoLead(recomendacao, escolhidos, modoDoLead)");
+    expect(codigo).toContain("const ids = idsDasRespostas(perfilAtual);");
+    expect(codigo).toMatch(/trackCarMatch\(ids, /);
+    expect(codigo).not.toMatch(/trackCarMatch\((?!ids, )/);
+  });
+
+  it("POR MÊS: a aba responde a 01 pela parcela, e a busca e o lead levam a parcela", () => {
+    // Decisões do dono em 25/09: taxas estimadas pela média de mercado; a
+    // entrada é a estimativa do cliente (dinheiro e o que ele espera da
+    // troca); a FIPE da troca nunca entra na conta.
+    const codigo = lerCodigo("src/components/CarMatch.tsx");
+    expect(codigo).toContain('{ id: "porMes", rotulo: "POR MÊS" }');
+    // Só o que a pessoa disse vai no corpo: as taxas a rota lê do banco.
+    expect(codigo).toMatch(/orcamento: \{\s*\.\.\.perfilAtual\.orcamento,\s*parcela: perfilAtual\.parcela\s*\?/);
+    expect(codigo).toMatch(/max: perfilAtual\.parcela\.max,\s*entrada: perfilAtual\.parcela\.entrada,/);
+    expect(codigo).not.toMatch(/parcela: perfilAtual\.parcela \?\? null/);
+    expect(codigo).toMatch(/por_mes: answers\.porMes/);
+    expect(codigo).toContain("parcela: c.parcela,");
+    // A troca é só um aviso ao consultor e o link da avaliação — nada de FIPE.
+    const resultado = lerCodigo("src/components/ResultadoDoProfiler.tsx");
+    for (const [nome, fonte] of [["CarMatch", codigo], ["ResultadoDoProfiler", resultado]]) {
+      expect(fonte, nome).not.toMatch(/fipe/i);
+    }
+    expect(resultado).toContain('href="/avaliacao"');
+    // Parcela zero não vai ao consultor como "48× R$ 0".
+    expect(codigo).toContain("!(c.parcela > 0)");
+  });
+
+  it("parcela só aparece pelo texto único de crédito (CDC, art. 54-B)", () => {
+    // Revisão de 27/09: a lista "outros" mostrava parcela sem CET nem total,
+    // e o "total" da ficha e dos cartões era só a soma das parcelas. O texto
+    // mora em `lib/textoDaParcela` e é testado lá; aqui se trava que as telas
+    // não formatam parcela por conta própria.
+    const resultado = lerCodigo("src/components/ResultadoDoProfiler.tsx");
+    expect(resultado).not.toContain("parcela_mensal");
+    expect(resultado).toContain("textoDaParcela(parcela)");
+    expect(resultado).toContain("parcelaPedida ? compactoDaParcela(v, parcelaPedida) : null");
+    expect(resultado).toContain("textoDaParcela(p).compacto");
+    const ficha = lerCodigo("src/components/CalculadoraFinanciamento.tsx");
+    expect(ficha).toContain("textoDaParcela({");
+    expect(ficha).not.toMatch(/total_pago_ao_final\.toLocaleString/);
+    // O aviso do dono (28/09/2026) vai sempre com os bancos parceiros: a lei
+    // pede o agente financiador junto da oferta.
+    for (const [nome, fonte] of [
+      ["CalculadoraFinanciamento", ficha],
+      ["ResultadoDoProfiler", resultado],
+      ["CarMatch", lerCodigo("src/components/CarMatch.tsx")],
+    ]) {
+      expect(fonte, nome).toContain("avisoDeCredito(");
+      expect(fonte, nome).not.toContain("AVISO_DA_SIMULACAO");
     }
   });
 
@@ -303,26 +419,39 @@ describe("4 · o quiz pergunta as cinco", () => {
   });
 
   it("sem estoque, valem as faixas de reserva", () => {
-    // O memo tem retorno próprio para menos de 4 preços. Sem ele, o fallback
-    // seria de novo uma lista vazia — o mesmo defeito com outro nome.
+    // O cálculo tem retorno próprio para menos de 4 preços. Sem ele, o fallback
+    // seria de novo uma lista vazia — o mesmo defeito com outro nome. Desde
+    // 25/09 ele mora em `faixasDoPatio` (lib/motorDoMatch), e a trava passou
+    // de leitura do código a comportamento.
+    for (const precos of [[], [30000, 60000]]) {
+      const faixas = faixasDoPatio(precos);
+      expect(faixas.length).toBeGreaterThan(0);
+      expect(faixas.slice(1, 1 + CORTES_DE_RESERVA.length).map((f) => f.min)).toEqual([...CORTES_DE_RESERVA]);
+    }
+    // E o CarMatch usa o cálculo do motor, não uma cópia.
     const codigo = lerCodigo("src/components/CarMatch.tsx");
-    const memo = codigo.slice(
-      codigo.indexOf("const faixasDeOrcamento = useMemo"),
-      codigo.indexOf("}, [estoque]);"),
-    );
-    expect(memo).toMatch(/if \(precos\.length < 4\)/);
-    expect(memo).toContain("montar([50000, 65000, 90000], precos)");
+    expect(codigo).toContain("faixasDoPatio(precos)");
   });
 
   it("as faixas saem de QUANTIL, não de fatia do intervalo", () => {
     // Com um carro de R$ 318.900 esticando a ponta, cortar o intervalo em
     // 15/35/60/80% punha 24 dos 35 carros numa faixa só (50–125 mil) e
     // deixava outra vazia. Era o "difícil demais fazer um match acima dos
-    // 50 mil". Por quantil cada faixa leva um quarto do pátio: 7/11/9/8.
-    const codigo = lerCodigo("src/components/CarMatch.tsx");
-    expect(codigo).toContain("quantil(0.25)");
-    expect(codigo).toContain("quantil(0.75)");
-    expect(codigo).not.toContain("spread * 0.15");
+    // 50 mil". Por quantil cada faixa leva um quarto do pátio.
+    const precos = [
+      ...Array.from({ length: 8 }, (_, i) => 26000 + i * 3000),
+      ...Array.from({ length: 10 }, (_, i) => 52000 + i * 2000),
+      ...Array.from({ length: 9 }, (_, i) => 76000 + i * 4000),
+      ...Array.from({ length: 8 }, (_, i) => 118000 + i * 6000),
+      318900,
+    ];
+    const comTeto = faixasDoPatio(precos).filter((f) => f.max !== null);
+    const maior = Math.max(...comTeto.map((f) => f.quantos));
+    expect(maior / precos.length).toBeLessThan(0.4);
+    // O carro de R$ 318.900 não estica a faixa de cima: ele fica sozinho numa
+    // opção "acima de", separada.
+    const semTeto = faixasDoPatio(precos).find((f) => f.max === null);
+    expect(semTeto?.quantos).toBe(1);
   });
 
   it("o slider de valor exato cabe no pátio", () => {

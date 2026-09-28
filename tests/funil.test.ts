@@ -5,6 +5,7 @@ import { semComentarios } from "./fonte";
 import { MATRIZ_DE_PERMISSOES, podeFazer } from "../src/lib/permissoes";
 import { comOAssistente, MOTIVO_DA_SUPRESSAO } from "../src/lib/funil";
 import { lerCodigo } from "./fonte";
+import { maisRecentePrimeiro } from "../src/lib/etiquetasDoLead";
 import {
   ETAPAS_PADRAO,
   ETAPA_DE_ENTRADA,
@@ -1174,7 +1175,18 @@ describe("a rota entrega ao painel o que o motor usa para decidir", () => {
   it("usa a MESMA régua de «mais recente» que o banco", () => {
     // `coalesce(iniciado_em, created_at)` decrescente, dos dois lados. Duas
     // réguas seria o motor escolhendo uma conversa e a tela outra.
-    expect(rota).toMatch(/b\.iniciado_em \?\? b\.created_at/);
+    //
+    // Desde 25/09 a régua mora em `maisRecentePrimeiro` (lib/etiquetasDoLead),
+    // porque a gravação das etiquetas precisa achar a MESMA conversa que o
+    // card mostra. Aqui: a rota usa a função, e a função ordena como o banco.
+    expect(rota).toMatch(/maisRecentePrimeiro\(atendimentos/);
+    const ordem = maisRecentePrimeiro([
+      { id: "velho", iniciado_em: "2026-06-01T10:00:00", created_at: "2026-09-20T10:00:00" },
+      { id: "sem-inicio", iniciado_em: null, created_at: "2026-08-01T10:00:00" },
+      { id: "novo", iniciado_em: "2026-09-01T10:00:00", created_at: "2026-01-01T10:00:00" },
+    ]).map((a) => a.id);
+    // `iniciado_em` manda; `created_at` só entra quando ele falta.
+    expect(ordem).toEqual(["novo", "sem-inicio", "velho"]);
   });
 
   it("o atendimento sem id de conversa ainda conta para o relógio", () => {
