@@ -63,14 +63,20 @@ fotos no banco. Ninguém mais conta foto:
 Como a vitrine (`getEstoque`), a ficha, a home, a tabela do painel e o editor já
 perguntam a `publicavel`, a exceção chega aos cinco lugares sem cópia da regra.
 
-**Feed de anúncios:** `/api/feed/xml` passa a excluir o carro em preparação com
-menos de `MINIMO_DE_FOTOS` fotos. É a única superfície que se afasta da
-vitrine, por decisão do dono.
+**Feed de anúncios:** `/api/feed/xml` passa a excluir o carro com a caixa
+"em preparação" marcada e menos de `MINIMO_DE_FOTOS` fotos. É a única
+superfície que se afasta da vitrine, por decisão do dono. Carro fora de
+preparação segue a regra de hoje: o feed confia no corte do `getEstoque`.
+
+**Foto de verdade:** o `/logo.png` que o mapper põe no carro sem foto não conta
+como foto. A vitrine julga a linha crua e a ficha julga o objeto mapeado; com a
+porta em uma foto, o logotipo passaria por foto de cadastro na ficha.
 
 ## Painel
 
-**Editor do veículo** (`EditorDeVeiculo.tsx`, e `CadastroDeVeiculo.tsx` para o
-carro nascido no painel):
+**Editor do veículo** (`EditorDeVeiculo.tsx`). O `CadastroDeVeiculo.tsx` não
+muda: o carro nativo nasce rascunho, e o cadastro termina com um link para o
+editor, onde a caixa está.
 
 - Caixa "Em preparação".
 - Com ela marcada, aparece "Previsão de chegada ao pátio" (data e hora),
@@ -103,7 +109,8 @@ chegadaAoPatio(veiculo, agora): null
 `null` quando não está em preparação. `dias` conta **dias de calendário no
 fuso de São Paulo**, não horas divididas por 24: é o que a pessoa lê no
 calendário. Resultado: 0 → "CHEGA HOJE", 1 → "CHEGA AMANHÃ", n → "CHEGA EM n
-DIAS". Faltando 30 horas numa segunda às 10h, a data é quarta: "EM 2 DIAS".
+DIAS". Faltando 16 horas numa segunda às 10h, a previsão é terça às 2h:
+"AMANHÃ" — horas ÷ 24 diriam "HOJE".
 
 **Card** (`CardVeiculo`, `src/components/modernist/primitivos.tsx`, server
 component):
@@ -116,9 +123,10 @@ component):
 
 - Bloco "EM PREPARAÇÃO — CHEGA AO PÁTIO EM" com o relógio `05d 13h 22m 10s` e
   "previsão: 03/10 às 14h".
-- O relógio é um componente cliente pequeno que só acerta os números depois de
-  montar. O HTML servido traz a data e a contagem em dias, então nada diverge na
-  hidratação.
+- O relógio é um componente cliente pequeno que só mostra os números depois de
+  montar. O HTML servido traz só a data ("previsão: 03/10 às 14h"), então nada
+  diverge na hidratação. (Corrigido no plano: a contagem em dias também
+  divergiria na virada do dia.)
 - `aria-live` fica **fora** do relógio: um leitor de tela anunciando cada
   segundo é ruído. A data vai em texto para o leitor.
 - Preço, ficha técnica, botões de contato e financiamento: sem mudança.
