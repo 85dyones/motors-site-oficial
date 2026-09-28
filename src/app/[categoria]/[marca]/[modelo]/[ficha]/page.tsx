@@ -6,6 +6,7 @@ import { decidirPublicacao, getDatasDeVenda } from "../../../../../lib/publicaca
 import PDPClientWrapper from "../../../../../components/PDPClientWrapper";
 import FaixaProcedencia from "../../../../../components/modernist/FaixaProcedencia";
 import { getCachedSettings } from "../../../../../lib/settings";
+import { parametrosDoFinanciamento } from "../../../../../lib/parametrosDoFinanciamento-servidor";
 import {
   montarCompartilhamento,
   previaDaFotoDoVeiculo,
@@ -276,10 +277,12 @@ export default async function CarDetailsPage({ params }: PageProps) {
     permanentRedirect(pdpUrl);
   }
 
-  const [{ historico, disponiveis }, settings, publicacao] = await Promise.all([
+  const [{ historico, disponiveis }, settings, publicacao, parametrosDaSimulacao] = await Promise.all([
     recortesDoEstoque(),
     getCachedSettings(),
     publicacaoDoVeiculo(veiculo),
+    // As condições do simulador "Monte sua parcela" — a vigência do painel.
+    parametrosDoFinanciamento(),
   ]);
 
   /**
@@ -387,6 +390,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
         caminhoDaMarca={caminhoDaMarca}
         caminhoDoModelo={caminhoDoModelo}
         qrDaFicha={qr}
+        parametrosDoFinanciamento={parametrosDaSimulacao}
       />
       <FaixaProcedencia itens={itensProcedencia} />
     </div>

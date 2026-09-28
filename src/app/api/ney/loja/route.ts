@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { getCachedSettings } from "../../../../lib/settings";
 import { montarLoja } from "../../../../lib/lojaParaOAssistente";
+import { parametrosDoFinanciamento } from "../../../../lib/parametrosDoFinanciamento-servidor";
 
 /**
  * O que a loja é, escrito para o assistente do WhatsApp ler.
@@ -35,10 +36,16 @@ import { montarLoja } from "../../../../lib/lojaParaOAssistente";
 
 const loja = unstable_cache(
   async (): Promise<string> => {
-    const { companySettings } = await getCachedSettings();
+    const [{ companySettings }, financiamento] = await Promise.all([
+      getCachedSettings(),
+      // O ano mais antigo financiado e os bancos parceiros da vigência — os
+      // mesmos que /financiamento publica.
+      parametrosDoFinanciamento(),
+    ]);
     return montarLoja(
       companySettings,
       new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      financiamento,
     );
   },
   ["institucional-para-o-assistente"],

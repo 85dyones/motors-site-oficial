@@ -905,6 +905,27 @@ export function trackCarMatch(tags: string[], resultsCount: number): string | nu
   }
 }
 
+/**
+ * Um passo do Garagem Profiler (`/carro-perfeito`): `intro`, `q1`…`q5`,
+ * `results`. É o funil do quiz, para ver em que pergunta a pessoa desiste — até
+ * 25/09 não havia medida nenhuma, e o canal nunca tinha gerado lead.
+ *
+ * Direto no `gtag`, como o `search` de `trackCarMatch`, e não no `dataLayer`:
+ * o container `GTM-TB665RN9` não tem gatilho para este evento, e
+ * `tests/contrato-do-container.test.ts` barra evento na camada que o container
+ * não lê. Só o nome do passo — nada de resposta nem de orçamento —, e nada
+ * para quem recusou o rastreamento.
+ */
+export function trackPassoDoProfiler(passo: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (rastreamentoRecusado()) return;
+    if (window.gtag) window.gtag("event", "profiler_step", { profiler_step: passo });
+  } catch (err) {
+    console.warn("[Telemetry Tracking] Failed to log profiler step:", err);
+  }
+}
+
 export function trackContactClick(
   method: "whatsapp" | "phone",
   label: string = "",

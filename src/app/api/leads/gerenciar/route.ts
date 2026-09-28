@@ -10,6 +10,14 @@ import {
 } from "../../../../lib/responsavelDoLead";
 import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
+import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
+import { limparEtiquetas } from "../../../../lib/etiquetas";
+import {
+  contarPassagensCreditadas,
+  etiquetarPassagemDoSdr,
+  etiquetasConhecidas,
+  maisRecentePrimeiro,
+} from "../../../../lib/etiquetasDoLead";
 import {
   decidirDesfecho,
   ordenarEtapas,
@@ -157,12 +165,16 @@ export async function GET(request: NextRequest) {
       conversa: number | null;
       comAssistente: boolean;
       humanoAssumiuEm: string | null;
+      etiquetas: string[];
     }
     const atendimentoPorLead = new Map<string, DoAtendimento>();
+    // Toda etiqueta que aparece nas conversas lidas — o que o card oferece
+    // para pôr enquanto a lista da conta do Chatwoot não chega.
+    const etiquetasVistas: unknown[] = [];
     if (leads.length > 0) {
       const { data: atendimentos, error: erroAtendimento } = await supabase
         .from("atendimentos")
-        .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at")
+        .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at, tags")
         .in("lead_id", leads.map((l: { id: string }) => l.id));
 
       if (erroAtendimento) {
@@ -171,12 +183,8 @@ export async function GET(request: NextRequest) {
         // A MESMA régua do `montar_fila_do_funil`: `coalesce(iniciado_em,
         // created_at)` decrescente. Duas réguas de "mais recente" no mesmo
         // sistema é o motor escolhendo uma conversa e a tela outra.
-        const maisRecentePrimeiro = [...(atendimentos ?? [])].sort((a, b) =>
-          String(b.iniciado_em ?? b.created_at ?? "").localeCompare(
-            String(a.iniciado_em ?? a.created_at ?? ""),
-          ),
-        );
-        for (const a of maisRecentePrimeiro) {
+        for (const a of maisRecentePrimeiro(atendimentos ?? [])) {
+          if (Array.isArray(a.tags)) etiquetasVistas.push(...a.tags);
           if (a.lead_id && !atendimentoPorLead.has(a.lead_id)) {
             atendimentoPorLead.set(a.lead_id, {
               conversa: a.chatwoot_conversation_id ? Number(a.chatwoot_conversation_id) : null,
@@ -185,6 +193,12 @@ export async function GET(request: NextRequest) {
               // rodando — a mesma direção segura do `default false` no banco.
               comAssistente: a.com_assistente === true,
               humanoAssumiuEm: a.humano_assumiu_em ?? null,
+              // As etiquetas da conversa, como o n8n as espelhou (2026-09-25).
+              // Da MESMA conversa do link do card: é nela que o card grava.
+              // Como estão, sem normalizar — ver o cabeçalho de `lib/etiquetas`.
+              // É o espelho, e pode estar atrás: por isso o card manda MUDANÇA,
+              // e nunca esta lista de volta.
+              etiquetas: limparEtiquetas(a.tags),
             });
           }
         }
@@ -195,6 +209,7 @@ export async function GET(request: NextRequest) {
       l.chatwoot_conversation_id = a?.conversa ?? null;
       l.com_assistente = a?.comAssistente ?? false;
       l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
+      l.etiquetas = a?.etiquetas ?? [];
     }
 
     // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
@@ -243,6 +258,11 @@ export async function GET(request: NextRequest) {
       // busca. A tela lê daqui, e não do que pediu, para nunca chamar de
       // "fila" uma lista filtrada nem de "busca vazia" uma fila vazia.
       busca: ref ? { ref } : null,
+      // As etiquetas do card (2026-09-25). `etiquetasEditaveis` diz se o
+      // servidor consegue gravar no Chatwoot — sem token, o card mostra as
+      // etiquetas e não oferece editar, em vez de oferecer e falhar no clique.
+      etiquetasDisponiveis: etiquetasConhecidas(etiquetasVistas),
+      etiquetasEditaveis: configDoChatwoot() !== null,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -294,7 +314,8 @@ export async function PATCH(request: NextRequest) {
     if (!ehStaff(profile)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
-    if (podeFazer(perfisDe(profile), "Ver e mover leads no kanban") !== "faz") {
+    const perfisDoAutor = perfisDe(profile);
+    if (podeFazer(perfisDoAutor, "Ver e mover leads no kanban") !== "faz") {
       return NextResponse.json({ error: "Seu perfil não move leads" }, { status: 403 });
     }
 
@@ -366,6 +387,11 @@ export async function PATCH(request: NextRequest) {
     // (migração 20260924190000). O retrato `avaliacao` NÃO entra aqui: é o que
     // o cliente preencheu no site, e o painel não o reescreve. Valor ilegível
     // recusa em vez de apagar o que estava gravado — ver `lerValorDaAvaliacao`.
+    //
+    // Pela mesma razão, o `perfil` do Profiler (migração 20260925200000) não
+    // tem campo neste PATCH: é o que o cliente respondeu no site. Os campos
+    // desestruturados do corpo, lá em cima, são tudo o que esta rota grava —
+    // um `perfil` no corpo é ignorado.
     const valoresDaAvaliacao = { avaliacao_valor_ofertado, avaliacao_valor_pago };
     for (const [campo, bruto] of Object.entries(valoresDaAvaliacao)) {
       if (bruto === undefined) continue;
@@ -453,9 +479,62 @@ export async function PATCH(request: NextRequest) {
       Object.assign(atualizacao, decisao.campos);
     }
 
+    // A passagem do SDR (ver o bloco depois do `update`): quantos resgates o
+    // lead já tinha, para saber depois se ESTA passagem contou. Só para quem
+    // o gatilho pode creditar — SDR sem papel de Comercial, dando dono.
+    const passaComoSdr =
+      perfisDoAutor.includes("sdr") &&
+      !perfisDoAutor.includes("comercial") &&
+      typeof responsavel === "string" &&
+      responsavel.trim() !== "";
+    const resgatesAntes = passaComoSdr ? await contarPassagensCreditadas(supabase, id) : null;
+
     const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // ------------------------------------------------------------------------
+    // A passagem do SDR para o Comercial (2026-09-25)
+    // ------------------------------------------------------------------------
+    // *"Quando o sdr atribuir um contato para um vendedor do comercial,
+    // precisamos manter a tag de resgate e reaquecido, para mensurar o
+    // trabalho dele, isso tem que ser feito automático."*
+    //
+    // Duas metades, e só esta mora aqui. O CRÉDITO fica no rastro, pelo
+    // gatilho da migração 20260925180000, no mesmo `update` acima — não
+    // depende do Chatwoot nem desta rota. E é o gatilho que decide se a
+    // passagem conta: só lead parado ou reaberto, passado por quem é só SDR
+    // (decisões do dono, 25/09). A rota não repete a régua; ela CONTA os
+    // resgates do lead antes e depois do `update`, e põe as ETIQUETAS na
+    // conversa só se o gatilho creditou. Etiqueta e crédito medem a mesma
+    // coisa, ou o filtro do Chatwoot e o relatório do banco discordam.
+    //
+    // As etiquetas vão DEPOIS de a passagem estar gravada: o Chatwoot fora do
+    // ar não pode travar o lead com o SDR. Falhou, a resposta leva o aviso e
+    // a passagem continua valendo.
+    if (passaComoSdr) {
+      const resgatesDepois = await contarPassagensCreditadas(supabase, id);
+      if (resgatesAntes === null || resgatesDepois === null) {
+        return NextResponse.json({
+          ok: true,
+          aviso:
+            "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não foram para o Chatwoot.",
+        });
+      }
+      if (resgatesDepois <= resgatesAntes) {
+        return NextResponse.json({
+          ok: true,
+          aviso:
+            "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no Chatwoot.",
+        });
+      }
+      const passagem = await etiquetarPassagemDoSdr(supabase, id, configDoChatwoot());
+      return NextResponse.json({
+        ok: true,
+        ...(passagem.etiquetas ? { etiquetas: passagem.etiquetas } : {}),
+        ...(passagem.aviso ? { aviso: passagem.aviso } : {}),
+      });
     }
 
     return NextResponse.json({ ok: true });

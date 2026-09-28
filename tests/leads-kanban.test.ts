@@ -351,8 +351,14 @@ describe("a tela", () => {
   it("recarrega do servidor quando a gravação falha", () => {
     // Restaurar um retrato local desfaria o trabalho de outro consultor que
     // mexeu na fila no meio do caminho.
+    //
+    // Desde 25/09 a releitura passa por `falhou`, que relê ANTES de mostrar o
+    // erro — na ordem inversa, `carregar` apagava a mensagem. O efeito na tela
+    // está em `etiquetas-do-lead-fiacao.test.ts` ("gravação recusada").
     const bloco = codigo.slice(codigo.indexOf("const salvar"), codigo.indexOf("const mover"));
-    expect(bloco).toContain("carregar()");
+    const recuperacao = codigo.slice(codigo.indexOf("const falhou"), codigo.indexOf("const salvar"));
+    expect(bloco).toContain("falhou(");
+    expect(recuperacao).toMatch(/carregar\(\)\.finally\(\(\) => setErro\(mensagem\)\)/);
     expect(bloco).not.toContain("setLeads(anterior)");
   });
 });

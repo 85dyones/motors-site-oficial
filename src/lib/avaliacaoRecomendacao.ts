@@ -295,7 +295,8 @@ const DIA_MS = 24 * 60 * 60 * 1000;
  * 11).
  *
  * O formulário só sabe o ano-modelo, então a idade é contada de 1º de janeiro
- * dele, com fração: um 2020 em setembro de 2026 tem 6,7 anos. Nada de mínimo
+ * dele, com fração: um 2020 em setembro de 2026 tem 6,7 anos (leitura
+ * ratificada pelo dono em 2026-09-25, registrada na spec 11). Nada de mínimo
  * inventado: a spec não tem um, e um piso aqui mudaria o degrau de km de todo
  * carro novo. O único piso é o físico — idade não é negativa (ano-modelo que
  * ainda não começou, como o 2027 vendido em 2026, tem idade zero).
@@ -374,7 +375,8 @@ export function recomendarAvaliacao(entrada: {
             : `${km(quilometragem)}: no esperado para ${idadeTexto}`,
     });
     // "Km baixo demais = alerta de hodômetro, não prêmio" (spec 11). A spec
-    // não diz quanto é "demais"; a leitura aqui usa a própria curva: ficar
+    // não dizia quanto é "demais"; a leitura, ratificada pelo dono em
+    // 2026-09-25 e registrada na spec, usa a própria curva: ficar
     // abaixo do esperado por mais que o maior degrau fechado (50.000 km na
     // semente) — o mesmo desvio que, para cima, já é o degrau mais caro. Rodar
     // pouco (10 mil por ano num 2021) não alarma; um 2015 com 0 km alarma.

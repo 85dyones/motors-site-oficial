@@ -2,6 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { matchVehicles, calculateMatchScore } from "../../../lib/car-match";
 import { logCarMatchQueried, logApiTelemetry } from "../../../lib/telemetry";
+import { getEstoque } from "../../../lib/supabase";
+import { disponiveisDe } from "../../../lib/regrasEstoque";
+import { PARAMETROS_DE_FABRICA, type ParametrosDoFinanciamento } from "../../../lib/finance-calculator";
+import { parametrosDoFinanciamento } from "../../../lib/parametrosDoFinanciamento-servidor";
+import {
+  criteriosDasRespostas,
+  criteriosDoPerfil,
+  ITENS_QUE_NAO_PODEM_FALTAR,
+  MAXIMO_DO_QUE_NAO_PODE_FALTAR,
+  nomeCurto,
+  OCUPACOES,
+  PRAZOS_DO_POR_MES,
+  recomendar,
+  semFiltro,
+  type ChaveDeFiltro,
+  type Criterios,
+  type ItemQueNaoPodeFaltar,
+  type Jeito,
+  type Leva,
+  type Ocupacao,
+  type PerfilDoQuiz,
+  type PreferenciaDeCambio,
+} from "../../../lib/motorDoMatch";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +117,52 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // 1. Safe parsing of incoming payload
     requestBody = await request.json().catch(() => ({}));
+
+    // O Garagem Profiler a partir de 25/09: manda as RESPOSTAS, e o motor de
+    // fatos (`lib/motorDoMatch.ts`) decide. Desde a fase 2 elas chegam como
+    // `perfil` (as perguntas-fato); `respostas` é o formato da fase 1, que
+    // continua valendo para uma aba aberta antes do deploy. O formato antigo,
+    // `{tags, budget}`, continua aceito logo abaixo para quem ainda o use.
+    const temPerfil = requestBody && typeof requestBody.perfil === "object" && requestBody.perfil !== null;
+    const temRespostas = requestBody && typeof requestBody.respostas === "object" && requestBody.respostas !== null;
+    if (temPerfil || temRespostas) {
+      // POR MÊS que veio e não se lê é recusado. Cair na faixa de preço
+      // falhava ABERTO: a tela do POR MÊS manda `max: null`, e a busca saía
+      // sem teto nenhum — o X4 de R$ 318.900 para quem disse R$ 1.500/mês.
+      const orcamentoDoCorpo = requestBody.orcamento;
+      const parcelaBruta =
+        typeof orcamentoDoCorpo === "object" && orcamentoDoCorpo !== null ? orcamentoDoCorpo.parcela : undefined;
+      if (parcelaBruta !== undefined && parcelaBruta !== null && parcelaDoCorpo(parcelaBruta) === null) {
+        return sendResponse(NextResponse.json({ error: "Parcela inválida." }, { status: 400 }));
+      }
+
+      // As taxas e o ano mais antigo financiado são os da vigência do banco,
+      // nunca os do corpo: o navegador manda a parcela que a pessoa quer, não
+      // a conta com que ela é feita.
+      const parametros = parcelaBruta ? await parametrosDoFinanciamento() : PARAMETROS_DE_FABRICA;
+      const criterios = criteriosDoCorpo(requestBody, parametros);
+      const recomendacao = recomendar(disponiveisDe(await getEstoque()), criterios);
+
+      // Só o id que o próprio corpo trouxe. Sem cair no cookie `ag_uid`: o
+      // CarMatch deixa de mandá-lo quando a pessoa recusou o rastreamento, e
+      // ler o cookie aqui desfaria a recusa em silêncio.
+      const agUid = typeof requestBody.ag_uid === "string" && requestBody.ag_uid ? requestBody.ag_uid : undefined;
+      logCarMatchQueried({
+        tags: recomendacao.filtros,
+        maxBudget: criterios.teto ?? undefined,
+        resultsCount: recomendacao.cartoes.length,
+        matchedVehicles: recomendacao.cartoes.map((c) => `${nomeCurto(c.veiculo)} (ID: ${c.veiculo.id})`),
+        agUid,
+      });
+
+      return sendResponse(
+        NextResponse.json({
+          success: true,
+          count: recomendacao.cartoes.length,
+          recomendacao,
+        }),
+      );
+    }
     
     // 2. Extract and format query filters
     const tags = Array.isArray(requestBody.tags)
@@ -147,3 +216,96 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
+
+const FILTROS_AFROUXAVEIS: readonly ChaveDeFiltro[] = ["portas", "automatico", "carroceria", "ano", "km", "diesel"];
+
+const LEVAS: readonly Leva[] = ["eu", "familia", "carga"];
+const JEITOS: readonly Jeito[] = ["Hatch", "Sedan", "SUV", "Perua"];
+const CAMBIOS: readonly PreferenciaDeCambio[] = ["so_automatico", "prefiro_automatico", "tanto_faz", "prefiro_manual"];
+const ITENS: readonly ItemQueNaoPodeFaltar[] = ITENS_QUE_NAO_PODEM_FALTAR.map((i) => i.id);
+
+/** O valor, se estiver na lista; senão `null`. `includes`, e nunca `in`. */
+function daLista<T extends string>(lista: readonly T[], bruto: unknown): T | null {
+  return typeof bruto === "string" && (lista as readonly string[]).includes(bruto) ? (bruto as T) : null;
+}
+
+/**
+ * POR MÊS, conferido: parcela de R$ 100 a R$ 50 mil, entrada até R$ 10
+ * milhões, prazo da lista e ocupação da lista (CLT se não veio). Fora disso,
+ * `null` — e o POST responde 400 (ver o começo do handler).
+ */
+function parcelaDoCorpo(
+  bruto: unknown,
+  parametros: ParametrosDoFinanciamento = PARAMETROS_DE_FABRICA,
+): PerfilDoQuiz["parcela"] {
+  if (typeof bruto !== "object" || bruto === null) return null;
+  const p = bruto as Record<string, unknown>;
+  const max = valor(p.max);
+  // Sem entrada é zero; entrada que veio e não é número válido é corpo forjado.
+  const entrada = p.entrada === undefined ? 0 : valor(p.entrada);
+  const prazo = valor(p.prazo);
+  if (max === null || max < 100 || max > 50000) return null;
+  if (entrada === null || entrada > 10_000_000) return null;
+  if (prazo === null || !(PRAZOS_DO_POR_MES as readonly number[]).includes(prazo)) return null;
+  return { max, entrada, prazo, ocupacao: daLista<Ocupacao>(OCUPACOES, p.ocupacao) ?? "clt", parametros };
+}
+
+/** Só os valores da lista, sem repetir, até `maximo`. */
+function listaDaLista<T extends string>(lista: readonly T[], bruto: unknown, maximo: number): T[] {
+  if (!Array.isArray(bruto)) return [];
+  return [...new Set(bruto.map((x) => daLista(lista, x)).filter((x): x is T => x !== null))].slice(0, maximo);
+}
+
+/** Número finito e não negativo, ou `null`. O corpo vem do navegador. */
+function valor(bruto: unknown): number | null {
+  const n = typeof bruto === "number" ? bruto : typeof bruto === "string" ? Number(bruto) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * Os critérios a partir do corpo, sem confiar nele: resposta fora da lista é
+ * ignorada (pelo `switch` de `criteriosDasRespostas` na fase 1, por
+ * `daLista` no `perfil` da fase 2), número inválido vira ausência, e só os
+ * filtros conhecidos podem ser afrouxados (o "e se"). O teto nunca é
+ * afrouxado — decisão do dono em 25/09.
+ */
+function criteriosDoCorpo(corpo: Record<string, unknown>, parametros: ParametrosDoFinanciamento): Criterios {
+  const objeto = (x: unknown): Record<string, unknown> =>
+    typeof x === "object" && x !== null ? (x as Record<string, unknown>) : {};
+  const r = objeto(corpo.respostas);
+  const texto = (x: unknown) => (typeof x === "string" ? x : undefined);
+  const orcamento = objeto(corpo.orcamento);
+  const max = valor(orcamento.max);
+  const teto = max && max > 0 ? max : null;
+  // Piso acima do teto só vem de corpo forjado; vira "sem piso", e não uma
+  // faixa impossível escrita na tela ("de R$ 100 mil a R$ 50 mil").
+  const min = valor(orcamento.min) ?? 0;
+
+  const faixa = { min: teto !== null && min > teto ? 0 : min, max: teto };
+
+  let criterios: Criterios;
+  if (typeof corpo.perfil === "object" && corpo.perfil !== null) {
+    const p = objeto(corpo.perfil);
+    criterios = criteriosDoPerfil({
+      orcamento: faixa,
+      parcela: parcelaDoCorpo(orcamento.parcela, parametros),
+      leva: daLista(LEVAS, p.leva),
+      jeitos: listaDaLista(JEITOS, p.jeitos, JEITOS.length),
+      cambio: daLista(CAMBIOS, p.cambio),
+      naoPodeFaltar: listaDaLista(ITENS, p.naoPodeFaltar, MAXIMO_DO_QUE_NAO_PODE_FALTAR),
+    });
+  } else {
+    criterios = criteriosDasRespostas({
+      orcamento: faixa,
+      objetivo: texto(r.objetivo),
+      experiencia: texto(r.experiencia),
+      estilo: texto(r.estilo),
+    });
+  }
+
+  const afrouxar = Array.isArray(corpo.afrouxar) ? corpo.afrouxar : [];
+  for (const chave of FILTROS_AFROUXAVEIS) {
+    if (afrouxar.includes(chave)) criterios = semFiltro(criterios, chave);
+  }
+  return criterios;
+}

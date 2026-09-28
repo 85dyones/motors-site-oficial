@@ -1,11 +1,13 @@
 import { telefoneVisivel } from "./whatsapp";
 import { SITE_URL } from "./site";
 import type { CompanySettings } from "../types";
+import { PARAMETROS_DE_FABRICA, type ParametrosDoFinanciamento } from "./finance-calculator";
+import { textoDosBancos } from "./textoDaParcela";
 import {
   ALCANCE_DA_ENTREGA,
   GARANTIA_KM_TEXTO,
   GARANTIA_MESES,
-  PERGUNTAS_DE_FINANCIAMENTO,
+  perguntasDeFinanciamento,
   PERGUNTAS_DE_GARANTIA,
   SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
@@ -34,7 +36,16 @@ function perguntas(itens: { pergunta: string; resposta: string }[]): string[] {
  */
 type DadosDaLoja = Pick<CompanySettings, "name" | "address" | "hours" | "whatsapp" | "whatsappRaw">;
 
-export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
+/**
+ * `condicoes` é a vigência de `parametros_financiamento` (o ano mais
+ * antigo que os bancos parceiros financiam e a lista deles) — a mesma que o
+ * site aplica. Sem ela, os valores de fábrica.
+ */
+export function montarLoja(
+  empresa: DadosDaLoja,
+  geradoEm: string,
+  condicoes: ParametrosDoFinanciamento = PARAMETROS_DE_FABRICA,
+): string {
   const cabecalho = [
     "# A Motors Store, para o atendente virtual",
     "",
@@ -86,7 +97,11 @@ export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
   const financiamento = bloco("Financiamento", [
     ...TEXTO_DE_FINANCIAMENTO,
     "",
-    ...perguntas(PERGUNTAS_DE_FINANCIAMENTO),
+    // O FAQ da página, com o ano da vigência: PERGUNTAS_DE_FINANCIAMENTO é o
+    // mesmo texto com o ano de fábrica.
+    ...perguntas(perguntasDeFinanciamento(condicoes.anoMaisAntigo)),
+    "",
+    textoDosBancos(condicoes.bancosParceiros),
     "",
     "Nunca diga taxa, parcela ou valor, e nunca diga que a aprovação é garantida,",
     "fácil ou rápida. Não peça CPF, RG, comprovante de renda nem dado bancário —",
@@ -96,8 +111,8 @@ export function montarLoja(empresa: DadosDaLoja, geradoEm: string): string {
   const ferramentas = bloco("O que a loja tem no site", [
     `- Avaliação do usado: ${SITE_URL}/avaliacao — o cliente manda o carro dele e um`,
     "  consultor retorna com a proposta. O valor sai depois da vistoria presencial.",
-    `- Garagem Profiler: ${SITE_URL}/carro-perfeito — cinco perguntas, e o consultor`,
-    "  manda três sugestões do estoque.",
+    `- Garagem Profiler: ${SITE_URL}/carro-perfeito — cinco perguntas, e a tela mostra`,
+    "  três carros do pátio com o porquê de cada um; o consultor confirma no WhatsApp.",
     `- Simulador de financiamento: ${SITE_URL}/financiamento — o número de lá é`,
     "  estimativa; quem fecha a condição é o banco.",
     `- Vitrine completa: ${SITE_URL}/estoque`,

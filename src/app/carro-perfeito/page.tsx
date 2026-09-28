@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import CarMatch from "../../components/CarMatch";
 import { getCachedSettings } from "../../lib/settings";
+import { parametrosDoFinanciamento } from "../../lib/parametrosDoFinanciamento-servidor";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd, schemaDeTrilha } from "../../lib/schemaListagem";
 import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 
 const DESCRICAO =
-  "Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e um consultor envia três sugestões reais do estoque no WhatsApp.";
+  "Cinco perguntas, trinta segundos. Três carros do nosso pátio para o seu perfil, com o que cada um atende e o que pesa contra.";
 
 // Mesma correção da /avaliacao: sem card próprio, o quiz era compartilhado com
 // o texto da home.
@@ -38,7 +39,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * do antigo âncora `/#match-garagem`.
  */
 export default async function CarroPerfeitoPage() {
-  const { companySettings } = await getCachedSettings();
+  // As condições do simulador vêm do banco (a vigência que o painel edita):
+  // a aba POR MÊS conta com elas, e a `/api/match` lê as mesmas do mesmo cache.
+  const [{ companySettings }, parametros] = await Promise.all([getCachedSettings(), parametrosDoFinanciamento()]);
 
   /**
    * Dado estruturado entrou em 2026-09-05, e esta era a página pública com
@@ -68,7 +71,7 @@ export default async function CarroPerfeitoPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: grafo }} />
-      <CarMatch />
+      <CarMatch parametros={parametros} />
     </>
   );
 }

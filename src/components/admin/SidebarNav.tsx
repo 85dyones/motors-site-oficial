@@ -138,6 +138,15 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       items: [{ name: "Aportes e participações", href: "/admin/investidores" }],
     },
     {
+      // As condições do simulador (2026-09-28): taxas, ano mais antigo
+      // financiado e bancos parceiros, com vigência. A linha da A17 é
+      // "Editar texto legal e condições de financiamento" — Administrador e
+      // Financeiro —, a mesma que a página e a rota cobram.
+      title: "Financiamento",
+      roles: ["admin", "financeiro"],
+      items: [{ name: "Condições do simulador", href: "/admin/financiamento" }],
+    },
+    {
       // Marketing entra pela matriz A17: fotos, textos, SEO e destaques são
       // o domínio natural do perfil. A trava fina (aparência é só de Admin)
       // entra quando as abas ganharem gate próprio.
