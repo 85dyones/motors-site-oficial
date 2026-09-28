@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MOTIVO_DO_DESFECHO,
+  NAO_E_OPORTUNIDADE,
   ehDescarte,
   ehTipoDeDesfecho,
   escopoDoLead,
@@ -82,7 +83,7 @@ export default function ModalDeDesfecho({
    */
   const rotulos = descarte
     ? {
-        chapeu: "Não é oportunidade",
+        chapeu: NAO_E_OPORTUNIDADE,
         pergunta: "O que era, então?",
         vazio: MOTIVO_DO_DESFECHO.descartado,
         confirmar: "Descartar",

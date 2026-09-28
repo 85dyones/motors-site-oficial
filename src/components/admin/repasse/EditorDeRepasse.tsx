@@ -14,6 +14,7 @@ import { destinoDoRepasse } from "../../../lib/destinoDasFotos";
 import { alteracoes, formularioDe, podeEditarORepasse, validaRepasse, type FormularioDoRepasse } from "../../../lib/edicaoDoRepasse";
 import { comItem } from "../../../lib/fichaDeEstado";
 import { fotosDoVeiculo } from "../../../lib/fotosDoVeiculo";
+import { CAMINHO_DO_PAINEL_DO_REPASSE, caminhoDoCarroNoPainel } from "../../../lib/painelDoRepasse";
 import type { Perfil } from "../../../lib/permissoes";
 import {
   CARROCERIAS_DO_REPASSE,
@@ -140,9 +141,16 @@ export default function EditorDeRepasse({
   return (
     <div className="flex w-full max-w-4xl flex-col gap-8">
       <div className="border-b-2 border-mt-regua pb-5">
-        <Link href="/admin/repasse" className="text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-700 no-underline hover:text-mt-accent">
-          ← REPASSE
-        </Link>
+        <nav aria-label="Trilha" className="text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-700">
+          <Link href={CAMINHO_DO_PAINEL_DO_REPASSE} className="text-mt-neutral-700 no-underline hover:text-mt-accent">
+            ← REPASSE
+          </Link>
+          {" / "}
+          {/* A visão do carro (28/09): o editor é um passo dentro dela. */}
+          <Link href={caminhoDoCarroNoPainel(repasse.id)} className="text-mt-neutral-700 no-underline hover:text-mt-accent">
+            VER O CARRO
+          </Link>
+        </nav>
         <h1 className="mt-titulo mt-1 text-2xl md:text-3xl">{nome}</h1>
         <p className="mt-2 flex flex-wrap items-center gap-3 text-xs">
           <span className="mt-rotulo">{NOME_DA_SITUACAO[repasse.situacao]}</span>

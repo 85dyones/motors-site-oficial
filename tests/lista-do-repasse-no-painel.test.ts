@@ -82,6 +82,17 @@ describe("/admin/repasse", () => {
     expect(texto(await PaginaDaLista({ searchParams: Promise.resolve({}) }))).not.toContain("Lista do repasse");
   });
 
+  // Pedido do dono em 28/09: abrir o carro mostra a visão; editar é um botão
+  // dentro dela. A lista nunca pula direto para o editor.
+  it("cada carro da lista abre a visão, e não o editor", async () => {
+    banco.leituras.repasses = { data: LINHAS, error: null };
+    const html = renderToStaticMarkup(
+      createElement(ConfirmProvider, null, await PaginaDaLista({ searchParams: Promise.resolve({}) })),
+    );
+    expect(html).toContain('href="/admin/repasse/a1111111-1111-4111-8111-111111111111"');
+    expect(html).not.toContain("/editar");
+  });
+
   it("antes da migração, avisa em vez de quebrar", async () => {
     banco.leituras.repasses = { data: null, error: { message: "x", code: "PGRST205" } };
     expect(texto(await PaginaDaLista({ searchParams: Promise.resolve({}) }))).toContain("20260924180000_repasse_fundacao.sql");

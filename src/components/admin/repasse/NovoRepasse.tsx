@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { caminhoDoEditorNoPainel } from "../../../lib/painelDoRepasse";
 
 const CAMPOS = [
   { nome: "marca", rotulo: "Marca", tipo: "text" },
@@ -53,7 +54,9 @@ export default function NovoRepasse() {
         setErro(data.error || "Não deu para criar o rascunho.");
         return;
       }
-      router.push(`/admin/repasse/${data.id}`);
+      // Direto ao editor, e não à visão: o rascunho acabou de nascer com o
+      // básico, e o resto (fotos, FIPE, ficha) se preenche lá.
+      router.push(caminhoDoEditorNoPainel(data.id));
     } catch {
       setErro("Não deu para criar o rascunho. Confira a conexão.");
     } finally {

@@ -85,6 +85,17 @@ export const ROTULO_DO_DESFECHO: Record<TipoDeDesfecho, string> = {
 };
 
 /**
+ * O descarte como a caixa de desfecho o apresenta a quem fecha o card, e como
+ * a visão do carro de repasse o mostra na lista de leads (pedido do dono em
+ * 28/09: "ganho, perdido ou se não é oportunidade (teste)"). Uma fonte só: a
+ * caixa e a lista não podem chamar o mesmo desfecho de dois jeitos.
+ *
+ * Não substitui `ROTULO_DO_DESFECHO.descartado`, que é o rótulo da lista de
+ * fechados do Kanban e do relatório.
+ */
+export const NAO_E_OPORTUNIDADE = "Não é oportunidade";
+
+/**
  * O mesmo desfecho no meio da frase: "nenhum motivo de PERDA está ativo".
  *
  * Existe separado de `ROTULO_DO_DESFECHO` porque o rótulo qualifica o NEGÓCIO

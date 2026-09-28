@@ -5,8 +5,8 @@ import { vi } from "vitest";
  * `tests/funil-config-rota.test.ts`, com o que as rotas do repasse usam.
  *
  * `leituras[tabela]` responde a qualquer select daquela tabela. Toda escrita
- * (insert, update, delete, upsert) entra em `escritas`, com os filtros `eq`
- * e `is` encadeados depois dela, e é respondida por `responderEscrita`. O
+ * (insert, update, delete, upsert) entra em `escritas`, com os filtros `eq`,
+ * `is` e `in` encadeados depois dela, e é respondida por `responderEscrita`. O
  * padrão para `update` devolve a linha lida com os valores novos por cima —
  * é o que o `.select("*").maybeSingle()` da rota recebe quando a corrida
  * não aconteceu.
@@ -29,7 +29,7 @@ export function bancoDeTeste() {
   const escritas: Escrita[] = [];
   const lidas: string[] = [];
   /**
-   * Uma entrada por `from`, com os `eq`/`is` encadeados na LEITURA e as
+   * Uma entrada por `from`, com os `eq`/`is`/`in` encadeados na LEITURA e as
    * colunas do `select` dela (sem isso, esquecer uma coluna no `select`
    * passaria: `leituras` devolve a linha inteira de qualquer jeito).
    */
@@ -48,7 +48,9 @@ export function bancoDeTeste() {
       (nome: string) =>
       (...args: unknown[]) => {
         if (nome === "select" && leitura) leitura.colunas = args[0];
-        if (nome === "eq" || nome === "is") {
+        // `in` também: "um canal OU outro" é filtro da consulta, e a prova de
+        // que a página não lê o carro inteiro está nele.
+        if (nome === "eq" || nome === "is" || nome === "in") {
           const filtro: [string, unknown] = [String(args[0]), args[1]];
           if (escrita) escrita.filtros.push(filtro);
           else leitura?.filtros.push(filtro);

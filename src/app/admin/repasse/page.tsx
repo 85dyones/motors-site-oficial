@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { validaRepasse } from "../../../lib/edicaoDoRepasse";
 import { ehTabelaOuColunaAusente, mensagemDeMigracaoPendente } from "../../../lib/erroDeSchema";
-import { ABAS_DO_PAINEL, abaDaUrl, abaInicial, contarPorSituacao } from "../../../lib/painelDoRepasse";
+import { ABAS_DO_PAINEL, abaDaUrl, abaInicial, caminhoDoCarroNoPainel, contarPorSituacao } from "../../../lib/painelDoRepasse";
 import { papelPadraoPorEmail } from "../../../lib/papelPadrao";
 import { ehStaff, perfisDe } from "../../../lib/permissoes";
 import { contaDoRepasse, emReais, etiquetaDoRepasse, soParaLojistas, type RepasseDoPainel } from "../../../lib/repasse";
@@ -95,7 +95,7 @@ function LinhaDoRepasse({ repasse: r }: { repasse: RepasseDoPainel }) {
   const conta = contaDoRepasse(r);
   return (
     <li className="flex flex-wrap items-center gap-4 py-3 text-sm">
-      <Link href={`/admin/repasse/${r.id}`} className="font-bold underline">
+      <Link href={caminhoDoCarroNoPainel(r.id)} className="font-bold underline">
         {[r.marca, r.modelo, r.versao, r.ano_modelo].filter(Boolean).join(" ")}
       </Link>
       <span className="mt-rotulo">{etiquetaDoRepasse(r)}</span>

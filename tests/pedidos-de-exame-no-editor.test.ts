@@ -6,6 +6,10 @@ import { linhaDoBancoDeTeste } from "./repasseDeTeste";
 /**
  * O lead do exame no pátio aparece no editor do carro (spec §4.4). O plano
  * do PR 2 empurrou isto para o PR 3, junto com o formulário que cria o lead.
+ *
+ * Desde 28/09 o editor mora em /editar, e a visão do carro mostra as mesmas
+ * listas com o desfecho de cada lead (`visao-do-repasse`). O editor continua
+ * mostrando os pedidos abaixo do formulário, como antes.
  */
 let banco: Banco;
 let sessao: ReturnType<typeof sessaoDeTeste>;
@@ -24,7 +28,7 @@ vi.mock("next/navigation", () => ({
 // O editor tem teste próprio (`editor-do-repasse`); aqui o assunto é o bloco novo.
 vi.mock("../src/components/admin/repasse/EditorDeRepasse", () => ({ default: () => null }));
 
-const RepassePage = (await import("../src/app/admin/repasse/[id]/page")).default;
+const RepassePage = (await import("../src/app/admin/repasse/[id]/editar/page")).default;
 const ID = "3f9a1c2e-5b7d-4e1a-9c3b-0a1b2c3d4e5f";
 const PEDIDO =
   "Quero marcar o exame no pátio do Renault Kwid Zen 1.0 2021: Sáb 26/09, tarde. Vou levar o meu mecânico.";
@@ -41,29 +45,32 @@ const pagina = async () =>
 describe("os pedidos de exame no editor do carro", () => {
   it("o pedido aparece, lido pelo carro", async () => {
     banco.leituras.leads = {
-      data: [{ id: "l-1", nome: "Ana Souza", telefone: "5541997372165", interesse: PEDIDO, created_at: "2026-09-24T15:00:00Z" }],
+      data: [{ id: "l-1", nome: "Ana Souza", telefone: "5541997372165", interesse: PEDIDO, created_at: "2026-09-24T15:00:00Z", canal: "repasse-exame" }],
       error: null,
     };
     const html = await pagina();
     expect(html).toContain("Pedidos de exame no pátio");
     expect(html).toContain("Ana Souza");
     expect(html).toContain("Sáb 26/09, tarde");
+    // Uma leitura só para os dois canais do carro; quem separa é o código.
     expect(banco.consultas.find((c) => c.tabela === "leads")?.filtros).toEqual([
       ["repasse_id", ID],
-      ["canal", "repasse-exame"],
+      ["canal", ["repasse-exame", "repasse-whatsapp"]],
     ]);
   });
 
   // Desde 28/09 o contato pelo WhatsApp com o carro no ar também grava
-  // `leads.repasse_id`. Sem o filtro do canal, cada "quero este repasse"
-  // apareceria aqui como pedido de horário no pátio. O dublê devolve a linha
-  // que lhe dão, com ou sem filtro: quem prova é o filtro da consulta.
+  // `leads.repasse_id`. Lidos juntos, cada "quero este repasse" vai para a
+  // lista dele, e não para a de pedidos de horário no pátio.
   it("só o canal do exame: o contato pelo WhatsApp não vira pedido de exame", async () => {
-    banco.leituras.leads = { data: [], error: null };
-    await pagina();
-    const filtros = banco.consultas.find((c) => c.tabela === "leads")?.filtros ?? [];
-    expect(filtros).toContainEqual(["canal", "repasse-exame"]);
-    expect(filtros).not.toContainEqual(["canal", "repasse-whatsapp"]);
+    banco.leituras.leads = {
+      data: [{ id: "w-1", nome: "Bruno Zap", telefone: "5541997372165", interesse: null, created_at: "2026-09-24T15:00:00Z", canal: "repasse-whatsapp" }],
+      error: null,
+    };
+    const html = await pagina();
+    const pedidos = html.slice(html.indexOf('aria-labelledby="pedidos-de-exame"'), html.indexOf('aria-labelledby="contatos-pelo-whatsapp"'));
+    expect(pedidos).toContain("Nenhum pedido de exame para este carro ainda.");
+    expect(pedidos).not.toContain("Bruno Zap");
   });
 
   it("sem pedido, diz que não há", async () => {
