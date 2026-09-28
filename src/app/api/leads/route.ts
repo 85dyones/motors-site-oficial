@@ -6,6 +6,7 @@ import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
 import { interesseDoLead } from "../../../lib/interesseDoLead";
+import { grafiaDaMarca, grafiaDaVersao, grafiaDoModelo } from "../../../lib/grafiaCanonica";
 import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
 import {
   MENSAGEM_DA_INSCRICAO,
@@ -127,7 +128,11 @@ export async function POST(request: NextRequest) {
         if (carro) {
           repasseIdDoLead = carro.id;
           valorDoRepasse = carro.preco ?? undefined;
-          interesseDoRepasse = interesseDoLead({ veiculo: carro });
+          // Na grafia canônica: o cadastro em maiúsculas chegava ao Kanban
+          // como "FIAT PALIO 1.0 ECONOMY…" (revisão de 28/09).
+          interesseDoRepasse = interesseDoLead({
+            veiculo: { marca: grafiaDaMarca(carro.marca), modelo: grafiaDoModelo(carro.modelo), versao: grafiaDaVersao(carro.versao) },
+          });
         }
       } else {
         // O exame só vale para carro publicado: reservado, vendido ou

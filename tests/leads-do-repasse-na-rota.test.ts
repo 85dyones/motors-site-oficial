@@ -322,6 +322,18 @@ describe("o contato pelo WhatsApp", () => {
     expect(banco.escritasEm("repasse_inscritos")).toEqual([]);
   });
 
+  // Revisão de 28/09: o interesse vinha na caixa do banco, e o Kanban mostrava
+  // "FIAT PALIO 1.0 ECONOMY FIRE FLEX 8V 4P". A caixa é a de `grafiaCanonica`.
+  it("cadastro em maiúsculas: o interesse sai na grafia canônica", async () => {
+    banco.leituras.repasses = {
+      data: { ...CARRO_PUBLICADO, marca: "FIAT", modelo: "PALIO", versao: "1.0 ECONOMY FIRE FLEX 8V 4P", ano_modelo: 2010 },
+      error: null,
+    };
+    const res = await POST(pedido(WHATSAPP));
+    expect(res.status).toBe(200);
+    expect(insertDoLead()).toMatchObject({ repasse_id: ID, interesse: "Fiat Palio 1.0 Economy Fire Flex 8V 4P" });
+  });
+
   it("a CAPI leva o preço do banco, o nome do carro e nenhum id de catálogo", async () => {
     banco.leituras.repasses = { data: CARRO_PUBLICADO, error: null };
     await POST(pedido(WHATSAPP));

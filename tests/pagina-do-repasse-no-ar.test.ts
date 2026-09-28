@@ -125,6 +125,13 @@ describe("/repasse com carro no lote", () => {
     expect(html).not.toContain("A conta do PALIO");
   });
 
+  it("o artigo do título concorda com o modelo: A conta da Strada", async () => {
+    const strada = { ...ABERTO, marca: "FIAT", modelo: "STRADA", versao: "1.4 FREEDOM CD", ano_modelo: 2020, carroceria: "picape" as const };
+    const html = await servida([strada]);
+    expect(html).toContain("A conta da Strada 2020");
+    expect(html).not.toContain("A conta do Strada");
+  });
+
   it("o texto do herói é o do item 2, separado da busca e do compartilhamento", async () => {
     const html = await servida([ABERTO]);
     expect(html).toContain(
