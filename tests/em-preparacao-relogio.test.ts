@@ -142,7 +142,7 @@ describe("no navegador", () => {
 });
 
 describe("a ficha usa o relógio", () => {
-  it("antes do preço, nas duas colunas (celular e desktop)", () => {
+  it("antes do preço, nas duas colunas (celular e desktop), e fora do carro indisponível", () => {
     // A ficha inteira não monta em teste (1.584 linhas, galeria, fetch); a
     // fiação é conferida na fonte e o comportamento, no componente acima.
     //
@@ -157,14 +157,20 @@ describe("a ficha usa o relógio", () => {
     // é o preço de verdade, não um marcador.
     //
     // A janela de proximidade (140 caracteres) é medida na fonte já
-    // esvaziada: a distância real entre o fim da tag e o começo do ternário
-    // é 136 — o comentário `{/* Preço */}` virou `{}` no meio do caminho —,
-    // e a folga de +4 cobre variação de quebra de linha (CRLF) sem abrir
-    // espaço para outro bloco de preço do arquivo (há mais de um "À VISTA"
-    // fora da ficha; a janela curta é o que mantém a asserção posicional).
+    // esvaziada: a distância real entre o fim da expressão e o começo do
+    // ternário é 136 — o comentário `{/* Preço */}` virou `{}` no meio do
+    // caminho —, e a folga de +4 cobre variação de quebra de linha (CRLF) sem
+    // abrir espaço para outro bloco de preço do arquivo (há mais de um "À
+    // VISTA" fora da ficha; a janela curta é o que mantém a asserção
+    // posicional). Remedida em 28/09 com a guarda: continua 136.
+    //
+    // A âncora inclui a guarda `!indisponivel &&` (revisão final, 28/09): o
+    // relógio não aparece no carro vendido ou indisponível — contar a chegada
+    // de carro que não está à venda é prometer o que não existe. É a mesma
+    // variável que decide o selo e o bloco do laudo pendente.
     const fonte = lerCodigo("src/components/PDPClientWrapper.tsx");
     expect(fonte).toMatch(
-      /<RelogioDaChegada veiculo=\{veiculo\} \/>[\s\S]{0,140}hasDiscount \? "PREÇO PROMOCIONAL" : "À VISTA"/,
+      /\{!indisponivel && <RelogioDaChegada veiculo=\{veiculo\} \/>\}[\s\S]{0,140}hasDiscount \? "PREÇO PROMOCIONAL" : "À VISTA"/,
     );
     // `renderSidebar` é uma função só, chamada duas vezes (celular e
     // desktop) — o relógio precisa estar escrito UMA vez na fonte, não uma

@@ -714,8 +714,11 @@ export default function PDPClientWrapper({
         </div>
 
         {/* Carro em preparação: a contagem até o pátio, antes do preço —
-            decisão do dono em 28/09. O preço e o resto da ficha seguem iguais. */}
-        <RelogioDaChegada veiculo={veiculo} />
+            decisão do dono em 28/09. O preço e o resto da ficha seguem iguais.
+            Fora do vendido e do indisponível: contar a chegada de um carro
+            que não está à venda é prometer o que não existe (revisão final,
+            28/09). A guarda é a mesma do bloco do laudo pendente. */}
+        {!indisponivel && <RelogioDaChegada veiculo={veiculo} />}
 
         {/* Preço */}
         <div>
