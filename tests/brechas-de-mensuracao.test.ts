@@ -1050,6 +1050,8 @@ describe("B.7 · a oposição vale também para o lead", () => {
     "src/components/campanha/CtaDeCampanha.tsx",
     "src/components/repasse/ExameNoPatio.tsx",
     "src/components/repasse/ListaDoRepasse.tsx",
+    // O pré-cadastro antes do WhatsApp do repasse (28/09).
+    "src/components/repasse/WhatsAppDoRepasse.tsx",
   ];
   /** Usam como `eventId` o retorno de `trackLeadSubmission`. */
   const USAM_O_RETORNO_DA_MEDICAO = [

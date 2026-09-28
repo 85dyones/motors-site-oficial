@@ -28,7 +28,10 @@
  * chave de objeto aqui, nunca valor.
  */
 import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque";
-import { concordar, o, um, type Genero } from "./generoDoVeiculo";
+import { modeloEVersaoParaExibir } from "./estoqueTabela";
+import { concordar, generoDeModelo, o, um, type Genero } from "./generoDoVeiculo";
+import { grafiaDoModelo } from "./grafiaCanonica";
+import { nomeTemOAno } from "./nomeDoVeiculo";
 import { PRAZO_DA_GARANTIA } from "./paginasInstitucionais";
 import {
   FAIXAS_DO_REPASSE,
@@ -36,7 +39,9 @@ import {
   type FaixaDoRepasse,
   type FiltroDoRepasse,
   type LaudoDoRepasse,
+  type Repasse,
 } from "./repasse";
+import { TIPO_NO_FEED } from "./similares";
 
 // O caminho e o texto do repasse no menu e no rodapé nascem num módulo sem
 // import, porque `Header` e `Footer` são client components de toda página
@@ -112,9 +117,26 @@ export const COMO_LER_UM_REPASSE = {
   nota: "O orçamento é da oficina que examinou o carro. O seu mecânico pode conferir no pátio antes de você fechar.",
 } as const;
 
-/** "A conta do Renault Kwid Zen 1.0 2021" — o carro de verdade, nunca o da prancha. */
-export function tituloDaContaDoCarro(nome: string): string {
-  return `A conta do ${nome}`;
+/**
+ * "A conta do Kwid 2021": o carro de verdade, nunca o da prancha, e escrito
+ * como a prancha escreve — modelo e ano (título aprovado pelo dono em 28/09).
+ *
+ * Era o nome inteiro, marca e versão juntas, e o cadastro em maiúsculas dava
+ * "A conta do FIAT PALIO 1.0 ECONOMY FIRE FLEX 8V 4P 2010". Nenhuma regra de
+ * caixa nasce aqui: a versão embutida no modelo sai por
+ * `modeloEVersaoParaExibir`, a caixa é a de `grafiaDoModelo` ("Palio", "HB20")
+ * e o ano que o modelo já traz não se repete (`nomeTemOAno`).
+ *
+ * Sem a marca na frente, o artigo concorda com o MODELO: "do Palio", "da
+ * Strada". O "do" fixo concordava com "Fiat" e errou a Strada, a Saveiro, a
+ * Spin, a S10 e a Hilux (revisão de 28/09). A regra é a da ficha:
+ * `generoDeModelo` com a carroceria, e a lista de femininos como rede.
+ */
+export function tituloDaContaDoCarro(carro: Pick<Repasse, "modelo" | "versao" | "ano_modelo" | "carroceria">): string {
+  const modelo = grafiaDoModelo(modeloEVersaoParaExibir(carro.modelo, carro.versao ?? "").modelo);
+  const ano = String(carro.ano_modelo);
+  const genero = generoDeModelo(modelo, { tipo: carro.carroceria ? TIPO_NO_FEED[carro.carroceria] : "" });
+  return `A conta ${concordar(genero, "do", "da")} ${nomeTemOAno(modelo, ano) ? modelo : `${modelo} ${ano}`}`;
 }
 
 /** "Reparo: embreagem patinando nas arrancadas e pneus dianteiros no fim da vida útil". */

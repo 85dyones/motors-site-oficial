@@ -15,6 +15,9 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) =>
     createElement("a", { href, ...resto } as never, children as never),
 }));
+// O WhatsApp do card passa pelo pré-cadastro (`WhatsAppDoRepasse`), que lê o
+// tema; no site o layout já envolve tudo no `ThemeProvider`.
+vi.mock("../src/app/ThemeContext", () => ({ useTheme: () => ({ companySettings: {} }) }));
 
 const { default: LoteDoRepasse } = await import("../src/components/repasse/LoteDoRepasse");
 

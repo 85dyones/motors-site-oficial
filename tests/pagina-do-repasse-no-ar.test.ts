@@ -110,9 +110,26 @@ describe("/repasse com carro no lote", () => {
 
   it("o quadro do herói é do carro de verdade, nunca o da prancha", async () => {
     const html = await servida([ABERTO, LOJISTAS]);
-    expect(html).toContain("A conta do Renault Kwid Zen 1.0 2021");
+    expect(html).toContain("A conta do Kwid 2021");
     expect(html).not.toContain("Kwid Zen 2020");
     expect(html).not.toContain("FORD KA SE 2017");
+  });
+
+  // Título aprovado pelo dono em 28/09: modelo e ano na grafia de sempre,
+  // como a prancha. Era "A conta do FIAT PALIO 1.0 ECONOMY FIRE FLEX 8V 4P 2010".
+  it("o título do quadro é modelo e ano, na grafia canônica, mesmo com o cadastro em maiúsculas", async () => {
+    const palio = { ...ABERTO, marca: "FIAT", modelo: "PALIO", versao: "1.0 ECONOMY FIRE FLEX 8V 4P", ano_modelo: 2010 };
+    const html = await servida([palio]);
+    expect(html).toContain("A conta do Palio 2010");
+    expect(html).not.toContain("A conta do FIAT");
+    expect(html).not.toContain("A conta do PALIO");
+  });
+
+  it("o artigo do título concorda com o modelo: A conta da Strada", async () => {
+    const strada = { ...ABERTO, marca: "FIAT", modelo: "STRADA", versao: "1.4 FREEDOM CD", ano_modelo: 2020, carroceria: "picape" as const };
+    const html = await servida([strada]);
+    expect(html).toContain("A conta da Strada 2020");
+    expect(html).not.toContain("A conta do Strada");
   });
 
   it("o texto do herói é o do item 2, separado da busca e do compartilhamento", async () => {
@@ -137,6 +154,13 @@ describe("/repasse com carro no lote", () => {
     expect(html).toContain("Ao entrar na lista, você aceita receber avisos de repasse pelo WhatsApp e pode sair quando quiser.");
     expect(html).toContain("QUERO RECEBER OS REPASSES");
     expect(html).not.toMatch(/n[ãa]o\s+gir/i);
+  });
+
+  it("nenhum wa.me direto: o card e as perguntas abrem o pré-cadastro (28/09)", async () => {
+    const html = await servida([ABERTO, LOJISTAS, RESERVADO, VENDIDO]);
+    expect(html).not.toContain("wa.me");
+    expect(html).toMatch(/<button type="button"[^>]*>.*?QUERO ESTE REPASSE<\/button>/);
+    expect(html).toMatch(/<button type="button"[^>]*>.*?PERGUNTAR NO WHATSAPP<\/button>/);
   });
 
   it("são CINCO nós — cortar o array publicado tem que quebrar aqui", async () => {

@@ -5,7 +5,11 @@ import {
   CANAL_DA_LISTA,
   CANAL_DA_LISTA_LOJISTA,
   CANAL_DO_EXAME,
+  CANAL_DO_WHATSAPP,
+  FORM_DO_WHATSAPP,
   MENSAGEM_DA_INSCRICAO,
+  VEICULO_DA_PERGUNTA,
+  carroDoWhatsApp,
   decidirInscricao,
   decidirLeadDoRepasse,
   ehCanalDoRepasse,
@@ -13,8 +17,10 @@ import {
   mensagemDoExame,
   montarLeadDaLista,
   montarLeadDoExame,
+  montarLeadDoWhatsApp,
   type InscricaoNaLista,
 } from "../src/lib/leadDoRepasse";
+import { mensagemDePerguntaDoRepasse, mensagemDoRepasse } from "../src/lib/mensagensDoVeiculo";
 import { ERROS_DO_REPASSE } from "../src/lib/paginaDoRepasse";
 import type { UtmParameters } from "../src/lib/telemetry";
 import { repasseDeTeste } from "./repasseDeTeste";
@@ -68,6 +74,13 @@ const exame = (parcial: Partial<Parameters<typeof montarLeadDoExame>[1]> = {}) =
   montarLeadDoExame(
     CARRO,
     { nome: "Ana Souza", whatsapp: "(41) 99737-2165", dia: "2026-09-26", turno: "tarde", levaMecanico: true, ...parcial },
+    EXTRAS,
+  );
+const MENSAGEM_DO_CARRO = mensagemDoRepasse(CARRO, "aberto", " (Ref: 0DCB1CDC)");
+const whatsapp = (carro: Parameters<typeof montarLeadDoWhatsApp>[0], mensagem = MENSAGEM_DO_CARRO) =>
+  montarLeadDoWhatsApp(
+    carro,
+    { nome: " Ana Souza ", email: " ana@exemplo.test ", whatsapp: "(41) 99737-2165", mensagem, caminho: "/repasse/renault-kwid-zen-1-0-2021-3f9a1c" },
     EXTRAS,
   );
 const comRepasse = (corpo: ReturnType<typeof lista>, repasse: Record<string, unknown>) => ({
@@ -240,6 +253,90 @@ describe("a régua da rota", () => {
     for (const corpo of [null, undefined, "x", 42, []]) {
       expect(decidirLeadDoRepasse(corpo, QUARTA_MEIO_DIA)).toEqual({ ok: false, erro: ERROS_DO_REPASSE.canal });
     }
+  });
+});
+
+/**
+ * O pré-cadastro antes do WhatsApp (pedido do dono em 28/09): todo botão do
+ * repasse que ia direto ao `wa.me` passa pelo modal da ficha do estoque. O
+ * lead entra pela mesma porta, com canal próprio; a mensagem é a que vai para
+ * o WhatsApp, e o elo com o carro é o `repasse_id` que a rota confere.
+ */
+describe("o contato pelo WhatsApp", () => {
+  it("com carro: canal, formulário, a mensagem do WhatsApp e o id só na intenção", () => {
+    const corpo = whatsapp(carroDoWhatsApp(CARRO));
+    expect(CANAL_DO_WHATSAPP).toBe("repasse-whatsapp");
+    expect(FORM_DO_WHATSAPP).toBe("form-whatsapp-repasse");
+    expect(corpo.canal).toBe(CANAL_DO_WHATSAPP);
+    expect(corpo.tipo).toBe("lead_repasse_whatsapp");
+    expect(corpo.mensagem).toBe(MENSAGEM_DO_CARRO);
+    expect(corpo.mensagem).toContain("Ref.: repasse 3f9a1c");
+    expect(corpo.cliente).toEqual({ nome: "Ana Souza", email: "ana@exemplo.test", whatsapp: "(41) 99737-2165" });
+    expect(corpo.intencao_busca.repasse).toEqual({
+      tipo: "whatsapp",
+      repasse_id: CARRO.id,
+      slug: CARRO.slug,
+      caminho: "/repasse/renault-kwid-zen-1-0-2021-3f9a1c",
+    });
+    expect(corpo.contentName).toBe("Renault Kwid");
+    expect(corpo.eventId).toBe("evt-1");
+    expect(corpo.turnstileToken).toBe("tok");
+  });
+
+  it("sem `veiculo` no corpo: o id do repasse não pode virar veiculo_id nem id de catálogo", () => {
+    expect(whatsapp(carroDoWhatsApp(CARRO))).not.toHaveProperty("veiculo");
+    expect(whatsapp(null, mensagemDePerguntaDoRepasse())).not.toHaveProperty("veiculo");
+  });
+
+  it("o carro que vai ao navegador é só o que o contato usa", () => {
+    expect(carroDoWhatsApp(CARRO)).toEqual({
+      id: CARRO.id,
+      slug: CARRO.slug,
+      marca: "Renault",
+      modelo: "Kwid",
+      versao: "Zen 1.0",
+      ano_modelo: 2021,
+      preco: 36900,
+    });
+  });
+
+  it("a pergunta, sem carro: sem id, e o nome da medição é o da pergunta", () => {
+    const corpo = whatsapp(null, mensagemDePerguntaDoRepasse());
+    expect(corpo.canal).toBe(CANAL_DO_WHATSAPP);
+    expect(corpo.intencao_busca.repasse).toEqual({ tipo: "whatsapp", caminho: "/repasse/renault-kwid-zen-1-0-2021-3f9a1c" });
+    expect(corpo.contentName).toBe(`${VEICULO_DA_PERGUNTA.marca} ${VEICULO_DA_PERGUNTA.modelo}`);
+  });
+
+  it("a régua aceita o que o botão monta: com carro, o id; sem carro, nenhum", () => {
+    expect(decidirLeadDoRepasse(whatsapp(carroDoWhatsApp(CARRO)), QUARTA_MEIO_DIA)).toEqual({
+      ok: true,
+      pedido: { tipo: "whatsapp", contato: { repasseId: CARRO.id } },
+    });
+    expect(decidirLeadDoRepasse(whatsapp(null, mensagemDePerguntaDoRepasse()), QUARTA_MEIO_DIA)).toEqual({
+      ok: true,
+      pedido: { tipo: "whatsapp", contato: { repasseId: null } },
+    });
+  });
+
+  it("id torto não recusa o contato: o lead entra sem o elo com o carro", () => {
+    const corpo = whatsapp(carroDoWhatsApp(CARRO));
+    const torto = { ...corpo, intencao_busca: { repasse: { ...corpo.intencao_busca.repasse, repasse_id: "123" } } };
+    expect(decidirLeadDoRepasse(torto, QUARTA_MEIO_DIA)).toEqual({
+      ok: true,
+      pedido: { tipo: "whatsapp", contato: { repasseId: null } },
+    });
+  });
+
+  it.each([
+    ["sem nome", (c: ReturnType<typeof whatsapp>) => ({ ...c, cliente: { nome: "  ", whatsapp: "(41) 99737-2165" } }), ERROS_DO_REPASSE.nome],
+    ["WhatsApp sem DDD", (c: ReturnType<typeof whatsapp>) => ({ ...c, cliente: { nome: "Ana", whatsapp: "99737-2165" } }), ERROS_DO_REPASSE.whatsapp],
+    [
+      "tipo trocado no canal",
+      (c: ReturnType<typeof whatsapp>) => ({ ...c, intencao_busca: { repasse: { ...c.intencao_busca.repasse, tipo: "exame" } } }),
+      ERROS_DO_REPASSE.canal,
+    ],
+  ])("%s → recusa com a mensagem da lista", (_caso, entortar, erro) => {
+    expect(decidirLeadDoRepasse(entortar(whatsapp(carroDoWhatsApp(CARRO))), QUARTA_MEIO_DIA)).toEqual({ ok: false, erro });
   });
 });
 

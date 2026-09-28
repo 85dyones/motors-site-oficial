@@ -3,21 +3,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Fragment } from "react";
-import BotaoWhatsApp from "../../../components/modernist/BotaoWhatsApp";
 import { CardVeiculo, LinkRegua, Rotulo, formatarKm } from "../../../components/modernist/primitivos";
 import ContaDoRepasse from "../../../components/repasse/ContaDoRepasse";
 import ExameNoPatio from "../../../components/repasse/ExameNoPatio";
 import GaleriaDoRepasse, { type FotoDaGaleria } from "../../../components/repasse/GaleriaDoRepasse";
 import ListaDoRepasse from "../../../components/repasse/ListaDoRepasse";
+import WhatsAppDoRepasse from "../../../components/repasse/WhatsAppDoRepasse";
 import { montarCompartilhamento, previaDaFotoDoVeiculo } from "../../../lib/compartilhamento";
 import { diasDoExame } from "../../../lib/exameNoPatio";
 import { ehFotoPropria } from "../../../lib/fotosDoVeiculo";
 import { generoDeModelo } from "../../../lib/generoDoVeiculo";
 import { grafoDoRepasse } from "../../../lib/grafoDoRepasse";
 import { ddmmEmCuritiba } from "../../../lib/horarioDaLoja";
+import { carroDoWhatsApp } from "../../../lib/leadDoRepasse";
 import { lerRepassePorSlug, lerRepassePorSufixo, lerRepassesPublicos } from "../../../lib/leituraDosRepasses";
 import type { WhatsappDaLoja } from "../../../lib/loteDoRepasse";
-import { mensagemDoRepasse } from "../../../lib/mensagensDoVeiculo";
 import { nomeComAno } from "../../../lib/nomeDoVeiculo";
 import {
   ANCORA_DA_CONTA,
@@ -58,7 +58,7 @@ import { blocoJsonLd } from "../../../lib/schemaListagem";
 import { getCachedSettings } from "../../../lib/settings";
 import { TIPO_NO_FEED, parecidosDoRepasse } from "../../../lib/similares";
 import { getEstoque, getVeiculoPdpUrl } from "../../../lib/supabase";
-import { linkWhatsApp } from "../../../lib/whatsapp";
+import { numeroDaLoja } from "../../../lib/whatsapp";
 import type { Veiculo } from "../../../types";
 
 /**
@@ -79,6 +79,10 @@ import type { Veiculo } from "../../../types";
  * fixa), só para lojistas (a faixa no lugar do WhatsApp e do exame, decisão
  * 4), reservado e vendido (sem exame; a lista do repasse e o WhatsApp de
  * pergunta, decisão 30 do plano).
+ *
+ * Todo WhatsApp daqui passa pelo pré-cadastro (`WhatsAppDoRepasse`, pedido do
+ * dono em 28/09): o botão abre o modal da ficha do estoque, e a mensagem de
+ * cada estado só é montada no envio, com o rastreio do navegador.
  */
 export const revalidate = 60;
 export const dynamicParams = true;
@@ -160,7 +164,8 @@ export default async function FichaDoRepasse({ params }: PageProps) {
     whatsappRaw: companySettings?.whatsappRaw ?? "",
     whatsapp: companySettings?.whatsapp ?? "",
   };
-  const whatsapp = estado === "lojistas" ? "" : linkWhatsApp(whatsappDaLoja, mensagemDoRepasse(r, estado));
+  const temWhatsApp = estado !== "lojistas" && numeroDaLoja(whatsappDaLoja) !== "";
+  const carroDoContato = carroDoWhatsApp(r);
   const grafo = grafoDoRepasse({
     repasse: r,
     caminho,
@@ -234,10 +239,10 @@ export default async function FichaDoRepasse({ params }: PageProps) {
 
           {estado === "aberto" && (
             <div className="mt-6 flex flex-wrap gap-3">
-              {whatsapp && (
-                <BotaoWhatsApp href={whatsapp} origem="repasse-ficha">
+              {temWhatsApp && (
+                <WhatsAppDoRepasse assunto={{ carro: carroDoContato, estado }} whatsappDaLoja={whatsappDaLoja} origem="repasse-ficha">
                   {F.quero}
-                </BotaoWhatsApp>
+                </WhatsAppDoRepasse>
               )}
               <a href={`#${ANCORA_DO_EXAME}`} className="mt-btn mt-btn-contorno mt-foco">
                 {F.marcarExame}
@@ -265,10 +270,15 @@ export default async function FichaDoRepasse({ params }: PageProps) {
               <a href={`#${ANCORA_DA_LISTA}`} className="mt-btn mt-btn-tinta mt-foco">
                 {estado === "reservado" ? CARD_DO_REPASSE.aviseSeVoltar : CARD_DO_REPASSE.entrarNaLista}
               </a>
-              {whatsapp && (
-                <BotaoWhatsApp href={whatsapp} origem="repasse-ficha" className="mt-btn mt-btn-contorno mt-foco">
+              {temWhatsApp && (
+                <WhatsAppDoRepasse
+                  assunto={{ carro: carroDoContato, estado }}
+                  whatsappDaLoja={whatsappDaLoja}
+                  origem="repasse-ficha"
+                  className="mt-btn mt-btn-contorno mt-foco"
+                >
                   {PERGUNTAS_DO_REPASSE_CABECALHO.botao}
-                </BotaoWhatsApp>
+                </WhatsAppDoRepasse>
               )}
             </div>
           )}
@@ -430,7 +440,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
         </section>
       )}
 
-      {estado === "aberto" && whatsapp && (
+      {estado === "aberto" && temWhatsApp && (
         <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t-2 border-mt-regua bg-mt-bg px-[18px] py-3 lg:hidden">
           <div>
             <div className="text-[20px] font-extrabold tracking-[-.02em]">{emReais(conta.preco)}</div>
@@ -444,9 +454,9 @@ export default async function FichaDoRepasse({ params }: PageProps) {
               )}
             </div>
           </div>
-          <BotaoWhatsApp href={whatsapp} origem="repasse-barra">
+          <WhatsAppDoRepasse assunto={{ carro: carroDoContato, estado }} whatsappDaLoja={whatsappDaLoja} origem="repasse-barra">
             {F.queroEste}
-          </BotaoWhatsApp>
+          </WhatsAppDoRepasse>
         </div>
       )}
     </div>

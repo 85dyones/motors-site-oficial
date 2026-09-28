@@ -120,12 +120,15 @@ describe("a ficha do carro aberto a todos", () => {
     expect(grafo[2]["@id"]).toBe(ID_DA_LOJA);
   });
 
-  it("a conta, o WhatsApp com a referência, o exame com os dias de Curitiba e a barra do celular", async () => {
+  it("a conta, o WhatsApp pelo pré-cadastro, o exame com os dias de Curitiba e a barra do celular", async () => {
     estado.porSlug[SLUG] = ABERTO;
     const html = await servida();
     expect(html).toContain("R$ 36.900");
-    expect(html).toContain("https://wa.me/5541997372165?text=");
-    expect(html).toContain(encodeURIComponent("Ref.: repasse 3f9a1c"));
+    // Desde 28/09 o WhatsApp do repasse passa pelo modal da ficha do estoque:
+    // o HTML servido traz o BOTÃO, e o link com a referência só é montado no
+    // envio (`whatsapp-do-repasse-fiacao`).
+    expect(html).not.toContain("wa.me");
+    expect(html).toMatch(/<button type="button"[^>]*>.*?QUERO ESTE REPASSE<\/button>/);
     expect(html).toContain('id="exame"');
     expect(html).toContain("Marque um horário para ver o Kwid");
     expect(html).toContain("Sex 25");

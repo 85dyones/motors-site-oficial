@@ -1,17 +1,20 @@
 /**
- * O lead do repasse: o que os três formulários mandam para `/api/leads` e o
- * que a rota aceita (spec §8, decisões 9 a 11 do PR 3).
+ * O lead do repasse: o que os formulários mandam para `/api/leads` e o que a
+ * rota aceita (spec §8, decisões 9 a 11 do PR 3).
  *
- * Uma porta só: a lista (duas trilhas) e o exame no pátio entram pela rota de
- * leads de sempre, com `canal` próprio. O corpo é montado aqui, e não dentro
- * do `onSubmit`, pelo mesmo motivo de `encomenda.ts`: um campo trocado não
- * quebra tela nenhuma, e o lead chegaria mudo do outro lado.
+ * Uma porta só: a lista (duas trilhas), o exame no pátio e, desde 28/09, o
+ * pré-cadastro antes do WhatsApp entram pela rota de leads de sempre, com
+ * `canal` próprio. O corpo é montado aqui, e não dentro do `onSubmit`, pelo
+ * mesmo motivo de `encomenda.ts`: um campo trocado não quebra tela nenhuma, e
+ * o lead chegaria mudo do outro lado.
  *
  * A mesma função que monta a mensagem no navegador monta na rota
  * (`MENSAGEM_DA_INSCRICAO`, `mensagemDoExame`): o servidor não confia na
  * `mensagem` do corpo. `leads` é lida por toda a equipe; CNPJ, faixa e tipos
  * de carro ficam fora de `leads`: vão para `repasse_inscritos`, que só quem
- * valida lê (e ao n8n, dentro de `intencao_busca`).
+ * valida lê (e ao n8n, dentro de `intencao_busca`). O WhatsApp é a exceção
+ * de propósito: a mensagem dele é a conversa que a pessoa manda, montada no
+ * clique com o rastreio do navegador, e o modal não pede CNPJ nem faixa.
  *
  * Módulo puro: roda no navegador (formulários) e no servidor (rota).
  */
@@ -33,10 +36,13 @@ import { telefoneDoLead } from "./whatsapp";
 export const CANAL_DA_LISTA = "repasse";
 export const CANAL_DA_LISTA_LOJISTA = "repasse-lojista";
 export const CANAL_DO_EXAME = "repasse-exame";
+/** O pré-cadastro antes do WhatsApp (pedido do dono em 28/09). */
+export const CANAL_DO_WHATSAPP = "repasse-whatsapp";
 
 export const FORM_DA_LISTA = "form-lista-repasse";
 export const FORM_DA_LISTA_LOJISTA = "form-lista-repasse-lojista";
 export const FORM_DO_EXAME = "form-exame-repasse";
+export const FORM_DO_WHATSAPP = "form-whatsapp-repasse";
 
 /** As quatro que o formulário oferece; "Tanto faz" é a lista vazia (decisão 9). */
 export const CARROCERIAS_DA_LISTA = ["hatch", "seda", "suv", "picape"] as const satisfies readonly CarroceriaDoRepasse[];
@@ -58,8 +64,21 @@ export const VEICULO_DA_LISTA: Record<TrilhaDoRepasse, { marca: string; modelo: 
   lojista: { marca: "Repasse Motors", modelo: "Lista lojista" },
 };
 
+/** O mesmo papel de `VEICULO_DA_LISTA` para a pergunta sem carro, no WhatsApp. */
+export const VEICULO_DA_PERGUNTA = { marca: "Repasse Motors", modelo: "Pergunta" } as const;
+
 export type CarroDoExame = Pick<Repasse, "marca" | "modelo" | "versao" | "ano_modelo">;
 export type CarroParaOExame = Pick<Repasse, "id" | "slug" | "marca" | "modelo" | "versao" | "ano_modelo" | "preco">;
+/** O que o botão do WhatsApp leva ao navegador: o carro do exame, nem um campo a mais. */
+export type CarroDoWhatsApp = CarroParaOExame;
+
+/**
+ * O recorte que atravessa para o componente cliente. Campo a campo, e não o
+ * `Repasse` inteiro: a ficha e o card mandam só isto para a ilha do botão.
+ */
+export function carroDoWhatsApp(r: CarroDoWhatsApp): CarroDoWhatsApp {
+  return { id: r.id, slug: r.slug, marca: r.marca, modelo: r.modelo, versao: r.versao, ano_modelo: r.ano_modelo, preco: r.preco };
+}
 
 export interface InscricaoNaLista {
   trilha: TrilhaDoRepasse;
@@ -80,7 +99,15 @@ export interface PedidoDeExame {
   levaMecanico: boolean;
 }
 
-export type PedidoDoRepasse = { tipo: "lista"; inscricao: InscricaoNaLista } | { tipo: "exame"; exame: PedidoDeExame };
+/** `repasseId` nulo é a pergunta sem carro — ou um id que não é uuid, que não recusa o contato. */
+export interface ContatoPeloWhatsApp {
+  repasseId: string | null;
+}
+
+export type PedidoDoRepasse =
+  | { tipo: "lista"; inscricao: InscricaoNaLista }
+  | { tipo: "exame"; exame: PedidoDeExame }
+  | { tipo: "whatsapp"; contato: ContatoPeloWhatsApp };
 
 export type DecisaoDoLeadDoRepasse = { ok: true; pedido: PedidoDoRepasse } | { ok: false; erro: string };
 
@@ -103,7 +130,7 @@ const recusa = (erro: string): DecisaoDoLeadDoRepasse => ({ ok: false, erro });
 export function decidirLeadDoRepasse(corpo: unknown, agora: Date): DecisaoDoLeadDoRepasse {
   const c = objeto(corpo);
   const canal = c.canal;
-  if (canal !== CANAL_DA_LISTA && canal !== CANAL_DA_LISTA_LOJISTA && canal !== CANAL_DO_EXAME) {
+  if (canal !== CANAL_DA_LISTA && canal !== CANAL_DA_LISTA_LOJISTA && canal !== CANAL_DO_EXAME && canal !== CANAL_DO_WHATSAPP) {
     return recusa(ERROS_DO_REPASSE.canal);
   }
   const cliente = objeto(c.cliente);
@@ -112,6 +139,16 @@ export function decidirLeadDoRepasse(corpo: unknown, agora: Date): DecisaoDoLead
   const whatsapp = telefoneDoLead(texto(cliente.whatsapp)).comDDI;
   if (!whatsapp) return recusa(ERROS_DO_REPASSE.whatsapp);
   const repasse = objeto(objeto(c.intencao_busca).repasse);
+
+  // O WhatsApp (28/09): nome e telefone pela mesma régua da lista, e o resto
+  // não recusa. Id que não é uuid vira "sem carro" em vez de 400 — o contato
+  // é a régua da ficha do estoque, em que o lead nunca segura o visitante, e
+  // perder o elo com o carro é melhor do que perder o lead.
+  if (canal === CANAL_DO_WHATSAPP) {
+    if (repasse.tipo !== "whatsapp") return recusa(ERROS_DO_REPASSE.canal);
+    const repasseId = texto(repasse.repasse_id).toLowerCase();
+    return { ok: true, pedido: { tipo: "whatsapp", contato: { repasseId: ehIdDeRepasse(repasseId) ? repasseId : null } } };
+  }
 
   if (canal === CANAL_DO_EXAME) {
     const repasseId = texto(repasse.repasse_id).toLowerCase();
@@ -309,6 +346,43 @@ export function montarLeadDoExame(carro: CarroParaOExame, dados: DadosDoExame, e
       },
     },
     contentName: `${carro.marca} ${carro.modelo}`,
+    ...camposDosExtras(extras),
+  };
+}
+
+export interface DadosDoWhatsApp {
+  nome: string;
+  /** Opcional no modal; vazio quando a pessoa não preencheu. */
+  email: string;
+  whatsapp: string;
+  /** A mensagem que vai para o WhatsApp: é ela que o lead grava. */
+  mensagem: string;
+  caminho: string;
+}
+
+/**
+ * O pré-cadastro antes do WhatsApp (pedido do dono em 28/09): o botão abre o
+ * modal da ficha do estoque, e o lead chega aqui antes de o WhatsApp abrir.
+ *
+ * A `mensagem` é a que vai para o WhatsApp, e não uma remontada: é a
+ * conversa que a pessoa vai mandar, com a referência do carro e a do
+ * rastreio. Sem `veiculo`, pelo mesmo motivo do exame: o elo com o carro é o
+ * `repasse_id`, que a rota confere antes de gravar. `carro` nulo é o
+ * "PERGUNTAR NO WHATSAPP" das perguntas, que não tem carro.
+ */
+export function montarLeadDoWhatsApp(carro: CarroDoWhatsApp | null, dados: DadosDoWhatsApp, extras: ExtrasDoLeadDoRepasse) {
+  const nomeNaMedicao = carro ?? VEICULO_DA_PERGUNTA;
+  return {
+    tipo: "lead_repasse_whatsapp",
+    canal: CANAL_DO_WHATSAPP,
+    mensagem: dados.mensagem,
+    cliente: { nome: dados.nome.trim(), email: dados.email.trim(), whatsapp: dados.whatsapp.trim() },
+    intencao_busca: {
+      repasse: carro
+        ? { tipo: "whatsapp", repasse_id: carro.id, slug: carro.slug, caminho: dados.caminho }
+        : { tipo: "whatsapp", caminho: dados.caminho },
+    },
+    contentName: `${nomeNaMedicao.marca} ${nomeNaMedicao.modelo}`,
     ...camposDosExtras(extras),
   };
 }

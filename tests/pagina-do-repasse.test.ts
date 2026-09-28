@@ -24,7 +24,7 @@ describe("a leitura alcança o texto (controle)", () => {
     expect(TUDO.length).toBeGreaterThan(150);
     expect(TUDO).toContain("Carros de repasse em Curitiba");
     expect(TUDO).toContain(pagina.LISTA_DO_REPASSE.consentimento);
-    expect(TUDO).toContain("A conta do Renault Kwid Zen 1.0 2021");
+    expect(TUDO).toContain("A conta do Kwid 2021");
   });
 
   it("toda função exportada tem amostra no ajudante", () => {
@@ -180,6 +180,57 @@ describe("o não encontrado só promete o que mostra", () => {
 });
 
 describe("o texto que depende do dado", () => {
+  // Título aprovado pelo dono em 28/09, como na prancha: modelo e ano na
+  // grafia de sempre. O cadastro em maiúsculas dava "A conta do FIAT PALIO
+  // 1.0 ECONOMY FIRE FLEX 8V 4P 2010" no quadro "Como ler um repasse".
+  it("a conta do carro é modelo e ano, na grafia canônica", () => {
+    expect(
+      pagina.tituloDaContaDoCarro({ modelo: "PALIO", versao: "1.0 ECONOMY FIRE FLEX 8V 4P", ano_modelo: 2010, carroceria: "hatch" }),
+    ).toBe("A conta do Palio 2010");
+    // Sigla conhecida fica inteira — nada de "Hb20".
+    expect(pagina.tituloDaContaDoCarro({ modelo: "HB20", versao: "Comfort 1.0", ano_modelo: 2019, carroceria: "hatch" })).toBe(
+      "A conta do HB20 2019",
+    );
+    expect(pagina.tituloDaContaDoCarro({ modelo: "hb20", versao: null, ano_modelo: 2019, carroceria: null })).toBe("A conta do HB20 2019");
+    expect(pagina.tituloDaContaDoCarro({ modelo: "Kwid", versao: "Zen 1.0", ano_modelo: 2021, carroceria: "hatch" })).toBe(
+      "A conta do Kwid 2021",
+    );
+  });
+
+  // Revisão de 28/09: sem a marca na frente, o artigo concorda com o MODELO.
+  // "A conta do Strada" era o "do" que concordava com "Fiat". A regra é a da
+  // ficha (`generoDeModelo` + `concordar`), com a mesma rede da carroceria.
+  it("o artigo concorda com o modelo: do Palio, da Strada", () => {
+    expect(pagina.tituloDaContaDoCarro({ modelo: "STRADA", versao: "1.4 FREEDOM CD", ano_modelo: 2020, carroceria: "picape" })).toBe(
+      "A conta da Strada 2020",
+    );
+    // Sem carroceria no cadastro, a lista de modelos femininos segura.
+    expect(pagina.tituloDaContaDoCarro({ modelo: "Strada", versao: null, ano_modelo: 2020, carroceria: null })).toBe(
+      "A conta da Strada 2020",
+    );
+    expect(pagina.tituloDaContaDoCarro({ modelo: "SAVEIRO", versao: null, ano_modelo: 2015, carroceria: "hatch" })).toBe(
+      "A conta da Saveiro 2015",
+    );
+    expect(pagina.tituloDaContaDoCarro({ modelo: "S10", versao: "LTZ 2.8", ano_modelo: 2014, carroceria: null })).toBe(
+      "A conta da S10 2014",
+    );
+    expect(pagina.tituloDaContaDoCarro({ modelo: "PALIO", versao: null, ano_modelo: 2010, carroceria: null })).toBe("A conta do Palio 2010");
+  });
+
+  it("a versão embutida no modelo sai, e o ano que já está no modelo não se repete", () => {
+    expect(
+      pagina.tituloDaContaDoCarro({
+        modelo: "PALIO 1.0 ECONOMY FIRE FLEX 8V 4P",
+        versao: "1.0 ECONOMY FIRE FLEX 8V 4P",
+        ano_modelo: 2010,
+        carroceria: "hatch",
+      }),
+    ).toBe("A conta do Palio 2010");
+    expect(pagina.tituloDaContaDoCarro({ modelo: "Palio 2010", versao: null, ano_modelo: 2010, carroceria: null })).toBe(
+      "A conta do Palio 2010",
+    );
+  });
+
   it("contagens no singular e no plural", () => {
     expect(pagina.tituloDoLote(1)).toBe("1 carro no repasse");
     expect(pagina.tituloDoLote(6)).toBe("6 carros no repasse");

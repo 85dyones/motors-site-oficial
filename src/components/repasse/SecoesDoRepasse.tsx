@@ -13,10 +13,11 @@ import {
   notaDoSinistro,
   rotuloDoExemplo,
 } from "../../lib/paginaDoRepasse";
+import type { WhatsappDaLoja } from "../../lib/loteDoRepasse";
 import type { Repasse } from "../../lib/repasse";
-import BotaoWhatsApp from "../modernist/BotaoWhatsApp";
 import { LinkRegua, Rotulo } from "../modernist/primitivos";
 import ContaDoRepasse from "./ContaDoRepasse";
+import WhatsAppDoRepasse from "./WhatsAppDoRepasse";
 
 /**
  * As seções que explicam o repasse (pranchas "Página /repasse", a parte de
@@ -186,8 +187,11 @@ export function ComoComprar() {
  * As onze perguntas, visíveis, e o `FAQPage` do grafo é a mesma lista. Sem
  * link automático no texto (decisão 27 do plano): o linkador ligaria "laudo
  * cautelar" à `/garantia`, a garantia que o repasse justamente não tem.
+ *
+ * O "PERGUNTAR NO WHATSAPP" passa pelo pré-cadastro, sem carro (28/09); sem
+ * número da loja, o botão não aparece.
  */
-export function PerguntasDoRepasse({ whatsapp }: { whatsapp: string }) {
+export function PerguntasDoRepasse({ whatsappDaLoja }: { whatsappDaLoja: WhatsappDaLoja }) {
   const P = PERGUNTAS_DO_REPASSE_CABECALHO;
   return (
     <section className={SECAO}>
@@ -197,11 +201,14 @@ export function PerguntasDoRepasse({ whatsapp }: { whatsapp: string }) {
           <h2 className={TITULO}>{P.titulo}</h2>
           <p className={TEXTO}>{P.texto}</p>
         </div>
-        {whatsapp && (
-          <BotaoWhatsApp href={whatsapp} origem="repasse-perguntas" className="mt-btn mt-btn-contorno mt-foco">
-            {P.botao}
-          </BotaoWhatsApp>
-        )}
+        <WhatsAppDoRepasse
+          assunto={{ carro: null }}
+          whatsappDaLoja={whatsappDaLoja}
+          origem="repasse-perguntas"
+          className="mt-btn mt-btn-contorno mt-foco"
+        >
+          {P.botao}
+        </WhatsAppDoRepasse>
       </div>
       <dl className="m-0 mt-6 max-w-[760px]">
         {PERGUNTAS_DO_REPASSE.map((p) => (

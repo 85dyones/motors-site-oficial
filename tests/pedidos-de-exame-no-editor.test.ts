@@ -48,7 +48,22 @@ describe("os pedidos de exame no editor do carro", () => {
     expect(html).toContain("Pedidos de exame no pátio");
     expect(html).toContain("Ana Souza");
     expect(html).toContain("Sáb 26/09, tarde");
-    expect(banco.consultas.find((c) => c.tabela === "leads")?.filtros).toEqual([["repasse_id", ID]]);
+    expect(banco.consultas.find((c) => c.tabela === "leads")?.filtros).toEqual([
+      ["repasse_id", ID],
+      ["canal", "repasse-exame"],
+    ]);
+  });
+
+  // Desde 28/09 o contato pelo WhatsApp com o carro no ar também grava
+  // `leads.repasse_id`. Sem o filtro do canal, cada "quero este repasse"
+  // apareceria aqui como pedido de horário no pátio. O dublê devolve a linha
+  // que lhe dão, com ou sem filtro: quem prova é o filtro da consulta.
+  it("só o canal do exame: o contato pelo WhatsApp não vira pedido de exame", async () => {
+    banco.leituras.leads = { data: [], error: null };
+    await pagina();
+    const filtros = banco.consultas.find((c) => c.tabela === "leads")?.filtros ?? [];
+    expect(filtros).toContainEqual(["canal", "repasse-exame"]);
+    expect(filtros).not.toContainEqual(["canal", "repasse-whatsapp"]);
   });
 
   it("sem pedido, diz que não há", async () => {

@@ -70,6 +70,25 @@ const EXAME = {
   ...EXTRAS,
 };
 const CARRO_PUBLICADO = { id: ID, situacao: "publicado", marca: "Renault", modelo: "Kwid", versao: "Zen 1.0", ano_modelo: 2021, preco: 36900 };
+const MENSAGEM_DO_WHATSAPP =
+  "Olá! Vi no Repasse Motors o Renault Kwid Zen 1.0 2021 e quero saber mais. Ele ainda está disponível? Ref.: repasse 3f9a1c (Ref: 0DCB1CDC)";
+const WHATSAPP = {
+  canal: "repasse-whatsapp",
+  tipo: "lead_repasse_whatsapp",
+  mensagem: MENSAGEM_DO_WHATSAPP,
+  cliente: { ...CLIENTE, email: "" },
+  intencao_busca: {
+    repasse: { tipo: "whatsapp", repasse_id: ID, slug: "renault-kwid-zen-1-0-2021-3f9a1c", caminho: "/repasse/renault-kwid-zen-1-0-2021-3f9a1c" },
+  },
+  contentName: "Renault Kwid",
+  ...EXTRAS,
+};
+const PERGUNTA = {
+  ...WHATSAPP,
+  mensagem: "Olá! Estou vendo o Repasse Motors no site e tenho uma dúvida. (Ref: 0DCB1CDC)",
+  intencao_busca: { repasse: { tipo: "whatsapp", caminho: "/repasse" } },
+  contentName: "Repasse Motors Pergunta",
+};
 
 const pedido = (corpo: unknown) =>
   new NextRequest("http://teste/api/leads", {
@@ -274,6 +293,108 @@ describe("o exame no pátio", () => {
     );
     expect(res.status).toBe(400);
     expect(banco.lidas).not.toContain("repasses");
+  });
+});
+
+/**
+ * O contato pelo WhatsApp (pedido do dono em 28/09): o lead do pré-cadastro
+ * NUNCA bloqueia — é a régua da ficha do estoque, em que o POST falhar não
+ * segura o visitante. Carro no ar liga o lead a ele; carro que sumiu ou saiu
+ * do ar não recusa nada: o lead entra sem o elo.
+ */
+describe("o contato pelo WhatsApp", () => {
+  const n8nRecebeu = () => JSON.parse(String((n8n.mock.calls[0]?.[1] as RequestInit | undefined)?.body ?? "{}"));
+
+  it("carro no ar: o lead leva repasse_id, o interesse é o nome do carro e a mensagem é a do WhatsApp", async () => {
+    banco.leituras.repasses = { data: CARRO_PUBLICADO, error: null };
+    const res = await POST(pedido(WHATSAPP));
+    expect(res.status).toBe(200);
+    expect(insertDoLead()).toMatchObject({
+      canal: "repasse-whatsapp",
+      repasse_id: ID,
+      veiculo_id: null,
+      interesse: "Renault Kwid Zen 1.0",
+      telefone: "5541997372165",
+      event_id: "evt-1",
+    });
+    expect(n8nRecebeu()).toMatchObject({ canal: "repasse-whatsapp", mensagem: MENSAGEM_DO_WHATSAPP, veiculo: null });
+    expect(banco.consultas.find((c) => c.tabela === "repasses")?.filtros).toEqual([["id", ID]]);
+    expect(banco.escritasEm("repasse_inscritos")).toEqual([]);
+  });
+
+  // Revisão de 28/09: o interesse vinha na caixa do banco, e o Kanban mostrava
+  // "FIAT PALIO 1.0 ECONOMY FIRE FLEX 8V 4P". A caixa é a de `grafiaCanonica`.
+  it("cadastro em maiúsculas: o interesse sai na grafia canônica", async () => {
+    banco.leituras.repasses = {
+      data: { ...CARRO_PUBLICADO, marca: "FIAT", modelo: "PALIO", versao: "1.0 ECONOMY FIRE FLEX 8V 4P", ano_modelo: 2010 },
+      error: null,
+    };
+    const res = await POST(pedido(WHATSAPP));
+    expect(res.status).toBe(200);
+    expect(insertDoLead()).toMatchObject({ repasse_id: ID, interesse: "Fiat Palio 1.0 Economy Fire Flex 8V 4P" });
+  });
+
+  it("a CAPI leva o preço do banco, o nome do carro e nenhum id de catálogo", async () => {
+    banco.leituras.repasses = { data: CARRO_PUBLICADO, error: null };
+    await POST(pedido(WHATSAPP));
+    expect(capi.chamadas).toHaveLength(1);
+    const { customData } = capi.chamadas[0] as { customData: Record<string, unknown> };
+    expect(customData).toMatchObject({ value: 36900, content_name: "Renault Kwid" });
+    expect(customData.content_ids).toBeUndefined();
+  });
+
+  it.each([
+    ["reservado", { ...CARRO_PUBLICADO, situacao: "reservado" }],
+    ["vendido na carência", { ...CARRO_PUBLICADO, situacao: "vendido", vendido_em: "2026-09-20T12:00:00Z" }],
+  ])("carro %s ainda está no site: o lead também leva o repasse_id", async (_caso, linha) => {
+    banco.leituras.repasses = { data: linha, error: null };
+    const res = await POST(pedido(WHATSAPP));
+    expect(res.status).toBe(200);
+    expect(insertDoLead()).toMatchObject({ canal: "repasse-whatsapp", repasse_id: ID });
+  });
+
+  it.each([
+    ["inexistente", { data: null, error: null }],
+    ["arquivado", { data: { ...CARRO_PUBLICADO, situacao: "arquivado" }, error: null }],
+    ["vendido fora da carência", { data: { ...CARRO_PUBLICADO, situacao: "vendido", vendido_em: "2026-05-10T12:00:00Z" }, error: null }],
+    ["com a leitura em erro", { data: null, error: { message: "caiu", code: "XX000" } }],
+  ])("carro %s: 200, o lead entra SEM repasse_id, com a mensagem, e a CAPI sai", async (_caso, leitura) => {
+    banco.leituras.repasses = leitura;
+    const res = await POST(pedido(WHATSAPP));
+    expect(res.status).toBe(200);
+    expect(insertDoLead()).toMatchObject({ canal: "repasse-whatsapp", interesse: MENSAGEM_DO_WHATSAPP });
+    expect(insertDoLead()).not.toHaveProperty("repasse_id");
+    expect(n8n).toHaveBeenCalled();
+    expect(capi.chamadas).toHaveLength(1);
+    expect((capi.chamadas[0] as { customData: Record<string, unknown> }).customData.content_ids).toBeUndefined();
+  });
+
+  it("a pergunta, sem carro: não lê repasses e grava sem repasse_id", async () => {
+    const res = await POST(pedido(PERGUNTA));
+    expect(res.status).toBe(200);
+    expect(banco.lidas).not.toContain("repasses");
+    expect(insertDoLead()).toMatchObject({ canal: "repasse-whatsapp", interesse: PERGUNTA.mensagem });
+    expect(insertDoLead()).not.toHaveProperty("repasse_id");
+  });
+
+  it("lead que não grava NÃO bloqueia (ao contrário do exame): 200, sem triagem e com a CAPI", async () => {
+    banco.leituras.repasses = { data: CARRO_PUBLICADO, error: null };
+    banco.responderEscrita((e) => (e.tabela === "leads" ? { data: null, error: { message: "falhou", code: "XX000" } } : { data: null, error: null }));
+    const res = await POST(pedido(WHATSAPP));
+    expect(res.status).toBe(200);
+    expect(falhas.chamadas).toEqual([]);
+    expect(capi.chamadas).toHaveLength(1);
+  });
+
+  it.each([
+    ["sem nome", { ...WHATSAPP, cliente: { nome: " ", whatsapp: "(41) 99737-2165" } }, ERROS_DO_REPASSE.nome],
+    ["WhatsApp sem DDD", { ...WHATSAPP, cliente: { nome: "Ana", whatsapp: "99737-2165" } }, ERROS_DO_REPASSE.whatsapp],
+  ])("%s: 400 da régua da lista, antes de ler o carro e de gravar", async (_caso, corpo, erro) => {
+    const res = await POST(pedido(corpo));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(erro);
+    expect(banco.lidas).not.toContain("repasses");
+    expect(banco.escritas).toEqual([]);
   });
 });
 
