@@ -50,7 +50,7 @@ Repintura extensa, peças trocadas em volume, desgaste incompatível com a idade
 
 **Lojas que trabalham com veículos recuperados.** Existe um segmento especializado nisso, que compra, regulariza e revende com o histórico declarado. É um mercado legítimo quando a informação circula.
 
-**Repasse entre lojistas.** Carros que não entram na vitrine de uma loja frequentemente seguem por esse canal, com preço e condições próprias.
+**Lojista que revende no estado.** Compra para revender como o carro está, com o preço ajustado ao que o laudo apontou.
 
 **Comprador direto que aceita o histórico.** Existe, e mais do que se imagina — desde que o preço reflita a situação e a informação esteja na mesa desde o começo. Quem procura um carro barato e sabe exatamente o que está comprando é um comprador tranquilo.
 
@@ -94,7 +94,7 @@ Não estamos dando parecer jurídico. Em caso de dúvida sobre o seu caso espec�
 
 Nossa vitrine tem um critério fechado: **de cada dez carros avaliados, três entram.** Os outros sete não entram, e isso não é julgamento sobre o carro — é o padrão que a gente assumiu para vender com garantia e com o resultado da perícia publicado na ficha de cada carro.
 
-Mas avaliar é gratuito, e o que acontece depois da avaliação depende do caso. Carro que não vai para a vitrine pode seguir por outro caminho comercial, em condições próprias. Carro com divergência de numeração não segue por caminho nenhum — nesse caso a conversa é para te orientar a procurar quem deve.
+Mas avaliar é gratuito, e o que acontece depois da avaliação depende do caso. Carro reprovado na cautelar não entra na nossa vitrine nem no Repasse Motors, que só recebe carro funcionando e com o estado declarado por escrito. Carro com divergência de numeração não segue por caminho nenhum — nesse caso a conversa é para te orientar a procurar quem deve.
 
 O que a gente não faz, em nenhuma hipótese, é receber o carro sem te dizer o que encontrou.
 
