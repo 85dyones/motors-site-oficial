@@ -9,10 +9,11 @@ import {
   type ChaveDeFiltro,
   type Coringa,
   type ParcelaDoCartao,
+  type ParcelaPedida,
   type Recomendacao,
 } from "../lib/motorDoMatch";
-import { REFERENCIA_DAS_TAXAS } from "../lib/finance-calculator";
-import { AVISO_DA_SIMULACAO, textoDaParcela } from "../lib/textoDaParcela";
+import { avisoDeCredito, textoDaParcela, textoSemEstimativa } from "../lib/textoDaParcela";
+import type { Veiculo } from "../types";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
 
 /**
@@ -134,8 +135,10 @@ export default function ResultadoDoProfiler({
         )}
         {parcelaPedida && (
           <p className="m-0 mt-3 text-[12px] leading-relaxed text-mt-inverso-suave">
-            Parcelas estimadas pela {REFERENCIA_DAS_TAXAS}, com IOF e a entrada que você informou.{" "}
-            {AVISO_DA_SIMULACAO}
+            {/* A fonte e os bancos são os da vigência que fez a conta — a mesma
+                que veio da rota junto com o pedido. */}
+            Parcelas estimadas pela {parcelaPedida.parametros.fonteDasTaxas}, com IOF e a entrada que você
+            informou. {avisoDeCredito(parcelaPedida.parametros.bancosParceiros)}
           </p>
         )}
         {avisos.map((aviso) => (
@@ -272,7 +275,7 @@ export default function ResultadoDoProfiler({
                       v.cambio,
                       reais(precoDoCarro(v)),
                       // A parcela nunca vai sozinha: CET e total a prazo junto.
-                      parcelaPedida ? textoDaParcela(parcelaDoPedido(v, parcelaPedida)).compacto : null,
+                      parcelaPedida ? compactoDaParcela(v, parcelaPedida) : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -500,6 +503,16 @@ function Acoes({
       </button>
     </div>
   );
+}
+
+/**
+ * A parcela de um carro da lista "outros", numa linha. Carro que os bancos
+ * parceiros não financiam não passa no POR MÊS — o `null` aqui é defesa, e
+ * diz o porquê em vez de sumir com a parcela.
+ */
+function compactoDaParcela(v: Veiculo, pedido: ParcelaPedida): string {
+  const p = parcelaDoPedido(v, pedido);
+  return p ? textoDaParcela(p).compacto : textoSemEstimativa(pedido.parametros.anoMaisAntigo);
 }
 
 /**

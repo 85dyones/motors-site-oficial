@@ -11,6 +11,7 @@
  * (`lib/motorDoMatch.ts`); aqui só se decide o caminho.
  */
 import type { Veiculo } from "../types";
+import type { ParametrosDoFinanciamento } from "./finance-calculator";
 import { ehAutomatico } from "./fichaDoMotor";
 import {
   carrosNaFaixa,
@@ -50,6 +51,12 @@ export interface PorMes {
   prazo: number;
   ocupacao: Ocupacao;
   troca: boolean;
+  /**
+   * A vigência de `parametros_financiamento` com que a tela contou — a página
+   * a lê no servidor e o `CarMatch` a põe aqui. Sem ela o motor usa os valores
+   * de fábrica, e a contagem poderia prometer outro número que o resultado.
+   */
+  parametros?: ParametrosDoFinanciamento;
 }
 
 export const RESPOSTAS_EM_BRANCO: RespostasDoQuiz = {
@@ -89,7 +96,13 @@ export function perfilAteOJeito(a: RespostasDoQuiz): PerfilDoQuiz {
   return {
     orcamento: { min: a.budgetMin, max: tetoDe(a.budgetMax) },
     parcela: a.porMes
-      ? { max: a.porMes.parcela, entrada: a.porMes.entrada, prazo: a.porMes.prazo, ocupacao: a.porMes.ocupacao }
+      ? {
+          max: a.porMes.parcela,
+          entrada: a.porMes.entrada,
+          prazo: a.porMes.prazo,
+          ocupacao: a.porMes.ocupacao,
+          parametros: a.porMes.parametros,
+        }
       : null,
     leva: a.leva || null,
     // Com carga a carroceria já está decidida, e a 03 nem aparece.

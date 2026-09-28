@@ -454,11 +454,41 @@ consultor separa "depende também" (fica o limite de hoje, três).
   ficha. A primeira versão mostrava parcela sozinha na lista "outros" e
   chamava de "total" só a soma das parcelas, ao lado da entrada. Carro com
   mais de 5 anos ganha "aprovação e taxa variam mais de banco para banco".
-  Pendente com o dono: o ano mais antigo que a loja consegue financiar (hoje
-  um Fusca 1976 recebe parcela) e o agente financiador, que a lei pede na
-  oferta — o texto de agora a trata como simulação; vale validação jurídica.
+  O ano mais antigo e o agente financiador, pendentes aqui, o dono respondeu
+  em 28/09 (abaixo).
 - **Ano de referência congelado** (decisão 3): a idade do carro conta de
   2026, e muda junto com a tabela de taxas, nunca pelo relógio.
+
+**Condições do simulador como dado (28/09), com as respostas do dono:**
+
+1. *"temos bancos parceiros que parcelam carros até 2009, abaixo disso muito
+   difícil, pois o comparativo começa a ficar discrepante demais da realidade
+   da fipe x valor de mercado"* → carro anterior a 2009 não recebe
+   estimativa. Na ficha, o simulador diz "Sem estimativa de parcela: os
+   bancos parceiros financiam carros de 2009 em diante" e oferece o
+   consultor. Em `/financiamento` o seletor só lista os que financiam. No
+   POR MÊS o carro não entra — a não ser que a entrada o pague inteiro, e aí
+   não há financiamento a recusar. Fora do POR MÊS ele segue no resultado:
+   a regra é da parcela, não do pátio.
+2. *"validado, é isso mesmo, mas precisamos complementar com 'Simulação,
+   não é oferta de crédito. Sujeito a aprovação mediante validação de
+   cadastro.'"* e a lista dos bancos → o aviso é o texto do dono, palavra por
+   palavra, e vai sempre com "Bancos parceiros: Sicredi, Safra, Banco Pan,
+   Santander, Bradesco, Itaú, BV Financeira, Banco C6, Mercado Pago, Banco
+   BBC, entre outros." (`avisoDeCredito`) — o agente financiador que o CDC
+   pede junto da oferta. Na ficha, em `/financiamento`, no resultado e na
+   aba POR MÊS.
+3. *"sim, gostaria muito de ter isso disponível"* → as taxas, o ano de
+   referência, o ano mais antigo, os bancos e a fonte das taxas moram em
+   `parametros_financiamento` (migração 20260928120000), com vigência datada
+   e o guarda D-T1.7: valor vigente nunca sofre UPDATE; abrir vigência nova
+   encerra a atual hoje. A única escrita é `financiamento_nova_vigencia`,
+   para Administrador e Financeiro (a linha da A17 "Editar texto legal e
+   condições de financiamento"). A tela é `/admin/financiamento`, com
+   exemplo ao vivo e histórico. O site lê a vigente no servidor (cache de
+   1 h, invalidado na hora ao salvar) e passa às telas; a contagem do POR MÊS
+   e a `/api/match` usam a mesma. Se a leitura falhar, o site simula com os
+   valores de fábrica — os mesmos do seed, e um teste trava os dois juntos.
 - **CET.** O simulador calculava `(total/financiado)^(1/n) − 1`, que dava
   menos que a própria taxa (≈ 12% a.a. para 1,95% a.m.); e a calculadora da
   ficha chamava a taxa mensal de "CET". Agora o CET é a taxa interna de

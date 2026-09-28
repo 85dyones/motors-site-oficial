@@ -3,9 +3,11 @@ import { divergenciaDeCarroceria } from "./coerenciaDoCadastro";
 import { modeloEVersaoParaExibir } from "./estoqueTabela";
 import { nomeTemOAno } from "./nomeDoVeiculo";
 import {
-  ANO_DE_REFERENCIA_DAS_TAXAS,
   calculateFinancing,
-  IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
+  financiavel,
+  PARAMETROS_DE_FABRICA,
+  taxaVariaMais,
+  type ParametrosDoFinanciamento,
   type SimulationParams,
   type SimulationResult,
 } from "./finance-calculator";
@@ -223,24 +225,45 @@ export interface ParcelaPedida {
   entrada: number;
   prazo: number;
   ocupacao: Ocupacao;
+  /**
+   * As taxas, o ano de referência e o ano mais antigo financiado — a vigência
+   * de `parametros_financiamento`. Viajam com o pedido para que a contagem da
+   * tela, o resultado da rota e o cartão façam a MESMA conta.
+   */
+  parametros: ParametrosDoFinanciamento;
 }
 
-/** A parcela deste carro para este pedido — a mesma conta do simulador da ficha. */
-export function simularParcela(v: Veiculo, p: ParcelaPedida): SimulationResult {
+/**
+ * A parcela deste carro para este pedido — a mesma conta do simulador da
+ * ficha. `null` quando os bancos parceiros não financiam o carro (ano anterior
+ * a `anoMaisAntigo`, decisão do dono em 28/09/2026) e a entrada não o cobre:
+ * sem estimativa, o carro não entra no POR MÊS.
+ */
+export function simularParcela(v: Veiculo, p: ParcelaPedida): SimulationResult | null {
   const preco = precoDoCarro(v);
-  return calculateFinancing({
-    vehiclePrice: preco,
-    vehicleYear: v.ano,
-    // Entrada maior que o carro não vira parcela negativa: o carro sai à vista.
-    downPaymentValue: Math.min(Math.max(0, p.entrada), preco),
-    installments: p.prazo,
-    occupation: p.ocupacao,
-  });
+  // Entrada maior que o carro não vira parcela negativa: o carro sai à vista.
+  const entrada = Math.min(Math.max(0, p.entrada), preco);
+  if (entrada < preco && !financiavel(v.ano, p.parametros)) return null;
+  return calculateFinancing(
+    {
+      vehiclePrice: preco,
+      vehicleYear: v.ano,
+      downPaymentValue: entrada,
+      installments: p.prazo,
+      occupation: p.ocupacao,
+    },
+    p.parametros,
+  );
+}
+
+/** A parcela do carro, ou infinito quando não há estimativa — nunca cabe em faixa nenhuma. */
+function parcelaDoCarro(v: Veiculo, p: ParcelaPedida): number {
+  return simularParcela(v, p)?.parcela_mensal ?? Number.POSITIVE_INFINITY;
 }
 
 /** Onde o carro cai na faixa do cliente: o preço, ou a parcela no POR MÊS. */
 function valorNaFaixa(v: Veiculo, c: Criterios): number {
-  return c.parcela ? simularParcela(v, c.parcela).parcela_mensal : precoDoCarro(v);
+  return c.parcela ? parcelaDoCarro(v, c.parcela) : precoDoCarro(v);
 }
 
 /** O carro está na faixa (e não abaixo dela)? O teto já passou por `passaNosFiltros`. */
@@ -416,7 +439,14 @@ const CARROCERIAS_DO_JEITO: Record<Jeito, readonly string[]> = {
 export interface PerfilDoQuiz {
   orcamento: { min: number; max: number | null };
   /** POR MÊS — quando vem, é ela que faz a faixa, e `orcamento` é ignorado. */
-  parcela?: { max: number; entrada: number; prazo: number; ocupacao: Ocupacao } | null;
+  parcela?: {
+    max: number;
+    entrada: number;
+    prazo: number;
+    ocupacao: Ocupacao;
+    /** A vigência que a tela recebeu do servidor; sem ela, os valores de fábrica. */
+    parametros?: ParametrosDoFinanciamento;
+  } | null;
   leva?: Leva | null;
   jeitos?: readonly Jeito[];
   cambio?: PreferenciaDeCambio | null;
@@ -458,6 +488,7 @@ export function criteriosDoPerfil(p: PerfilDoQuiz): Criterios {
           entrada: Math.max(0, p.parcela.entrada || 0),
           prazo: p.parcela.prazo,
           ocupacao: p.parcela.ocupacao,
+          parametros: p.parcela.parametros ?? PARAMETROS_DE_FABRICA,
         }
       : null;
 
@@ -667,7 +698,9 @@ export function elegivel(v: Veiculo): boolean {
 /** Filtros de carro e teto; o piso fica de fora, porque ele só separa faixa. */
 export function passaNosFiltros(v: Veiculo, c: Criterios): boolean {
   if (c.teto !== null && precoDoCarro(v) > c.teto) return false;
-  if (c.parcela && simularParcela(v, c.parcela).parcela_mensal > c.parcela.max) return false;
+  // Sem estimativa (carro que os bancos parceiros não financiam) a parcela é
+  // infinita: não cabe em POR MÊS nenhum.
+  if (c.parcela && parcelaDoCarro(v, c.parcela) > c.parcela.max) return false;
   if (c.portas4 && !((v.portas ?? 0) >= 4)) return false;
   if (c.automatico && ehAutomatico(v) !== true) return false;
   if (c.carrocerias) {
@@ -713,9 +746,13 @@ function parcelaDoCartao(v: Veiculo, c: Criterios): ParcelaDoCartao | null {
   return c.parcela ? parcelaDoPedido(v, c.parcela) : null;
 }
 
-/** A oferta inteira deste carro para este pedido — para cartão, carta e lista. */
-export function parcelaDoPedido(v: Veiculo, p: ParcelaPedida): ParcelaDoCartao {
+/**
+ * A oferta inteira deste carro para este pedido — para cartão, carta e lista.
+ * `null` quando não há estimativa: a tela diz isso, em vez de inventar parcela.
+ */
+export function parcelaDoPedido(v: Veiculo, p: ParcelaPedida): ParcelaDoCartao | null {
   const r = simularParcela(v, p);
+  if (!r) return null;
   return {
     valor: r.parcela_mensal,
     prazo: p.prazo,
@@ -724,7 +761,7 @@ export function parcelaDoPedido(v: Veiculo, p: ParcelaPedida): ParcelaDoCartao {
     cetAno: r.cet_anual_real_pct,
     total: r.total_pago_ao_final,
     aVista: precoDoCarro(v),
-    taxaVariaMais: ANO_DE_REFERENCIA_DAS_TAXAS - v.ano > IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
+    taxaVariaMais: taxaVariaMais(v.ano, p.parametros),
   };
 }
 
@@ -929,7 +966,7 @@ function explicar(
   if (maisBarato) vitorias.push("o mais barato");
   // No POR MÊS a pergunta é a parcela: a menor pode não ser a do mais barato
   // (carro com mais de 5 anos pega taxa maior).
-  const parcelaDe = (x: Veiculo) => (c.parcela ? simularParcela(x, c.parcela).parcela_mensal : 0);
+  const parcelaDe = (x: Veiculo) => (c.parcela ? parcelaDoCarro(x, c.parcela) : 0);
   const menorParcela = c.parcela !== null && unicoVencedor(todos, parcelaDe, false) === v;
   if (menorParcela && !maisBarato) vitorias.push("a menor parcela");
   if (unicoCom(todos, (x) => ehAutomatico(x) === true) === v) vitorias.push("o único automático");

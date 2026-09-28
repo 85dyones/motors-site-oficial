@@ -19,6 +19,9 @@
 /**
  * O ano contra o qual a idade do carro é medida. Muda junto com a tabela de
  * taxas, na mesma revisão — nunca sozinho, pelo relógio.
+ *
+ * Desde 28/09/2026 o valor que vale é o da vigência em
+ * `parametros_financiamento`, editável no painel; este é o de fábrica.
  */
 export const ANO_DE_REFERENCIA_DAS_TAXAS = 2026;
 
@@ -50,7 +53,11 @@ export const ANO_DE_REFERENCIA_DAS_TAXAS = 2026;
  * Perfil bom fica no 1º quartil, o regular na mediana, o de risco no 3º
  * quartil. O número do BC mistura carro novo e usado, e seminovo costuma sair
  * mais caro que a média — por isso a tela sempre diz que é simulação e que a
- * taxa depende da análise. Revisar junto com `ANO_DE_REFERENCIA_DAS_TAXAS`.
+ * taxa depende da análise.
+ *
+ * Desde 28/09/2026 estes são os valores DE FÁBRICA: o que vale é a vigência
+ * em `parametros_financiamento`, que o painel edita (/admin/financiamento).
+ * Nova revisão de taxa se faz lá, com vigência nova — não aqui.
  */
 export const TAXAS_ESTIMADAS = {
   excelente: 0.0179,
@@ -60,6 +67,85 @@ export const TAXAS_ESTIMADAS = {
 
 /** De quando são as taxas acima — vai no aviso da tela. */
 export const REFERENCIA_DAS_TAXAS = "média de 18 instituições, Banco Central, jul–set/2026";
+
+/**
+ * O carro mais antigo que os bancos parceiros financiam. Decisão do dono em
+ * 28/09/2026: "temos bancos parceiros que parcelam carros até 2009, abaixo
+ * disso muito difícil, pois o comparativo começa a ficar discrepante demais
+ * da realidade da FIPE × valor de mercado". Carro de ano anterior não recebe
+ * estimativa de parcela — nem na ficha, nem no Profiler.
+ */
+export const ANO_MAIS_ANTIGO_FINANCIADO = 2009;
+
+/**
+ * Os bancos com que a loja trabalha (dono, 28/09/2026) — o agente financiador
+ * que o texto de crédito nomeia ao lado da simulação.
+ */
+export const BANCOS_PARCEIROS: readonly string[] = [
+  "Sicredi",
+  "Safra",
+  "Banco Pan",
+  "Santander",
+  "Bradesco",
+  "Itaú",
+  "BV Financeira",
+  "Banco C6",
+  "Mercado Pago",
+  "Banco BBC",
+];
+
+/**
+ * As condições do simulador, como DADO: a linha vigente de
+ * `parametros_financiamento` (migração 20260928120000), que Administrador e
+ * Financeiro editam no painel (/admin/financiamento). O dono pediu em
+ * 28/09/2026 que as taxas saíssem do código.
+ *
+ * As taxas vêm em fração ao mês (0,0195), como a conta usa; a tabela guarda em
+ * % (1,95), como a tela mostra.
+ */
+export interface ParametrosDoFinanciamento {
+  /** A linha de `parametros_financiamento` usada — `null` são os valores de fábrica, abaixo. */
+  id: string | null;
+  /** Desde quando a linha vale (AAAA-MM-DD) — `null` nos de fábrica. */
+  vigenciaDesde: string | null;
+  taxas: { excelente: number; regular: number; risco: number };
+  /** O ano contra o qual a idade do carro é medida — nunca o relógio. */
+  anoDeReferencia: number;
+  /** Carro de ano anterior a este não recebe estimativa. */
+  anoMaisAntigo: number;
+  bancosParceiros: readonly string[];
+  /** "média de 18 instituições, Banco Central, jul–set/2026" — vai na tela. */
+  fonteDasTaxas: string;
+}
+
+/**
+ * Os valores de fábrica — os mesmos do seed da tabela. Valem quando a leitura
+ * do banco falha (tabela ainda não criada, chave ausente, linha torta): o site
+ * continua simulando com a última régua que o dono aprovou, em vez de sumir
+ * com a parcela.
+ */
+export const PARAMETROS_DE_FABRICA: ParametrosDoFinanciamento = {
+  id: null,
+  vigenciaDesde: null,
+  taxas: { ...TAXAS_ESTIMADAS },
+  anoDeReferencia: ANO_DE_REFERENCIA_DAS_TAXAS,
+  anoMaisAntigo: ANO_MAIS_ANTIGO_FINANCIADO,
+  bancosParceiros: BANCOS_PARCEIROS,
+  fonteDasTaxas: REFERENCIA_DAS_TAXAS,
+};
+
+/**
+ * Os bancos parceiros financiam este carro? Fora disso, a tela diz "sem
+ * estimativa de parcela" em vez de inventar uma.
+ */
+export function financiavel(anoDoCarro: number, parametros: ParametrosDoFinanciamento): boolean {
+  return Number.isFinite(anoDoCarro) && anoDoCarro >= parametros.anoMaisAntigo;
+}
+
+/** Carro acima do último degrau de idade: a tela avisa que a taxa varia mais. */
+export function taxaVariaMais(anoDoCarro: number, parametros: ParametrosDoFinanciamento): boolean {
+  return parametros.anoDeReferencia - anoDoCarro > IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS;
+}
 
 /**
  * A partir desta idade o carro sai do último degrau da pontuação. É também
@@ -86,7 +172,10 @@ export interface SimulationResult {
   cet_anual_real_pct: number;
 }
 
-export function calculateFinancing(params: SimulationParams): SimulationResult {
+export function calculateFinancing(
+  params: SimulationParams,
+  parametros: ParametrosDoFinanciamento = PARAMETROS_DE_FABRICA,
+): SimulationResult {
   // 1. Base do Financiamento
   const valor_veiculo = params.vehiclePrice;
   const valor_entrada = params.downPaymentValue;
@@ -97,7 +186,7 @@ export function calculateFinancing(params: SimulationParams): SimulationResult {
   const valor_financiar_puro = valor_veiculo - valor_entrada;
   const pct_entrada = valor_veiculo > 0 ? (valor_entrada / valor_veiculo) * 100 : 0;
   
-  const idade_carro = Math.max(0, ANO_DE_REFERENCIA_DAS_TAXAS - ano_veiculo);
+  const idade_carro = Math.max(0, parametros.anoDeReferencia - ano_veiculo);
   
   // 2. Sistema de Pontuação para Risco Presumido
   let pontos = 0;
@@ -128,11 +217,11 @@ export function calculateFinancing(params: SimulationParams): SimulationResult {
   // 3. Definição da Taxa com base nos Pontos
   let taxa_mensal = 0;
   if (pontos >= 80) {
-      taxa_mensal = TAXAS_ESTIMADAS.excelente;
+      taxa_mensal = parametros.taxas.excelente;
   } else if (pontos >= 45) {
-      taxa_mensal = TAXAS_ESTIMADAS.regular;
+      taxa_mensal = parametros.taxas.regular;
   } else {
-      taxa_mensal = TAXAS_ESTIMADAS.risco;
+      taxa_mensal = parametros.taxas.risco;
   }
 
   // 4. Impostos Reais (IOF Crédito PF)

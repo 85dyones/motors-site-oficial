@@ -4,6 +4,8 @@ import { matchVehicles, calculateMatchScore } from "../../../lib/car-match";
 import { logCarMatchQueried, logApiTelemetry } from "../../../lib/telemetry";
 import { getEstoque } from "../../../lib/supabase";
 import { disponiveisDe } from "../../../lib/regrasEstoque";
+import { PARAMETROS_DE_FABRICA, type ParametrosDoFinanciamento } from "../../../lib/finance-calculator";
+import { parametrosDoFinanciamento } from "../../../lib/parametrosDoFinanciamento-servidor";
 import {
   criteriosDasRespostas,
   criteriosDoPerfil,
@@ -134,7 +136,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         return sendResponse(NextResponse.json({ error: "Parcela inválida." }, { status: 400 }));
       }
 
-      const criterios = criteriosDoCorpo(requestBody);
+      // As taxas e o ano mais antigo financiado são os da vigência do banco,
+      // nunca os do corpo: o navegador manda a parcela que a pessoa quer, não
+      // a conta com que ela é feita.
+      const parametros = parcelaBruta ? await parametrosDoFinanciamento() : PARAMETROS_DE_FABRICA;
+      const criterios = criteriosDoCorpo(requestBody, parametros);
       const recomendacao = recomendar(disponiveisDe(await getEstoque()), criterios);
 
       // Só o id que o próprio corpo trouxe. Sem cair no cookie `ag_uid`: o
@@ -228,7 +234,10 @@ function daLista<T extends string>(lista: readonly T[], bruto: unknown): T | nul
  * milhões, prazo da lista e ocupação da lista (CLT se não veio). Fora disso,
  * `null` — e o POST responde 400 (ver o começo do handler).
  */
-function parcelaDoCorpo(bruto: unknown): PerfilDoQuiz["parcela"] {
+function parcelaDoCorpo(
+  bruto: unknown,
+  parametros: ParametrosDoFinanciamento = PARAMETROS_DE_FABRICA,
+): PerfilDoQuiz["parcela"] {
   if (typeof bruto !== "object" || bruto === null) return null;
   const p = bruto as Record<string, unknown>;
   const max = valor(p.max);
@@ -238,7 +247,7 @@ function parcelaDoCorpo(bruto: unknown): PerfilDoQuiz["parcela"] {
   if (max === null || max < 100 || max > 50000) return null;
   if (entrada === null || entrada > 10_000_000) return null;
   if (prazo === null || !(PRAZOS_DO_POR_MES as readonly number[]).includes(prazo)) return null;
-  return { max, entrada, prazo, ocupacao: daLista<Ocupacao>(OCUPACOES, p.ocupacao) ?? "clt" };
+  return { max, entrada, prazo, ocupacao: daLista<Ocupacao>(OCUPACOES, p.ocupacao) ?? "clt", parametros };
 }
 
 /** Só os valores da lista, sem repetir, até `maximo`. */
@@ -260,7 +269,7 @@ function valor(bruto: unknown): number | null {
  * filtros conhecidos podem ser afrouxados (o "e se"). O teto nunca é
  * afrouxado — decisão do dono em 25/09.
  */
-function criteriosDoCorpo(corpo: Record<string, unknown>): Criterios {
+function criteriosDoCorpo(corpo: Record<string, unknown>, parametros: ParametrosDoFinanciamento): Criterios {
   const objeto = (x: unknown): Record<string, unknown> =>
     typeof x === "object" && x !== null ? (x as Record<string, unknown>) : {};
   const r = objeto(corpo.respostas);
@@ -279,7 +288,7 @@ function criteriosDoCorpo(corpo: Record<string, unknown>): Criterios {
     const p = objeto(corpo.perfil);
     criterios = criteriosDoPerfil({
       orcamento: faixa,
-      parcela: parcelaDoCorpo(orcamento.parcela),
+      parcela: parcelaDoCorpo(orcamento.parcela, parametros),
       leva: daLista(LEVAS, p.leva),
       jeitos: listaDaLista(JEITOS, p.jeitos, JEITOS.length),
       cambio: daLista(CAMBIOS, p.cambio),

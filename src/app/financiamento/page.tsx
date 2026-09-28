@@ -3,6 +3,7 @@ import PaginaDeEstoque from "../../components/modernist/PaginaDeEstoque";
 import SimuladorDeFinanciamento from "../../components/SimuladorDeFinanciamento";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import { getCachedSettings } from "../../lib/settings";
+import { parametrosDoFinanciamento } from "../../lib/parametrosDoFinanciamento-servidor";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import { precoVigente } from "../../lib/regrasEstoque";
@@ -53,9 +54,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function FinanciamentoPage() {
-  const [{ historico, disponiveis }, settings] = await Promise.all([
+  const [{ historico, disponiveis }, settings, parametros] = await Promise.all([
     recortesDoEstoque(),
     getCachedSettings(),
+    // As condições do simulador — a vigência que o painel edita.
+    parametrosDoFinanciamento(),
   ]);
 
   // A grade mostra a faixa de entrada: é quem pesquisa financiamento que mais
@@ -106,8 +109,8 @@ export default async function FinanciamentoPage() {
         introducao={TEXTO_DE_FINANCIAMENTO}
         contagem={false}
         veiculos={paraGrade}
-        textoSemEstoque="Sem veículos nesta faixa agora — o simulador acima funciona com qualquer carro do estoque."
-        conteudo={<SimuladorDeFinanciamento veiculos={disponiveis} />}
+        textoSemEstoque={`Sem veículos nesta faixa agora — o simulador acima funciona com qualquer carro do estoque de ${parametros.anoMaisAntigo} em diante.`}
+        conteudo={<SimuladorDeFinanciamento veiculos={disponiveis} parametros={parametros} />}
         /* O texto de abertura diz "o simulador ABAIXO responde a primeira
            pergunta". Medido na produção em 05/09/2026: a frase ficava a 267px
            do topo e o primeiro campo do simulador a 1702px, com a grade de

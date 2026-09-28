@@ -28,9 +28,40 @@ export interface ParcelaParaTexto {
   taxaVariaMais: boolean;
 }
 
-/** O que a simulação é, e o que não é — vai junto de toda parcela. */
+/**
+ * O que a simulação é, e o que não é — vai junto de toda parcela.
+ *
+ * Texto do dono, validado em 28/09/2026: "Simulação, não é oferta de crédito.
+ * Sujeito a aprovação mediante validação de cadastro." Vai sempre ao lado de
+ * `textoDosBancos` — a lei pede o agente financiador junto da oferta.
+ */
 export const AVISO_DA_SIMULACAO =
-  "Simulação, não é oferta de crédito: o banco, a taxa e a aprovação saem da análise de crédito.";
+  "Simulação, não é oferta de crédito. Sujeito a aprovação mediante validação de cadastro.";
+
+/**
+ * "Bancos parceiros: Sicredi, Safra, …, entre outros." — o agente financiador
+ * que o CDC (art. 54-B, II) pede na oferta. A lista é da vigência de
+ * `parametros_financiamento`; o "entre outros" é do dono ("entre outros").
+ */
+export function textoDosBancos(bancos: readonly string[]): string {
+  const nomes = bancos.map((b) => b.trim()).filter(Boolean);
+  if (nomes.length === 0) return "";
+  return `Bancos parceiros: ${nomes.join(", ")}, entre outros.`;
+}
+
+/** O aviso inteiro, numa linha: o que a simulação é e com quem a loja trabalha. */
+export function avisoDeCredito(bancos: readonly string[]): string {
+  const b = textoDosBancos(bancos);
+  return b ? `${AVISO_DA_SIMULACAO} ${b}` : AVISO_DA_SIMULACAO;
+}
+
+/**
+ * O carro é mais antigo que o que os bancos parceiros financiam: a tela diz
+ * isso no lugar da parcela, em vez de inventar uma (dono, 28/09/2026).
+ */
+export function textoSemEstimativa(anoMaisAntigo: number): string {
+  return `Sem estimativa de parcela: os bancos parceiros financiam carros de ${anoMaisAntigo} em diante.`;
+}
 
 const dinheiro = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });

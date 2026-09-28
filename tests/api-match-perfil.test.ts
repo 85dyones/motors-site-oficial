@@ -20,6 +20,12 @@ vi.mock("../src/lib/telemetry", async (importOriginal) => ({
   logApiTelemetry: () => {},
 }));
 
+// A vigência do banco vira os valores de fábrica — os mesmos do seed — sem
+// `unstable_cache`, que só existe dentro do Next.
+vi.mock("../src/lib/parametrosDoFinanciamento-servidor", async () => ({
+  parametrosDoFinanciamento: async () => (await import("../src/lib/finance-calculator")).PARAMETROS_DE_FABRICA,
+}));
+
 const { POST } = await import("../src/app/api/match/route");
 
 async function pedir(corpo: unknown) {

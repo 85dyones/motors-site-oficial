@@ -361,7 +361,10 @@ describe("4 · o quiz pergunta as cinco — e só o que separa carro", () => {
     // troca); a FIPE da troca nunca entra na conta.
     const codigo = lerCodigo("src/components/CarMatch.tsx");
     expect(codigo).toContain('{ id: "porMes", rotulo: "POR MÊS" }');
-    expect(codigo).toContain("orcamento: { ...perfilAtual.orcamento, parcela: perfilAtual.parcela ?? null }");
+    // Só o que a pessoa disse vai no corpo: as taxas a rota lê do banco.
+    expect(codigo).toMatch(/orcamento: \{\s*\.\.\.perfilAtual\.orcamento,\s*parcela: perfilAtual\.parcela\s*\?/);
+    expect(codigo).toMatch(/max: perfilAtual\.parcela\.max,\s*entrada: perfilAtual\.parcela\.entrada,/);
+    expect(codigo).not.toMatch(/parcela: perfilAtual\.parcela \?\? null/);
     expect(codigo).toMatch(/por_mes: answers\.porMes/);
     expect(codigo).toContain("parcela: c.parcela,");
     // A troca é só um aviso ao consultor e o link da avaliação — nada de FIPE.
@@ -382,11 +385,21 @@ describe("4 · o quiz pergunta as cinco — e só o que separa carro", () => {
     const resultado = lerCodigo("src/components/ResultadoDoProfiler.tsx");
     expect(resultado).not.toContain("parcela_mensal");
     expect(resultado).toContain("textoDaParcela(parcela)");
-    expect(resultado).toContain("textoDaParcela(parcelaDoPedido(v, parcelaPedida)).compacto");
+    expect(resultado).toContain("parcelaPedida ? compactoDaParcela(v, parcelaPedida) : null");
+    expect(resultado).toContain("textoDaParcela(p).compacto");
     const ficha = lerCodigo("src/components/CalculadoraFinanciamento.tsx");
     expect(ficha).toContain("textoDaParcela({");
     expect(ficha).not.toMatch(/total_pago_ao_final\.toLocaleString/);
-    expect(ficha).toContain("AVISO_DA_SIMULACAO");
+    // O aviso do dono (28/09/2026) vai sempre com os bancos parceiros: a lei
+    // pede o agente financiador junto da oferta.
+    for (const [nome, fonte] of [
+      ["CalculadoraFinanciamento", ficha],
+      ["ResultadoDoProfiler", resultado],
+      ["CarMatch", lerCodigo("src/components/CarMatch.tsx")],
+    ]) {
+      expect(fonte, nome).toContain("avisoDeCredito(");
+      expect(fonte, nome).not.toContain("AVISO_DA_SIMULACAO");
+    }
   });
 
   it("a pergunta 01 nunca fica sem opção clicável", () => {

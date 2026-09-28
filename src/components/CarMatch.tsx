@@ -30,8 +30,8 @@ import {
   type PorMes,
   type RespostasDoQuiz,
 } from "../lib/perguntasDoProfiler";
-import { REFERENCIA_DAS_TAXAS } from "../lib/finance-calculator";
-import { AVISO_DA_SIMULACAO } from "../lib/textoDaParcela";
+import type { ParametrosDoFinanciamento } from "../lib/finance-calculator";
+import { avisoDeCredito } from "../lib/textoDaParcela";
 import {
   carrosNaFaixa,
   criteriosDoPerfil,
@@ -318,7 +318,16 @@ function ReguaProgresso({ posicao, total, rotulo }: { posicao: number; total: nu
   );
 }
 
-export default function CarMatch() {
+export default function CarMatch({
+  parametros,
+}: {
+  /**
+   * As taxas, o ano mais antigo financiado e os bancos parceiros — a vigência
+   * de `parametros_financiamento`, lida pela página no servidor. A contagem da
+   * aba POR MÊS usa estes; a rota usa os mesmos, lidos do mesmo cache.
+   */
+  parametros: ParametrosDoFinanciamento;
+}) {
   const { companySettings } = useTheme();
   const [gameState, setGameState] = useState<EstadoQuiz>("intro");
   const [answers, setAnswers] = useState<AnswerState>(RESPOSTAS_EM_BRANCO);
@@ -357,7 +366,7 @@ export default function CarMatch() {
    * A entrada é a estimativa DELA: dinheiro e o que espera da troca (decisão
    * do dono em 25/09). O site não avalia o carro dela aqui.
    */
-  const [rascunhoPorMes, setRascunhoPorMes] = useState<PorMes>(PORMES_INICIAL);
+  const [rascunhoPorMes, setRascunhoPorMes] = useState<PorMes>(() => ({ ...PORMES_INICIAL, parametros }));
   /** `null` = ainda não mexeram no slider; o valor sai da mediana do pátio. */
   const [customMaxBudget, setCustomMaxBudget] = useState<number | null>(null);
   const [allowUpsell, setAllowUpsell] = useState<boolean>(true);
@@ -993,8 +1002,19 @@ export default function CarMatch() {
           cambio: perfilAtual.cambio,
           naoPodeFaltar: perfilAtual.naoPodeFaltar,
         },
-        // POR MÊS vai dentro do orçamento: é ele que faz a faixa.
-        orcamento: { ...perfilAtual.orcamento, parcela: perfilAtual.parcela ?? null },
+        // POR MÊS vai dentro do orçamento: é ele que faz a faixa. Só o que a
+        // pessoa disse — as taxas a rota lê do banco, não do corpo.
+        orcamento: {
+          ...perfilAtual.orcamento,
+          parcela: perfilAtual.parcela
+            ? {
+                max: perfilAtual.parcela.max,
+                entrada: perfilAtual.parcela.entrada,
+                prazo: perfilAtual.parcela.prazo,
+                ocupacao: perfilAtual.parcela.ocupacao,
+              }
+            : null,
+        },
         afrouxar: afrouxados,
         // Quem recusou o rastreamento não manda identificador para a consulta.
         ag_uid: rastreamentoRecusado() ? undefined : getActiveAgUid(),
@@ -1041,7 +1061,7 @@ export default function CarMatch() {
   const handleReset = () => {
     setAnswers(RESPOSTAS_EM_BRANCO);
     setBudgetTab("presets");
-    setRascunhoPorMes(PORMES_INICIAL);
+    setRascunhoPorMes({ ...PORMES_INICIAL, parametros });
     setAllowUpsell(true);
     setAiQuery("");
     setIsAiCuratorActive(false);
@@ -1448,7 +1468,9 @@ export default function CarMatch() {
                         </p>
                       )}
                       <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-inverso-suave">
-                        Parcela estimada pela {REFERENCIA_DAS_TAXAS}, com IOF. {AVISO_DA_SIMULACAO}
+                        Parcela estimada pela {parametros.fonteDasTaxas}, com IOF. Só entram carros de{" "}
+                        {parametros.anoMaisAntigo} em diante, até onde os bancos parceiros financiam.{" "}
+                        {avisoDeCredito(parametros.bancosParceiros)}
                       </p>
                       <button type="button" onClick={confirmarPorMes} className="mt-btn mt-btn-primario mt-foco mt-6">
                         CONFIRMAR

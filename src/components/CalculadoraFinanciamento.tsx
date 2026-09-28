@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { pushSimulacaoDeFinanciamento } from "../lib/dataLayer";
 import {
-  ANO_DE_REFERENCIA_DAS_TAXAS,
   calculateFinancing,
-  IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
-  SimulationResult,
+  financiavel,
+  taxaVariaMais,
+  type ParametrosDoFinanciamento,
+  type SimulationResult,
 } from "../lib/finance-calculator";
-import { AVISO_DA_SIMULACAO, textoDaParcela } from "../lib/textoDaParcela";
+import { avisoDeCredito, textoDaParcela, textoSemEstimativa } from "../lib/textoDaParcela";
 
 export interface SimulacaoData {
   valor_veiculo: number;
@@ -33,6 +34,11 @@ interface CalculadoraProps {
    * lia "Ford Ka" e o pátio tem três.
    */
   vehicleName: string;
+  /**
+   * As taxas, o ano mais antigo financiado e os bancos parceiros — a vigência
+   * de `parametros_financiamento`, lida no servidor pela página.
+   */
+  parametros: ParametrosDoFinanciamento;
   onSimulateClick: (message: string, simulacaoData?: SimulacaoData) => void;
 }
 
@@ -44,6 +50,7 @@ export default function CalculadoraFinanciamento({
   vehiclePrice,
   vehicleYear,
   vehicleName,
+  parametros,
   onSimulateClick,
 }: CalculadoraProps) {
   const [downPaymentPercent, setDownPaymentPercent] = useState<number>(30);
@@ -57,15 +64,23 @@ export default function CalculadoraFinanciamento({
   // `PDPClientWrapper` já aplica ao veículo exibido.
   const result: SimulationResult = useMemo(
     () =>
-      calculateFinancing({
-        vehiclePrice,
-        vehicleYear,
-        downPaymentValue: vehiclePrice * (downPaymentPercent / 100),
-        installments,
-        occupation,
-      }),
-    [vehiclePrice, vehicleYear, downPaymentPercent, installments, occupation],
+      calculateFinancing(
+        {
+          vehiclePrice,
+          vehicleYear,
+          downPaymentValue: vehiclePrice * (downPaymentPercent / 100),
+          installments,
+          occupation,
+        },
+        parametros,
+      ),
+    [vehiclePrice, vehicleYear, downPaymentPercent, installments, occupation, parametros],
   );
+
+  // Carro anterior ao que os bancos parceiros financiam (dono, 28/09/2026):
+  // sem estimativa. A conta acima roda do mesmo jeito — hook não se chama
+  // condicionalmente —, mas nada dela vai para a tela nem para a mensagem.
+  const semEstimativa = !financiavel(vehicleYear, parametros);
 
   /** A oferta inteira — parcela, CET, total a prazo e à vista — no texto único do site. */
   const detalheDaParcela = textoDaParcela({
@@ -76,7 +91,7 @@ export default function CalculadoraFinanciamento({
     cetAno: result.cet_anual_real_pct,
     total: result.total_pago_ao_final,
     aVista: vehiclePrice,
-    taxaVariaMais: ANO_DE_REFERENCIA_DAS_TAXAS - vehicleYear > IDADE_ACIMA_DA_QUAL_A_TAXA_VARIA_MAIS,
+    taxaVariaMais: taxaVariaMais(vehicleYear, parametros),
   });
 
   const handleSimulateAction = () => {
@@ -147,130 +162,150 @@ Consegue verificar se aprova nessas condições?`;
         <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-neutral-800">
           Esta simulação usa taxas que podem variar dependendo de análises das
           instituições bancárias referente ao crédito disponível e
-          &ldquo;score&rdquo; de cada pessoa. Valores incluem IOF.
+          &ldquo;score&rdquo; de cada pessoa. Valores incluem IOF. Taxas
+          estimadas pela {parametros.fonteDasTaxas}.
         </p>
       </div>
 
-      <div className="min-w-0 flex-1">
-        {/* Perfil e forma de entrada — alimentam a taxa calculada */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <div>
-            <label htmlFor="calc-occupation" className="mt-rotulo mb-2 block">
-              SEU PERFIL PROFISSIONAL
-            </label>
-            <select
-              id="calc-occupation"
-              value={occupation}
-              onChange={(e) => setOccupation(e.target.value as OcupacaoType)}
-              className="mt-campo-caixa mt-foco cursor-pointer font-semibold"
-            >
-              <option value="clt">Trabalhador CLT</option>
-              <option value="publico">Funcionário Público</option>
-              <option value="aposentado">Aposentado / Pensionista</option>
-              <option value="autonomo">Profissional Autônomo / PJ</option>
-              <option value="outros">Outros</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="calc-tipo-entrada" className="mt-rotulo mb-2 block">
-              FORMA DE ENTRADA
-            </label>
-            <select
-              id="calc-tipo-entrada"
-              value={tipoEntrada}
-              onChange={(e) => {
-                const val = e.target.value as TipoEntradaType;
-                setTipoEntrada(val);
-                if (val === "sem_entrada") setDownPaymentPercent(0);
-              }}
-              className="mt-campo-caixa mt-foco cursor-pointer font-semibold"
-            >
-              <option value="dinheiro">Dinheiro (PIX/Transferência)</option>
-              <option value="veiculo_troca">Veículo na Troca</option>
-              <option value="sem_entrada">Sem entrada (100% Financiado)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Entrada · Prazo · Parcela, em três colunas sobre a régua */}
-        <div className="mt-7 flex flex-col border-t-2 border-mt-regua md:flex-row">
-          <div
-            className={`flex-1 border-b border-mt-regua-fina py-4 transition-opacity duration-300 md:border-b-0 md:border-r md:border-mt-regua-media md:py-5 md:pr-6 ${
-              tipoEntrada === "sem_entrada" ? "pointer-events-none opacity-50" : ""
-            }`}
+      {semEstimativa ? (
+        <div className="min-w-0 flex-1 border-t-2 border-mt-regua pt-5 lg:border-t-0 lg:pt-0">
+          <p className="m-0 text-[17px] font-extrabold leading-snug text-mt-ink">
+            {textoSemEstimativa(parametros.anoMaisAntigo)}
+          </p>
+          <p className="m-0 mt-2 max-w-[560px] text-[13px] leading-relaxed text-mt-neutral-800">
+            Para este carro, um consultor mostra as outras formas de pagamento.
+          </p>
+          <button
+            onClick={() =>
+              onSimulateClick(`Olá! Tenho interesse no ${vehicleName}. Quais são as formas de pagamento para ele?`)
+            }
+            className="mt-btn mt-btn-primario mt-foco mt-6 px-6 py-4 text-xs tracking-[.1em]"
           >
-            <label htmlFor="calc-range-entrada" className="mt-rotulo mb-2.5 block">
-              ENTRADA ({downPaymentPercent}%)
-            </label>
-            <div className="text-[24px] font-extrabold tracking-[-.03em] text-mt-ink">
-              {formatCurrency(entradaValue)}
-            </div>
-            <input
-              id="calc-range-entrada"
-              type="range"
-              min="0"
-              max="90"
-              step="10"
-              value={downPaymentPercent}
-              onChange={(e) => setDownPaymentPercent(Number(e.target.value))}
-              disabled={tipoEntrada === "sem_entrada"}
-              aria-label="Porcentagem de entrada"
-              className="mt-range mt-foco mt-3.5"
-            />
-          </div>
-
-          <div className="flex-1 border-b border-mt-regua-fina py-4 md:border-b-0 md:border-r md:border-mt-regua-media md:px-6 md:py-5">
-            <span className="mt-rotulo mb-2.5 block">PRAZO</span>
-            <div className="flex w-max border border-mt-regua">
-              {[24, 36, 48, 60].map((prazo, i) => (
-                <button
-                  key={prazo}
-                  onClick={() => setInstallments(prazo)}
-                  className={`mt-foco cursor-pointer px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    i > 0 ? "border-l border-mt-regua" : ""
-                  } ${
-                    installments === prazo
-                      ? "bg-mt-accent text-mt-inverso"
-                      : "bg-transparent text-mt-ink hover:bg-mt-neutral-300"
-                  }`}
-                >
-                  {prazo}×
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex-[1.1] py-4 md:py-5 md:pl-6">
-            <span className="mt-rotulo mb-2.5 block">PARCELA ESTIMADA</span>
-            <div className="text-[32px] font-extrabold leading-none tracking-[-.04em] text-mt-accent lg:text-[38px]">
-              R$ {result.parcela_mensal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
-              {/* A taxa de juros e o CET são números diferentes: o rótulo
-                  antigo chamava a taxa de "CET". E o total é o total A PRAZO,
-                  com a entrada, ao lado do preço à vista — "total" só das
-                  parcelas, perto da entrada, lia-se como custo muito menor.
-                  O texto sai de `lib/textoDaParcela`, o mesmo do Profiler. */}
-              {installments}× · {detalheDaParcela.detalhe} · IOF incluso
-              {detalheDaParcela.cautela && (
-                <>
-                  <br />
-                  {detalheDaParcela.cautela}
-                </>
-              )}
-              <br />
-              {AVISO_DA_SIMULACAO}
-            </div>
-          </div>
+            FALAR COM UM CONSULTOR
+          </button>
         </div>
+      ) : (
+        <div className="min-w-0 flex-1">
+          {/* Perfil e forma de entrada — alimentam a taxa calculada */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="calc-occupation" className="mt-rotulo mb-2 block">
+                SEU PERFIL PROFISSIONAL
+              </label>
+              <select
+                id="calc-occupation"
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value as OcupacaoType)}
+                className="mt-campo-caixa mt-foco cursor-pointer font-semibold"
+              >
+                <option value="clt">Trabalhador CLT</option>
+                <option value="publico">Funcionário Público</option>
+                <option value="aposentado">Aposentado / Pensionista</option>
+                <option value="autonomo">Profissional Autônomo / PJ</option>
+                <option value="outros">Outros</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="calc-tipo-entrada" className="mt-rotulo mb-2 block">
+                FORMA DE ENTRADA
+              </label>
+              <select
+                id="calc-tipo-entrada"
+                value={tipoEntrada}
+                onChange={(e) => {
+                  const val = e.target.value as TipoEntradaType;
+                  setTipoEntrada(val);
+                  if (val === "sem_entrada") setDownPaymentPercent(0);
+                }}
+                className="mt-campo-caixa mt-foco cursor-pointer font-semibold"
+              >
+                <option value="dinheiro">Dinheiro (PIX/Transferência)</option>
+                <option value="veiculo_troca">Veículo na Troca</option>
+                <option value="sem_entrada">Sem entrada (100% Financiado)</option>
+              </select>
+            </div>
+          </div>
 
-        <button
-          onClick={handleSimulateAction}
-          className="mt-btn mt-btn-primario mt-foco mt-6 px-6 py-4 text-xs tracking-[.1em]"
-        >
-          QUERO MAIS INFO SOBRE FINANCIAMENTO
-        </button>
-      </div>
+          {/* Entrada · Prazo · Parcela, em três colunas sobre a régua */}
+          <div className="mt-7 flex flex-col border-t-2 border-mt-regua md:flex-row">
+            <div
+              className={`flex-1 border-b border-mt-regua-fina py-4 transition-opacity duration-300 md:border-b-0 md:border-r md:border-mt-regua-media md:py-5 md:pr-6 ${
+                tipoEntrada === "sem_entrada" ? "pointer-events-none opacity-50" : ""
+              }`}
+            >
+              <label htmlFor="calc-range-entrada" className="mt-rotulo mb-2.5 block">
+                ENTRADA ({downPaymentPercent}%)
+              </label>
+              <div className="text-[24px] font-extrabold tracking-[-.03em] text-mt-ink">
+                {formatCurrency(entradaValue)}
+              </div>
+              <input
+                id="calc-range-entrada"
+                type="range"
+                min="0"
+                max="90"
+                step="10"
+                value={downPaymentPercent}
+                onChange={(e) => setDownPaymentPercent(Number(e.target.value))}
+                disabled={tipoEntrada === "sem_entrada"}
+                aria-label="Porcentagem de entrada"
+                className="mt-range mt-foco mt-3.5"
+              />
+            </div>
+
+            <div className="flex-1 border-b border-mt-regua-fina py-4 md:border-b-0 md:border-r md:border-mt-regua-media md:px-6 md:py-5">
+              <span className="mt-rotulo mb-2.5 block">PRAZO</span>
+              <div className="flex w-max border border-mt-regua">
+                {[24, 36, 48, 60].map((prazo, i) => (
+                  <button
+                    key={prazo}
+                    onClick={() => setInstallments(prazo)}
+                    className={`mt-foco cursor-pointer px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      i > 0 ? "border-l border-mt-regua" : ""
+                    } ${
+                      installments === prazo
+                        ? "bg-mt-accent text-mt-inverso"
+                        : "bg-transparent text-mt-ink hover:bg-mt-neutral-300"
+                    }`}
+                  >
+                    {prazo}×
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-[1.1] py-4 md:py-5 md:pl-6">
+              <span className="mt-rotulo mb-2.5 block">PARCELA ESTIMADA</span>
+              <div className="text-[32px] font-extrabold leading-none tracking-[-.04em] text-mt-accent lg:text-[38px]">
+                R$ {result.parcela_mensal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
+                {/* A taxa de juros e o CET são números diferentes: o rótulo
+                    antigo chamava a taxa de "CET". E o total é o total A PRAZO,
+                    com a entrada, ao lado do preço à vista — "total" só das
+                    parcelas, perto da entrada, lia-se como custo muito menor.
+                    O texto sai de `lib/textoDaParcela`, o mesmo do Profiler. */}
+                {installments}× · {detalheDaParcela.detalhe} · IOF incluso
+                {detalheDaParcela.cautela && (
+                  <>
+                    <br />
+                    {detalheDaParcela.cautela}
+                  </>
+                )}
+                <br />
+                {avisoDeCredito(parametros.bancosParceiros)}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSimulateAction}
+            className="mt-btn mt-btn-primario mt-foco mt-6 px-6 py-4 text-xs tracking-[.1em]"
+          >
+            QUERO MAIS INFO SOBRE FINANCIAMENTO
+          </button>
+        </div>
+      )}
     </div>
   );
 }
