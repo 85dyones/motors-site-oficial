@@ -5,6 +5,7 @@ import type { Veiculo } from "../../types";
 import { formatarKm, formatarPreco } from "./primitivos";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import { paginaDaFaixa } from "../../lib/faixaVitrine";
+import FaixaEmPreparacao from "./FaixaEmPreparacao";
 // Os dois números do ritmo são IMPORTADOS, e não declarados aqui: este arquivo
 // é `"use client"`, e quem mais os lê é servidor — `/vitrine/page.tsx` e
 // `destaquesDoPainel.ts`. Constante exportada de módulo cliente não atravessa a
@@ -129,6 +130,10 @@ export default function VitrineTV({
               {carro.status_tag.toUpperCase()}
             </div>
           )}
+          <FaixaEmPreparacao
+            veiculo={carro}
+            className="absolute bottom-0 left-0 px-[1.15vw] py-[1.3vh] text-[0.83vw]"
+          />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col px-[2.9vw] pt-[4.8vh]">

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import { formatarKm, formatarPreco } from "./primitivos";
+import FaixaEmPreparacao from "./FaixaEmPreparacao";
 
 /**
  * Vitrine do tablet de balcão — tela 08 B do design doc.
@@ -181,6 +182,10 @@ export default function VitrineBalcao({
                     {v.status_tag.toUpperCase()}
                   </span>
                 )}
+                <FaixaEmPreparacao
+                  veiculo={v}
+                  className="absolute bottom-0 left-0 px-2 py-1 text-[9px]"
+                />
               </div>
               <div className="flex min-w-0 flex-1 flex-col px-5 py-[18px]">
                 <div className="text-[10px] font-semibold tracking-[.16em] text-mt-accent">
