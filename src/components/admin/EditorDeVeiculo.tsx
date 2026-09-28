@@ -205,6 +205,11 @@ const rotuloCampo = "text-[10px] font-semibold uppercase tracking-[.12em] text-m
 const campoCaixa =
   "mt-campo-caixa mt-foco";
 
+/** O `title` do Publicar quando só a caixa não salva o trava — ver
+ *  `bloqueiosParaPublicar`. */
+const SALVE_A_CAIXA_ANTES_DE_PUBLICAR =
+  'Salve a caixa "Em preparação" antes de publicar: a publicação é julgada pelo que está salvo.';
+
 export default function EditorDeVeiculo({
   inicial,
   visitas30Dias,
@@ -397,6 +402,28 @@ export default function EditorDeVeiculo({
       }).filter((b) => b.bloqueia),
     [v.whatsapp_images, v.em_preparacao, v.previsao_chegada_em],
   );
+
+  /* A exceção do carro em preparação, como o BANCO a conhece.
+
+     O botão Publicar manda só `estado_cadastro`, e o servidor confere a régua
+     sobre a linha salva (`aplicarNosVeiculos`). Julgar a trava pela caixa em
+     edição deixava marcar, pôr a data e clicar Publicar sem Salvar — e o
+     clique voltava 422 com "1 de 4 fotos para publicar" num carro que a tela
+     dizia pronto (achado da revisão final, 28/09). As fotos seguem vindo de
+     `v` porque a galeria grava na hora: ali tela e banco já são a mesma
+     coisa. O checklist continua mostrando o estado em edição. */
+  const bloqueiosParaPublicar = useMemo(
+    () =>
+      bloqueiosDePublicacao({
+        whatsapp_images: v.whatsapp_images,
+        em_preparacao: salvo.em_preparacao,
+        previsao_chegada_em: salvo.previsao_chegada_em,
+      }).filter((b) => b.bloqueia),
+    [v.whatsapp_images, salvo.em_preparacao, salvo.previsao_chegada_em],
+  );
+  // O que trava o Publicar é só a caixa ainda não salva: a tela já libera, o
+  // banco ainda não.
+  const salvarAntesDePublicar = bloqueiosParaPublicar.length > 0 && bloqueios.length === 0;
 
   /* ------------------------------------------------------------------------
    * Publicar e arquivar — a decisão, separada da edição
@@ -647,16 +674,18 @@ export default function EditorDeVeiculo({
               resolveu. */}
           {podeDecidirPublicacao &&
             acoesDoEstado(estadoCadastro).map((acao) => {
-              const travado = acao === "publicar" && bloqueios.length > 0;
+              const travado = acao === "publicar" && bloqueiosParaPublicar.length > 0;
               return (
                 <button
                   key={acao}
                   onClick={() => decidirPublicacao(acao)}
                   disabled={mudandoEstado || travado}
                   title={
-                    travado
-                      ? `Falta ${bloqueios.map((b) => b.texto).join("; ")}`
-                      : undefined
+                    !travado
+                      ? undefined
+                      : salvarAntesDePublicar
+                        ? SALVE_A_CAIXA_ANTES_DE_PUBLICAR
+                        : `Falta ${bloqueiosParaPublicar.map((b) => b.texto).join("; ")}`
                   }
                   className={`mt-btn mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-45 ${
                     acao === "publicar" ? "mt-btn-primario" : "mt-btn-contorno"
@@ -1364,8 +1393,13 @@ export default function EditorDeVeiculo({
                   "não volta sozinho" e as duas juntas se contradiziam na
                   leitura. Ali o que interessa é que voltar é decisão, não
                   material — e o botão Publicar já está à mão para quem decidir. */}
-              {estadoCadastro === "rascunho" && podeDecidirPublicacao && bloqueios.length === 0 && (
+              {/* "Pronto" é sobre o botão Publicar, e ele julga pelo que está
+                  salvo — ver `bloqueiosParaPublicar`. */}
+              {estadoCadastro === "rascunho" && podeDecidirPublicacao && bloqueiosParaPublicar.length === 0 && (
                 <> Está pronto para publicar.</>
+              )}
+              {estadoCadastro === "rascunho" && podeDecidirPublicacao && salvarAntesDePublicar && (
+                <> {SALVE_A_CAIXA_ANTES_DE_PUBLICAR}</>
               )}
             </div>
           )}
@@ -1379,7 +1413,7 @@ export default function EditorDeVeiculo({
                   <li key={b.id}>{b.texto}</li>
                 ))}
               </ul>
-              {estadoCadastro === "rascunho" && (
+              {estadoCadastro === "rascunho" && bloqueiosParaPublicar.length > 0 && (
                 <p className="m-0 mt-1.5">Publicar fica travado até isso resolver.</p>
               )}
             </div>

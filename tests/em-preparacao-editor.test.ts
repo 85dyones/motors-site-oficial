@@ -151,6 +151,41 @@ describe("a caixa no editor", () => {
 });
 
 /**
+ * O botão Publicar julga a exceção pelo que está SALVO — achado da revisão
+ * final (28/09). O PATCH de publicar manda só `estado_cadastro`, e o servidor
+ * confere a régua no banco: com a caixa marcada e datada só na tela, o clique
+ * voltava 422 com "1 de 4 fotos para publicar" num carro que a tela dizia
+ * pronto. As fotos continuam vindo da tela, porque a galeria grava na hora.
+ */
+describe("o Publicar julga pelo que está salvo", () => {
+  const publicar = () =>
+    Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent ?? "").trim() === "Publicar",
+    ) as HTMLButtonElement | undefined;
+
+  it("caixa e data sem salvar: Publicar travado, e o title manda salvar; salvo, libera", async () => {
+    await abrir(COM_COLUNA); // uma foto, rascunho, caixa desmarcada no banco
+    expect(publicar()).toBeDefined();
+    expect(publicar()!.disabled).toBe(true);
+
+    await act(async () => caixa()!.click());
+    await digitar(campoDaData()!, "2026-10-03T14:00");
+    // O checklist mostra o estado em edição — a exceção vale na tela...
+    expect(itemDoChecklist("libera a publicação")?.estado).toBe("OK");
+    // ...mas não no banco, e é ele que o servidor consulta ao publicar.
+    expect(publicar()!.disabled).toBe(true);
+    expect(publicar()!.title).toMatch(/^Salve a caixa "Em preparação" antes de publicar/);
+    expect(container.textContent).not.toContain("Está pronto para publicar.");
+
+    await salvar();
+    expect(patches()).toHaveLength(1);
+    expect(publicar()!.disabled).toBe(false);
+    expect(publicar()!.title).toBe("");
+    expect(container.textContent).toContain("Está pronto para publicar.");
+  });
+});
+
+/**
  * O primeiro degrau do checklist reage à régua condicional — achado da
  * revisão da Tarefa 6 (2026-09-28). A fonte prova que `minimoDeFotos` vem de
  * `MINIMO_DE_FOTOS`/`MINIMO_DE_FOTOS_EM_PREPARACAO` (ver
