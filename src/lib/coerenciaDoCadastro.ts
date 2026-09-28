@@ -151,11 +151,36 @@ function normalizar(valor: string): string {
  *
  * `includes` cru casaria "hr" dentro de "Hr-v" e mandaria um SUV virar
  * utilitário. A fronteira é o que separa detector de gerador de ruído.
+ *
+ * Devolve a expressão, e não o teste: ela é montada uma vez por termo, em
+ * `REGRAS_MONTADAS`, e usada em todas as chamadas.
  */
-function contemTermo(nome: string, termo: string): boolean {
-  const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9])${escapado}([^a-z0-9]|$)`).test(nome);
+function comoPalavra(termo: string): RegExp {
+  const escapado = normalizar(termo).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escapado}([^a-z0-9]|$)`);
 }
+
+/**
+ * A tabela com os termos já normalizados e as expressões já montadas.
+ *
+ * Até 28/09 cada chamada normalizava e compilava de novo as 57 expressões da
+ * tabela — que não mudam entre uma chamada e outra. O Garagem Profiler chama
+ * este detector para cada carro de cada contagem (`elegivel`, em
+ * `lib/motorDoMatch.ts`), inclusive no navegador, a cada opção do quiz. Medido
+ * naquele dia nas 3120 contagens de `tests/motor-do-match.test.ts`: 5,1 dos
+ * 5,2 s eram este detector, e o caso estourava o `testTimeout` na suíte cheia.
+ * Com as expressões montadas uma vez só, as mesmas contagens levam 0,6 s.
+ *
+ * Reusar a expressão dá o mesmo resultado que montar outra: sem as flags `g`
+ * e `y`, `test` não guarda `lastIndex` entre uma chamada e a seguinte. Quem
+ * trava isso é "nem guarda nada de uma chamada para a outra", em
+ * `tests/coerencia-do-cadastro.test.ts`.
+ */
+const REGRAS_MONTADAS = REGRAS_DE_COERENCIA.map((regra) => ({
+  regra,
+  exceto: (regra.exceto ?? []).map(comoPalavra),
+  termos: regra.termos.map(comoPalavra),
+}));
 
 export interface Divergencia {
   /** A carroceria sugerida — a primeira da lista de aceitáveis. */
@@ -185,9 +210,9 @@ export function divergenciaDeCarroceria(veiculo: {
 
   const atual = (veiculo.tipo ?? "").trim();
 
-  for (const regra of REGRAS_DE_COERENCIA) {
-    if ((regra.exceto ?? []).some((t) => contemTermo(nome, normalizar(t)))) continue;
-    if (!regra.termos.some((t) => contemTermo(nome, normalizar(t)))) continue;
+  for (const { regra, exceto, termos } of REGRAS_MONTADAS) {
+    if (exceto.some((palavra) => palavra.test(nome))) continue;
+    if (!termos.some((palavra) => palavra.test(nome))) continue;
     // Aceitável = silêncio. O detector só fala quando o valor salvo não está
     // em nenhuma das leituras defensáveis daquele nome.
     if (regra.carrocerias.some((c) => normalizar(c) === normalizar(atual))) return null;
