@@ -5,6 +5,7 @@ import type {
   CompartilhamentoSettings,
 } from "../types";
 import { NOME_DA_SECAO, RESUMO_DA_SECAO, TITULO_SEO_DA_SECAO } from "./guias";
+import { DESCRICAO_DO_REPASSE, TITULO_DO_REPASSE } from "./paginaDoRepasse";
 
 /**
  * Prévia de link — o que WhatsApp, Facebook, Instagram e LinkedIn mostram
@@ -71,7 +72,7 @@ export const PAGINAS_COMPARTILHAVEIS = [
     rotuloCard: "Estoque",
     tituloPadrao: "Seminovos selecionados em Curitiba",
     descricaoPadrao:
-      "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine. O laudo está disponível com o vendedor.",
+      "Todo veículo do estoque passa por perícia cautelar independente antes de entrar na vitrine. O laudo está disponível com o vendedor.",
   },
   {
     id: "avaliacao",
@@ -120,6 +121,17 @@ export const PAGINAS_COMPARTILHAVEIS = [
     tituloPadrao: "Seleção de destaque em Curitiba",
     descricaoPadrao:
       "Um recorte do estoque que passou pela perícia cautelar independente. Procedência na ficha, e o laudo disponível com o vendedor.",
+  },
+  {
+    // A seção de repasse (spec 2026-09-24). O texto de fábrica é o do
+    // herói da página, aprovado nas pranchas — sai de `paginaDoRepasse.ts`
+    // para o card não divergir da página.
+    id: "repasse",
+    nome: "Repasse",
+    caminho: "/repasse",
+    rotuloCard: "Repasse",
+    tituloPadrao: TITULO_DO_REPASSE,
+    descricaoPadrao: DESCRICAO_DO_REPASSE,
   },
   {
     id: "privacidade",

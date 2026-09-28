@@ -94,6 +94,16 @@ describe("sem beco sem saída", () => {
     expect(existsSync(join(raizDoApp, "not-found.tsx"))).toBe(true);
   });
 
+  it("o carro de repasse que não abre tem saída própria, com a lista no lugar da encomenda", () => {
+    // Não entra em SAIDAS porque a encomenda ali não serve: quem chegou atrás
+    // de um repasse quer o próximo repasse (spec 2026-09-24 §7.2).
+    const caminho = join(raizDoApp, "repasse", "[carro]", "not-found.tsx");
+    expect(existsSync(caminho), "falta src/app/repasse/[carro]/not-found.tsx").toBe(true);
+    const fonte = readFileSync(caminho, "utf8");
+    expect(fonte).toContain("NaoEncontradoNoEstoque");
+    expect(fonte).toContain("ListaDoRepasse");
+  });
+
   it("as raízes de seção sem página levam para a vitrine, não para o 404", async () => {
     for (const raiz of ["/carros", "/motos", "/destaques"]) {
       expect(await resolver(raiz), `${raiz} não pode morrer`).toBe("/estoque");

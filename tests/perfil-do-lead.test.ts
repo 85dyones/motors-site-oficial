@@ -54,9 +54,17 @@ vi.mock("../src/lib/supabase-server", () => ({
     from: (tabela: string) => {
       if (tabela !== "leads") throw new Error(`tabela inesperada: ${tabela}`);
       return {
-        insert: async (linha: Record<string, unknown>) => {
+        // A rota lê o id do lead gravado (`.select("id").maybeSingle()`, a
+        // lista do repasse guarda o elo), então o dublê responde nos dois
+        // jeitos: aguardado direto ou pela cadeia. Um insert, um resultado.
+        insert: (linha: Record<string, unknown>) => {
           inserts.push(linha);
-          return { error: errosDoInsert.shift() ?? null };
+          const resultado = { data: null, error: errosDoInsert.shift() ?? null };
+          return {
+            select: () => ({ maybeSingle: async () => resultado }),
+            then: (ok: (r: typeof resultado) => unknown, falha?: (e: unknown) => unknown) =>
+              Promise.resolve(resultado).then(ok, falha),
+          };
         },
       };
     },

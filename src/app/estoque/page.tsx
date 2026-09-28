@@ -14,6 +14,8 @@ import {
 } from "../../lib/destaquesRapidos";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../../lib/hubsDeEstoque";
 import FaixasDePreco from "../../components/modernist/FaixasDePreco";
+import FaixaDoRepasseNoEstoque from "../../components/repasse/FaixaDoRepasseNoEstoque";
+import { faixaNoEstoque, lerRepassesDasPortas } from "../../lib/portasDoRepasse";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import {
   blocoJsonLd,
@@ -84,10 +86,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function EstoquePage() {
-  const [{ historico, disponiveis }, settings] = await Promise.all([
+  const agora = new Date();
+  const [{ historico, disponiveis }, settings, repasses] = await Promise.all([
     recortesDoEstoque(),
     getCachedSettings(),
+    // A faixa do repasse (spec 2026-09-24 §10). Pane aqui não derruba a
+    // página: `lerRepassesDasPortas` devolve lista vazia, registra a falha e
+    // a faixa some. Nunca `lerRepassesPublicos` direto.
+    lerRepassesDasPortas(agora, "/estoque"),
   ]);
+  const faixaDoRepasse = faixaNoEstoque(repasses, agora);
 
   const quickTags = normalizarQuickTags(settings.quickTags);
   // `Catalogo` é client component: esta prop inteira vira payload público da
@@ -164,7 +172,7 @@ export default async function EstoquePage() {
             comum, em vez de repetir a mesma âncora quatro vezes. */}
         <p className="m-0 mt-4 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
           {linkar(
-            "Todo veículo passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
+            "Todo veículo do estoque passa por perícia cautelar independente antes de entrar na vitrine: de cada dez avaliados, três " +
               "entram. O laudo está disponível para consulta com o vendedor, e o preço está no anúncio. " +
               "Showroom no Bacacheri, em Curitiba.",
           ).map((parte, i) =>
@@ -296,6 +304,13 @@ export default async function EstoquePage() {
           stockOverrides={stockOverrides}
         />
       </Suspense>
+
+      {/* A faixa do repasse, "depois da grade" (spec 2026-09-24 §10). Fora do
+          <Suspense>, e filha direta da página: sai no HTML servido e não
+          depende do `Catalogo`. Sem carro aberto a todos, nada — a spec
+          proíbe promessa vazia. A trava é
+          `tests/faixa-do-repasse-no-estoque.test.ts`. */}
+      {faixaDoRepasse && <FaixaDoRepasseNoEstoque faixa={faixaDoRepasse} />}
 
       {/* Índice do estoque — link interno de verdade, no HTML servido.
           É o que liga /estoque aos hubs perenes e, por eles, às fichas. Sem

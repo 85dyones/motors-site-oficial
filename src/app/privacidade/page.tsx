@@ -49,7 +49,7 @@ const breadcrumbSchema = {
 
 // Data da última revisão do texto. Atualizar sempre que o conteúdo mudar —
 // a LGPD espera que o titular consiga saber qual versão aceitou.
-const ULTIMA_ATUALIZACAO = "17 de setembro de 2026";
+const ULTIMA_ATUALIZACAO = "25 de setembro de 2026";
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
@@ -178,6 +178,14 @@ export default async function PrivacidadePage() {
               modelo, ano, quilometragem, estado de conservação). Nada disso é obrigatório para
               navegar — só para ser atendido.
             </p>
+            {/* Spec 2026-09-24 §7.4, aprovado pelo dono em 24/09: a lista do
+                repasse é dado pessoal com finalidade nova (aviso por
+                WhatsApp), declarado no mesmo PR que liga o formulário. */}
+            <p>
+              <strong className="text-mt-ink">Quando você entra na lista do repasse.</strong>{" "}
+              Pedimos nome e WhatsApp, a faixa de preço e os tipos de carro que você procura. Se
+              você é lojista, pedimos também o CNPJ, o nome da loja e a cidade.
+            </p>
             <p>
               <strong className="text-mt-ink">Enquanto você navega.</strong> Registramos
               automaticamente as páginas e veículos que você visita, seu endereço IP, informações do
@@ -222,6 +230,13 @@ export default async function PrivacidadePage() {
                 corrigir o problema. Não registramos o conteúdo dos formulários de propósito, e
                 mascaramos telefone, CPF, CNPJ e e-mail antes de gravar; ainda assim, uma mensagem
                 de erro do banco de dados pode citar um valor por acidente.
+              </li>
+              {/* Spec 2026-09-24 §7.4, aprovado em 24/09. */}
+              <li>
+                <strong className="text-mt-ink">Avisar sobre carros de repasse.</strong> Quem está
+                na lista recebe pelo WhatsApp os carros de repasse que combinam com a faixa e os
+                tipos informados. Lojistas cadastrados recebem o aviso antes de o carro abrir para
+                todos. Quem envia é uma pessoa da nossa equipe, não um disparo automático.
               </li>
             </ul>
           </Secao>
@@ -287,8 +302,25 @@ export default async function PrivacidadePage() {
 
                 16/09/2026 — as referências `arquivo:linha` deste comentário
                 e dos da seção de cookies viraram nome de função: o #46 e o #96
-                moveram o código, e os números apontavam para outras linhas. */}
+                moveram o código, e os números apontavam para outras linhas.
+
+                25/09/2026 — o item "Consentimento" volta, com outra finalidade:
+                a lista do repasse (spec 2026-09-24 §7.4, texto aprovado pelo
+                dono em 24/09). Não é cookie: a medição de anúncios e de uso
+                continua no legítimo interesse, com a oposição no botão da seção
+                de cookies. A frase acima ("se algum dia voltar a haver cookie
+                sob consentimento, o item volta junto") segue valendo para
+                cookie. */}
             <ul className="list-disc pl-5 flex flex-col gap-2">
+              <li>
+                <strong className="text-mt-ink">Consentimento</strong> — para a lista do repasse.
+                Você escolhe entrar e pode sair quando quiser, pedindo pelo WhatsApp ou pelos canais
+                da seção{" "}
+                <a href="#contato" className="underline underline-offset-2">
+                  Como falar conosco
+                </a>
+                .
+              </li>
               <li>
                 <strong className="text-mt-ink">Execução de contrato e procedimentos
                 preliminares</strong> — para tratar os dados que você nos envia com o objetivo de
@@ -548,6 +580,15 @@ export default async function PrivacidadePage() {
               conosco enquanto forem úteis ao atendimento e ao relacionamento comercial, e são
               eliminados quando você pedir. O acesso é restrito à equipe autenticada no nosso painel
               interno.
+            </p>
+            {/* Spec 2026-09-24 §7.4, aprovado em 24/09. Sair da lista APAGA a
+                linha de `repasse_inscritos` (e os avisos, em cascata): quem
+                executa é a tela de inscritos do painel. */}
+            <p>
+              <strong className="text-mt-ink">Os dados da lista do repasse</strong> ficam guardados
+              enquanto você estiver na lista. Quando você sai, apagamos a faixa de preço, os tipos
+              de carro e, no caso de lojistas, o CNPJ e os dados da loja. O registro de contato
+              segue a regra do parágrafo acima.
             </p>
             <p>
               Dados de navegação e publicidade seguem os prazos de retenção definidos pelas próprias

@@ -8,6 +8,7 @@ import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { MENU_DO_CABECALHO } from "../lib/menuDoCabecalho";
+import { CAMINHO_DO_REPASSE } from "../lib/repasseNaNavegacao";
 import { trackContactClick } from "../lib/telemetry";
 
 /**
@@ -19,7 +20,8 @@ import { trackContactClick } from "../lib/telemetry";
  * contorno de 1px).
  *
  * A barra completa só liga em `lg:` (1024px): logo, CINCO links em
- * `whitespace-nowrap` (`CONTATO` é o sexto e só entra em `2xl:`), painel e CTA
+ * `whitespace-nowrap` até 1280px (`REPASSE` entra em `desktop:`, 1281px, e
+ * `CONTATO` em `2xl:`, 1536px), painel e CTA
  * de WhatsApp ocupam ~870px com os espaçamentos — eram quatro links e ~950px
  * até 07/09, quando `GUIAS MOTORS` entrou e o `CONTATO` cedeu a faixa. Como o
  * globals.css corta `overflow-x` no <html>, o excedente era amputado sem
@@ -112,15 +114,29 @@ export default function Header() {
             1290px e ficava NEGATIVA abaixo disso, onde o Chrome liga o
             `desktop:` pelo `innerWidth` e faz layout com 15px a menos — o
             telefone partia em duas linhas. A conta e a medição estão no
-            docblock de `lib/menuDoCabecalho.ts`. Decisão do dono em 07/09. */}
-        <nav className="flex items-center gap-4 desktop:gap-7">
+            docblock de `lib/menuDoCabecalho.ts`. Decisão do dono em 07/09.
+
+            `REPASSE` entra em 25/09 (spec 2026-09-24 §10) com
+            `hidden desktop:block`, decisão do dono de 24/09: de 1024 a
+            1280px ele não existe para o layout e não pesa na régua. De 1281
+            para cima ele custa o rótulo (60,5px) mais o gap do nav — e com
+            `desktop:gap-7` (28px) isso bastava para o telefone partir em
+            duas linhas a 1281px, medido em produção. Decisão do dono,
+            no mesmo dia (opção A): o nav passa para `desktop:gap-6` (24px),
+            com folga de 13px em 1281px e 182px em 1536px. A tabela remedida
+            está em `lib/menuDoCabecalho.ts`. */}
+        <nav className="flex items-center gap-4 desktop:gap-6">
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               aria-current={ativo(item.href) ? "page" : undefined}
               className={`mt-foco whitespace-nowrap border-b-2 pb-[3px] text-[11px] font-semibold tracking-[.14em] no-underline transition-colors ${
-                item.href === "/contato" ? "hidden 2xl:block" : ""
+                item.href === "/contato"
+                  ? "hidden 2xl:block"
+                  : item.href === CAMINHO_DO_REPASSE
+                    ? "hidden desktop:block"
+                    : ""
               } ${
                 ativo(item.href)
                   ? "border-mt-accent text-mt-inverso"
@@ -238,11 +254,29 @@ export default function Header() {
               href={item.href}
               onClick={() => setMobileMenuOpen(false)}
               aria-current={ativo(item.href) ? "page" : undefined}
-              className={`border-b border-mt-inverso-regua-fina py-3.5 text-[11px] font-extrabold tracking-[.2em] no-underline ${
+              className={`flex items-baseline justify-between gap-3 border-b border-mt-inverso-regua-fina py-3.5 text-[11px] font-extrabold tracking-[.2em] no-underline ${
                 ativo(item.href) ? "text-mt-accent" : "text-mt-inverso-suave"
               }`}
             >
-              {item.rotulo}
+              <span>{item.rotulo}</span>
+              {/* O apoio da prancha "Portas de entrada" (hoje só o REPASSE),
+                  à direita do rótulo, em peso normal. Só aqui: na barra do
+                  desktop cada caractere custa folga (tabela de
+                  `lib/menuDoCabecalho.ts`).
+
+                  O `sr-only` entre os dois `<span>` visíveis é a pausa para o
+                  leitor de tela: sem nó de texto entre eles, o nome acessível
+                  do link virava a concatenação bruta "REPASSEabaixo da
+                  FIPE...", sem pausa (revisão de 25/09). `aria-label` no
+                  `Link` resolveria o mesmo problema, mas sobrescreveria o
+                  texto visível para quem usa controle por voz — o separador
+                  oculto não. */}
+              {item.apoio && (
+                <>
+                  <span className="sr-only">, </span>
+                  <span className="text-[11px] font-normal tracking-normal text-mt-accent-400">{item.apoio}</span>
+                </>
+              )}
             </Link>
           ))}
           <div className="flex items-center gap-3 pt-4">

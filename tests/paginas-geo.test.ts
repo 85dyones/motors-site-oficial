@@ -140,3 +140,27 @@ describe("cada página ENSINA alguma coisa — a régua de autoridade", () => {
     expect(new Set(enderecos).size, enderecos.join(" | ")).toBe(1);
   });
 });
+
+describe("o texto geo não põe o repasse no lugar do carro recusado (spec 2026-09-24 §10)", () => {
+  // "Os outros sete vão para repasse antes de chegar à vitrine" fazia o leitor
+  // supor que o carro de repasse é o que a perícia recusou. O repasse é outra
+  // seção, com a conta e o laudo à mostra; a oração saiu no PR 4 do repasse.
+  const frases = (p: (typeof PAGINAS_GEO)[number]) =>
+    [p.descricao, ...p.paragrafos, ...p.faq.flatMap((f) => [f.pergunta, f.resposta])]
+      .join(" ")
+      .split(/(?<=[.!?])\s+/);
+
+  it("nenhuma frase junta o repasse ao filtro da loja", () => {
+    for (const p of PAGINAS_GEO) {
+      for (const frase of frases(p).filter((f) => /repasse/i.test(f))) {
+        expect(frase, p.slug).not.toMatch(/\b(sete|recusad\w*|reprovad\w*|n[ãa]o entra\w*)|chegar [àa] vitrine/i);
+      }
+    }
+  });
+
+  it("o filtro continua dito, e a frase termina nele", () => {
+    const curitiba = PAGINAS_GEO.find((p) => p.slug === "seminovos-curitiba");
+    expect(curitiba, "a página de Curitiba").toBeDefined();
+    expect(curitiba!.paragrafos[0]).toMatch(/de cada dez veículos avaliados, três entram\.$/);
+  });
+});

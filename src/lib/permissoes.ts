@@ -314,6 +314,20 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "nao_ve", "revisao", "faz", "nao_ve"],
     "Exige checklist completo",
   ),
+  // Repasse Motors (spec 2026-09-24 §5, dono 24/09): "qualquer nível de
+  // usuário cadastra; comercial e gerente podem validar" — gerente é o
+  // Gestor. Quem não valida lança o rascunho e envia para validação.
+  linha(
+    "Cadastrar carro de repasse",
+    // O SDR cadastra e não valida (dono, 24/09, revisão final do PR 1).
+    ["faz", "faz", "faz", "faz", "faz", "faz"],
+    "Rascunho e envio para validação",
+  ),
+  linha(
+    "Validar e publicar repasse",
+    ["faz", "faz", "nao_ve", "faz", "nao_ve", "nao_ve"],
+    "Inclui abrir para todos, reservar, vender, arquivar e devolver",
+  ),
   linha(
     "Adicionar e reordenar fotos",
     ["faz", "nao_ve", "faz", "faz", "nao_ve"],

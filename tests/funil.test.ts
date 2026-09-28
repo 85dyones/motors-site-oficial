@@ -1209,6 +1209,7 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
    *   app/test/page.tsx ............ "CarMatch Recommendations"
    *   PDPClientWrapper.tsx ......... as cinco de `setActiveChannel`
    *   api/leads/route.ts ........... "N/A" e "site", os dois fallbacks
+   *   repasse (lista e exame) ...... "repasse", "repasse-lojista", "repasse-exame"
    *
    * É este teste que pega colisão de substring. "WhatsApp Usado na Troca" é o
    * quase-acerto que justifica a lista existir: é sobre avaliar um usado, mas
@@ -1227,6 +1228,7 @@ describe("escopo do motivo — quem quer vender não perde pelos motivos de quem
     "Simulação de Financiamento",
     "N/A",
     "site",
+    "repasse", "repasse-lojista", "repasse-exame",
   ];
 
   const CANAIS_DE_AVALIACAO = ["Avaliação", "Appraisal Chat"];

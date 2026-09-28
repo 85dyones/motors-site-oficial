@@ -48,6 +48,8 @@ export interface CompartilhamentoSettings {
   contato?: CardCompartilhamento;
   destaques?: CardCompartilhamento;
   privacidade?: CardCompartilhamento;
+  /** A seção de repasse, `/repasse` (2026-09-25). */
+  repasse?: CardCompartilhamento;
   /** O índice `/guias` e cada guia — um card para o cluster inteiro. */
   guias?: CardCompartilhamento;
 }

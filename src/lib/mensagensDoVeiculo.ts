@@ -1,4 +1,5 @@
 import { nomeComAno, type VeiculoNomeavel } from "./nomeDoVeiculo";
+import { sufixoDoRepasse, type Repasse } from "./repasse";
 
 /**
  * As mensagens que o visitante manda para a loja a partir da ficha.
@@ -122,4 +123,36 @@ export function textoDeCompartilhamento(
   { precoTexto, url }: { precoTexto: string; url: string },
 ): string {
   return `🚗 ${nome(veiculo)}\n💰 ${precoTexto}\n\n🔗 ${url}`;
+}
+
+/**
+ * O repasse (spec §8, decisão 2 do PR 3). A referência "Ref.: repasse
+ * 3f9a1c" é o sufixo do slug: é por ela que o atendente acha o carro no
+ * painel. `ref` é o sufixo de rastreio que as mensagens da ficha já levam
+ * (vazio quando o link é montado no servidor).
+ *
+ * Só-lojistas não tem mensagem: a ficha dele troca o WhatsApp pela faixa
+ * "Só para lojistas" (decisão 4).
+ */
+export type EstadoDoRepasseNaMensagem = "aberto" | "reservado" | "vendido";
+
+export function mensagemDoRepasse(
+  r: Pick<Repasse, "id" | "marca" | "modelo" | "versao" | "ano_modelo">,
+  estado: EstadoDoRepasseNaMensagem,
+  ref = "",
+): string {
+  const carro = nome({ marca: r.marca, modelo: r.modelo, versao: r.versao, ano: r.ano_modelo });
+  const referencia = `Ref.: repasse ${sufixoDoRepasse(r.id)}`;
+  if (estado === "vendido") {
+    return `Olá! Vi no Repasse Motors o ${carro}, que já foi vendido. Quero saber dos próximos repasses. ${referencia}${ref}`;
+  }
+  if (estado === "reservado") {
+    return `Olá! Vi no Repasse Motors o ${carro}, que está reservado. Se ele voltar, quero saber. ${referencia}${ref}`;
+  }
+  return `Olá! Vi no Repasse Motors o ${carro} e quero saber mais. Ele ainda está disponível? ${referencia}${ref}`;
+}
+
+/** O botão "PERGUNTAR NO WHATSAPP" das perguntas do repasse. */
+export function mensagemDePerguntaDoRepasse(ref = ""): string {
+  return `Olá! Estou vendo o Repasse Motors no site e tenho uma dúvida.${ref}`;
 }

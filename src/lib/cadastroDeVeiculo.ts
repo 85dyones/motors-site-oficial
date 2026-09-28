@@ -56,6 +56,7 @@ import {
   temPromocao,
 } from "./precoPromocional";
 import { recusaPorPisoDeCusto } from "./pisoDePreco";
+import { ANO_MINIMO, anoMaximo } from "./anoDoVeiculo";
 
 /** Um campo obrigatório vazio ou um valor impossível, com o texto pronto. */
 export interface ProblemaDoCadastro {
@@ -188,15 +189,8 @@ export const CAMPOS_OBRIGATORIOS_DO_CADASTRO = [
  */
 export const PRECO_EM_DUAS_COLUNAS = ["preco", "preco_original"] as const;
 
-/**
- * Piso e teto de ANO — sanidade de digitação, não regra de negócio.
- *
- * O teto é o ano que vem porque o ano-MODELO legitimamente se adianta ao
- * calendário (um 2027 vendido em 2026). O piso existe para pegar o dedo que
- * digitou 202 ou 20222, não para dizer que a loja não vende carro antigo.
- */
-export const ANO_MINIMO = 1900;
-export const anoMaximo = (hoje: Date = new Date()) => hoje.getFullYear() + 1;
+/** Piso e teto de ano: moram em `anoDoVeiculo.ts` (módulo puro) desde 24/09. */
+export { ANO_MINIMO, anoMaximo };
 
 const ROTULO: Record<string, string> = {
   marca: "Marca",

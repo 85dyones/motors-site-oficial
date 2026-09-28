@@ -265,14 +265,14 @@ export const PRAZOS_ESTENDIDOS = `${PLANOS_ESTENDIDOS_MESES.slice(0, -1).join(",
 
 /** A abertura, sob o `<h1>`. */
 export const TEXTO_DE_GARANTIA: string[] = [
-  "Todo carro vendido pela Motors Store sai com garantia de motor e câmbio, e também do " +
+  "Todo carro do estoque da Motors Store sai com garantia de motor e câmbio, e também do " +
     "diferencial, como está no contrato de venda. O prazo é de " +
     `${PRAZO_DA_GARANTIA}, contados da entrega, sem carência e sem franquia. Se um desses ` +
     "conjuntos tiver falha interna dentro do prazo, a gente resolve, com a mão de obra inclusa.",
   "Essa cobertura soma-se aos seus direitos de consumidor e não os substitui. O que ela cobre, " +
     "item por item, está no termo que acompanha a venda: leia antes de assinar e pergunte o " +
     "que não estiver claro.",
-  "Antes da garantia vem a seleção. Todo veículo passa por perícia cautelar independente e só " +
+  "Antes da garantia vem a seleção. Todo veículo do estoque passa por perícia cautelar independente e só " +
     "entra na vitrine se passar: de cada dez avaliados, três entram. O laudo está disponível " +
     "para consulta, e é só pedir ao vendedor.",
 ];
@@ -374,7 +374,7 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
     titulo: "Por que a perícia vem antes da garantia",
     paragrafos: [
       "A garantia entra quando algo dá errado. A perícia cautelar vem antes, para evitar que dê.",
-      "Todo veículo passa pela perícia antes de entrar na vitrine: identificação, estrutura e " +
+      "Todo veículo do estoque passa pela perícia antes de entrar na vitrine: identificação, estrutura e " +
         "histórico auditados por empresa independente, credenciada junto ao Detran, num crivo " +
         "de mais de 120 pontos. O laudo está disponível para consulta, e é só pedir ao " +
         "vendedor. Os sete de cada dez que não entram são recusados por sinistro estrutural, " +
@@ -409,7 +409,7 @@ export const PERGUNTAS_DE_GARANTIA: PerguntaFrequente[] = [
       "orientamos o passo seguinte.",
   },
   {
-    pergunta: "Todos os carros passam por perícia cautelar?",
+    pergunta: "Todos os carros do estoque passam por perícia cautelar?",
     /* Ver o comentário gêmeo em `textoDosHubs.ts`: a ficha só publica o laudo
        com a perícia APROVADA, e parte da vitrine está em análise a qualquer
        momento — "assim que a perícia é aprovada" descrevia o que o site faz,
