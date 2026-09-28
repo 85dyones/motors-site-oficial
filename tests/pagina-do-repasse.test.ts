@@ -89,9 +89,10 @@ describe("o laudo sai a pedido", () => {
 });
 
 describe("o texto é o das pranchas", () => {
-  it("as dez perguntas, na ordem da prancha", () => {
+  it("as onze perguntas, na ordem da prancha", () => {
     expect(pagina.PERGUNTAS_DO_REPASSE.map((p) => p.pergunta)).toEqual([
       "O que é um carro de repasse?",
+      "O mesmo carro pode estar no estoque e no repasse?",
       "O que muda entre um repasse com laudo e um sem laudo?",
       "Por que o repasse custa menos?",
       "Carro de repasse tem garantia?",
@@ -102,8 +103,14 @@ describe("o texto é o das pranchas", () => {
       "Tem carro de leilão ou com sinistro?",
       "Sou lojista. O que muda para mim?",
     ]);
-    expect(pagina.PERGUNTAS_DO_REPASSE[3].resposta).toBe(
-      `Não tem a garantia da loja, a de ${PRAZO_DA_GARANTIA}, que vale para o estoque.`,
+    expect(pagina.PERGUNTAS_DO_REPASSE[0].resposta).toBe(
+      "É o carro que a loja vende no estado em que está: funcionando, mas sem preparar e sem a garantia da loja, por um preço abaixo da FIPE. Cada anúncio diz se o carro tem laudo cautelar e, quando há reparo pendente, quanto ele custa.",
+    );
+    expect(pagina.PERGUNTAS_DO_REPASSE[1].resposta).toBe(
+      "Pode. No estoque, ele é entregue com os reparos feitos e com a garantia da loja, pelo preço de loja. No repasse, sai como está, funcionando, sem os reparos e sem a garantia, e por isso custa menos. Nos dois casos você vê o carro no pátio antes de fechar.",
+    );
+    expect(pagina.PERGUNTAS_DO_REPASSE[4].resposta).toBe(
+      `Não tem a garantia da loja, a de ${PRAZO_DA_GARANTIA}, que vale para o estoque. O carro funciona, e o estado dele você confere no pátio, com o seu mecânico, antes de fechar.`,
     );
   });
 
@@ -114,9 +121,15 @@ describe("o texto é o das pranchas", () => {
     expect(pagina.LISTA_DO_REPASSE.politica).toBe("Política de privacidade");
   });
 
+  it("a descrição de busca e compartilhamento", () => {
+    expect(pagina.DESCRICAO_DO_REPASSE).toBe(
+      "Carros funcionando, vendidos no estado: sem os reparos feitos e sem a garantia da loja, por isso abaixo da FIPE. Você confere o carro no pátio antes de fechar.",
+    );
+  });
+
   it("o herói, as provas, a tabela e os passos", () => {
     expect(pagina.HEROI_DO_REPASSE.texto).toBe(
-      "Abaixo da FIPE e sem a garantia da loja. Cada anúncio diz se o carro tem laudo cautelar e mostra a conta, com o reparo orçado quando ele existe.",
+      "Carros funcionando, vendidos no estado em que estão: sem os reparos feitos e sem a garantia da loja, por isso abaixo da FIPE. Cada anúncio diz se o carro tem laudo cautelar e mostra a conta, e você confere tudo no pátio antes de fechar.",
     );
     expect(pagina.PROVAS_DO_REPASSE.itens.map((p) => p.titulo)).toEqual([
       "Com laudo ou sem laudo",
@@ -124,6 +137,9 @@ describe("o texto é o das pranchas", () => {
       "A ficha de estado",
       "Exame no pátio",
     ]);
+    expect(pagina.REPASSE_OU_ESTOQUE.texto).toBe(
+      "O mesmo carro pode estar nos dois lugares. No estoque, ele sai com os reparos feitos e com a garantia da loja. No repasse, sai como está, funcionando, sem essa garantia e por um preço menor.",
+    );
     expect(pagina.REPASSE_OU_ESTOQUE.linhas.map((l) => l.tema)).toEqual([
       "Preço",
       "Garantia da loja",
@@ -132,6 +148,13 @@ describe("o texto é o das pranchas", () => {
       "Transferência",
       "Antes de comprar",
     ]);
+    const estadoDoCarro = pagina.REPASSE_OU_ESTOQUE.linhas.find((l) => l.tema === "Estado do carro")!;
+    expect(estadoDoCarro.repasse).toBe(
+      "Funcionando, no estado em que está, sem os reparos feitos. O anúncio diz se tem laudo cautelar, e a ficha de estado lista os defeitos conhecidos",
+    );
+    expect(estadoDoCarro.estoque).toBe(
+      "Com os reparos feitos e aprovado na perícia cautelar independente antes de entrar na vitrine",
+    );
     expect(pagina.COMO_COMPRAR.passos.map((p) => p.titulo)).toEqual([
       "Escolha",
       "Pergunte",
@@ -141,6 +164,10 @@ describe("o texto é o das pranchas", () => {
     expect(pagina.PRECISA_FINANCIAR.texto).toBe(
       `Precisa financiar ou quer garantia? O estoque tem carros com garantia de ${PRAZO_DA_GARANTIA}.`,
     );
+  });
+
+  it("a ficha diz que o carro funciona, no destaque do que não vem", () => {
+    expect(pagina.FICHA_DO_REPASSE.naoVemDestaque).toBe("O carro funciona, e o preço já leva em conta o que não vem.");
   });
 });
 
