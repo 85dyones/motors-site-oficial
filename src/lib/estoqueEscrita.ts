@@ -53,6 +53,10 @@ export const CAMPOS_NOSSOS = [
   // Migração 20260826230000. `perfil_uso` (singular) continua na lista para
   // não quebrar quem ainda escreve nele; o painel passou a escrever aqui.
   "perfis_uso",
+  // Migração 20260928150000. O carro "em preparação" e a data prevista de
+  // chegada ao pátio: decisão da loja, que o RevendaMais não conhece.
+  "em_preparacao",
+  "previsao_chegada_em",
   // Migração 20260830120000 (F0-q). O estado do cadastro é NOSSO no sentido
   // mais forte da palavra: o RevendaMais não o conhece, e o trigger de INSERT
   // sobrescreve para `rascunho` qualquer valor que venha no payload da

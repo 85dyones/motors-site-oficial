@@ -17,7 +17,7 @@ correção desfeita no sync seguinte, em silêncio.
 |---|---|---|
 | **Feed, só na importação** | O sincronizador traz quando o carro nasce. **Desde 30/08 ele não reescreve** estas colunas — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor` |
 | **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at` |
-| **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `opcionais`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro` |
+| **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `opcionais`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro`, `em_preparacao`, `previsao_chegada_em` |
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
 | **Do feed, mas nosso para editar** | Coluna que o feed preenche no nascimento e o painel sobrescreve para valer, em veículo de qualquer origem. | `whatsapp_images`, `web_full_images`, `url_imagem` |
 

@@ -310,6 +310,14 @@ export interface Veiculo {
   status_tag?: string;
   status_tag_color?: string;
   vendido?: boolean;
+  /**
+   * Carro que chegou e ainda não está pronto para o pátio (migração
+   * 20260928150000). Com `previsao_chegada_em`, libera a publicação com uma
+   * foto só — ver `liberadoEmPreparacao` em `lib/coerenciaDoCadastro.ts`.
+   */
+  em_preparacao?: boolean;
+  /** Quando o carro deve chegar ao pátio. ISO 8601 com fuso, como o banco devolve. */
+  previsao_chegada_em?: string | null;
   preco_compra?: number;
   preco?: number;
   /**

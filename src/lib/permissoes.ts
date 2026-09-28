@@ -543,6 +543,11 @@ export const ACAO_DO_CAMPO_DE_VEICULO: Record<string, string> = {
   perfil_uso: "Editar opcionais e destaques rápidos",
   status_tag: "Editar opcionais e destaques rápidos",
   status_tag_color: "Editar opcionais e destaques rápidos",
+  // A mesma linha da etiqueta: "em preparação" é o que o anúncio diz sobre o
+  // carro, e quem escreve a etiqueta decide isto. Publicar continua sendo outra
+  // linha ("Publicar ou despublicar veículo").
+  em_preparacao: "Editar opcionais e destaques rápidos",
+  previsao_chegada_em: "Editar opcionais e destaques rápidos",
   descricao: "Editar opcionais e destaques rápidos",
   // Mesma linha da descrição editorial: as duas são texto de anúncio, e quem
   // escreve uma escreve a outra. `descricao_seo` entrou em 20260817130000 —
