@@ -40,8 +40,57 @@ const texto = () => (container.textContent ?? "").replace(/\s+/g, " ");
 describe("no servidor", () => {
   it("a data, sem números de relógio", () => {
     const html = renderToString(createElement(RelogioDaChegada, { veiculo: EM_PREPARACAO }));
+    expect(html).toContain("EM PREPARAÇÃO");
     expect(html).toContain("03/10 às 14h");
     expect(html).not.toMatch(/\d{2}d \d{2}h/);
+    // O rótulo do relógio só vem com o relógio: sem os números, "CHEGA AO
+    // PÁTIO EM" ficaria pendurado sobre o nada (revisão final, 28/09).
+    expect(html).not.toContain("CHEGA AO PÁTIO EM");
+  });
+});
+
+/**
+ * O temporizador de 1 s só roda onde há relógio — achado da revisão final
+ * (28/09): ele ligava em toda ficha, até na do carro comum, e seguia batendo
+ * depois da data.
+ */
+describe("os temporizadores", () => {
+  it("carro comum: nenhum temporizador agendado", async () => {
+    await act(async () => {
+      root.render(createElement(RelogioDaChegada, { veiculo: { em_preparacao: false, previsao_chegada_em: null } }));
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("data vencida: depois da primeira batida, nada fica ligado", async () => {
+    act(() =>
+      root.render(
+        createElement(RelogioDaChegada, {
+          veiculo: { em_preparacao: true, previsao_chegada_em: "2026-09-25T17:00:00Z" },
+        }),
+      ),
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(texto()).toContain("CHEGA A QUALQUER MOMENTO");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("a caminho: bate até a data, e para quando ela chega", async () => {
+    // Três segundos antes da previsão.
+    const veiculo = { em_preparacao: true, previsao_chegada_em: "2026-09-28T13:00:03Z" };
+    act(() => root.render(createElement(RelogioDaChegada, { veiculo })));
+    await act(async () => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(texto()).toContain("00d 00h 00m 03s");
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(texto()).toContain("CHEGA A QUALQUER MOMENTO");
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 
@@ -52,6 +101,7 @@ describe("no navegador", () => {
       vi.advanceTimersByTime(0);
     });
     expect(texto()).toContain("05d 04h 00m 00s");
+    expect(texto()).toContain("CHEGA AO PÁTIO EM");
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
