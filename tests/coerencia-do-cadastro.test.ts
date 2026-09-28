@@ -134,6 +134,17 @@ describe("3 · o detector nunca escreve", () => {
     expect(v.tipo).toBe("Hatch");
   });
 
+  it("nem guarda nada de uma chamada para a outra", () => {
+    // As expressões da tabela são montadas uma vez e reusadas (28/09). Com a
+    // flag `g`, `test` guardaria onde parou e a chamada seguinte começaria
+    // dali: o mesmo carro sairia acusado na primeira pergunta e em paz na
+    // segunda. Conferido pondo a flag de propósito — esta asserção cai.
+    const kombi = veiculo("Volkswagen", "Kombi", "Standard 1.4 MI", "Hatch");
+    const primeira = divergenciaDeCarroceria(kombi);
+    expect(primeira).not.toBeNull();
+    expect(divergenciaDeCarroceria(kombi)).toEqual(primeira);
+  });
+
   it("o módulo não importa nada além de tipos", () => {
     // O alerta é desenhado no editor de veículo, que é componente de cliente.
     // Um import de `./supabase` aqui arrasta o cliente do banco para o bundle
