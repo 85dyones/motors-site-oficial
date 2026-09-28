@@ -53,10 +53,10 @@ export interface PorMes {
   troca: boolean;
   /**
    * A vigência de `parametros_financiamento` com que a tela contou — a página
-   * a lê no servidor e o `CarMatch` a põe aqui. Sem ela o motor usa os valores
-   * de fábrica, e a contagem poderia prometer outro número que o resultado.
+   * a lê no servidor e o `CarMatch` a põe aqui. Obrigatória: sem ela a
+   * contagem poderia prometer outro número que o resultado.
    */
-  parametros?: ParametrosDoFinanciamento;
+  parametros: ParametrosDoFinanciamento;
 }
 
 export const RESPOSTAS_EM_BRANCO: RespostasDoQuiz = {

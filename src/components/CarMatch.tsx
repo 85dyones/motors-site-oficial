@@ -182,7 +182,8 @@ const OPCOES_PRAZO: readonly Opcao<Exclude<AnswerState["timeline"], "">>[] = [
  * "a entrada que você informou" sem que ninguém tivesse informado nada
  * (revisão de 27/09).
  */
-const PORMES_INICIAL: PorMes = { parcela: 1500, entrada: 0, prazo: 48, ocupacao: "clt", troca: false };
+// Sem as condições do simulador: elas vêm da página, e o `CarMatch` as junta.
+const PORMES_INICIAL: Omit<PorMes, "parametros"> = { parcela: 1500, entrada: 0, prazo: 48, ocupacao: "clt", troca: false };
 
 /** A ocupação na voz do quiz. Muda a taxa estimada, pela pontuação do simulador. */
 const ROTULO_DA_OCUPACAO: Record<Ocupacao, string> = {
@@ -1468,9 +1469,9 @@ export default function CarMatch({
                         </p>
                       )}
                       <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-inverso-suave">
-                        Parcela estimada pela {parametros.fonteDasTaxas}, com IOF. Só entram carros de{" "}
-                        {parametros.anoMaisAntigo} em diante, até onde os bancos parceiros financiam.{" "}
-                        {avisoDeCredito(parametros.bancosParceiros)}
+                        Parcela estimada pela {parametros.fonteDasTaxas}, com IOF. Os bancos parceiros
+                        financiam carros de {parametros.anoMaisAntigo} em diante: um mais antigo só entra se a
+                        sua entrada pagar ele inteiro. {avisoDeCredito(parametros.bancosParceiros)}
                       </p>
                       <button type="button" onClick={confirmarPorMes} className="mt-btn mt-btn-primario mt-foco mt-6">
                         CONFIRMAR

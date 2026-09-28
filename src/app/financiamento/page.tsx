@@ -9,7 +9,8 @@ import { FAIXAS_DE_PRECO, hubsDeCarroceria, recortesDoEstoque } from "../../lib/
 import { precoVigente } from "../../lib/regrasEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDePerguntas, schemaDeTrilha } from "../../lib/schemaListagem";
 import { schemaDaLoja, schemaDeServico, schemaDoSite } from "../../lib/schemaLoja";
-import { PERGUNTAS_DE_FINANCIAMENTO, TEXTO_DE_FINANCIAMENTO } from "../../lib/paginasInstitucionais";
+import { perguntasDeFinanciamento, TEXTO_DE_FINANCIAMENTO } from "../../lib/paginasInstitucionais";
+import { financiavel } from "../../lib/finance-calculator";
 
 /**
  * `/financiamento` — destino da campanha 05 do plano de aquisição.
@@ -72,9 +73,15 @@ export default async function FinanciamentoPage() {
       // como esta grade e `/estoque/ate-60-mil` acabam discordando sobre qual
       // carro cabe na faixa.
       const preco = precoVigente(v);
-      return preco > 0 && preco < faixaDeEntrada.max;
+      // "Seminovos para financiar": só o que os bancos parceiros financiam
+      // (dono, 28/09/2026). O Fusca 1976 cabe na faixa de entrada, e na grade
+      // de uma página de financiamento seria o carro que não se financia.
+      return preco > 0 && preco < faixaDeEntrada.max && financiavel(v.ano, parametros);
     })
     .slice(0, 6);
+
+  // O FAQ cita o ano mais antigo da vigência — a mesma que o seletor aplica.
+  const perguntas = perguntasDeFinanciamento(parametros.anoMaisAntigo);
 
   const jsonLd = blocoJsonLd([
     schemaDeTrilha([
@@ -82,7 +89,7 @@ export default async function FinanciamentoPage() {
       { nome: "Financiamento", caminho: CAMINHO },
     ]),
     schemaDeListagem("Seminovos para financiar em Curitiba", paraGrade),
-    schemaDePerguntas(PERGUNTAS_DE_FINANCIAMENTO),
+    schemaDePerguntas(perguntas),
     // O que esta página FAZ. Sem este nó ela era, para o grafo, uma página da
     // Motors com uma lista e um FAQ — o serviço que a justifica não estava
     // declarado em lugar nenhum. `provider` aponta por `@id` para o `#dealer`
@@ -130,7 +137,7 @@ export default async function FinanciamentoPage() {
               .map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })),
           },
         ]}
-        faq={PERGUNTAS_DE_FINANCIAMENTO}
+        faq={perguntas}
         caminho={CAMINHO}
       />
     </div>

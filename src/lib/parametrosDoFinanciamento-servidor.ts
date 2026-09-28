@@ -43,56 +43,73 @@ export interface ClienteDeLeitura {
   };
 }
 
+/**
+ * A vigente, ou ERRO — nunca os valores de fábrica. É o que roda dentro do
+ * cache: erro não entra no `unstable_cache`, valor entra. Se a falha virasse
+ * valor aqui, uma piscada do banco no momento da renovação deixaria o site
+ * uma hora simulando com os de fábrica, com o painel dizendo "Vigente desde…"
+ * (revisão de 28/09).
+ */
+export async function lerVigenciaDoFinanciamento(
+  cliente: ClienteDeLeitura,
+  hoje: Date = new Date(),
+): Promise<ParametrosDoFinanciamento> {
+  const dia = hoje.toISOString().slice(0, 10);
+  const { data, error } = await cliente
+    .from("parametros_financiamento")
+    .select("*")
+    .is("vigencia_ate", null)
+    .lte("vigencia_desde", dia)
+    .order("vigencia_desde", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`parametros_financiamento ilegível: ${error.message}`);
+  const parametros = lerLinhaDoFinanciamento(data?.[0]);
+  if (!parametros) throw new Error("nenhuma vigência legível em parametros_financiamento");
+  return parametros;
+}
+
+/** A vigente — e, se a leitura falhar, os valores de fábrica, com aviso no log. */
 export async function lerParametrosDoFinanciamento(
   cliente: ClienteDeLeitura,
   hoje: Date = new Date(),
 ): Promise<ParametrosDoFinanciamento> {
   try {
-    const dia = hoje.toISOString().slice(0, 10);
-    const { data, error } = await cliente
-      .from("parametros_financiamento")
-      .select("*")
-      .is("vigencia_ate", null)
-      .lte("vigencia_desde", dia)
-      .order("vigencia_desde", { ascending: false })
-      .limit(1);
-    if (error) {
-      console.warn("[Financiamento] parametros_financiamento ilegível — simulando com os valores de fábrica:", error.message);
-      return PARAMETROS_DE_FABRICA;
-    }
-    const parametros = lerLinhaDoFinanciamento(data?.[0]);
-    if (!parametros) {
-      console.warn("[Financiamento] Nenhuma vigência legível em parametros_financiamento — simulando com os valores de fábrica.");
-      return PARAMETROS_DE_FABRICA;
-    }
-    return parametros;
+    return await lerVigenciaDoFinanciamento(cliente, hoje);
   } catch (erro) {
-    console.warn(
-      "[Financiamento] Falha ao ler parametros_financiamento — simulando com os valores de fábrica:",
-      (erro as Error)?.message,
-    );
+    console.warn("[Financiamento] Simulando com os valores de fábrica —", (erro as Error)?.message);
     return PARAMETROS_DE_FABRICA;
   }
 }
 
 /**
- * Os parâmetros vigentes, em cache de uma hora — e invalidados na hora em que
- * o painel grava uma vigência nova (`revalidateTag`), como `site_settings`.
+ * A vigente em cache de uma hora, invalidado na hora em que o painel grava uma
+ * vigência nova (`revalidateTag`), como `site_settings`. Só sucesso entra no
+ * cache: a função lança em qualquer falha.
  */
-export const parametrosDoFinanciamento = unstable_cache(
+const vigenciaEmCache = unstable_cache(
   async (): Promise<ParametrosDoFinanciamento> => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !chave) {
-      console.warn("[Financiamento] Sem NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY — simulando com os valores de fábrica.");
-      return PARAMETROS_DE_FABRICA;
-    }
+    if (!url || !chave) throw new Error("sem NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY");
     const cliente = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } });
-    return lerParametrosDoFinanciamento(cliente as unknown as ClienteDeLeitura);
+    return lerVigenciaDoFinanciamento(cliente as unknown as ClienteDeLeitura);
   },
   ["parametros-financiamento"],
   { revalidate: 3600, tags: [ETIQUETA_DO_FINANCIAMENTO] },
 );
+
+/**
+ * Os parâmetros que o site usa: a vigente, do cache; na falha, os de fábrica
+ * — FORA do cache, então o acesso seguinte tenta o banco de novo.
+ */
+export async function parametrosDoFinanciamento(): Promise<ParametrosDoFinanciamento> {
+  try {
+    return await vigenciaEmCache();
+  } catch (erro) {
+    console.warn("[Financiamento] Simulando com os valores de fábrica —", (erro as Error)?.message);
+    return PARAMETROS_DE_FABRICA;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // O painel — /admin/financiamento e a rota que grava a vigência nova
@@ -139,8 +156,17 @@ export interface VigenciaDoHistorico {
 
 export type HistoricoDoFinanciamento =
   | { tabela: true; vigencias: VigenciaDoHistorico[] }
-  /** A migração ainda não foi aplicada: a tela mostra os de fábrica e diz isso. */
-  | { tabela: false; motivo: string };
+  /**
+   * Sem leitura: `faltaMigracao` quando a tabela não existe (a tela diz qual
+   * migração aplicar); falso em qualquer outra falha, que a tela mostra como
+   * falha — uma piscada do banco não é "migração pendente".
+   */
+  | { tabela: false; faltaMigracao: boolean; motivo: string };
+
+/** "relation does not exist" no Postgres, "tabela fora do cache de schema" no PostgREST. */
+function ehTabelaAusente(erro: { code?: string; message?: string }): boolean {
+  return erro.code === "42P01" || erro.code === "PGRST205" || /does not exist|could not find the table/i.test(erro.message ?? "");
+}
 
 /** As últimas vigências, a mais nova primeiro — a vigente é a sem `vigenciaAte`. */
 export async function lerHistoricoDoFinanciamento(
@@ -152,7 +178,7 @@ export async function lerHistoricoDoFinanciamento(
     .select("*")
     .order("criado_em", { ascending: false })
     .limit(limite);
-  if (error) return { tabela: false, motivo: error.message };
+  if (error) return { tabela: false, faltaMigracao: ehTabelaAusente(error), motivo: error.message };
 
   const linhas = (data ?? []) as Record<string, unknown>[];
   const autores = [...new Set(linhas.map((l) => l.criado_por).filter((x): x is string => typeof x === "string"))];

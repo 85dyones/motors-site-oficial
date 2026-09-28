@@ -57,6 +57,15 @@ export async function POST(request: NextRequest) {
       );
     }
     if (error.code === "42501") return NextResponse.json({ error: error.message }, { status: 403 });
+    // Duas pessoas salvando ao mesmo tempo: a segunda esbarra no índice de
+    // uma vigente por loja. Nada se corrompe — mas ela precisa ver a que
+    // ficou antes de decidir de novo.
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "Outra pessoa salvou uma vigência agora há pouco. Recarregue a página e confira antes de salvar de novo." },
+        { status: 409 },
+      );
+    }
     if (error.code === "23514") {
       return NextResponse.json({ error: "O banco recusou os valores.", problemas: [error.message] }, { status: 400 });
     }

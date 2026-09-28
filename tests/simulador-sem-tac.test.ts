@@ -3,6 +3,7 @@ import {
   ANO_DE_REFERENCIA_DAS_TAXAS,
   calculateFinancing,
   cetMensal,
+  PARAMETROS_DE_FABRICA,
   TAXAS_ESTIMADAS,
 } from "../src/lib/finance-calculator";
 
@@ -20,7 +21,7 @@ describe("simulador de financiamento sem TAC", () => {
   };
 
   it("o valor com taxas é o saldo mais o IOF, sem tarifa somada", () => {
-    const r = calculateFinancing({ ...base, downPaymentValue: 20000 });
+    const r = calculateFinancing({ ...base, downPaymentValue: 20000 }, PARAMETROS_DE_FABRICA);
     const saldo = 40000;
     const iof = saldo * 0.0038 + saldo * 0.000082 * 365;
     expect(r.valor_liquido_financiado).toBe(saldo);
@@ -28,7 +29,7 @@ describe("simulador de financiamento sem TAC", () => {
   });
 
   it("entrada igual ao preço não gera parcela", () => {
-    const r = calculateFinancing({ ...base, downPaymentValue: 60000 });
+    const r = calculateFinancing({ ...base, downPaymentValue: 60000 }, PARAMETROS_DE_FABRICA);
     expect(r.parcela_mensal).toBe(0);
     expect(r.valor_com_taxas_e_iof).toBe(0);
   });
@@ -56,7 +57,7 @@ describe("simulador: taxas, ano e CET", () => {
   });
 
   it("o CET fica acima da taxa de juros — IOF entra no custo", () => {
-    const r = calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 3 });
+    const r = calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 3 }, PARAMETROS_DE_FABRICA);
     const jurosAoAno = (Math.pow(1 + r.taxa_aplicada_mes_pct / 100, 12) - 1) * 100;
     expect(r.cet_anual_real_pct).toBeGreaterThan(jurosAoAno);
     // A fórmula antiga dava ≈ 12% a.a. para 1,95% a.m. — abaixo da taxa.
@@ -68,7 +69,7 @@ describe("simulador: taxas, ano e CET", () => {
     // Conferido na revisão de 27/09 por Newton sobre o fluxo (+liberado,
     // −parcela × 48): parcela R$ 1.334,38 e CET 28,528% a.a. — um valor fixo,
     // e não a mesma fórmula da implementação.
-    const r = calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 3 });
+    const r = calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 3 }, PARAMETROS_DE_FABRICA);
     expect(r.parcela_mensal).toBeCloseTo(1334.38, 2);
     expect(r.cet_anual_real_pct).toBeCloseTo(28.528, 2);
     expect(cetMensal(40000, 1334.38, 48)).toBeCloseTo(Math.pow(1.28528, 1 / 12) - 1, 5);
@@ -78,7 +79,7 @@ describe("simulador: taxas, ano e CET", () => {
     // Em 1º de janeiro nenhuma parcela sobe sozinha: a mesma simulação na
     // véspera e no dia seguinte, com o relógio fingido.
     const simular = () =>
-      calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 5 }).parcela_mensal;
+      calculateFinancing({ ...base, vehicleYear: ANO_DE_REFERENCIA_DAS_TAXAS - 5 }, PARAMETROS_DE_FABRICA).parcela_mensal;
     vi.useFakeTimers();
     vi.setSystemTime(new Date(`${ANO_DE_REFERENCIA_DAS_TAXAS}-12-31T12:00:00Z`));
     const vespera = simular();

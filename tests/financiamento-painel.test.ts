@@ -143,6 +143,14 @@ describe("a gravação", () => {
     expect(revalidateTag).not.toHaveBeenCalled();
   });
 
+  it("duas gravações ao mesmo tempo: a segunda recebe 409, e não um erro genérico", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "23505", message: "parametros_financiamento_um_vigente" } });
+    const { status, json } = await enviar(VALIDA);
+    expect(status).toBe(409);
+    expect(json.error).toContain("Recarregue");
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
   it("o banco recusando o papel vira 403, e o CHECK vira 400", async () => {
     rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Só Administrador e Financeiro." } });
     expect((await enviar(VALIDA)).status).toBe(403);
@@ -169,13 +177,24 @@ describe("a tela", () => {
   };
 
   it("sem a migração: diz o que falta, mostra os de fábrica e não deixa salvar", async () => {
-    const html = await desenhar({ tabela: false, motivo: 'relation "parametros_financiamento" does not exist' });
+    const html = await desenhar({
+      tabela: false,
+      faltaMigracao: true,
+      motivo: 'relation "parametros_financiamento" does not exist',
+    });
     expect(html).toContain("A tabela ainda não existe no banco.");
     expect(html).toContain("20260928120000_parametros_financiamento");
     expect(html).toMatch(/<button[^>]* disabled=""[^>]*>SALVAR NOVA VIGÊNCIA/);
     // O formulário parte dos valores que o site está usando, com vírgula.
     expect(html).toContain('value="1,95"');
     expect(html).toContain("Banco BBC");
+  });
+
+  it("falha de leitura não se passa por migração pendente — e também não deixa salvar", async () => {
+    const html = await desenhar({ tabela: false, faltaMigracao: false, motivo: "fetch failed" });
+    expect(html).not.toContain("A tabela ainda não existe no banco.");
+    expect(html).toContain("Não deu para ler as condições agora.");
+    expect(html).toMatch(/<button[^>]* disabled=""[^>]*>SALVAR NOVA VIGÊNCIA/);
   });
 
   it("o exemplo ao vivo usa a mesma conta e o mesmo texto do site", async () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -19,8 +19,16 @@ import {
 } from "../src/lib/parametrosDoFinanciamento";
 import {
   lerParametrosDoFinanciamento,
+  lerVigenciaDoFinanciamento,
+  parametrosDoFinanciamento,
   type ClienteDeLeitura,
 } from "../src/lib/parametrosDoFinanciamento-servidor";
+import { perguntasDeFinanciamento, PERGUNTAS_DE_FINANCIAMENTO } from "../src/lib/paginasInstitucionais";
+import { montarLoja } from "../src/lib/lojaParaOAssistente";
+
+// `unstable_cache` só existe dentro do Next. Aqui ele vira a própria função: o
+// que se prova é o que ELA faz na falha — lançar, para nada entrar no cache.
+vi.mock("next/cache", () => ({ unstable_cache: <T,>(fn: T) => fn }));
 import {
   AVISO_DA_SIMULACAO,
   avisoDeCredito,
@@ -111,6 +119,13 @@ describe("1 · a régua da vigência nova — a mesma dos CHECKs da migração",
     expect(r.ok && r.valores.bancosParceiros).toEqual(["Sicredi", "Safra", "Itaú", "Banco C6"]);
   });
 
+  it("taxa que arredonda para zero, hexadecimal, expoente e sinal não passam", () => {
+    for (const ruim of ["0,004", "0x1", "1e0", "-1", "1,2,3", " "]) {
+      expect(validarVigenciaNova({ ...valida, taxaExcelenteAm: ruim }).ok, ruim).toBe(false);
+    }
+    expect(validarVigenciaNova({ ...valida, anoMaisAntigo: "2009.0" }).ok).toBe(true);
+  });
+
   it("as taxas ficam com as duas casas que o banco guarda", () => {
     const r = validarVigenciaNova({ ...valida, taxaExcelenteAm: 1.789, taxaRegularAm: "1.951" });
     expect(r.ok && [r.valores.taxaExcelenteAm, r.valores.taxaRegularAm]).toEqual([1.79, 1.95]);
@@ -162,6 +177,23 @@ describe("3 · a leitura do servidor: falha vira os valores de fábrica, nunca p
     expect(p.anoMaisAntigo).toBe(2011);
   });
 
+  it("dentro do cache, falha é ERRO — valor de fábrica nunca fica guardado", async () => {
+    // Revisão de 28/09: se a falha virasse valor dentro do `unstable_cache`, uma
+    // piscada do banco na renovação deixava o site uma hora nos de fábrica.
+    await expect(
+      lerVigenciaDoFinanciamento(cliente(async () => ({ data: null, error: { message: "timeout" } }))),
+    ).rejects.toThrow(/ilegível/);
+    await expect(lerVigenciaDoFinanciamento(cliente(async () => ({ data: [], error: null })))).rejects.toThrow();
+    // E quem o site chama cai nos de fábrica FORA do cache, com aviso.
+    const antes = { url: process.env.NEXT_PUBLIC_SUPABASE_URL, chave: process.env.SUPABASE_SERVICE_ROLE_KEY };
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      expect(await parametrosDoFinanciamento()).toBe(PARAMETROS_DE_FABRICA);
+    } finally {
+      if (antes.chave !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = antes.chave;
+    }
+  });
+
   it("erro, vazio, linha torta e exceção caem nos de fábrica", async () => {
     const casos = [
       async () => ({ data: null, error: { message: 'relation "parametros_financiamento" does not exist' } }),
@@ -185,7 +217,7 @@ describe("4 · a conta usa a vigência, e não a constante", () => {
       ...PARAMETROS_DE_FABRICA,
       taxas: { excelente: 0.025, regular: 0.028, risco: 0.035 },
     };
-    const deFabrica = calculateFinancing(pedido);
+    const deFabrica = calculateFinancing(pedido, PARAMETROS_DE_FABRICA);
     const daVigencia = calculateFinancing(pedido, caro);
     // 2020 contra 2026 são 6 anos, fora do degrau de idade: CLT com 33% de
     // entrada soma 40 pontos, perfil de risco — a taxa de risco da vigência.
@@ -226,7 +258,7 @@ describe("5 · carro anterior a 2009: sem estimativa (dono, 28/09/2026)", () => 
     for (const ocupacao of ocupacoes) {
       for (const max of [800, 1500, 3000, 5000]) {
         for (const entrada of [0, 20000]) {
-          const c = criteriosDoPerfil({ orcamento: { min: 0, max: null }, parcela: { max, entrada, prazo: 48, ocupacao } });
+          const c = criteriosDoPerfil({ orcamento: { min: 0, max: null }, parcela: { max, entrada, prazo: 48, ocupacao, parametros: PARAMETROS_DE_FABRICA } });
           const r = recomendar(ESTOQUE_DE_25_09, c);
           const vistos = [...r.cartoes.map((x) => x.veiculo), ...r.outros, ...(r.coringa ? [r.coringa.veiculo] : [])];
           const velhos = vistos.filter((v) => v.ano < 2009);
@@ -238,7 +270,7 @@ describe("5 · carro anterior a 2009: sem estimativa (dono, 28/09/2026)", () => 
     // Com entrada que paga o carro não há financiamento: não há o que o banco recusar.
     const cobre = criteriosDoPerfil({
       orcamento: { min: 0, max: null },
-      parcela: { max: 500, entrada: 40000, prazo: 48, ocupacao: "clt" },
+      parcela: { max: 500, entrada: 40000, prazo: 48, ocupacao: "clt", parametros: PARAMETROS_DE_FABRICA },
     });
     expect(simularParcela(fusca!, cobre.parcela!)?.parcela_mensal).toBe(0);
   });
@@ -246,7 +278,7 @@ describe("5 · carro anterior a 2009: sem estimativa (dono, 28/09/2026)", () => 
   it("a parcela do cartão diz 'sem estimativa' em vez de inventar uma", () => {
     const c = criteriosDoPerfil({
       orcamento: { min: 0, max: null },
-      parcela: { max: 1500, entrada: 0, prazo: 48, ocupacao: "clt" },
+      parcela: { max: 1500, entrada: 0, prazo: 48, ocupacao: "clt", parametros: PARAMETROS_DE_FABRICA },
     });
     expect(simularParcela(fusca!, c.parcela!)).toBeNull();
     expect(parcelaDoPedido(fusca!, c.parcela!)).toBeNull();
@@ -348,5 +380,28 @@ describe("8 · a calculadora da ficha desenha a regra", () => {
   it("a vigência manda também aqui: ano mais antigo em 2021 tira o 2020", async () => {
     const html = await desenhar(2020, { ...PARAMETROS_DE_FABRICA, anoMaisAntigo: 2021 });
     expect(html).toContain(textoSemEstimativa(2021));
+  });
+});
+
+describe("9 · o que o site diz sobre 'financiam qualquer carro?' segue a vigência", () => {
+  // Bloqueio da revisão de 28/09: o FAQ respondia "Sim" e dizia que carro fora
+  // do seletor "já foi vendido" — no mesmo dia em que o seletor passou a tirar
+  // os anteriores a 2009. O assistente de IA repetia.
+  const resposta = (ano: number) =>
+    perguntasDeFinanciamento(ano).find((p) => /qualquer carro/.test(p.pergunta))!.resposta;
+
+  it("a resposta cita o ano da vigência, e não diz mais 'Sim' nem 'já foi vendido'", () => {
+    expect(resposta(2009)).toContain("de 2009 em diante");
+    expect(resposta(2012)).toContain("de 2012 em diante");
+    expect(resposta(2009)).not.toMatch(/^Sim\b|já foi vendido/);
+    expect(PERGUNTAS_DE_FINANCIAMENTO).toEqual(perguntasDeFinanciamento(2009));
+  });
+
+  it("o assistente recebe o ano e os bancos da vigência", () => {
+    const empresa = { name: "Motors Store", address: "Rua X", hours: "", whatsapp: "", whatsappRaw: "" };
+    const texto = montarLoja(empresa, "agora", { ...PARAMETROS_DE_FABRICA, anoMaisAntigo: 2012 });
+    expect(texto).toContain("de 2012 em diante");
+    expect(texto).toContain("Bancos parceiros: Sicredi, Safra");
+    expect(texto).not.toContain("já foi vendido");
   });
 });

@@ -13,6 +13,7 @@ import {
   type Recomendacao,
 } from "../lib/motorDoMatch";
 import { avisoDeCredito, textoDaParcela, textoSemEstimativa } from "../lib/textoDaParcela";
+import { PARAMETROS_DE_FABRICA } from "../lib/finance-calculator";
 import type { Veiculo } from "../types";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
 
@@ -100,7 +101,12 @@ export default function ResultadoDoProfiler({
 
   const { cartoes, outros, naFaixa, filtros, avisos, eSe, temTeto } = recomendacao;
   // `?? null`: resposta de antes do POR MÊS não traz o campo.
-  const parcelaPedida = recomendacao.parcelaPedida ?? null;
+  // A vigência vem da rota junto com o pedido. `?? de fábrica` só cobre uma
+  // resposta de antes deste campo existir (aba aberta num deploy, rollback):
+  // sem ele, o cabeçalho e a lista "outros" quebravam a tela inteira.
+  const parcelaPedida: ParcelaPedida | null = recomendacao.parcelaPedida
+    ? { ...recomendacao.parcelaPedida, parametros: recomendacao.parcelaPedida.parametros ?? PARAMETROS_DE_FABRICA }
+    : null;
   // `?? null`: uma aba aberta antes do deploy recebe a resposta nova, mas o
   // contrário também acontece por um instante — resposta sem o campo.
   const coringa = coringaRecusado ? null : (recomendacao.coringa ?? null);

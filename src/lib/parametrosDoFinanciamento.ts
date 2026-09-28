@@ -44,10 +44,14 @@ export const LIMITES_DO_FINANCIAMENTO = {
   descricaoMax: 1000,
 } as const;
 
+/** Algarismos, com vírgula ou ponto decimal — nada de "0x1", "1e0" nem sinal. */
+const DECIMAL = /^\s*\d+(?:[.,]\d+)?\s*$/;
+
 /** Número, de número ou de texto — "1,95" e "1.95" valem o mesmo: o formulário é em português. */
 const numero = (v: unknown): number | null => {
-  const n = typeof v === "string" && v.trim() !== "" ? Number(v.trim().replace(",", ".")) : v;
-  return typeof n === "number" && Number.isFinite(n) ? n : null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && DECIMAL.test(v)) return Number(v.trim().replace(",", "."));
+  return null;
 };
 
 /** Trim, sem vazio e sem repetido, na ordem em que vieram. */
@@ -91,13 +95,15 @@ export function validarVigenciaNova(corpo: unknown): ResultadoDaValidacao {
 
   const taxa = (chave: string, rotulo: string): number => {
     const n = numero(c[chave]);
-    if (n === null || !(n > 0) || n > L.taxaMaxima) {
-      erros.push(`${rotulo}: informe um número acima de 0 e até ${L.taxaMaxima}% ao mês.`);
-      return NaN;
+    // O banco guarda com duas casas (numeric(5,2)). Arredonda ANTES de
+    // conferir: "0,004" passava no "> 0" e virava taxa zero no banco — que o
+    // CHECK recusa, com a mensagem crua dele (revisão de 28/09).
+    const r = n === null ? Number.NaN : Math.round(n * 100) / 100;
+    if (!(r > 0) || r > L.taxaMaxima) {
+      erros.push(`${rotulo}: informe um número de 0,01 a ${L.taxaMaxima}% ao mês.`);
+      return Number.NaN;
     }
-    // O banco guarda com duas casas (numeric(5,2)); arredonda aqui para a
-    // tela mostrar depois exatamente o que ficou gravado.
-    return Math.round(n * 100) / 100;
+    return r;
   };
   const taxaExcelenteAm = taxa("taxaExcelenteAm", "Taxa do perfil bom");
   const taxaRegularAm = taxa("taxaRegularAm", "Taxa do perfil regular");

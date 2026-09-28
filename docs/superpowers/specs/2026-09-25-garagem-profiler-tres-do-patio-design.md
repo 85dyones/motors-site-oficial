@@ -445,9 +445,8 @@ consultor separa "depende também" (fica o limite de hoje, três).
   regular e de risco — antes eram 1,45 / 1,95 / 2,65, sem fonte. A primeira
   versão escolhia os bancos à mão e deixava de fora as financeiras de usado
   mais caras, o que puxava a estimativa para baixo; a revisão de 27/09 pegou.
-  O número do BC mistura novo e usado, e por isso a tela diz sempre
-  "Simulação, não é oferta de crédito: o banco, a taxa e a aprovação saem da
-  análise de crédito".
+  O número do BC mistura novo e usado, e por isso a tela diz sempre que é
+  simulação — desde 28/09, com o texto do dono e os bancos parceiros (abaixo).
 - **Texto de crédito num lugar só** (`lib/textoDaParcela`, CDC art. 54-B,
   §3º): toda parcela vem com CET, total das parcelas, total a prazo (com a
   entrada) e o preço à vista — no cartão, na carta, na lista "outros" e na
@@ -489,6 +488,13 @@ consultor separa "depende também" (fica o limite de hoje, três).
    1 h, invalidado na hora ao salvar) e passa às telas; a contagem do POR MÊS
    e a `/api/match` usam a mesma. Se a leitura falhar, o site simula com os
    valores de fábrica — os mesmos do seed, e um teste trava os dois juntos.
+   Só leitura bem-sucedida entra no cache: a falha cai nos de fábrica fora
+   dele, e o acesso seguinte tenta o banco de novo.
+
+   Na revisão de 28/09 o FAQ de `/financiamento` ainda respondia "Sim" a
+   "financiam qualquer carro?" — e o assistente de IA repetia. O FAQ passou a
+   citar o ano da vigência, nas duas pontas; a grade "Seminovos para
+   financiar" também só lista o que os bancos financiam.
 - **CET.** O simulador calculava `(total/financiado)^(1/n) − 1`, que dava
   menos que a própria taxa (≈ 12% a.a. para 1,95% a.m.); e a calculadora da
   ficha chamava a taxa mensal de "CET". Agora o CET é a taxa interna de

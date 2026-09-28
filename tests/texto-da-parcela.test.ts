@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANO_DE_REFERENCIA_DAS_TAXAS, calculateFinancing } from "../src/lib/finance-calculator";
+import { ANO_DE_REFERENCIA_DAS_TAXAS, calculateFinancing, PARAMETROS_DE_FABRICA } from "../src/lib/finance-calculator";
 import { textoDaParcela, totalAPrazo, type ParcelaParaTexto } from "../src/lib/textoDaParcela";
 
 /**
@@ -10,7 +10,7 @@ import { textoDaParcela, totalAPrazo, type ParcelaParaTexto } from "../src/lib/t
  */
 
 function doSimulador(preco: number, entrada: number, prazo: number, ano: number): ParcelaParaTexto {
-  const r = calculateFinancing({ vehiclePrice: preco, vehicleYear: ano, downPaymentValue: entrada, installments: prazo, occupation: "clt" });
+  const r = calculateFinancing({ vehiclePrice: preco, vehicleYear: ano, downPaymentValue: entrada, installments: prazo, occupation: "clt" }, PARAMETROS_DE_FABRICA);
   return {
     valor: r.parcela_mensal,
     prazo,

@@ -5,7 +5,6 @@ import { nomeTemOAno } from "./nomeDoVeiculo";
 import {
   calculateFinancing,
   financiavel,
-  PARAMETROS_DE_FABRICA,
   taxaVariaMais,
   type ParametrosDoFinanciamento,
   type SimulationParams,
@@ -444,8 +443,8 @@ export interface PerfilDoQuiz {
     entrada: number;
     prazo: number;
     ocupacao: Ocupacao;
-    /** A vigência que a tela recebeu do servidor; sem ela, os valores de fábrica. */
-    parametros?: ParametrosDoFinanciamento;
+    /** A vigência que a tela recebeu do servidor — a rota lê a dela, nunca a do corpo. */
+    parametros: ParametrosDoFinanciamento;
   } | null;
   leva?: Leva | null;
   jeitos?: readonly Jeito[];
@@ -488,7 +487,7 @@ export function criteriosDoPerfil(p: PerfilDoQuiz): Criterios {
           entrada: Math.max(0, p.parcela.entrada || 0),
           prazo: p.parcela.prazo,
           ocupacao: p.parcela.ocupacao,
-          parametros: p.parcela.parametros ?? PARAMETROS_DE_FABRICA,
+          parametros: p.parcela.parametros,
         }
       : null;
 

@@ -172,9 +172,14 @@ export interface SimulationResult {
   cet_anual_real_pct: number;
 }
 
+/**
+ * A parcela estimada. `parametros` é a vigência de `parametros_financiamento`
+ * e é obrigatório de propósito: um chamador que o esquecesse cairia calado nas
+ * taxas de fábrica, com o painel dizendo outra coisa (revisão de 28/09).
+ */
 export function calculateFinancing(
   params: SimulationParams,
-  parametros: ParametrosDoFinanciamento = PARAMETROS_DE_FABRICA,
+  parametros: ParametrosDoFinanciamento,
 ): SimulationResult {
   // 1. Base do Financiamento
   const valor_veiculo = params.vehiclePrice;

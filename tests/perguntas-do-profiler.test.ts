@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ESTOQUE_DE_25_09 } from "./estoque-de-25-09";
+import { PARAMETROS_DE_FABRICA } from "../src/lib/finance-calculator";
 import {
   carrosNaFaixa,
   criteriosDoPerfil,
@@ -291,7 +292,14 @@ describe("o que sai do quiz", () => {
 });
 
 describe("POR MÊS", () => {
-  const porMes = { parcela: 1500, entrada: 20000, prazo: 48, ocupacao: "clt" as const, troca: true };
+  const porMes = {
+    parcela: 1500,
+    entrada: 20000,
+    prazo: 48,
+    ocupacao: "clt" as const,
+    troca: true,
+    parametros: PARAMETROS_DE_FABRICA,
+  };
 
   it("a parcela vira a faixa, e o orçamento em preço deixa de valer", () => {
     // A tela zera o orçamento em preço ao confirmar o POR MÊS; mesmo que um

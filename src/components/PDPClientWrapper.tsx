@@ -1526,7 +1526,10 @@ export default function PDPClientWrapper({
           parametros={parametrosDoFinanciamento}
           onSimulateClick={(msg, simulacaoData) => {
             if (typeof window !== "undefined") {
-              setActiveChannel("Simulação de Financiamento");
+              // Sem simulação (carro que os bancos parceiros não financiam, e a
+              // calculadora oferece o consultor): o lead é pergunta sobre
+              // pagamento, não simulação — e o painel não deve ler outra coisa.
+              setActiveChannel(simulacaoData ? "Simulação de Financiamento" : "WhatsApp Dúvidas");
               setActiveMessage(`${msg}${sufixoRef()}`);
               setActiveSimulacao(simulacaoData ? { ...simulacaoData } : null);
               setIsLeadModalOpen(true);

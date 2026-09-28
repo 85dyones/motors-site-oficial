@@ -34,6 +34,7 @@ import {
   type ItemQueNaoPodeFaltar,
 } from "../src/lib/motorDoMatch";
 import type { Veiculo } from "../src/types";
+import { PARAMETROS_DE_FABRICA } from "../src/lib/finance-calculator";
 
 /**
  * O motor do Garagem Profiler contra o estoque REAL de 25/09/2026.
@@ -573,7 +574,7 @@ describe("fase 2 · POR MÊS: a faixa é a parcela", () => {
     const criterios = criteriosDoPerfil({
       orcamento: { min: 0, max: null },
       leva: p.leva,
-      parcela: { max: p.max, entrada: p.entrada, prazo: p.prazo, ocupacao: p.ocupacao },
+      parcela: { max: p.max, entrada: p.entrada, prazo: p.prazo, ocupacao: p.ocupacao, parametros: PARAMETROS_DE_FABRICA },
     });
     return {
       chave: `${p.max}/mês · ${p.entrada} · ${p.prazo}× · ${p.ocupacao} · ${p.leva ?? "-"}`,
@@ -646,7 +647,7 @@ describe("fase 2 · POR MÊS: a faixa é a parcela", () => {
       criteriosDoPerfil({
         orcamento: { min: 0, max: null },
         leva: "familia",
-        parcela: { max: 1500, entrada: 20000, prazo: 48, ocupacao: "clt" },
+        parcela: { max: 1500, entrada: 20000, prazo: 48, ocupacao: "clt", parametros: PARAMETROS_DE_FABRICA },
       }),
     );
     expect(r.filtros[0]).toBe("parcela até R$ 1.500/mês em 48×, com R$ 20 mil de entrada");
