@@ -6,6 +6,7 @@ import { CARROCERIAS } from "../../lib/classificacaoVeiculo";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
 import { MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
 import {
+  anoFabricacaoModelo,
   contarPorEstado,
   filtrarLinhas,
   prontoParaPublicar,
@@ -1000,7 +1001,7 @@ export default function TabelaDeEstoque({
                   className="mt-foco h-3.5 w-3.5 cursor-pointer accent-[var(--mt-accent)]"
                 />
               </th>
-              {["Veículo", "Código", "Ano · KM", "Preço", "Fotos", "Visitas · leads", "No pátio", "Estado", ""].map(
+              {["Veículo", "Código · placa", "Ano fab/mod · KM", "Preço", "Fotos", "Visitas · leads", "No pátio", "Estado", ""].map(
                 (h) => (
                   <th
                     key={h}
@@ -1070,10 +1071,18 @@ export default function TabelaDeEstoque({
                     </div>
                   </td>
 
-                  <td className="py-2.5 pr-3 text-[11px] tabular-nums text-mt-neutral-800">{l.id}</td>
+                  {/* Placa e os dois anos: o que a simulação de financiamento
+                      pede (dono, 28/09/2026). A placa vai em maiúscula, como no
+                      documento, qualquer que seja a caixa em que foi gravada. */}
+                  <td className="py-2.5 pr-3 text-[11px] tabular-nums text-mt-neutral-800">
+                    {l.id}
+                    <span className="block font-semibold tracking-[.06em] text-mt-ink">
+                      {l.placa ? l.placa.toUpperCase() : "—"}
+                    </span>
+                  </td>
 
                   <td className="py-2.5 pr-3 text-[11px] tabular-nums text-mt-neutral-800">
-                    {l.ano ?? "—"}
+                    {anoFabricacaoModelo(l.anoFabricacao, l.ano)}
                     <span className="block text-mt-neutral-600">{quilometragem(l.quilometragem)}</span>
                   </td>
 

@@ -66,6 +66,15 @@ export interface LinhaDeEstoque {
   modelo: string;
   versao: string;
   ano: number | null;
+  /**
+   * Ano de FABRICAÇÃO, da coluna `ano_fabricacao`. `ano` acima é o do modelo.
+   *
+   * Opcional porque só a tabela de `/admin/estoque` o preenche — a curadoria de
+   * destaques monta a mesma linha e não precisa dele. Ausente, nulo ou `0` (o
+   * que o feed grava quando a origem vem vazia) é "não cadastrado": ver
+   * `anoFabricacaoModelo`.
+   */
+  anoFabricacao?: number | null;
   quilometragem: number | null;
   preco: number | null;
   foto: string | null;
@@ -144,6 +153,25 @@ export interface LinhaDeEstoque {
    * É AVISO, nunca etiqueta — ver `diasForaDoFeed` para o porquê.
    */
   diasForaDoFeed: number | null;
+}
+
+/**
+ * O ano como a financeira pede: fabricação/modelo — "2015/2016".
+ *
+ * Pedido do dono em 28/09/2026, para a simulação de financiamento. Os dois
+ * aparecem mesmo quando são iguais ("2016/2016"), por decisão dele: ver os dois
+ * é o que confirma que a fabricação foi cadastrada.
+ *
+ * Sem fabricação (nula ou o `0` do feed), sai só o modelo. Repetir o modelo nos
+ * dois lados para preencher seria inventar o dado que a financeira vai usar.
+ */
+export function anoFabricacaoModelo(
+  anoFabricacao: number | null | undefined,
+  anoModelo: number | null,
+): string {
+  if (!anoModelo) return "—";
+  if (!anoFabricacao || anoFabricacao <= 0) return String(anoModelo);
+  return `${anoFabricacao}/${anoModelo}`;
 }
 
 /**
