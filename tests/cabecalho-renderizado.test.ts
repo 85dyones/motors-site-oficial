@@ -191,7 +191,7 @@ describe("o menu chega ao HTML servido", () => {
   });
 
   it("o nav da barra usa desktop:gap-6, não gap-7", async () => {
-    // Ruling do controlador de 25/09 (opção A): com o REPASSE somado,
+    // Decisão do dono de 25/09 (opção A): com o REPASSE somado,
     // `desktop:gap-7` (28px) fazia o telefone partir em duas linhas a
     // 1281px, medido em produção (barra de rolagem clássica, 15px).
     // `desktop:gap-6` (24px) resolve os dois pontos medidos: folga de 13px

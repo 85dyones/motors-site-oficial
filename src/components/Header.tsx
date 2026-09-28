@@ -121,7 +121,7 @@ export default function Header() {
             1280px ele não existe para o layout e não pesa na régua. De 1281
             para cima ele custa o rótulo (60,5px) mais o gap do nav — e com
             `desktop:gap-7` (28px) isso bastava para o telefone partir em
-            duas linhas a 1281px, medido em produção. Ruling do controlador,
+            duas linhas a 1281px, medido em produção. Decisão do dono,
             no mesmo dia (opção A): o nav passa para `desktop:gap-6` (24px),
             com folga de 13px em 1281px e 182px em 1536px. A tabela remedida
             está em `lib/menuDoCabecalho.ts`. */}

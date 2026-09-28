@@ -58,7 +58,7 @@ export interface ItemDoMenu {
  * ---------------------------------------------------------------------------
  * Cabe na barra? Estes números são do código que está no ar
  * ---------------------------------------------------------------------------
- * Remedido em 25/09, com o REPASSE (ruling do controlador, opção A: o nav
+ * Remedido em 25/09, com o REPASSE (decisão do dono, opção A: o nav
  * passa para `desktop:gap-6`, 24px). Medido em produção
  * (motorsstore.com.br/estoque), injetando o REPASSE no DOM logo depois do
  * ESTOQUE, barra de rolagem clássica (15px), rótulo REPASSE = 60,5px. O
