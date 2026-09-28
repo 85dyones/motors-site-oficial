@@ -53,6 +53,10 @@ export const CAMPOS_NOSSOS = [
   // Migração 20260826230000. `perfil_uso` (singular) continua na lista para
   // não quebrar quem ainda escreve nele; o painel passou a escrever aqui.
   "perfis_uso",
+  // Migração 20260928150000. O carro "em preparação" e a data prevista de
+  // chegada ao pátio: decisão da loja, que o RevendaMais não conhece.
+  "em_preparacao",
+  "previsao_chegada_em",
   // Migração 20260830120000 (F0-q). O estado do cadastro é NOSSO no sentido
   // mais forte da palavra: o RevendaMais não o conhece, e o trigger de INSERT
   // sobrescreve para `rascunho` qualquer valor que venha no payload da
@@ -242,6 +246,24 @@ export const COLUNAS_LIDAS_PARA_DECIDIR = [
 ] as const;
 
 /**
+ * As duas colunas do carro "em preparação" (migração 20260928150000). Listadas
+ * à parte porque `aplicarNosVeiculos` sabe seguir sem elas quando o banco não
+ * as tem — ver o bloco "Banco sem as colunas do carro em preparação" lá.
+ */
+const COLUNAS_DO_EM_PREPARACAO: ReadonlySet<string> = new Set(["em_preparacao", "previsao_chegada_em"]);
+
+/**
+ * A frase de quando o banco não tem uma coluna que a escrita pediu.
+ *
+ * Não cita um arquivo só. Citava `20260807160000_ficha_propria_do_painel.sql`,
+ * e desde que `descricao_seo` entrou em CAMPOS_NOSSOS (20260817130000) esse
+ * nome manda quem lê aplicar a migração errada — pior que não sugerir nada.
+ */
+const MENSAGEM_DE_CAMPO_AUSENTE =
+  "Campo da ficha própria ainda não existe no banco. Aplique as migrações " +
+  "pendentes de supabase/migrations e recarregue.";
+
+/**
  * Os campos graváveis para ESTE veículo — a lista fixa e as fotos sempre, mais
  * as TRÊS colunas de preço e os opcionais quando a linha é do painel.
  *
@@ -387,10 +409,44 @@ export async function aplicarNosVeiculos(
       ...COLUNAS_LIDAS_PARA_DECIDIR,
     ]),
   );
-  const { data: antes, error: erroAntes } = await supabase
-    .from("estoque_motors")
-    .select(colunasDoAntes.join(","))
-    .in("id", alvos);
+  const lerAntes = (colunas: readonly string[]) =>
+    supabase.from("estoque_motors").select(colunas.join(",")).in("id", alvos);
+  let { data: antes, error: erroAntes } = await lerAntes(colunasDoAntes);
+
+  // ---------------------------------------------------------------------------
+  // Banco sem as colunas do carro em preparação: relê UMA vez sem elas
+  // ---------------------------------------------------------------------------
+  // `em_preparacao` e `previsao_chegada_em` estão em `CAMPOS_NOSSOS`, e por
+  // isso no `select` acima. Num banco sem a migração 20260928150000 (esquecida
+  // ou revertida), esse `select` falhava INTEIRO: publicar e promoção davam
+  // 500, e o resto salvava com `antes = null` — sem histórico e sem o piso de
+  // custo, que é a trava de dinheiro deste arquivo. Achado da revisão final,
+  // 28/09.
+  //
+  // A regra continua sendo "migração gravada antes do merge"; isto é a rede
+  // para quando ela falhar. Relida sem as duas, a escrita segue com as travas
+  // de pé, e os dois campos saem da atualização: o banco sem a coluna não tem
+  // onde guardá-los, e mandá-los derrubaria o `update` do resto. Só para o erro
+  // de coluna ausente — falha de conexão não é relida às cegas.
+  if (erroAntes && ehTabelaOuColunaAusente(erroAntes)) {
+    const semEmPreparacao = (campo: string) => !COLUNAS_DO_EM_PREPARACAO.has(campo);
+    ({ data: antes, error: erroAntes } = await lerAntes(colunasDoAntes.filter(semEmPreparacao)));
+    if (!erroAntes) {
+      atualizacao = Object.fromEntries(
+        Object.entries(atualizacao).filter(([campo]) => semEmPreparacao(campo)),
+      );
+      // Pedido que era SÓ a caixa e a data: sem as colunas não sobra nada a
+      // gravar, e responder "salvo" seria mentir sobre o que ficou no banco.
+      if (Object.keys(atualizacao).length === 0) {
+        return {
+          erro: MENSAGEM_DE_CAMPO_AUSENTE,
+          status: 500,
+          camposSalvos: [],
+          mudancasRegistradas: 0,
+        };
+      }
+    }
+  }
 
   // -------------------------------------------------------------------------
   // Publicar exige a régua de fotos cumprida — e a verificação é DAQUI
@@ -532,13 +588,7 @@ export async function aplicarNosVeiculos(
   if (error) {
     if (ehTabelaOuColunaAusente(error)) {
       return {
-        // A mensagem não cita mais um arquivo só. Citava
-        // `20260807160000_ficha_propria_do_painel.sql`, e desde que
-        // `descricao_seo` entrou em CAMPOS_NOSSOS (20260817130000) esse nome
-        // manda quem lê aplicar a migração errada — pior que não sugerir nada.
-        erro:
-          "Campo da ficha própria ainda não existe no banco. Aplique as migrações " +
-          "pendentes de supabase/migrations e recarregue.",
+        erro: MENSAGEM_DE_CAMPO_AUSENTE,
         status: 500,
         camposSalvos: [],
         mudancasRegistradas: 0,
@@ -569,11 +619,28 @@ export async function aplicarNosVeiculos(
     "preco_compra",
     "donos_anteriores",
   ]);
+  /**
+   * Colunas `timestamptz`, comparadas como INSTANTE — o mesmo problema das
+   * numéricas, com outro formato. O PostgREST devolve
+   * `"2026-10-03T17:00:00+00:00"` e o editor manda o `toISOString()`,
+   * `"2026-10-03T17:00:00.000Z"`: o mesmo instante, dois textos. Comparados
+   * como texto, todo salvamento seguinte na mesma sessão reenviava a previsão
+   * e gravava no histórico uma alteração que não houve (revisão final do
+   * carro em preparação, 28/09).
+   */
+  const INSTANTES = new Set(["previsao_chegada_em"]);
   const igual = (campo: string, antigo: unknown, novo: unknown) => {
+    const vazio = (x: unknown) => x === null || x === undefined || x === "";
     if (NUMERICAS.has(campo)) {
-      const a = antigo === null || antigo === undefined || antigo === "" ? null : Number(antigo);
-      const b = novo === null || novo === undefined || novo === "" ? null : Number(novo);
+      const a = vazio(antigo) ? null : Number(antigo);
+      const b = vazio(novo) ? null : Number(novo);
       // `NaN` não é comparável: cai na régua textual em vez de mentir "igual".
+      if (!(a !== null && Number.isNaN(a)) && !(b !== null && Number.isNaN(b))) return a === b;
+    }
+    if (INSTANTES.has(campo)) {
+      const a = vazio(antigo) ? null : Date.parse(String(antigo));
+      const b = vazio(novo) ? null : Date.parse(String(novo));
+      // Data ilegível idem: régua textual, nunca "igual" por acidente.
       if (!(a !== null && Number.isNaN(a)) && !(b !== null && Number.isNaN(b))) return a === b;
     }
     return norm(antigo) === norm(novo);

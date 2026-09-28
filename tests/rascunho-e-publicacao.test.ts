@@ -441,8 +441,13 @@ describe("trava 4 · a régua de fotos impede a publicação", () => {
     const codigo = semComentarios(tabelaA6);
     expect(codigo).toContain("prontoParaPublicar");
     expect(codigo).toContain("ainda não podem ir ao ar");
-    // O editor A15 trava o botão e diz o que falta.
-    expect(semComentarios(editorA15)).toMatch(/travado\s*=\s*acao === "publicar" && bloqueios\.length > 0/);
+    // O editor A15 trava o botão e diz o que falta. Desde a revisão final do
+    // carro em preparação (28/09) a lista do botão é `bloqueiosParaPublicar`,
+    // que julga a caixa pelo estado salvo — o comportamento está provado no
+    // DOM em `tests/em-preparacao-editor.test.ts`.
+    expect(semComentarios(editorA15)).toMatch(
+      /travado\s*=\s*acao === "publicar" && bloqueiosParaPublicar\.length > 0/,
+    );
   });
 });
 

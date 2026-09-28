@@ -17,6 +17,7 @@ import type { ReactNode } from "react";
 import type { Veiculo } from "../../types";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
+import FaixaEmPreparacao from "./FaixaEmPreparacao";
 
 /* ────────────────────────────────────────────────────────────────────────
    Rótulo em versalete — o marcador tipográfico do sistema
@@ -323,6 +324,12 @@ export function CardVeiculo({
             {etiqueta}
           </Etiqueta>
         )}
+        {/* Carro em preparação: canto de baixo, à esquerda — o de cima é da
+            etiqueta e o da direita é da contagem de fotos. */}
+        <FaixaEmPreparacao
+          veiculo={veiculo}
+          className="absolute bottom-0 left-0 px-2 py-1 text-[9px]"
+        />
         {contagemFotos && (
           <span className="pointer-events-none absolute bottom-0 right-0 bg-[rgba(20,18,18,.82)] px-2 py-1 text-[10px] font-semibold text-mt-inverso">
             {contagemFotos}

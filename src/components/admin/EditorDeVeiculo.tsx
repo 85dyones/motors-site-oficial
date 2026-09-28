@@ -14,10 +14,13 @@ import {
 import { recusaPorPisoDeCusto } from "../../lib/pisoDePreco";
 import {
   MINIMO_DE_FOTOS,
+  MINIMO_DE_FOTOS_EM_PREPARACAO,
   FOTOS_DA_FICHA_COMPLETA,
   bloqueiosDePublicacao,
   divergenciaDeCarroceria,
+  liberadoEmPreparacao,
 } from "../../lib/coerenciaDoCadastro";
+import { doCampoDataHora, paraCampoDataHora } from "../../lib/emPreparacao";
 import {
   CAMPO_DO_ESTADO,
   EXPLICACAO_DO_ESTADO_CADASTRO,
@@ -95,6 +98,13 @@ interface VeiculoDb {
   perfis_uso: string[] | null;
   status_tag: string | null;
   status_tag_color: string | null;
+  /**
+   * Migração 20260928150000. Opcionais porque a coluna pode não existir ainda:
+   * `select("*")` simplesmente não as traz, e o editor esconde a caixa em vez
+   * de mandar ao banco um campo que derrubaria o salvamento inteiro.
+   */
+  em_preparacao?: boolean | null;
+  previsao_chegada_em?: string | null;
   vendido: boolean | null;
   /**
    * A decisão da loja sobre este carro — `rascunho`, `publicado`, `arquivado`
@@ -152,6 +162,8 @@ const NOME_DO_CAMPO: Record<string, string> = {
   opcionais: "Opcionais",
   status_tag: "Tag de destaque",
   status_tag_color: "Cor da tag",
+  em_preparacao: "Em preparação",
+  previsao_chegada_em: "Previsão de chegada ao pátio",
   vendido: "Disponibilidade",
   // A trilha de quem pôs no ar e quem tirou. `aplicarNosVeiculos` já registra
   // autor e horário de qualquer campo — sem o rótulo, a linha sairia como
@@ -193,6 +205,11 @@ const rotuloCampo = "text-[10px] font-semibold uppercase tracking-[.12em] text-m
 const campoCaixa =
   "mt-campo-caixa mt-foco";
 
+/** O `title` do Publicar quando só a caixa não salva o trava — ver
+ *  `bloqueiosParaPublicar`. */
+const SALVE_A_CAIXA_ANTES_DE_PUBLICAR =
+  'Salve a caixa "Em preparação" antes de publicar: a publicação é julgada pelo que está salvo.';
+
 export default function EditorDeVeiculo({
   inicial,
   visitas30Dias,
@@ -212,6 +229,8 @@ export default function EditorDeVeiculo({
    *  devolver 403 e derrubaria o salvamento inteiro, inclusive o que a pessoa
    *  podia mesmo alterar. */
   const podeGravar = (campo: string) => podeGravarCampo(perfil, campo);
+  // A coluna existe? Ver o comentário de `em_preparacao` em `VeiculoDb`.
+  const temColunaDoEmPreparacao = "em_preparacao" in inicial;
   const [aba, setAba] = useState<Aba>("fotos");
   const [v, setV] = useState<VeiculoDb>(inicial);
   const [salvo, setSalvo] = useState<VeiculoDb>(inicial);
@@ -279,6 +298,10 @@ export default function EditorDeVeiculo({
     v.placa && v.motor && v.cor_interna && v.donos_anteriores !== null && v.garantia_fabrica,
   );
 
+  // A porta de fotos que vale PARA ESTE carro — a mesma conta de
+  // `bloqueiosDePublicacao`, para a tela não discordar do site.
+  const minimoDeFotos = liberadoEmPreparacao(v) ? MINIMO_DE_FOTOS_EM_PREPARACAO : MINIMO_DE_FOTOS;
+
   /** Checklist de publicação — os itens do doc que temos como verificar. */
   const checklist = [
     {
@@ -286,11 +309,13 @@ export default function EditorDeVeiculo({
       // régua que `bloqueiosDePublicacao` aplica e que `getEstoque` usa para
       // filtrar a vitrine. Escrito à mão, um dia mudaria num lugar só e a tela
       // passaria a discordar do site sobre por que o carro sumiu.
-      l: `${MINIMO_DE_FOTOS} fotos — libera a publicação`,
+      l:
+        minimoDeFotos === MINIMO_DE_FOTOS
+          ? `${MINIMO_DE_FOTOS} fotos — libera a publicação`
+          : `${MINIMO_DE_FOTOS_EM_PREPARACAO} foto — em preparação, libera a publicação`,
       d: "Frente, traseira, uma lateral e o interior já contam a história.",
-      ok: fotos.length >= MINIMO_DE_FOTOS,
-      estado:
-        fotos.length >= MINIMO_DE_FOTOS ? "OK" : `FALTAM ${MINIMO_DE_FOTOS - fotos.length}`,
+      ok: fotos.length >= minimoDeFotos,
+      estado: fotos.length >= minimoDeFotos ? "OK" : `FALTAM ${minimoDeFotos - fotos.length}`,
     },
     {
       // O item que a mudança de 01/09 criou. Ele NÃO bloqueia — o carro já está
@@ -372,9 +397,33 @@ export default function EditorDeVeiculo({
       // mesmos para carro do feed e carro nativo.
       bloqueiosDePublicacao({
         whatsapp_images: v.whatsapp_images,
+        em_preparacao: v.em_preparacao,
+        previsao_chegada_em: v.previsao_chegada_em,
       }).filter((b) => b.bloqueia),
-    [v.whatsapp_images],
+    [v.whatsapp_images, v.em_preparacao, v.previsao_chegada_em],
   );
+
+  /* A exceção do carro em preparação, como o BANCO a conhece.
+
+     O botão Publicar manda só `estado_cadastro`, e o servidor confere a régua
+     sobre a linha salva (`aplicarNosVeiculos`). Julgar a trava pela caixa em
+     edição deixava marcar, pôr a data e clicar Publicar sem Salvar — e o
+     clique voltava 422 com "1 de 4 fotos para publicar" num carro que a tela
+     dizia pronto (achado da revisão final, 28/09). As fotos seguem vindo de
+     `v` porque a galeria grava na hora: ali tela e banco já são a mesma
+     coisa. O checklist continua mostrando o estado em edição. */
+  const bloqueiosParaPublicar = useMemo(
+    () =>
+      bloqueiosDePublicacao({
+        whatsapp_images: v.whatsapp_images,
+        em_preparacao: salvo.em_preparacao,
+        previsao_chegada_em: salvo.previsao_chegada_em,
+      }).filter((b) => b.bloqueia),
+    [v.whatsapp_images, salvo.em_preparacao, salvo.previsao_chegada_em],
+  );
+  // O que trava o Publicar é só a caixa ainda não salva: a tela já libera, o
+  // banco ainda não.
+  const salvarAntesDePublicar = bloqueiosParaPublicar.length > 0 && bloqueios.length === 0;
 
   /* ------------------------------------------------------------------------
    * Publicar e arquivar — a decisão, separada da edição
@@ -466,6 +515,12 @@ export default function EditorDeVeiculo({
     setSalvando(true);
     setErro("");
     setAviso("");
+    // O banco também recusa (CHECK), mas com uma frase que ninguém entende.
+    if (v.em_preparacao && !v.previsao_chegada_em) {
+      setErro("Em preparação precisa da previsão de chegada ao pátio.");
+      setSalvando(false);
+      return;
+    }
     try {
       const tudo: Record<string, unknown> = {
         placa: v.placa,
@@ -482,6 +537,15 @@ export default function EditorDeVeiculo({
         vendido: v.vendido,
         tipo: v.tipo,
         perfis_uso: v.perfis_uso,
+        // Só quando a coluna existe (migração 20260928150000). Mandar os dois a
+        // um banco sem eles derrubaria o update inteiro — e com ele todo
+        // salvamento do editor, não só o desta caixa.
+        ...(temColunaDoEmPreparacao
+          ? {
+              em_preparacao: Boolean(v.em_preparacao),
+              previsao_chegada_em: v.previsao_chegada_em ?? null,
+            }
+          : {}),
         // Promoção vai em toda origem — é o campo novo de 31/08.
         preco_promocional: v.preco_promocional,
         // Preço de tabela só do nativo, espelhando a condição do campo lá em
@@ -610,16 +674,18 @@ export default function EditorDeVeiculo({
               resolveu. */}
           {podeDecidirPublicacao &&
             acoesDoEstado(estadoCadastro).map((acao) => {
-              const travado = acao === "publicar" && bloqueios.length > 0;
+              const travado = acao === "publicar" && bloqueiosParaPublicar.length > 0;
               return (
                 <button
                   key={acao}
                   onClick={() => decidirPublicacao(acao)}
                   disabled={mudandoEstado || travado}
                   title={
-                    travado
-                      ? `Falta ${bloqueios.map((b) => b.texto).join("; ")}`
-                      : undefined
+                    !travado
+                      ? undefined
+                      : salvarAntesDePublicar
+                        ? SALVE_A_CAIXA_ANTES_DE_PUBLICAR
+                        : `Falta ${bloqueiosParaPublicar.map((b) => b.texto).join("; ")}`
                   }
                   className={`mt-btn mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-45 ${
                     acao === "publicar" ? "mt-btn-primario" : "mt-btn-contorno"
@@ -678,9 +744,9 @@ export default function EditorDeVeiculo({
             nota:
               fotos.length >= FOTOS_DA_FICHA_COMPLETA
                 ? "ficha completa"
-                : fotos.length >= MINIMO_DE_FOTOS
+                : fotos.length >= minimoDeFotos
                   ? `no ar — faltam ${FOTOS_DA_FICHA_COMPLETA - fotos.length} para a ficha`
-                  : `mínimo de ${MINIMO_DE_FOTOS} para publicar`,
+                  : `mínimo de ${minimoDeFotos} para publicar`,
           },
           { l: "Checklist", v: `${concluidos}/${checklist.length}`, nota: concluidos === checklist.length ? "pronto para publicar" : "itens pendentes" },
           {
@@ -742,6 +808,10 @@ export default function EditorDeVeiculo({
                  portão de edição da galeria, para carro de qualquer origem. */
               podeEditar={podeGravar("whatsapp_images")}
               aoGravar={aoGravarFotos}
+              /* Pelo estado SALVO, pela mesma razão do botão Publicar: a
+                 régua da galeria fala do que está no ar, e o site só conhece
+                 a caixa depois de salva. */
+              emPreparacao={liberadoEmPreparacao(salvo)}
             />
           )}
 
@@ -1202,6 +1272,43 @@ export default function EditorDeVeiculo({
                   </div>
                 </div>
               </div>
+
+              {temColunaDoEmPreparacao && podeGravar("em_preparacao") && (
+                <div className="mt-6 border-t-2 border-mt-regua pt-4">
+                  <label className="flex cursor-pointer items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(v.em_preparacao)}
+                      onChange={(e) => set("em_preparacao", e.target.checked)}
+                      className="mt-foco mt-0.5 h-4 w-4 cursor-pointer accent-[var(--mt-accent)]"
+                    />
+                    <span>
+                      <span className="block text-[13px] font-extrabold">Em preparação</span>
+                      <span className="block text-[11px] leading-relaxed text-mt-neutral-700">
+                        O carro chegou e ainda não está pronto. Publica com{" "}
+                        {MINIMO_DE_FOTOS_EM_PREPARACAO} foto (a de cadastro), mostra no site a
+                        contagem até a data e fica fora do feed de anúncios até ter{" "}
+                        {MINIMO_DE_FOTOS}. Desmarque quando o carro ficar pronto.
+                      </span>
+                    </span>
+                  </label>
+                  {v.em_preparacao && (
+                    <div className="mt-3 flex flex-col gap-1.5 sm:max-w-[260px]">
+                      <label className={rotuloCampo} htmlFor="f-previsao">
+                        Previsão de chegada ao pátio
+                      </label>
+                      <input
+                        id="f-previsao"
+                        type="datetime-local"
+                        required
+                        value={paraCampoDataHora(v.previsao_chegada_em)}
+                        onChange={(e) => set("previsao_chegada_em", doCampoDataHora(e.target.value))}
+                        className={campoCaixa}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
@@ -1290,8 +1397,13 @@ export default function EditorDeVeiculo({
                   "não volta sozinho" e as duas juntas se contradiziam na
                   leitura. Ali o que interessa é que voltar é decisão, não
                   material — e o botão Publicar já está à mão para quem decidir. */}
-              {estadoCadastro === "rascunho" && podeDecidirPublicacao && bloqueios.length === 0 && (
+              {/* "Pronto" é sobre o botão Publicar, e ele julga pelo que está
+                  salvo — ver `bloqueiosParaPublicar`. */}
+              {estadoCadastro === "rascunho" && podeDecidirPublicacao && bloqueiosParaPublicar.length === 0 && (
                 <> Está pronto para publicar.</>
+              )}
+              {estadoCadastro === "rascunho" && podeDecidirPublicacao && salvarAntesDePublicar && (
+                <> {SALVE_A_CAIXA_ANTES_DE_PUBLICAR}</>
               )}
             </div>
           )}
@@ -1305,7 +1417,7 @@ export default function EditorDeVeiculo({
                   <li key={b.id}>{b.texto}</li>
                 ))}
               </ul>
-              {estadoCadastro === "rascunho" && (
+              {estadoCadastro === "rascunho" && bloqueiosParaPublicar.length > 0 && (
                 <p className="m-0 mt-1.5">Publicar fica travado até isso resolver.</p>
               )}
             </div>

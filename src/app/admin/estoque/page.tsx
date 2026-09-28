@@ -15,6 +15,7 @@ import {
   versaoParaExibir,
   type LinhaDeEstoque,
 } from "../../../lib/estoqueTabela";
+import { diasDePrevisaoVencida } from "../../../lib/emPreparacao";
 import TabelaDeEstoque from "../../../components/admin/TabelaDeEstoque";
 import { diasEmEstoque } from "../../../lib/dataLayer";
 import { perfisDe, podeFazer } from "../../../lib/permissoes";
@@ -202,6 +203,11 @@ export default async function AdminEstoquePage() {
       destacado: destacados.includes(id),
       naSemana: naSemana.includes(id),
       naTv: naTv.includes(id),
+      // Em preparação (migração 20260928150000). A conta sai do servidor, e não
+      // da tabela: a tabela é client component, e "há 2 dias" calculado dos
+      // dois lados da hidratação discordaria na virada do dia.
+      emPreparacao: bruto.em_preparacao === true,
+      previsaoVencidaHaDias: diasDePrevisaoVencida(bruto),
       visitas: visitasPorVeiculo ? (visitasPorVeiculo[id] ?? 0) : null,
       leads: leadsPorVeiculo[id] ?? 0,
       // O sintoma do bug corrigido em 2026-08-07: override gravado só no JSON

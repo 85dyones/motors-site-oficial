@@ -6,6 +6,7 @@ import { segmentoDoVeiculo } from '../../../../lib/veiculoUrl';
 import { concordar, generoDeModelo } from '../../../../lib/generoDoVeiculo';
 import { precoEfetivo, temPromocao } from '../../../../lib/precoPromocional';
 import { decidirNoFeed, getDatasDeVenda } from '../../../../lib/publicacao';
+import { entraNoFeedDeAnuncios } from '../../../../lib/coerenciaDoCadastro';
 import { registrarFalha } from '../../../../lib/observabilidade';
 import { faixaDoPreco } from '../../../../lib/faixasDePreco';
 import {
@@ -115,6 +116,18 @@ export async function GET(request: Request) {
     let itensEmitidos = 0;
 
     for (const car of vehicles) {
+      // Carro em preparação só entra com as quatro fotos de sempre — decisão
+      // do dono em 28/09, "só no site". Ver `entraNoFeedDeAnuncios`.
+      //
+      // O corte vem antes de `decidirNoFeed`, então o carro sai sem a fase
+      // `out_of_stock`. No caso comum não há o que manter: ele chegou com a
+      // foto de cadastro e nunca esteve no catálogo. Mas nem sempre — o carro
+      // que já tinha quatro fotos, foi marcado "em preparação" e depois perdeu
+      // uma sai do catálogo de uma carga para a outra, e o portal o lê como
+      // item removido. Ele segue à venda, e volta na primeira carga em que
+      // tiver as quatro fotos de novo.
+      if (!entraNoFeedDeAnuncios(car)) continue;
+
       // O vendido não some da noite para o dia. Ver `decidirNoFeed`: para o
       // Meta, item que desaparece de uma carga para a outra foi DELETADO, e
       // isso quebra anúncio dinâmico ativo e público montado por `content_ids`.

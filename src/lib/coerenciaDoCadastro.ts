@@ -270,6 +270,49 @@ export const MINIMO_DE_FOTOS = 4;
  */
 export const FOTOS_DA_FICHA_COMPLETA = 8;
 
+/**
+ * Quantas fotos o carro EM PREPARAÇÃO precisa para ir ao ar: a de cadastro.
+ *
+ * Pedido do dono em 28/09/2026: carro que acabou de chegar ia ao mercado com
+ * uma foto só, e a porta de quatro o escondia do site na janela em que ele é
+ * novidade. A exceção vale só com a caixa marcada E a data prevista de
+ * chegada ao pátio (`liberadoEmPreparacao`) — é a data que faz da foto única
+ * uma promessa com prazo, e não um anúncio magro.
+ *
+ * O feed de anúncios NÃO aceita a exceção (`entraNoFeedDeAnuncios`): anúncio
+ * pago com foto de cadastro rende pouco, e a decisão do dono foi "só no site".
+ */
+export const MINIMO_DE_FOTOS_EM_PREPARACAO = 1;
+
+/**
+ * O último degrau do mapper quando o carro não tem foto nenhuma — não é foto.
+ *
+ * `mapVeiculoDbToVeiculo` preenche `whatsapp_images` com `url_imagem` ou, sem
+ * nada, com este caminho. A vitrine julga a linha crua e a ficha julga o
+ * objeto mapeado: com a porta em quatro a diferença nunca mudou a resposta
+ * (0 ou 1 foto, fora do mesmo jeito), mas com a porta em UMA o logotipo passaria
+ * por foto de cadastro.
+ */
+const FOTO_DE_QUEDA_DO_MAPPER = "/logo.png";
+
+function contarFotos(whatsappImages: unknown): number {
+  return Array.isArray(whatsappImages)
+    ? whatsappImages.filter((foto) => Boolean(foto) && foto !== FOTO_DE_QUEDA_DO_MAPPER).length
+    : 0;
+}
+
+/** Se a exceção do carro em preparação vale: a caixa marcada E uma data de verdade. */
+export function liberadoEmPreparacao(veiculo: {
+  em_preparacao?: unknown;
+  previsao_chegada_em?: unknown;
+}): boolean {
+  if (veiculo.em_preparacao !== true) return false;
+  const data = veiculo.previsao_chegada_em;
+  return typeof data === "string" && data.trim() !== "" && !Number.isNaN(Date.parse(data));
+}
+
+const fotoOuFotos = (n: number) => (n === 1 ? "foto" : "fotos");
+
 export interface MotivoDeBloqueio {
   /** Chave estável, para o relatório de auditoria agrupar. */
   id: "poucas-fotos" | "fotos-incompletas";
@@ -326,12 +369,15 @@ export interface MotivoDeBloqueio {
  */
 export function bloqueiosDePublicacao(veiculo: {
   whatsapp_images?: unknown;
+  em_preparacao?: unknown;
+  previsao_chegada_em?: unknown;
 }): MotivoDeBloqueio[] {
   const motivos: MotivoDeBloqueio[] = [];
 
-  const fotos = Array.isArray(veiculo.whatsapp_images)
-    ? veiculo.whatsapp_images.filter(Boolean).length
-    : 0;
+  const fotos = contarFotos(veiculo.whatsapp_images);
+  // A porta baixa para uma foto SÓ com a caixa e a data — ver
+  // `MINIMO_DE_FOTOS_EM_PREPARACAO`.
+  const minimo = liberadoEmPreparacao(veiculo) ? MINIMO_DE_FOTOS_EM_PREPARACAO : MINIMO_DE_FOTOS;
 
   // ---------------------------------------------------------------------------
   // Uma instrução só, desde 2026-09-01
@@ -364,10 +410,10 @@ export function bloqueiosDePublicacao(veiculo: {
   // é o que impede os dois motivos de aparecerem juntos — um carro com duas
   // fotos está bloqueado, não bloqueado E incompleto. Listar as duas coisas
   // faria a tela cobrar da pessoa uma tarefa que ela nem pode começar.
-  if (fotos < MINIMO_DE_FOTOS) {
+  if (fotos < minimo) {
     motivos.push({
       id: "poucas-fotos",
-      texto: `${fotos} de ${MINIMO_DE_FOTOS} fotos para publicar — ${deOndeVemAFoto}`,
+      texto: `${fotos} de ${minimo} ${fotoOuFotos(minimo)} para publicar — ${deOndeVemAFoto}`,
       bloqueia: true,
     });
   } else if (fotos < FOTOS_DA_FICHA_COMPLETA) {
@@ -377,7 +423,7 @@ export function bloqueiosDePublicacao(veiculo: {
       // um número em vermelho e conclui que o carro não está publicado — que é
       // exatamente a confusão que a régua de oito criava.
       texto:
-        `no ar com ${fotos} fotos — a ficha completa pede ${FOTOS_DA_FICHA_COMPLETA} ` +
+        `no ar com ${fotos} ${fotoOuFotos(fotos)} — a ficha completa pede ${FOTOS_DA_FICHA_COMPLETA} ` +
         `(${deOndeVemAFoto})`,
       bloqueia: false,
     });
@@ -392,10 +438,31 @@ export function bloqueiosDePublicacao(veiculo: {
 export function publicavel(veiculo: {
   whatsapp_images?: unknown;
   origem?: string | null;
+  em_preparacao?: unknown;
+  previsao_chegada_em?: unknown;
 }): boolean {
   // `.some(bloqueia)`, e não `.length === 0`: a lista pode trazer pendência que
   // não tira do ar. Hoje não traz — ver `MotivoDeBloqueio.bloqueia` —, mas quem
   // acrescentar o segundo motivo não deve precisar lembrar de mudar isto aqui
   // para o carro não sumir da vitrine por uma observação.
   return !bloqueiosDePublicacao(veiculo).some((m) => m.bloqueia);
+}
+
+/**
+ * Se o carro entra no feed de anúncios (Meta e Google, `/api/feed/xml`).
+ *
+ * O feed confia na vitrine — o `getEstoque` já cortou quem não cumpre a régua —
+ * com UMA exceção: o carro em preparação só entra com as quatro fotos de
+ * sempre. Decisão do dono em 28/09/2026, "só no site": anúncio pago com a foto
+ * de cadastro rende pouco, e a Meta pode reprovar imagem genérica.
+ *
+ * Olha a CAIXA, não a data: sem data a vitrine já o recusa abaixo de quatro, e
+ * com data o feed recusa do mesmo jeito.
+ */
+export function entraNoFeedDeAnuncios(veiculo: {
+  whatsapp_images?: unknown;
+  em_preparacao?: unknown;
+}): boolean {
+  if (veiculo.em_preparacao !== true) return true;
+  return contarFotos(veiculo.whatsapp_images) >= MINIMO_DE_FOTOS;
 }

@@ -510,6 +510,11 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     ultima_presenca: dbItem.last_seen_at ?? null,
     status_tag: dbItem.status_tag || "",
     status_tag_color: dbItem.status_tag_color || "green",
+    // Carro em preparação (migração 20260928150000). Público de propósito: a
+    // contagem até o pátio é para o cliente. `=== true` e não `!!`: coluna
+    // ausente (migração por aplicar) e valor estranho ficam `false`.
+    em_preparacao: dbItem.em_preparacao === true,
+    previsao_chegada_em: dbItem.previsao_chegada_em ?? null,
     vendido: !!dbItem.vendido,
     // Quem manda nesta ficha (migração 20260829130000): `sync` é do
     // RevendaMais e é reescrito a cada ciclo; `painel` é nosso e o sync não

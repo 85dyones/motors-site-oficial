@@ -575,20 +575,41 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
   it("o checklist tem os DOIS degraus de foto, cada um na sua constante", () => {
     // Um degrau só esconderia metade da régua: ou o operador não saberia que o
     // carro JÁ pode ir ao ar, ou não saberia que ainda deve fotos.
-    const publica = "l: `${MINIMO_DE_FOTOS} fotos — libera a publicação`";
+    //
+    // Desde a Tarefa 6 (2026-09-28) o primeiro degrau bifurca: em preparação a
+    // régua desce para `MINIMO_DE_FOTOS_EM_PREPARACAO`, e é `minimoDeFotos` —
+    // não mais `MINIMO_DE_FOTOS` cru — quem decide `ok`/`estado`. A trava
+    // continua a mesma: nenhum dos dois números pode estar digitado à mão.
+    const publica = "? `${MINIMO_DE_FOTOS} fotos — libera a publicação`";
     const completa = "l: `${FOTOS_DA_FICHA_COMPLETA} fotos — ficha completa`";
     expect(editor).toContain(publica);
     expect(editor).toContain(completa);
     // E cada rótulo tem de estar no MESMO item que a sua condição: rótulo de um
     // degrau com o `ok` do outro passaria despercebido, e a tela acusaria a
     // faixa errada sem nunca quebrar.
+    // 300, não 250: a Tarefa 6 acrescentou o ramo "em preparação" dentro do
+    // próprio `l:` do primeiro degrau, e a janela precisa alcançar o `ok:`
+    // depois dele.
     const itemDe = (rotulo: string) =>
-      editor.slice(editor.indexOf(rotulo), editor.indexOf(rotulo) + 250);
-    expect(itemDe(publica)).toContain("ok: fotos.length >= MINIMO_DE_FOTOS");
+      editor.slice(editor.indexOf(rotulo), editor.indexOf(rotulo) + 300);
+    expect(itemDe(publica)).toContain("ok: fotos.length >= minimoDeFotos");
     expect(itemDe(completa)).toContain("ok: fotos.length >= FOTOS_DA_FICHA_COMPLETA");
     // O segundo diz, na própria linha, que não tira o carro do ar — sem isso
     // ele é lido como bloqueio e o operador segura a publicação por engano.
     expect(editor).toContain("Não segura o carro fora do ar.");
+  });
+
+  it("`minimoDeFotos` continua vindo das duas constantes, não de números soltos", () => {
+    // Achado da revisão da Tarefa 6 (2026-09-28): as duas asserções acima e a
+    // de "TRÊS estados" abaixo checam só o PONTO DE USO (`ok: fotos.length >=
+    // minimoDeFotos`, `mínimo de ${minimoDeFotos} para publicar`) — e
+    // continuariam verdes mesmo se a ATRIBUIÇÃO virasse
+    // `liberadoEmPreparacao(v) ? 1 : 4`, porque o comportamento observável é
+    // idêntico. "Número vem da constante, nunca digitado" é propriedade da
+    // FONTE, não do comportamento: precisa de uma âncora na atribuição.
+    expect(editor).toMatch(
+      /const\s+minimoDeFotos\s*=\s*liberadoEmPreparacao\(v\)\s*\?\s*MINIMO_DE_FOTOS_EM_PREPARACAO\s*:\s*MINIMO_DE_FOTOS\b/,
+    );
   });
 
   it("quantas faltam sai da mesma função que filtra a vitrine", () => {
@@ -631,9 +652,14 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     // Duas frases para três situações fariam o carro de cinco fotos ler
     // "mínimo para publicar" — dizendo que está fora do ar quem já está dentro.
     // A do meio é a que a decisão de 01/09 criou.
+    //
+    // Desde a Tarefa 6 (2026-09-28) a porta que fecha a régua é `minimoDeFotos`
+    // (a mesma conta de `bloqueiosDePublicacao`, que baixa para
+    // `MINIMO_DE_FOTOS_EM_PREPARACAO` no carro em preparação) — não mais
+    // `MINIMO_DE_FOTOS` cru.
     expect(editor).toContain('? "ficha completa"');
     expect(editor).toContain("no ar — faltam ${FOTOS_DA_FICHA_COMPLETA - fotos.length} para a ficha");
-    expect(editor).toContain("mínimo de ${MINIMO_DE_FOTOS} para publicar");
+    expect(editor).toContain("mínimo de ${minimoDeFotos} para publicar");
   });
 });
 
