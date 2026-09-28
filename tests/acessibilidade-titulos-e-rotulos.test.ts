@@ -108,11 +108,13 @@ describe("os títulos não pulam nível", () => {
 
   it("no simulador, \"SIMULADOR\" é sobretítulo, e o primeiro título é o h2", async () => {
     const { default: CalculadoraFinanciamento } = await import("../src/components/CalculadoraFinanciamento");
+    const { PARAMETROS_DE_FABRICA } = await import("../src/lib/finance-calculator");
     const html = renderToStaticMarkup(
       createElement(CalculadoraFinanciamento, {
         vehiclePrice: 58000,
         vehicleYear: 2022,
         vehicleName: "Renault Kwid",
+        parametros: PARAMETROS_DE_FABRICA,
         onSimulateClick: () => {},
       }),
     );
