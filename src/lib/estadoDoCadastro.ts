@@ -140,6 +140,8 @@ export function recusasParaPublicar(
     laudo_pericia?: string | null;
     whatsapp_images?: unknown;
     origem?: string | null;
+    em_preparacao?: unknown;
+    previsao_chegada_em?: unknown;
   }>,
 ): RecusaDePublicacao[] {
   const recusas: RecusaDePublicacao[] = [];

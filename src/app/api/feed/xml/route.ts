@@ -6,6 +6,7 @@ import { segmentoDoVeiculo } from '../../../../lib/veiculoUrl';
 import { concordar, generoDeModelo } from '../../../../lib/generoDoVeiculo';
 import { precoEfetivo, temPromocao } from '../../../../lib/precoPromocional';
 import { decidirNoFeed, getDatasDeVenda } from '../../../../lib/publicacao';
+import { entraNoFeedDeAnuncios } from '../../../../lib/coerenciaDoCadastro';
 import { registrarFalha } from '../../../../lib/observabilidade';
 import { faixaDoPreco } from '../../../../lib/faixasDePreco';
 import {
@@ -115,6 +116,12 @@ export async function GET(request: Request) {
     let itensEmitidos = 0;
 
     for (const car of vehicles) {
+      // Carro em preparação só entra com as quatro fotos de sempre — decisão
+      // do dono em 28/09, "só no site". Ver `entraNoFeedDeAnuncios`. Antes de
+      // `decidirNoFeed`: ele nunca esteve no catálogo, então não há item a
+      // manter como `out_of_stock`.
+      if (!entraNoFeedDeAnuncios(car)) continue;
+
       // O vendido não some da noite para o dia. Ver `decidirNoFeed`: para o
       // Meta, item que desaparece de uma carga para a outra foi DELETADO, e
       // isso quebra anúncio dinâmico ativo e público montado por `content_ids`.
