@@ -133,7 +133,7 @@ function lista(nome: "Ano mínimo" | "Ano máximo"): HTMLSelectElement {
   return select as HTMLSelectElement;
 }
 
-/** Os anos oferecidos, sem a opção vazia do começo ("Mais antigo" / "Mais novo"). */
+/** Os anos oferecidos, sem a opção vazia do começo ("Qualquer"). */
 function anosDaLista(select: HTMLSelectElement): string[] {
   return [...select.options].filter((o) => o.value !== "").map((o) => o.textContent ?? "");
 }
@@ -165,10 +165,17 @@ describe("o grupo ANO existe no painel, logo depois de MARCA", () => {
     expect(grupo.querySelectorAll("select")).toHaveLength(2);
   });
 
-  it("a opção vazia de cada lista diz o que ela significa", async () => {
+  it("cada lista diz de que lado é a ponta, e a opção vazia é \"Qualquer\"", async () => {
     await montar();
-    expect(lista("Ano mínimo").options[0].textContent).toBe("Mais antigo");
-    expect(lista("Ano máximo").options[0].textContent).toBe("Mais novo");
+    for (const [nome, ponta] of [
+      ["Ano mínimo", "DE"],
+      ["Ano máximo", "ATÉ"],
+    ] as const) {
+      const select = lista(nome);
+      expect(select.options[0].value).toBe("");
+      expect(select.options[0].textContent).toBe("Qualquer");
+      expect(select.closest("label")?.textContent?.startsWith(ponta)).toBe(true);
+    }
   });
 });
 

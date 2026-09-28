@@ -95,18 +95,17 @@ export default function FaixaComCaixas({
         />
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <CaixaDeValor
+          ponta="DE"
           nome={nomes.digiteMin}
           valor={faixa.min}
           exemplo={formatar(limites.min)}
           formatar={formatar}
           onConfirmar={(min) => mudar({ min, max: faixa.max })}
         />
-        <span aria-hidden="true" className="text-[11px] text-mt-neutral-600">
-          até
-        </span>
         <CaixaDeValor
+          ponta="ATÉ"
           nome={nomes.digiteMax}
           valor={faixa.max}
           exemplo={formatar(limites.max)}
@@ -115,6 +114,28 @@ export default function FaixaComCaixas({
         />
       </div>
     </fieldset>
+  );
+}
+
+/**
+ * O "DE" / "ATÉ" pequeno em cima de cada campo de uma faixa.
+ *
+ * Em cima, e não um "até" entre os dois campos: medido na prévia de 28/09, a
+ * coluna do painel tem 222px úteis no desktop, e com o conector no meio cada
+ * campo ficava com 93px — "R$ 320.000" e "Mais antigo" saíam cortados. Sem
+ * ele, são 107px. Escondido do leitor de tela, que já ouve o nome inteiro do
+ * campo ("Digite o preço mínimo").
+ *
+ * Exportado porque as listas de ANO, no `Catalogo`, usam o mesmo par.
+ */
+export function PontaDaFaixa({ children }: { children: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="mb-1 block text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600"
+    >
+      {children}
+    </span>
   );
 }
 
@@ -130,12 +151,14 @@ export default function FaixaComCaixas({
  * confirmado já formatado. Vazia, mostra a borda da régua como exemplo.
  */
 function CaixaDeValor({
+  ponta,
   nome,
   valor,
   exemplo,
   formatar,
   onConfirmar,
 }: {
+  ponta: "DE" | "ATÉ";
   nome: string;
   valor: number | null;
   exemplo: string;
@@ -151,7 +174,8 @@ function CaixaDeValor({
   };
 
   return (
-    <label className="min-w-0 flex-1">
+    <label className="min-w-0">
+      <PontaDaFaixa>{ponta}</PontaDaFaixa>
       <span className="sr-only">{nome}</span>
       <input
         type="text"

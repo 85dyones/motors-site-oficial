@@ -37,7 +37,7 @@ import {
   termosDaBusca,
 } from "../../lib/vitrine";
 import CampoDeOpcionais from "./CampoDeOpcionais";
-import FaixaComCaixas from "./FaixaComCaixas";
+import FaixaComCaixas, { PontaDaFaixa } from "./FaixaComCaixas";
 import { CardVeiculo, formatarKm, formatarPreco } from "./primitivos";
 
 /**
@@ -477,9 +477,9 @@ export default function Catalogo({
    * espaço e otimizar o menu". Eram 12 caixas empilhadas.
    *
    * Lista nativa, e não calendário: calendário escolhe dia, aqui se escolhe
-   * ano, e no celular a lista nativa abre a roleta do próprio aparelho. A
-   * opção vazia de cada ponta diz o que ela significa ("Mais antigo", "Mais
-   * novo") em vez de um "Todos" que não diz de que lado.
+   * ano, e no celular a lista nativa abre a roleta do próprio aparelho. O
+   * "DE" / "ATÉ" em cima de cada lista diz de que lado é a ponta, e a opção
+   * vazia é "Qualquer" — "Mais antigo" saía cortado nos 107px do campo.
    *
    * Sem régua, `ajustarFaixa` só troca as pontas invertidas.
    */
@@ -493,15 +493,16 @@ export default function Catalogo({
       <legend className="mb-3 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
         ANO
       </legend>
-      <div className="flex items-center gap-2">
-        <label className="min-w-0 flex-1">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="min-w-0">
+          <PontaDaFaixa>DE</PontaDaFaixa>
           <span className="sr-only">Ano mínimo</span>
           <select
             value={faixas.ano.min ?? ""}
             onChange={(e) => escolherAno("min", e.target.value)}
             className="mt-campo-caixa mt-foco cursor-pointer px-2 text-[13px] font-semibold"
           >
-            <option value="">Mais antigo</option>
+            <option value="">Qualquer</option>
             {anos.map((a) => (
               <option key={a.valor} value={a.valor}>
                 {a.valor} ({a.total})
@@ -509,17 +510,15 @@ export default function Catalogo({
             ))}
           </select>
         </label>
-        <span aria-hidden="true" className="text-[11px] text-mt-neutral-600">
-          até
-        </span>
-        <label className="min-w-0 flex-1">
+        <label className="min-w-0">
+          <PontaDaFaixa>ATÉ</PontaDaFaixa>
           <span className="sr-only">Ano máximo</span>
           <select
             value={faixas.ano.max ?? ""}
             onChange={(e) => escolherAno("max", e.target.value)}
             className="mt-campo-caixa mt-foco cursor-pointer px-2 text-[13px] font-semibold"
           >
-            <option value="">Mais novo</option>
+            <option value="">Qualquer</option>
             {anos.map((a) => (
               <option key={a.valor} value={a.valor}>
                 {a.valor} ({a.total})
