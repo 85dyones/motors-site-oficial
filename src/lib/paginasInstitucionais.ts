@@ -1,4 +1,5 @@
 import type { PerguntaFrequente, SecaoDeTexto } from "../components/modernist/PaginaDeEstoque";
+import { ANO_MAIS_ANTIGO_FINANCIADO } from "./finance-calculator";
 
 /**
  * O texto das páginas institucionais — `/financiamento` e `/garantia`.
@@ -53,45 +54,62 @@ export const TEXTO_DE_FINANCIAMENTO: string[] = [
     "proposta. Quem fecha a condição é o banco, com o seu CPF na frente.",
 ];
 
-export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = [
-  {
-    pergunta: "Dá para financiar sem entrada?",
-    resposta:
-      "Em muitos casos, sim, e o simulador tem essa opção. Financiamento sem entrada costuma ter " +
-      "parcela mais alta e análise mais exigente, então vale simular as duas formas antes de decidir.",
-  },
-  {
-    pergunta: "Posso usar meu carro como entrada?",
-    resposta:
-      "Pode. A avaliação é feita com base na Tabela FIPE e no giro do nosso estoque, e um " +
-      "consultor devolve a proposta pelo WhatsApp. O valor aprovado entra como entrada no " +
-      "financiamento do próximo carro.",
-  },
-  {
-    pergunta: "Em quantas vezes consigo parcelar?",
-    resposta:
-      "O simulador vai até 60 parcelas. O prazo efetivamente aprovado depende do banco, do " +
-      "perfil de crédito e do ano do veículo, e carro mais antigo costuma ter prazo menor.",
-  },
-  {
-    pergunta: "A taxa que aparece no simulador é a taxa final?",
-    resposta:
-      "Não. É uma estimativa, já com IOF, para você ter ordem de grandeza da parcela. A " +
-      "taxa final sai da análise de crédito de cada banco e pode ficar acima ou abaixo dela.",
-  },
-  {
-    pergunta: "Preciso ir à loja para simular?",
-    resposta:
-      "Não. A simulação é aqui e a pré-aprovação sai pelo WhatsApp. A visita fica para ver o " +
-      "carro, no showroom da Rua Ernesto Piazzetta, 98, no Bacacheri.",
-  },
-  {
-    pergunta: "Vocês financiam qualquer carro do estoque?",
-    resposta:
-      "Sim. O seletor do simulador mostra o que está disponível agora, e a lista muda com o giro " +
-      "do estoque. Se o carro que você quer não estiver ali, ele já foi vendido.",
-  },
-];
+/**
+ * O FAQ de `/financiamento`, com o ano mais antigo que os bancos parceiros
+ * financiam — decisão do dono de 28/09/2026, e dado da vigência de
+ * `parametros_financiamento`. A página e o assistente passam o ano da
+ * vigência; `PERGUNTAS_DE_FINANCIAMENTO`, abaixo, é o mesmo FAQ com o ano de
+ * fábrica.
+ *
+ * A última resposta dizia "Sim" a "financiam qualquer carro?", e que carro
+ * fora do seletor "já foi vendido". Com o seletor mostrando só os carros que
+ * os bancos financiam, as duas frases ficaram falsas no mesmo dia.
+ */
+export function perguntasDeFinanciamento(anoMaisAntigo: number): PerguntaFrequente[] {
+  return [
+    {
+      pergunta: "Dá para financiar sem entrada?",
+      resposta:
+        "Em muitos casos, sim, e o simulador tem essa opção. Financiamento sem entrada costuma ter " +
+        "parcela mais alta e análise mais exigente, então vale simular as duas formas antes de decidir.",
+    },
+    {
+      pergunta: "Posso usar meu carro como entrada?",
+      resposta:
+        "Pode. A avaliação é feita com base na Tabela FIPE e no giro do nosso estoque, e um " +
+        "consultor devolve a proposta pelo WhatsApp. O valor aprovado entra como entrada no " +
+        "financiamento do próximo carro.",
+    },
+    {
+      pergunta: "Em quantas vezes consigo parcelar?",
+      resposta:
+        "O simulador vai até 60 parcelas. O prazo efetivamente aprovado depende do banco, do " +
+        "perfil de crédito e do ano do veículo, e carro mais antigo costuma ter prazo menor.",
+    },
+    {
+      pergunta: "A taxa que aparece no simulador é a taxa final?",
+      resposta:
+        "Não. É uma estimativa, já com IOF, para você ter ordem de grandeza da parcela. A " +
+        "taxa final sai da análise de crédito de cada banco e pode ficar acima ou abaixo dela.",
+    },
+    {
+      pergunta: "Preciso ir à loja para simular?",
+      resposta:
+        "Não. A simulação é aqui e a pré-aprovação sai pelo WhatsApp. A visita fica para ver o " +
+        "carro, no showroom da Rua Ernesto Piazzetta, 98, no Bacacheri.",
+    },
+    {
+      pergunta: "Vocês financiam qualquer carro do estoque?",
+      resposta:
+        `Os bancos parceiros financiam carros de ${anoMaisAntigo} em diante, e o seletor do ` +
+        "simulador mostra só esses, entre os disponíveis agora. Para um carro mais antigo a ficha " +
+        "não traz estimativa de parcela, e um consultor mostra as outras formas de pagamento.",
+    },
+  ];
+}
+
+/** O FAQ com o ano de fábrica — para quem não tem a vigência à mão. */
+export const PERGUNTAS_DE_FINANCIAMENTO: PerguntaFrequente[] = perguntasDeFinanciamento(ANO_MAIS_ANTIGO_FINANCIADO);
 
 // ---------------------------------------------------------------------------
 // /garantia

@@ -22,6 +22,7 @@ import {
 } from "../lib/mensagensDoVeiculo";
 import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
 import { ACOES } from "../lib/turnstile";
+import type { ParametrosDoFinanciamento } from "../lib/finance-calculator";
 // O bloco de laudo pendente é componente próprio, e o porquê está escrito lá:
 // é o que deixa a trava RENDERIZAR o texto em vez de garimpá-lo na fonte.
 import BlocoLaudoPendente from "./BlocoLaudoPendente";
@@ -69,6 +70,11 @@ interface PDPClientWrapperProps {
    * endereço para apontar. Só a impressão o desenha.
    */
   qrDaFicha?: QrDaFicha | null;
+  /**
+   * As condições do simulador — a vigência de `parametros_financiamento`,
+   * lida no servidor. A calculadora não conhece taxa de cabeça.
+   */
+  parametrosDoFinanciamento: ParametrosDoFinanciamento;
 }
 
 function formatPrice(value: number): string {
@@ -102,6 +108,7 @@ export default function PDPClientWrapper({
   caminhoDaMarca,
   caminhoDoModelo,
   qrDaFicha = null,
+  parametrosDoFinanciamento,
 }: PDPClientWrapperProps) {
   const { companySettings, stockOverrides } = useTheme();
 
@@ -1516,9 +1523,13 @@ export default function PDPClientWrapper({
           vehiclePrice={veiculo.preco_promocional > 0 ? veiculo.preco_promocional : veiculo.preco_original}
           vehicleYear={parseInt(String(veiculo.ano).split('/')[0] || "2020", 10)}
           vehicleName={nomeComAno(veiculo)}
+          parametros={parametrosDoFinanciamento}
           onSimulateClick={(msg, simulacaoData) => {
             if (typeof window !== "undefined") {
-              setActiveChannel("Simulação de Financiamento");
+              // Sem simulação (carro que os bancos parceiros não financiam, e a
+              // calculadora oferece o consultor): o lead é pergunta sobre
+              // pagamento, não simulação — e o painel não deve ler outra coisa.
+              setActiveChannel(simulacaoData ? "Simulação de Financiamento" : "WhatsApp Dúvidas");
               setActiveMessage(`${msg}${sufixoRef()}`);
               setActiveSimulacao(simulacaoData ? { ...simulacaoData } : null);
               setIsLeadModalOpen(true);

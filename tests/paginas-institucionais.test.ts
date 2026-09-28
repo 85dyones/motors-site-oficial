@@ -154,8 +154,10 @@ describe("financiamento não promete o que depende do banco", () => {
     // dizer "o simulador abaixo" ali manda o cliente para o rodapé.
     const fonte = lerCodigo("src/app/financiamento/page.tsx");
 
-    expect(fonte).toMatch(/textoSemEstoque="[^"]*simulador acima/);
-    expect(fonte).not.toMatch(/textoSemEstoque="[^"]*simulador abaixo/);
+    // O texto é template desde 28/09/2026: ele cita o ano mais antigo que os
+    // bancos parceiros financiam, que vem da vigência do painel.
+    expect(fonte).toMatch(/textoSemEstoque=\{?[`"][^`"]*simulador acima/);
+    expect(fonte).not.toMatch(/textoSemEstoque=\{?[`"][^`"]*simulador abaixo/);
   });
 
   it("o bloco livre tem UM lugar por página, não dois", () => {

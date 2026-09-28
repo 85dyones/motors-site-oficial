@@ -387,6 +387,11 @@ export async function PATCH(request: NextRequest) {
     // (migração 20260924190000). O retrato `avaliacao` NÃO entra aqui: é o que
     // o cliente preencheu no site, e o painel não o reescreve. Valor ilegível
     // recusa em vez de apagar o que estava gravado — ver `lerValorDaAvaliacao`.
+    //
+    // Pela mesma razão, o `perfil` do Profiler (migração 20260925200000) não
+    // tem campo neste PATCH: é o que o cliente respondeu no site. Os campos
+    // desestruturados do corpo, lá em cima, são tudo o que esta rota grava —
+    // um `perfil` no corpo é ignorado.
     const valoresDaAvaliacao = { avaliacao_valor_ofertado, avaliacao_valor_pago };
     for (const [campo, bruto] of Object.entries(valoresDaAvaliacao)) {
       if (bruto === undefined) continue;

@@ -128,6 +128,12 @@ vi.mock("../src/lib/settings", () => ({
   getCachedSettings: async () => ({ companySettings: EMPRESA, procedencia: null }),
 }));
 
+// As condições do simulador vêm do banco pelo `unstable_cache`, que só existe
+// dentro do Next: aqui, os valores de fábrica (os mesmos do seed).
+vi.mock("../src/lib/parametrosDoFinanciamento-servidor", async () => ({
+  parametrosDoFinanciamento: async () => (await import("../src/lib/finance-calculator")).PARAMETROS_DE_FABRICA,
+}));
+
 vi.mock("../src/lib/hubsDeEstoque", async (original) => ({
   ...(await original<Record<string, unknown>>()),
   recortesDoEstoque: async () => ({ historico: [], disponiveis: [] }),

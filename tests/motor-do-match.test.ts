@@ -6,6 +6,7 @@ import { disponiveisDe } from "../src/lib/regrasEstoque";
 import { divergenciaDeCarroceria, publicavel } from "../src/lib/coerenciaDoCadastro";
 import {
   cilindradaDe,
+  combustivelDe,
   ehAutomatico,
   ehMoto,
   fichaVazia,
@@ -23,10 +24,17 @@ import {
   passaNosFiltros,
   recomendar,
   semFiltro,
+  criteriosDoPerfil,
+  quantosNaFaixa,
+  ITENS_QUE_NAO_PODEM_FALTAR,
   type Criterios,
   type Recomendacao,
+  type PerfilDoQuiz,
+  type Jeito,
+  type ItemQueNaoPodeFaltar,
 } from "../src/lib/motorDoMatch";
 import type { Veiculo } from "../src/types";
+import { PARAMETROS_DE_FABRICA } from "../src/lib/finance-calculator";
 
 /**
  * O motor do Garagem Profiler contra o estoque REAL de 25/09/2026.
@@ -375,5 +383,279 @@ describe("as cinco pessoas do painel, no estoque de 25/09", () => {
     expect(r.cartoes).toHaveLength(3);
     expect(new Set(r.cartoes.map((c) => modeloBase(c.veiculo))).size).toBe(3);
     expect(ids(r)).not.toContain("6170299");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fase 2 (25/09): as perguntas-fato
+// ---------------------------------------------------------------------------
+
+const JEITOS: Jeito[][] = [[], ["Hatch"], ["Sedan"], ["SUV"], ["Perua"], ["Hatch", "Sedan", "SUV"]];
+const CAMBIOS = ["so_automatico", "prefiro_automatico", "tanto_faz", "prefiro_manual"] as const;
+const ITENS: ItemQueNaoPodeFaltar[][] = [
+  [],
+  ...ITENS_QUE_NAO_PODEM_FALTAR.map((i) => [i.id]),
+  ["2020-ou-mais-novo", "camera"],
+  ["ate-80-mil-km", "seguranca", "turbo"],
+];
+
+interface RodadaDoPerfil {
+  chave: string;
+  perfil: PerfilDoQuiz;
+  criterios: Criterios;
+  r: Recomendacao;
+}
+
+const PERFIS: RodadaDoPerfil[] = FAIXAS.flatMap((f) =>
+  (["eu", "familia", "carga"] as const).flatMap((leva) =>
+    (leva === "carga" ? [[] as Jeito[]] : JEITOS).flatMap((jeitos) =>
+      CAMBIOS.flatMap((cambio) =>
+        ITENS.map((naoPodeFaltar) => {
+          const perfil: PerfilDoQuiz = { orcamento: { min: f.min, max: f.max }, leva, jeitos, cambio, naoPodeFaltar };
+          const criterios = criteriosDoPerfil(perfil);
+          return {
+            chave: `${f.titulo} · ${leva} · ${jeitos.join("/") || "tanto faz"} · ${cambio} · ${naoPodeFaltar.join("+") || "nada"}`,
+            perfil,
+            criterios,
+            r: recomendar(ESTOQUE, criterios),
+          };
+        }),
+      ),
+    ),
+  ),
+);
+
+describe("fase 2 · as respostas viram fatos", () => {
+  it("família corta em 4 portas; carga, na carroceria de carga; só automático corta", () => {
+    const base = { orcamento: { min: 0, max: null } };
+    expect(criteriosDoPerfil({ ...base, leva: "familia" }).portas4).toBe(true);
+    expect(criteriosDoPerfil({ ...base, leva: "carga" }).carrocerias).toEqual(CARROCERIAS_DE_CARGA);
+    expect(criteriosDoPerfil({ ...base, cambio: "so_automatico" }).automatico).toBe(true);
+    expect(criteriosDoPerfil({ ...base, cambio: "prefiro_automatico" }).automatico).toBe(false);
+  });
+
+  it("com carga, o jeito marcado não vale — a pergunta nem aparece", () => {
+    const c = criteriosDoPerfil({ orcamento: { min: 0, max: null }, leva: "carga", jeitos: ["Hatch"] });
+    expect(c.carrocerias).toEqual(CARROCERIAS_DE_CARGA);
+  });
+
+  it("ano, km e diesel cortam; item de ficha só ordena", () => {
+    const c = criteriosDoPerfil({
+      orcamento: { min: 0, max: null },
+      leva: "carga",
+      naoPodeFaltar: ["2020-ou-mais-novo", "ate-80-mil-km", "diesel"],
+    });
+    expect([c.anoMin, c.kmMax, c.diesel]).toEqual([2020, 80000, true]);
+    const d = criteriosDoPerfil({ orcamento: { min: 0, max: null }, naoPodeFaltar: ["camera", "seguranca"] });
+    expect(d.preferencias).toEqual(["camera", "seguranca"]);
+    expect([d.anoMin, d.kmMax, d.diesel]).toEqual([null, null, false]);
+  });
+
+  it("diesel sem carga não vale, e mais de três itens não passam", () => {
+    const c = criteriosDoPerfil({ orcamento: { min: 0, max: null }, leva: "eu", naoPodeFaltar: ["diesel"] });
+    expect(c.diesel).toBe(false);
+    const d = criteriosDoPerfil({
+      orcamento: { min: 0, max: null },
+      naoPodeFaltar: ["camera", "sensor", "turbo", "multimidia"],
+    });
+    expect(d.preferencias).toHaveLength(3);
+  });
+});
+
+describe(`fase 2 · em ${PERFIS.length} combinações das perguntas novas`, () => {
+  it("a contagem antes do toque é a mesma do resultado", () => {
+    // "Só automático (1)" na opção tem de dar 1 carro na tela.
+    const erros = PERFIS.filter(({ criterios, r }) => quantosNaFaixa(ESTOQUE, criterios) !== r.naFaixa).map((x) => x.chave);
+    expect(erros).toEqual([]);
+  });
+
+  it("nenhum cartão contradiz um filtro, nem o ano, o km ou o diesel", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of PERFIS) {
+      for (const { veiculo: v } of r.cartoes) {
+        if (!passaNosFiltros(v, c)) erros.push(`${chave}: ${v.modelo}`);
+        if (c.anoMin !== null && v.ano < c.anoMin) erros.push(`${chave}: ${v.modelo} é ${v.ano}`);
+        if (c.kmMax !== null && v.quilometragem > c.kmMax) erros.push(`${chave}: ${v.modelo} tem ${v.quilometragem} km`);
+        if (c.diesel && !/diesel/i.test(v.combustivel)) erros.push(`${chave}: ${v.modelo} não é diesel`);
+        if (ehMoto(v) || !elegivel(v)) erros.push(`${chave}: ${v.modelo} inelegível`);
+      }
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("\"Já pensou neste?\" cumpre as próprias regras", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of PERFIS) {
+      const k = r.coringa;
+      if (!k) continue;
+      const v = k.veiculo;
+      const primeiro = r.cartoes[0].veiculo;
+      if (!passaNosFiltros(v, c)) erros.push(`${chave}: coringa fura filtro ou teto`);
+      if (r.cartoes.some((x) => modeloBase(x.veiculo) === modeloBase(v))) erros.push(`${chave}: coringa repete modelo`);
+      if (k.vantagens.length < 2) erros.push(`${chave}: coringa com menos de 2 vantagens`);
+      // Revisão de 25/09: sem estas regras a carta virava "o mais barato que
+      // passa" (um Kwid contra um X4) e escondia o que perdia.
+      if (precoDoCarro(v) < precoDoCarro(primeiro) * 0.6) erros.push(`${chave}: coringa abaixo de 60% do 1º`);
+      if (k.vantagens.filter((x) => !/ a menos$/.test(x)).length < 2) {
+        erros.push(`${chave}: coringa que só ganha no preço`);
+      }
+      if (k.abaixoDaFaixa !== precoDoCarro(v) < c.piso) erros.push(`${chave}: abaixoDaFaixa errado`);
+      if (r.outros.includes(v)) erros.push(`${chave}: coringa repetido em "outros"`);
+      const muda = k.oQueMuda.join(" · ");
+      if (tracao4x4(primeiro) === "atende" && tracao4x4(v) !== "atende" && !muda.includes("4x4")) {
+        erros.push(`${chave}: perde o 4x4 e não diz`);
+      }
+      if (motorTurbo(primeiro) === "atende" && motorTurbo(v) !== "atende" && !muda.includes("turbo")) {
+        erros.push(`${chave}: perde o turbo e não diz`);
+      }
+      if ((v.portas ?? 0) > 0 && (v.portas ?? 0) < (primeiro.portas ?? 0) && !muda.includes("portas")) {
+        erros.push(`${chave}: tem menos portas e não diz`);
+      }
+      if (combustivelDe(primeiro).includes("diesel") && !combustivelDe(v).includes("diesel") && !muda.includes("diesel")) {
+        erros.push(`${chave}: perde o diesel e não diz`);
+      }
+      for (const p of c.preferencias) {
+        if (PREFERENCIAS[p].avaliar(primeiro) === "atende" && PREFERENCIAS[p].avaliar(v) !== "atende") {
+          erros.push(`${chave}: coringa não atende ${p}, que o 1º atende`);
+        }
+      }
+    }
+    expect(erros).toEqual([]);
+    // E a carta aparece em algum lugar — uma regra que nunca dispara não protege nada.
+    expect(PERFIS.filter((x) => x.r.coringa).length).toBeGreaterThan(0);
+  });
+
+  it("o \"e se\" dos filtros novos entrega o que promete", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of PERFIS) {
+      for (const s of r.eSe.filter((x) => ["ano", "km", "diesel"].includes(x.filtro))) {
+        const depois = recomendar(ESTOQUE, semFiltro(c, s.filtro));
+        if (depois.naFaixa - r.naFaixa !== s.entram) erros.push(`${chave}: ${s.filtro}`);
+      }
+    }
+    expect(erros).toEqual([]);
+  });
+});
+
+describe("fase 2 · o entusiasta acha a Tiguan", () => {
+  it("Diego, R$ 91–130 mil, turbo: \"Já pensou neste?\" é a Tiguan 2.0 TSI 4Motion", () => {
+    const r = recomendar(
+      ESTOQUE,
+      criteriosDoPerfil({
+        orcamento: { min: 91000, max: 130000 },
+        leva: "eu",
+        jeitos: ["Hatch", "Sedan", "SUV"],
+        cambio: "prefiro_automatico",
+        naoPodeFaltar: ["turbo"],
+      }),
+    );
+    expect(r.coringa?.veiculo.id).toBe("8475062");
+    expect(r.coringa?.vantagens.join(" ")).toMatch(/a menos/);
+    expect(r.coringa?.oQueMuda.join(" ")).toMatch(/2014/);
+  });
+});
+
+describe("fase 2 · POR MÊS: a faixa é a parcela", () => {
+  // A mesma conta do simulador da ficha (`calculateFinancing`), sobre o pátio
+  // de 25/09. A pessoa diz a parcela, a entrada que ela estima e o prazo.
+  // Entrada de R$ 150 mil zera a parcela de muita coisa — é onde moravam o
+  // "48× R$ 0" e o desempate errado do complemento (revisão de 27/09). E as
+  // cinco ocupações, porque cada uma muda a taxa.
+  const PEDIDOS = [800, 1200, 1500, 2500, 5000].flatMap((max) =>
+    [0, 20000, 40000, 150000].flatMap((entrada) =>
+      [24, 48, 60].flatMap((prazo) =>
+        (["clt", "publico", "autonomo"] as const).flatMap((ocupacao) =>
+          ([null, "familia", "carga"] as const).map((leva) => ({ max, entrada, prazo, ocupacao, leva })),
+        ),
+      ),
+    ),
+  );
+  const RODADAS_POR_MES = PEDIDOS.map((p) => {
+    const criterios = criteriosDoPerfil({
+      orcamento: { min: 0, max: null },
+      leva: p.leva,
+      parcela: { max: p.max, entrada: p.entrada, prazo: p.prazo, ocupacao: p.ocupacao, parametros: PARAMETROS_DE_FABRICA },
+    });
+    return {
+      chave: `${p.max}/mês · ${p.entrada} · ${p.prazo}× · ${p.ocupacao} · ${p.leva ?? "-"}`,
+      criterios,
+      r: recomendar(ESTOQUE, criterios),
+    };
+  });
+
+  it("nenhum cartão da faixa passa da parcela; o abaixo da faixa diz quanto sobra", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of RODADAS_POR_MES) {
+      for (const cartao of r.cartoes) {
+        const p = cartao.parcela;
+        if (!p) {
+          erros.push(`${chave}: cartão sem parcela`);
+          continue;
+        }
+        if (p.valor > c.parcela!.max + 0.005) erros.push(`${chave}: ${cartao.veiculo.id} passa da parcela`);
+        const abaixo = p.valor < c.parcela!.min;
+        if (abaixo !== (cartao.lugar === "abaixo-da-faixa")) erros.push(`${chave}: ${cartao.veiculo.id} fora do lugar`);
+        if (abaixo && !/SOBRAM R\$ [\d.]+ POR MÊS/.test(cartao.rotuloDoLugar)) erros.push(`${chave}: rótulo sem a sobra`);
+        // A regra de crédito: parcela com CET e total, e o CET acima dos juros.
+        const jurosAoAno = (Math.pow(1 + p.taxaMes / 100, 12) - 1) * 100;
+        if (p.valor > 0 && !(p.cetAno > jurosAoAno)) erros.push(`${chave}: CET abaixo dos juros`);
+        // O preço à vista que vai ao lado do total a prazo é o do carro.
+        if (p.aVista !== precoDoCarro(cartao.veiculo)) erros.push(`${chave}: à vista errado`);
+        if (p.entrada > p.aVista) erros.push(`${chave}: entrada maior que o carro`);
+      }
+      if (r.coringa?.parcela && r.coringa.parcela.valor > c.parcela!.max + 0.005) erros.push(`${chave}: coringa passa da parcela`);
+      // O complemento abaixo da faixa vem do mais perto para o mais longe:
+      // parcela maior primeiro e, no empate (duas em zero), o preço maior.
+      const abaixo = r.cartoes.filter((x) => x.lugar === "abaixo-da-faixa");
+      for (let i = 1; i < abaixo.length; i++) {
+        const [a, b] = [abaixo[i - 1], abaixo[i]];
+        const pa = a.parcela!.valor;
+        const pb = b.parcela!.valor;
+        if (pa < pb - 0.005 || (Math.abs(pa - pb) < 0.005 && precoDoCarro(a.veiculo) < precoDoCarro(b.veiculo))) {
+          erros.push(`${chave}: complemento fora de ordem`);
+        }
+      }
+      // O preço não é filtro no POR MÊS: nada de teto de preço escondido.
+      if (c.teto !== null || c.piso !== 0) erros.push(`${chave}: POR MÊS com faixa de preço`);
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("o \"e se\" nunca afrouxa a parcela", () => {
+    const erros: string[] = [];
+    for (const { chave, criterios: c, r } of RODADAS_POR_MES) {
+      for (const s of r.eSe) {
+        const depois = recomendar(ESTOQUE, semFiltro(c, s.filtro));
+        for (const cartao of depois.cartoes) {
+          if (cartao.parcela!.valor > c.parcela!.max + 0.005) erros.push(`${chave}: ${s.filtro} furou a parcela`);
+        }
+        if (depois.naFaixa - r.naFaixa !== s.entram) erros.push(`${chave}: ${s.filtro} promete ${s.entram}`);
+      }
+    }
+    expect(erros).toEqual([]);
+  });
+
+  it("a contagem antes do toque é a do resultado", () => {
+    for (const { chave, criterios: c, r } of RODADAS_POR_MES) {
+      expect(quantosNaFaixa(ESTOQUE, c), chave).toBe(r.naFaixa);
+    }
+  });
+
+  it("Carla: R$ 1.500 por mês, R$ 20 mil de entrada, família — o caso da spec", () => {
+    const r = recomendar(
+      ESTOQUE,
+      criteriosDoPerfil({
+        orcamento: { min: 0, max: null },
+        leva: "familia",
+        parcela: { max: 1500, entrada: 20000, prazo: 48, ocupacao: "clt", parametros: PARAMETROS_DE_FABRICA },
+      }),
+    );
+    expect(r.filtros[0]).toBe("parcela até R$ 1.500/mês em 48×, com R$ 20 mil de entrada");
+    // Kwid 2025 e 208 2023, os dois a R$ 58.900: a mesma parcela.
+    const [kwid, p208] = r.cartoes;
+    expect(kwid.veiculo.modelo).toMatch(/Kwid/);
+    expect(p208.veiculo.modelo).toMatch(/208/);
+    expect(Math.round(kwid.parcela!.valor)).toBe(Math.round(p208.parcela!.valor));
+    expect(r.parcelaPedida?.max).toBe(1500);
   });
 });

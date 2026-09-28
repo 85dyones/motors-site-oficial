@@ -68,6 +68,11 @@ describe("as rotas que emitem o grafo não caem", () => {
     getCachedSettings: async () => ({ companySettings: null }),
   }));
   vi.mock("../src/lib/supabase", () => ({ getEstoque: async () => [] }));
+  // As condições do simulador vêm do banco pelo `unstable_cache`, que só
+  // existe dentro do Next: aqui, os valores de fábrica.
+  vi.mock("../src/lib/parametrosDoFinanciamento-servidor", async () => ({
+    parametrosDoFinanciamento: async () => (await import("../src/lib/finance-calculator")).PARAMETROS_DE_FABRICA,
+  }));
   vi.mock("../src/components/CarMatch", () => ({ default: () => null }));
   vi.mock("../src/components/SobreClientWrapper", () => ({ default: () => null }));
   vi.mock("../src/lib/telemetry", () => ({ trackContactClick: () => {} }));
