@@ -96,11 +96,29 @@ describe("a ficha usa o relógio", () => {
     // A ficha inteira não monta em teste (1.584 linhas, galeria, fetch); a
     // fiação é conferida na fonte e o comportamento, no componente acima.
     //
-    // `{}`, não `{/* Preço */}`: o comentário JSX que marca o preço é o que
-    // `lerCodigo` esvazia (ver `tests/fonte.ts` e o mesmo idioma em
-    // `vitrine.test.ts`, "o alvo nasce montado…") — a chave sobrevive VAZIA,
-    // o texto de dentro não.
+    // A âncora É o ternário do preço (`hasDiscount ? "PREÇO PROMOCIONAL" :
+    // "À VISTA"`), não o comentário `{/* Preço */}`: comentário é o que
+    // `lerCodigo` esvazia para `{}` (ver `tests/fonte.ts`), e `{}` sozinho
+    // só prova "veio antes de ALGUM comentário JSX qualquer" — passaria
+    // igual se o relógio fosse posto antes de outro bloco comentado do
+    // arquivo, e quebraria por motivo incidental se alguém só reescrevesse
+    // o texto do comentário do preço. O ternário é string literal dentro de
+    // JSX: `lerCodigo` não mexe em string, então ele sobrevive por inteiro e
+    // é o preço de verdade, não um marcador.
+    //
+    // A janela de proximidade (140 caracteres) é medida na fonte já
+    // esvaziada: a distância real entre o fim da tag e o começo do ternário
+    // é 136 — o comentário `{/* Preço */}` virou `{}` no meio do caminho —,
+    // e a folga de +4 cobre variação de quebra de linha (CRLF) sem abrir
+    // espaço para outro bloco de preço do arquivo (há mais de um "À VISTA"
+    // fora da ficha; a janela curta é o que mantém a asserção posicional).
     const fonte = lerCodigo("src/components/PDPClientWrapper.tsx");
-    expect(fonte).toMatch(/<RelogioDaChegada veiculo=\{veiculo\} \/>\s*\{\}/);
+    expect(fonte).toMatch(
+      /<RelogioDaChegada veiculo=\{veiculo\} \/>[\s\S]{0,140}hasDiscount \? "PREÇO PROMOCIONAL" : "À VISTA"/,
+    );
+    // `renderSidebar` é uma função só, chamada duas vezes (celular e
+    // desktop) — o relógio precisa estar escrito UMA vez na fonte, não uma
+    // por coluna, ou a segunda cópia é sinal de renderSidebar duplicada.
+    expect(fonte.match(/<RelogioDaChegada\b/g)).toHaveLength(1);
   });
 });
