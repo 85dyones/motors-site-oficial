@@ -1064,6 +1064,15 @@ export default function TabelaDeEstoque({
                           {l.destacado && <span className="text-mt-accent">· na home</span>}
                           {l.naSemana && <span className="text-mt-accent">· na semana</span>}
                           {l.naTv && <span className="text-mt-accent">· na TV</span>}
+                          {l.emPreparacao && <span className="text-mt-accent">· em preparação</span>}
+                          {typeof l.previsaoVencidaHaDias === "number" && (
+                            <span className="font-semibold text-mt-accent-800">
+                              · previsão vencida{" "}
+                              {l.previsaoVencidaHaDias === 0
+                                ? "hoje"
+                                : `há ${l.previsaoVencidaHaDias} ${l.previsaoVencidaHaDias === 1 ? "dia" : "dias"}`}
+                            </span>
+                          )}
                           {l.quickTags.length > 0 && <span>· {l.quickTags.length} destaque(s)</span>}
                         </div>
                       </div>

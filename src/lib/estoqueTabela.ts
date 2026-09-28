@@ -119,6 +119,17 @@ export interface LinhaDeEstoque {
    * era a fusão de duas delas que fazia o painel e o site discordarem.
    */
   naTv: boolean;
+  /**
+   * Caixa "em preparação" marcada (migração 20260928150000). Opcional porque a
+   * curadoria de destaques monta a mesma linha e não precisa dele.
+   */
+  emPreparacao?: boolean;
+  /**
+   * Há quantos dias a previsão de chegada ao pátio passou; `null` quando não
+   * passou. AVISO, nunca etiqueta — como `diasForaDoFeed`: o carro segue no
+   * ar, por decisão do dono em 28/09/2026.
+   */
+  previsaoVencidaHaDias?: number | null;
   /** `null` = GA4 sem credencial de leitura. Nunca 0 por engano. */
   visitas: number | null;
   leads: number;
