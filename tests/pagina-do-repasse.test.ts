@@ -266,7 +266,7 @@ describe("as portas de entrada, como a prancha Portas escreve (PR 4)", () => {
     expect(pagina.PORTAS_DO_REPASSE.rotulo).toBe("REPASSE MOTORS");
     expect(pagina.PORTAS_DO_REPASSE.estoque.titulo).toBe("Paga à vista? Tem carro abaixo da FIPE no repasse.");
     expect(`${pagina.PORTAS_DO_REPASSE.estoque.texto} ${pagina.abertosHoje(6)}`).toBe(
-      "Sem a garantia da loja. Cada carro diz se tem laudo e mostra a conta, com o reparo orçado quando há. Hoje são 6 carros abertos.",
+      "Carros funcionando, vendidos no estado: sem os reparos feitos e sem a garantia da loja. Você confere no pátio antes de fechar. Hoje são 6 carros abertos.",
     );
     expect(pagina.PORTAS_DO_REPASSE.estoque.botao).toBe("VER O REPASSE");
   });
@@ -278,7 +278,7 @@ describe("as portas de entrada, como a prancha Portas escreve (PR 4)", () => {
   it("a faixa da home, com o CTA e a linha do card que já existiam", () => {
     expect(pagina.PORTAS_DO_REPASSE.home.titulo).toBe("Repasse às claras");
     expect(pagina.PORTAS_DO_REPASSE.home.texto).toBe(
-      "Carros no estado e abaixo da FIPE. Cada um diz se tem laudo e traz a conta e a ficha de estado. Só à vista.",
+      "Carros funcionando, vendidos no estado: sem os reparos feitos e sem a garantia da loja, por isso abaixo da FIPE. Você confere no pátio antes de fechar. Só à vista.",
     );
     expect(pagina.verOsCarros(6)).toBe("VER OS 6 CARROS");
     expect(pagina.abaixoDaFipeNaBarra("R$ 3.180")).toBe("R$ 3.180 abaixo da FIPE");

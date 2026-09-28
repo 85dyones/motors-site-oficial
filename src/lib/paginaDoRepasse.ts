@@ -727,12 +727,17 @@ export const PORTAS_DO_REPASSE = {
   rotulo: "REPASSE MOTORS",
   estoque: {
     titulo: "Paga à vista? Tem carro abaixo da FIPE no repasse.",
-    texto: "Sem a garantia da loja. Cada carro diz se tem laudo e mostra a conta, com o reparo orçado quando há.",
+    // Item 10 da tabela de textos aprovados (28/09): `abertosHoje` continua
+    // emendado depois deste texto, no componente.
+    texto:
+      "Carros funcionando, vendidos no estado: sem os reparos feitos e sem a garantia da loja. Você confere no pátio antes de fechar.",
     botao: "VER O REPASSE",
   },
   home: {
     titulo: "Repasse às claras",
-    texto: "Carros no estado e abaixo da FIPE. Cada um diz se tem laudo e traz a conta e a ficha de estado. Só à vista.",
+    // Item 11 da tabela de textos aprovados (28/09).
+    texto:
+      "Carros funcionando, vendidos no estado: sem os reparos feitos e sem a garantia da loja, por isso abaixo da FIPE. Você confere no pátio antes de fechar. Só à vista.",
   },
 } as const;
 
