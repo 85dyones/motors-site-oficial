@@ -599,6 +599,19 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     expect(editor).toContain("Não segura o carro fora do ar.");
   });
 
+  it("`minimoDeFotos` continua vindo das duas constantes, não de números soltos", () => {
+    // Achado da revisão da Tarefa 6 (2026-09-28): as duas asserções acima e a
+    // de "TRÊS estados" abaixo checam só o PONTO DE USO (`ok: fotos.length >=
+    // minimoDeFotos`, `mínimo de ${minimoDeFotos} para publicar`) — e
+    // continuariam verdes mesmo se a ATRIBUIÇÃO virasse
+    // `liberadoEmPreparacao(v) ? 1 : 4`, porque o comportamento observável é
+    // idêntico. "Número vem da constante, nunca digitado" é propriedade da
+    // FONTE, não do comportamento: precisa de uma âncora na atribuição.
+    expect(editor).toMatch(
+      /const\s+minimoDeFotos\s*=\s*liberadoEmPreparacao\(v\)\s*\?\s*MINIMO_DE_FOTOS_EM_PREPARACAO\s*:\s*MINIMO_DE_FOTOS\b/,
+    );
+  });
+
   it("quantas faltam sai da mesma função que filtra a vitrine", () => {
     // Uma foto a menos que a régua — o motivo tem de dizer exatamente isso.
     const abaixoDaPorta = Array.from({ length: MINIMO_DE_FOTOS - 1 }, (_, i) => url(i, "zap"));
