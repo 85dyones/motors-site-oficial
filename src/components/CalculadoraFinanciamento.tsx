@@ -155,7 +155,10 @@ Consegue verificar se aprova nessas condições?`;
     <div className="flex flex-col gap-8 border-t-2 border-mt-regua bg-mt-surface px-5 py-8 md:px-10 md:py-12 lg:flex-row lg:gap-14">
       {/* Título + aviso legal */}
       <div className="lg:w-[320px] lg:flex-none">
-        <h3 className="mt-rotulo mt-rotulo-accent m-0">SIMULADOR</h3>
+        {/* Sobretítulo, não título: o título é o `h2` logo abaixo. Como `h3`
+            antes do `h2`, pulava nível na navegação por títulos (auditoria
+            axe, 2026-09-25) — e no resto do site `mt-rotulo` é `div`/`span`. */}
+        <div className="mt-rotulo mt-rotulo-accent m-0">SIMULADOR</div>
         <h2 className="mt-titulo m-0 mt-3 text-[28px] text-mt-ink lg:text-[32px]">
           Monte sua parcela
         </h2>
