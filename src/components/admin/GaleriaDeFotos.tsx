@@ -14,6 +14,7 @@ import {
   type FotoDoVeiculo,
 } from "../../lib/fotosDoVeiculo";
 import { FOTOS_DA_FICHA_COMPLETA, MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
+import type { DestinoDasFotos } from "../../lib/destinoDasFotos";
 
 /**
  * A galeria de fotos do editor A15 — aba "Fotos e mídia".
@@ -69,12 +70,27 @@ type Estado =
   | { tipo: "importando" }
   | { tipo: "erro"; mensagem: string };
 
+/**
+ * O destino padrão: o estoque. Mora aqui porque é a galeria que o conhece
+ * (e `tests/fotos-do-veiculo` lê este arquivo atrás do endpoint do estoque).
+ */
+function destinoDoEstoque(estoqueId: number | string): DestinoDasFotos {
+  return {
+    caminho: (lote, variante) => caminhoDaFoto(estoqueId, lote, variante),
+    gravarEm: `/api/estoque/${estoqueId}`,
+    avisoSemEdicao:
+      "Seu perfil vê as fotos e não as altera. Adicionar e reordenar foto é de Marketing, Comercial e Admin (matriz A17).",
+    reguaDoEstoque: true,
+  };
+}
+
 export default function GaleriaDeFotos({
   estoqueId,
   fotos,
   origem,
   podeEditar,
   aoGravar,
+  destino,
 }: {
   estoqueId: number | string;
   fotos: FotoDoVeiculo[];
@@ -108,10 +124,16 @@ export default function GaleriaDeFotos({
    * alteração que já está no banco.
    */
   aoGravar: (colunas: ReturnType<typeof colunasDasFotos>) => void;
+  /**
+   * Para onde vão os arquivos e a gravação. Sem ele, o estoque. O repasse
+   * passa `destinoDoRepasse(id)` (src/lib/destinoDasFotos.ts).
+   */
+  destino?: DestinoDasFotos;
 }) {
   const [estado, setEstado] = useState<Estado>({ tipo: "parado" });
   const [gravadoEm, setGravadoEm] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
+  const alvo = destino ?? destinoDoEstoque(estoqueId);
 
   // Só para o botão de importar — nunca para decidir se a galeria edita.
   const doPainel = origem === "painel";
@@ -133,7 +155,7 @@ export default function GaleriaDeFotos({
       setEstado({ tipo: "gravando" });
       const colunas = colunasDasFotos(novas);
       try {
-        const res = await fetch(`/api/estoque/${estoqueId}`, {
+        const res = await fetch(alvo.gravarEm, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(colunas),
@@ -166,7 +188,7 @@ export default function GaleriaDeFotos({
         });
       }
     },
-    [estoqueId, aoGravar],
+    [alvo.gravarEm, aoGravar],
   );
 
   /**
@@ -244,8 +266,8 @@ export default function GaleriaDeFotos({
 
         setEstado({ tipo: "enviando", feito: i, total: lista.length, etapa: "Enviando" });
         const caminhos = {
-          web: caminhoDaFoto(estoqueId, lote, "web"),
-          zap: caminhoDaFoto(estoqueId, lote, "zap"),
+          web: alvo.caminho(lote, "web"),
+          zap: alvo.caminho(lote, "zap"),
         };
 
         for (const variante of ["zap", "web"] as const) {
@@ -332,37 +354,39 @@ export default function GaleriaDeFotos({
           `MINIMO_DE_FOTOS` porque a pergunta que ela existe para responder é
           "posso publicar?"; a meta das oito continua visível logo abaixo, como
           o que é — material que falta, não permissão. */}
-      <div
-        className={`mb-4 border-l-[3px] px-3 py-2.5 text-[11px] leading-snug ${
-          faltam > 0
-            ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800"
-            : "border-mt-ink bg-mt-surface text-mt-neutral-800"
-        }`}
-      >
-        {faltam > 0 ? (
-          <>
-            <strong className="tabular-nums">
-              Faltam {faltam} de {MINIMO_DE_FOTOS}
-            </strong>{" "}
-            para este veículo aparecer na vitrine, no feed de anúncios e na busca.
-          </>
-        ) : fotos.length < FOTOS_DA_FICHA_COMPLETA ? (
-          <>
-            <strong className="tabular-nums">
-              No ar com {fotos.length} fotos.
-            </strong>{" "}
-            Faltam {FOTOS_DA_FICHA_COMPLETA - fotos.length} para a ficha completa — pendência
-            que <strong>não</strong> tira o carro do ar.
-          </>
-        ) : (
-          <>
-            <strong className="tabular-nums">
-              {fotos.length} fotos — ficha completa.
-            </strong>{" "}
-            No ar, com o material que o anúncio pede.
-          </>
-        )}
-      </div>
+      {alvo.reguaDoEstoque && (
+        <div
+          className={`mb-4 border-l-[3px] px-3 py-2.5 text-[11px] leading-snug ${
+            faltam > 0
+              ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800"
+              : "border-mt-ink bg-mt-surface text-mt-neutral-800"
+          }`}
+        >
+          {faltam > 0 ? (
+            <>
+              <strong className="tabular-nums">
+                Faltam {faltam} de {MINIMO_DE_FOTOS}
+              </strong>{" "}
+              para este veículo aparecer na vitrine, no feed de anúncios e na busca.
+            </>
+          ) : fotos.length < FOTOS_DA_FICHA_COMPLETA ? (
+            <>
+              <strong className="tabular-nums">
+                No ar com {fotos.length} fotos.
+              </strong>{" "}
+              Faltam {FOTOS_DA_FICHA_COMPLETA - fotos.length} para a ficha completa — pendência
+              que <strong>não</strong> tira o carro do ar.
+            </>
+          ) : (
+            <>
+              <strong className="tabular-nums">
+                {fotos.length} fotos — ficha completa.
+              </strong>{" "}
+              No ar, com o material que o anúncio pede.
+            </>
+          )}
+        </div>
+      )}
 
       {podeEditar && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -563,10 +587,7 @@ export default function GaleriaDeFotos({
       )}
       {!podeEditar && (
         <div className="mt-4 border-l-[3px] border-mt-accent bg-mt-surface px-4 py-3.5">
-          <p className="text-xs leading-relaxed text-mt-neutral-800">
-            Seu perfil vê as fotos e não as altera. Adicionar e reordenar foto é de
-            Marketing, Comercial e Admin (matriz A17).
-          </p>
+          <p className="text-xs leading-relaxed text-mt-neutral-800">{alvo.avisoSemEdicao}</p>
         </div>
       )}
     </>

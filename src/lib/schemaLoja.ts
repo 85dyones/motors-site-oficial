@@ -1,4 +1,5 @@
 import type { CompanySettings, Veiculo } from "../types";
+import { especificacaoDoHorario } from "./horarioDaLoja";
 import { precoVigente } from "./regrasEstoque";
 import { SITE_URL } from "./site";
 
@@ -274,21 +275,9 @@ export function schemaDaLoja(empresa: CompanySettings, opcoes: OpcoesDoSchemaDaL
       PERFIL_NO_GOOGLE,
       ...PERFIS_EM_PORTAIS,
     ].filter(Boolean),
-    // Horário real da loja: Seg-Sex 08h30-18h30, Sáb 08h30-15h.
-    openingHoursSpecification: [
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-        opens: "08:30",
-        closes: "18:30",
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Saturday"],
-        opens: "08:30",
-        closes: "15:00",
-      },
-    ],
+    // Horário real da loja. A fonte é `HORARIO_DA_LOJA` (`horarioDaLoja.ts`)
+    // desde 25/09, a mesma que calcula os dias do exame no pátio do repasse.
+    openingHoursSpecification: especificacaoDoHorario(),
   };
 }
 

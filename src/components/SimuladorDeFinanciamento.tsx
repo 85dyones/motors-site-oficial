@@ -8,10 +8,14 @@ import { linkWhatsApp } from "../lib/whatsapp";
 import { sufixoRef, trackContactClick } from "../lib/telemetry";
 import { precoVigente } from "../lib/regrasEstoque";
 import { modeloEVersaoParaExibir } from "../lib/estoqueTabela";
+import { financiavel, type ParametrosDoFinanciamento } from "../lib/finance-calculator";
 
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), {
   ssr: false,
 });
+
+/** O ano que a calculadora usa: o primeiro de "2019/2020", como na ficha. */
+const anoDoCarro = (v: Veiculo) => parseInt(String(v.ano).split("/")[0] || "2020", 10);
 
 /**
  * O simulador da página `/financiamento`, fora da ficha de um veículo.
@@ -31,14 +35,26 @@ const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciament
  *
  * `financing_simulation` já é disparado dentro da calculadora.
  */
-export default function SimuladorDeFinanciamento({ veiculos }: { veiculos: Veiculo[] }) {
+export default function SimuladorDeFinanciamento({
+  veiculos,
+  parametros,
+}: {
+  veiculos: Veiculo[];
+  /** A vigência de `parametros_financiamento`, lida no servidor pela página. */
+  parametros: ParametrosDoFinanciamento;
+}) {
   const { companySettings } = useTheme();
 
   // Ordenados por preço para o seletor ficar legível; o padrão é a mediana do
-  // estoque, que é onde a conversa de parcela costuma começar de verdade.
+  // estoque, que é onde a conversa de parcela costuma começar de verdade. Só
+  // entra o que os bancos parceiros financiam (dono, 28/09/2026): num
+  // simulador de parcela, carro sem estimativa seria uma opção que não simula.
   const opcoes = useMemo(
-    () => [...veiculos].sort((a, b) => precoVigente(a) - precoVigente(b)),
-    [veiculos],
+    () =>
+      veiculos
+        .filter((v) => financiavel(anoDoCarro(v), parametros))
+        .sort((a, b) => precoVigente(a) - precoVigente(b)),
+    [veiculos, parametros],
   );
   const [idSelecionado, setIdSelecionado] = useState(
     () => opcoes[Math.floor(opcoes.length / 2)]?.id ?? "",
@@ -82,16 +98,17 @@ export default function SimuladorDeFinanciamento({ veiculos }: { veiculos: Veicu
           ))}
         </select>
         <p className="m-0 mt-2 max-w-[520px] text-[12px] leading-relaxed text-mt-neutral-600">
-          Trocar o veículo recalcula a parcela na hora. Qualquer carro do estoque pode ser
-          financiado — a lista mostra o que está disponível agora.
+          Trocar o veículo recalcula a parcela na hora. A lista mostra os carros disponíveis
+          agora que os bancos parceiros financiam: de {parametros.anoMaisAntigo} em diante.
         </p>
       </div>
 
       <CalculadoraFinanciamento
         vehicleId={veiculo.id}
         vehiclePrice={precoVigente(veiculo)}
-        vehicleYear={parseInt(String(veiculo.ano).split("/")[0] || "2020", 10)}
+        vehicleYear={anoDoCarro(veiculo)}
         vehicleName={nome}
+        parametros={parametros}
         onSimulateClick={enviarAoConsultor}
       />
     </section>

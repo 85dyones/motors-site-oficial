@@ -64,6 +64,7 @@ describe("o rodapé entrega links, não parágrafos", () => {
         "/avaliacao",
         "/financiamento",
         "/garantia",
+        "/repasse",
         "/privacidade",
       ]) {
         expect(hrefs).toContain(destino);
@@ -92,13 +93,14 @@ describe("o rodapé entrega links, não parágrafos", () => {
     expect(hrefs).toContain("https://wa.me/5541997372165");
   });
 
-  it("são doze âncoras, e nenhuma se perdeu no caminho", async () => {
-    // OITO institucionais + telefone + WhatsApp + endereço + Instagram. O
+  it("são treze âncoras, e nenhuma se perdeu no caminho", async () => {
+    // NOVE institucionais + telefone + WhatsApp + endereço + Instagram. O
     // número exato é a trava: um item que deixa de virar link some daqui.
     //
-    // Eram seis institucionais até 2026-09-05: `/contato` entrou naquele dia, e
-    // `/guias` logo depois, com o primeiro guia dos Guias Motors.
-    expect(await ancoras()).toHaveLength(12);
+    // Eram seis institucionais até 2026-09-05: `/contato` entrou naquele dia,
+    // `/guias` logo depois, com o primeiro guia dos Guias Motors, e
+    // `/repasse` em 2026-09-25 (spec 2026-09-24 §10, PR 4 do repasse).
+    expect(await ancoras()).toHaveLength(13);
   });
 
   it("o contato está entre os institucionais", async () => {
@@ -108,6 +110,13 @@ describe("o rodapé entrega links, não parágrafos", () => {
   it("os guias têm entrada em todas as páginas", async () => {
     // O cluster nasceria acessível só pelo sitemap sem esta linha.
     expect(await ancoras()).toContain("/guias");
+  });
+
+  it("o repasse tem entrada em todas as páginas", async () => {
+    // Spec 2026-09-24 §10. De 1024 a 1280px a barra do cabeçalho não mostra
+    // o REPASSE (decisão do dono de 24/09) e o menu do celular não existe:
+    // nessa faixa, este é o link visível.
+    expect(await ancoras()).toContain("/repasse");
   });
 
   it("o link do endereço se anuncia para quem não vê a coluna", async () => {
@@ -124,8 +133,10 @@ describe("o rodapé entrega links, não parágrafos", () => {
     expect(ancora?.[0]).toContain("Rua Ernesto Piazzetta");
   });
 
-  it("o Instagram é o décimo link, e é o Instagram", async () => {
-    // A contagem sozinha não o distingue: trocá-lo pelo Facebook passava.
+  it("o Instagram está entre as âncoras, e é o Instagram", async () => {
+    // A contagem sozinha não o distingue: trocá-lo pelo Facebook passava. (O
+    // título dizia "décimo"; com as institucionais que entraram depois ele é
+    // o último, e a posição nunca foi o que este teste afirma.)
     expect(await ancoras()).toContain(EMPRESA.instagram);
   });
 });

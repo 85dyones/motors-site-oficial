@@ -32,11 +32,11 @@ import { MENU_DO_CABECALHO } from "../src/lib/menuDoCabecalho";
  * inativo dele, filtrar `/guias` fora, e — a pior — trocar a lista por `[]`,
  * deixando o menu do celular VAZIO.
  *
- * Fechar isso exige `jsdom` + testing-library, que o `vitest.config.ts` adia
- * explicitamente ("adicionar quando chegarem"), ou forçar `mobileMenuOpen`
- * mockando o `useState` do React. Nenhum dos dois cabe num PR de menu, e por
- * isso fica ESCRITO — o que não pode é a próxima pessoa ler "a trava cobre a
- * barra" e supor que cobre o resto.
+ * As quatro têm testemunha desde 25/09 (PR 4 do repasse), em
+ * `tests/menu-do-celular-fiacao.test.ts`: jsdom (que o `vitest.config.ts`
+ * passou a ter em 07/09), clique no botão do menu, e a lista, a ordem, o
+ * item ativo e o apoio do REPASSE afirmados no DOM. O que continua só aqui
+ * é a barra do desktop, com as classes de degrau que o HTML servido leva.
  *
  * A outra lacuna é de acoplamento, não de superfície: os rótulos são comparados
  * com `MENU_DO_CABECALHO`, e o de `/guias` com `NOME_DA_SECAO.toUpperCase()`.
@@ -94,9 +94,12 @@ async function menuServido(): Promise<string[]> {
 }
 
 describe("o menu chega ao HTML servido", () => {
-  it("os seis destinos, na ordem", async () => {
+  it("os sete destinos, na ordem", async () => {
+    // `/repasse` em segundo desde 25/09 (spec 2026-09-24 §10): logo depois
+    // do estoque, a outra porta de compra.
     expect(await menuServido()).toEqual([
       "/estoque",
+      "/repasse",
       "/carro-perfeito",
       "/avaliacao",
       "/guias",
@@ -171,6 +174,35 @@ describe("o menu chega ao HTML servido", () => {
     expect(link, "o cabeçalho precisa linkar /contato").not.toBeNull();
     expect(link![0]).toContain("2xl:block");
     expect(link![0]).not.toContain("desktop:block");
+  });
+
+  it("o REPASSE só aparece a partir do degrau desktop (1281px), e não do 2xl", async () => {
+    // Decisão do dono de 24/09 (spec 2026-09-24 §2 e §10): na barra só de
+    // 1281px para cima; de 1024 a 1280 ele fica no HTML, oculto, e não pesa
+    // na régua da folga. Como no teste do CONTATO acima, o que decide o
+    // comportamento é a classe SERVIDA.
+    const html = await cabecalho();
+    const link = html.match(/<a[^>]*href="\/repasse"[^>]*>/);
+
+    expect(link, "o cabeçalho precisa linkar /repasse").not.toBeNull();
+    expect(link![0]).toMatch(/\bhidden\b/);
+    expect(link![0]).toContain("desktop:block");
+    expect(link![0]).not.toContain("2xl:block");
+  });
+
+  it("o nav da barra usa desktop:gap-6, não gap-7", async () => {
+    // Decisão do dono de 25/09 (opção A): com o REPASSE somado,
+    // `desktop:gap-7` (28px) fazia o telefone partir em duas linhas a
+    // 1281px, medido em produção (barra de rolagem clássica, 15px).
+    // `desktop:gap-6` (24px) resolve os dois pontos medidos: folga de 13px
+    // em 1281px e 182px em 1536px. Números e tabela em
+    // `lib/menuDoCabecalho.ts`.
+    const html = await cabecalho();
+    const nav = html.match(/<nav[^>]*class="([^"]*)"/);
+
+    expect(nav, "o <nav> da barra precisa existir").not.toBeNull();
+    expect(nav![1]).toContain("desktop:gap-6");
+    expect(nav![1]).not.toContain("desktop:gap-7");
   });
 
   it("fora do menu, nenhum item é a página atual", async () => {

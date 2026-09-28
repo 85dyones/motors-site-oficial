@@ -218,10 +218,12 @@ export const ACOES = {
   encomenda: "encomenda",
   /** CTA das landing pages de campanha — `src/app/(campanha)/` (2026-09-08). */
   campanha: "campanha",
+  /** A lista do repasse (duas trilhas) e o exame no pátio — spec 2026-09-24 §8 (2026-09-25). */
+  repasse: "repasse",
 } as const;
 
 /**
- * `/api/leads` atende SETE superfícies; todas com o mesmo valor de lead.
+ * `/api/leads` atende OITO superfícies; todas com o mesmo valor de lead.
  *
  * Esquecer de listar aqui a ação de uma superfície nova não dá erro de
  * compilação e não quebra a tela: o widget resolve o desafio, o token viaja, e
@@ -236,6 +238,7 @@ export const ACOES_DE_LEADS = [
   ACOES.avaliacaoWhatsapp,
   ACOES.encomenda,
   ACOES.campanha,
+  ACOES.repasse,
 ] as const;
 
 /** `/api/avaliacao` atende uma só. */

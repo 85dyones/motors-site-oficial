@@ -1,12 +1,60 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { getEstoque, Veiculo } from "../lib/supabase";
 import { disponiveisDe, precoVigente } from "../lib/regrasEstoque";
 import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, rastreamentoRecusado, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick, trackPassoDoProfiler } from "../lib/telemetry";
 import { precoDoCarro } from "../lib/fichaDoMotor";
-import { elegivel, faixasDoPatio, nomeCurto, pisoDoValorExato, type ChaveDeFiltro, type Recomendacao } from "../lib/motorDoMatch";
+import {
+  antesDe,
+  cambioUnicoDe,
+  carrosDoLead,
+  comCambio,
+  comItemAlternado,
+  comJeitoAlternado,
+  comLeva,
+  depoisDe,
+  idsDasRespostas,
+  ordemFixa,
+  perfilAteOJeito,
+  perfilDe,
+  PERGUNTAS,
+  RESPOSTAS_EM_BRANCO,
+  quantosSobram,
+  sequenciaDe,
+  tetoDe,
+  textoDaContagem,
+  type EstadoQuiz,
+  type IdDaPergunta,
+  type PorMes,
+  type RespostasDoQuiz,
+} from "../lib/perguntasDoProfiler";
+import type { ParametrosDoFinanciamento } from "../lib/finance-calculator";
+import { avisoDeCredito } from "../lib/textoDaParcela";
+import {
+  carrosNaFaixa,
+  criteriosDoPerfil,
+  elegivel,
+  faixasDoPatio,
+  ITENS_QUE_NAO_PODEM_FALTAR,
+  MAXIMO_DO_QUE_NAO_PODE_FALTAR,
+  nomeCurto,
+  OCUPACOES,
+  PISO_DO_VALOR_EXATO,
+  pisoDoValorExato,
+  PRAZOS_DO_POR_MES,
+  PREFERENCIAS,
+  type ChaveDeFiltro,
+  type ChaveDePreferencia,
+  type ItemQueNaoPodeFaltar,
+  type Jeito,
+  type Leva,
+  type Ocupacao,
+  type PerfilDoQuiz,
+  type PreferenciaDeCambio,
+  type Recomendacao,
+} from "../lib/motorDoMatch";
 import LeadCaptureModal from "./LeadCaptureModal";
 import ResultadoDoProfiler from "./ResultadoDoProfiler";
 import { useTheme } from "../app/ThemeContext";
@@ -34,92 +82,117 @@ import { ACOES } from "../lib/turnstile";
  * (`lib/motorDoMatch.ts`): o resultado são três carros com o porquê de cada
  * um, sem "% COMPATÍVEL" e sem a animação de 3,2 s que fingia calcular. Spec:
  * `docs/superpowers/specs/2026-09-25-garagem-profiler-tres-do-patio-design.md`.
+ *
+ * ---------------------------------------------------------------------------
+ * 2026-09-25 — perguntas-fato (fase 2)
+ * ---------------------------------------------------------------------------
+ * As perguntas 02 a 05 deixaram de perguntar desejo ("o que mais pesa na sua
+ * escolha?") e passaram a perguntar FATO: quem vai no carro, que jeito de
+ * carro, o câmbio e o que não pode faltar. Cada opção mostra, antes do toque,
+ * quantos carros do pátio sobram com ela — a mesma conta do resultado
+ * (`carrosNaFaixa`), sobre o estoque que esta tela já baixou. A 03 some para
+ * quem leva carga, e a 04 some quando tudo o que sobrou tem o mesmo câmbio.
+ * O PRAZO saiu do quiz: não escolhe carro, e virou pergunta opcional no
+ * resultado, para o consultor.
  */
 
-interface AnswerState {
-  budgetMin: number;
-  budgetMax: number;
-  objective: "status" | "family" | "efficiency" | "offroad" | "";
-  experience: "performance" | "comfort" | "tech" | "economy" | "";
-  style: "suv" | "sedan" | "hatch" | "sport" | "pickup" | "open" | "";
-  timeline: "immediate" | "researching" | "future" | "";
-}
-
-type EstadoQuiz = "intro" | "q1" | "q2" | "q3" | "q4" | "q5" | "loading" | "results";
-
-/**
- * As cinco perguntas, na ordem. Alimenta a régua de progresso e a lista do
- * painel lateral — antes as duas coisas tinham cada uma a sua lista.
- */
-const PERGUNTAS = [
-  { id: "q1", numero: "01", rotulo: "ORÇAMENTO" },
-  { id: "q2", numero: "02", rotulo: "OBJETIVO" },
-  { id: "q3", numero: "03", rotulo: "EXPERIÊNCIA" },
-  { id: "q4", numero: "04", rotulo: "ESTILO" },
-  { id: "q5", numero: "05", rotulo: "PRAZO" },
-] as const;
+/** As respostas do quiz — o tipo e as regras de fluxo moram em `lib/perguntasDoProfiler`. */
+type AnswerState = RespostasDoQuiz;
 
 /** Segundos por pergunta usados no "faltam N · ~Ns" — o ritmo do design doc. */
 const SEGUNDOS_POR_PERGUNTA = 6;
 
 /**
- * Opções de cada pergunta.
+ * Uma opção de resposta. `resumo` é o rótulo curto do painel lateral; o texto
+ * que vai para o consultor é o `titulo`, pelos formatadores `format*` — o
+ * mesmo que o cliente tocou.
  *
- * `resumo` é o rótulo curto do painel lateral. O texto que vai no payload
- * continua vindo de `formatObjective`/`formatExperience`/… — mexer nestes
- * títulos não muda o que o n8n recebe.
+ * A letra não mora aqui: ela sai da posição na tela, porque a 05 esconde o
+ * diesel de quem não leva carga, e uma letra fixa pularia do B para o D.
  */
-/**
- * ⚠️ O texto foi reescrito em 2026-08-29, e os IDS ficaram.
- *
- * O anterior era de loja premium — "Status, Exclusividade & Design",
- * "Tecnologia, Inovação & Eficiência". Num pátio cuja mediana é R$ 62.900 e
- * que começa em R$ 23.900, ninguém se reconhece nessas palavras. O dono
- * apontou o passo duas vezes.
- *
- * Os ids não mudam porque são a chave de `TAGS_DA_RESPOSTA` (lib/car-match) e
- * do que já foi gravado em lead antigo. Trocar `status` por `melhor-carro`
- * renomearia dado histórico para ganhar nada: o visitante nunca vê o id.
- */
-const OPCOES_OBJETIVO = [
-  { id: "family", letra: "A", titulo: "Espaço para a família", desc: "Viajar e levar todo mundo com conforto.", resumo: "Família" },
-  { id: "status", letra: "B", titulo: "Um carro melhor que o meu", desc: "Mais equipado, mais presença.", resumo: "Subir de carro" },
-  { id: "efficiency", letra: "C", titulo: "Rodar barato na cidade", desc: "Economia e facilidade no dia a dia.", resumo: "Cidade" },
-  { id: "offroad", letra: "D", titulo: "Trabalho e estrada", desc: "Carga, 4x4 ou muita quilometragem.", resumo: "Trabalho" },
-] as const;
+interface Opcao<T extends string> {
+  id: T;
+  titulo: string;
+  desc: string;
+  resumo: string;
+}
 
 /**
- * A 03 pergunta o que PESA na escolha; a 02, para que o carro serve.
+ * ⚠️ Desde a fase 2 as perguntas são de FATO, e cada `desc` diz o que a
+ * opção faz com o pátio.
  *
- * As duas eram quase a mesma pergunta com palavras diferentes — "Tecnologia,
- * Inovação & Eficiência" na 02 e "Tecnologia & Conectividade" na 03. Quem
- * respondia a primeira não sabia o que a segunda queria de diferente.
+ * As perguntas anteriores — OBJETIVO ("Um carro melhor que o meu") e
+ * EXPERIÊNCIA ("O que mais pesa na sua escolha?") — eram quase a mesma
+ * pergunta com palavras diferentes, e nenhuma das duas separava carro: a
+ * resposta virava preferência que só reordenava, e o resultado saía igual
+ * para quase todo mundo. Os ids antigos (`family`, `status`, `comfort`…)
+ * continuam valendo em `/api/match` para quem mandar o formato da fase 1, e
+ * nos leads já gravados.
  */
-const OPCOES_EXPERIENCIA = [
-  { id: "performance", letra: "A", titulo: "Motor e desempenho", desc: "Força para ultrapassar e pegar estrada.", resumo: "Desempenho" },
-  { id: "comfort", letra: "B", titulo: "Conforto e silêncio", desc: "Rodar macio e cansar menos no trânsito.", resumo: "Conforto" },
-  { id: "tech", letra: "C", titulo: "Facilidade no dia a dia", desc: "Câmbio automático e fácil de manobrar.", resumo: "Praticidade" },
-  { id: "economy", letra: "D", titulo: "Custo de manter", desc: "Consumo, revisão e revenda.", resumo: "Custo" },
-] as const;
+const OPCOES_LEVA: readonly Opcao<Leva>[] = [
+  { id: "eu", titulo: "Eu e mais um", desc: "Qualquer carro do pátio serve.", resumo: "Eu e mais um" },
+  { id: "familia", titulo: "Família, criança na cadeirinha", desc: "Só carros de 4 portas ou mais.", resumo: "Família" },
+  { id: "carga", titulo: "Carga, ferramenta, mercadoria", desc: "Só picape, utilitário ou van.", resumo: "Carga" },
+];
+
+/** A 03 aceita várias. "Tanto faz" limpa a escolha e segue. */
+const OPCOES_JEITO: readonly Opcao<Jeito>[] = [
+  { id: "Hatch", titulo: "Hatch", desc: "Compacto, fácil de estacionar.", resumo: "Hatch" },
+  { id: "Sedan", titulo: "Sedã", desc: "Porta-malas separado e grande.", resumo: "Sedã" },
+  { id: "SUV", titulo: "SUV", desc: "Mais alto, dirige-se de cima.", resumo: "SUV" },
+  { id: "Perua", titulo: "Perua ou minivan", desc: "Espaço de sobra para gente e bagagem.", resumo: "Perua" },
+];
+
+const OPCOES_CAMBIO: readonly Opcao<PreferenciaDeCambio>[] = [
+  { id: "so_automatico", titulo: "Só automático", desc: "Manual fica de fora.", resumo: "Só automático" },
+  { id: "prefiro_automatico", titulo: "Prefiro automático", desc: "Automáticos na frente, sem tirar os manuais.", resumo: "Prefere automático" },
+  { id: "tanto_faz", titulo: "Tanto faz", desc: "O câmbio não decide.", resumo: "Tanto faz" },
+  { id: "prefiro_manual", titulo: "Prefiro manual", desc: "Manuais na frente, sem tirar os automáticos.", resumo: "Prefere manual" },
+];
 
 /**
- * Hatch entrou em 25/09: são 16 dos 36 carros do pátio e não havia como
- * pedi-los. Quem marca "Aberto a Sugestões" não filtra carroceria nenhuma.
+ * A 05 sai da lista do motor (`ITENS_QUE_NAO_PODEM_FALTAR`) — uma lista só,
+ * para a tela não oferecer item que o motor não sabe avaliar. O `desc` diz a
+ * diferença que importa: ano, km e diesel TIRAM carro; item de ficha só põe
+ * na frente, porque ficha vazia não prova carro sem o item.
  */
-const OPCOES_ESTILO = [
-  { id: "suv", letra: "A", titulo: "SUVs Imponentes", desc: "", resumo: "SUV" },
-  { id: "sedan", letra: "B", titulo: "Sedans Elegantes", desc: "", resumo: "Sedã" },
-  { id: "hatch", letra: "C", titulo: "Hatches Práticos", desc: "", resumo: "Hatch" },
-  { id: "sport", letra: "D", titulo: "Esportivos / Coupés", desc: "", resumo: "Esportivo" },
-  { id: "pickup", letra: "E", titulo: "Picapes", desc: "", resumo: "Picape" },
-  { id: "open", letra: "F", titulo: "Aberto a Sugestões", desc: "", resumo: "Sem preferência" },
-] as const;
+const OPCOES_NAO_PODE_FALTAR: readonly (Opcao<ItemQueNaoPodeFaltar> & { corta: boolean; soComCarga: boolean })[] =
+  ITENS_QUE_NAO_PODEM_FALTAR.map((item) => ({
+    id: item.id,
+    titulo: item.rotulo,
+    desc: item.corta ? "Quem não tem sai da lista." : "Vai na frente quando consta na ficha.",
+    resumo: item.rotulo,
+    corta: item.corta,
+    soComCarga: item.soComCarga === true,
+  }));
 
-const OPCOES_PRAZO = [
-  { id: "immediate", letra: "A", titulo: "Imediato", desc: "Pronto para fechar negócio nas próximas semanas.", resumo: "Imediato" },
-  { id: "researching", letra: "B", titulo: "Pesquisando", desc: "Mapeando opções para compra no próximo mês.", resumo: "Pesquisando" },
-  { id: "future", letra: "C", titulo: "Apenas Sondando", desc: "Acompanhando o mercado sem pressa.", resumo: "Sondando" },
-] as const;
+/**
+ * O prazo saiu do quiz em 25/09 (fase 2) e virou pergunta opcional no
+ * resultado. Os ids ficam: são os de `TAGS_DA_RESPOSTA` e os de lead antigo.
+ */
+const OPCOES_PRAZO: readonly Opcao<Exclude<AnswerState["timeline"], "">>[] = [
+  { id: "immediate", titulo: "Nas próximas semanas", desc: "", resumo: "Imediato" },
+  { id: "researching", titulo: "No próximo mês", desc: "", resumo: "Pesquisando" },
+  { id: "future", titulo: "Sem pressa, só olhando", desc: "", resumo: "Sondando" },
+];
+
+/**
+ * Onde os controles do POR MÊS começam. A entrada começa em "Sem entrada":
+ * ela é a estimativa da pessoa, e um valor pré-posto viraria, no resultado,
+ * "a entrada que você informou" sem que ninguém tivesse informado nada
+ * (revisão de 27/09).
+ */
+// Sem as condições do simulador: elas vêm da página, e o `CarMatch` as junta.
+const PORMES_INICIAL: Omit<PorMes, "parametros"> = { parcela: 1500, entrada: 0, prazo: 48, ocupacao: "clt", troca: false };
+
+/** A ocupação na voz do quiz. Muda a taxa estimada, pela pontuação do simulador. */
+const ROTULO_DA_OCUPACAO: Record<Ocupacao, string> = {
+  clt: "CLT (carteira assinada)",
+  publico: "Funcionário público",
+  aposentado: "Aposentado ou pensionista",
+  autonomo: "Autônomo ou PJ",
+  outros: "Outro",
+};
 
 function formatShort(v: number): string {
   if (v >= 1000000) return `${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M`;
@@ -134,6 +207,13 @@ function formatShort(v: number): string {
  * antiga o imprimia: "até R$ 9007199254.7M" chegava ao WhatsApp da loja na voz
  * do cliente.
  */
+/** "parcela até R$ 1.500/mês em 48×, com R$ 20 mil de entrada". */
+function textoDoPorMes(p: PorMes): string {
+  const parcela = p.parcela.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  const entrada = p.entrada > 0 ? `com R$ ${formatShort(p.entrada)} de entrada` : "sem entrada";
+  return `parcela até ${parcela}/mês em ${p.prazo}×, ${entrada}${p.troca ? " (tenho carro na troca)" : ""}`;
+}
+
 function textoDoOrcamentoDe(min: number, max: number): string {
   const semTeto = !max || max >= Number.MAX_SAFE_INTEGER;
   if (semTeto) return min > 0 ? `acima de R$ ${formatShort(min)}` : "sem teto definido";
@@ -147,18 +227,28 @@ function textoDoOrcamentoDe(min: number, max: number): string {
 /**
  * Opção de resposta: letra em vermelho, título e descrição.
  * Sem raio, sem sombra — a borda de 2px é o que marca a seleção.
+ *
+ * `contagem` é o número antes do toque ("7 carros", "0 nessa faixa"). A opção
+ * que zera continua clicável: leva ao resultado com o "e se", que diz o que
+ * afrouxar — esconder a opção esconderia também o motivo.
  */
 function OpcaoQuiz({
   letra,
   titulo,
   desc,
+  contagem,
+  zerada = false,
   selecionada,
+  desabilitada = false,
   onClick,
 }: {
   letra: string;
   titulo: string;
   desc?: string;
+  contagem?: string | null;
+  zerada?: boolean;
   selecionada: boolean;
+  desabilitada?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -166,7 +256,8 @@ function OpcaoQuiz({
       type="button"
       onClick={onClick}
       aria-pressed={selecionada}
-      className={`mt-foco flex w-full items-start gap-4 border-2 p-4 text-left transition-colors lg:gap-[18px] lg:px-6 lg:py-[22px] ${
+      disabled={desabilitada}
+      className={`mt-foco flex w-full items-start gap-4 border-2 p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:gap-[18px] lg:px-6 lg:py-[22px] ${
         selecionada
           ? "border-mt-accent bg-[color-mix(in_srgb,var(--mt-accent)_14%,transparent)]"
           : "border-mt-inverso-regua-fina hover:border-mt-inverso-regua"
@@ -175,7 +266,7 @@ function OpcaoQuiz({
       <span className="mt-0.5 text-[11px] font-extrabold tracking-[.1em] text-mt-accent lg:mt-1 lg:text-xs">
         {letra}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block text-[17px] font-extrabold leading-tight tracking-[-.02em] lg:text-[21px]">
           {titulo}
         </span>
@@ -185,23 +276,37 @@ function OpcaoQuiz({
           </span>
         )}
       </span>
+      {contagem && (
+        <span
+          className={`mt-0.5 shrink-0 text-right text-[11px] font-extrabold tracking-[.06em] lg:mt-1 lg:text-xs ${
+            zerada ? "text-mt-inverso-suave" : "text-mt-inverso"
+          }`}
+        >
+          {contagem}
+        </span>
+      )}
     </button>
   );
 }
 
-/** Régua de progresso — "02 / 05 · USO PRINCIPAL" e a barra vermelha. */
-function ReguaProgresso({ indice }: { indice: number }) {
-  const pergunta = PERGUNTAS[indice];
-  const percentual = ((indice + 1) / PERGUNTAS.length) * 100;
+/**
+ * Régua de progresso — "02 / 05 · QUEM VAI" e a barra vermelha.
+ *
+ * A conta é a da sequência DESTA pessoa: quem leva carga não vê a 03, e a
+ * régua diz "02 / 04" em vez de prometer uma pergunta que não vem.
+ */
+function ReguaProgresso({ posicao, total, rotulo }: { posicao: number; total: number; rotulo: string }) {
+  const percentual = ((posicao + 1) / total) * 100;
+  const doisDigitos = (n: number) => String(n).padStart(2, "0");
 
   return (
     <div className="mt-9 lg:mt-13">
       <div className="flex items-baseline gap-3 lg:gap-3.5">
         <span className="text-xs font-extrabold tracking-[.12em] text-mt-accent lg:text-[13px]">
-          {pergunta.numero} / 0{PERGUNTAS.length}
+          {doisDigitos(posicao + 1)} / {doisDigitos(total)}
         </span>
         <span className="text-[11px] tracking-[.08em] text-mt-inverso-suave lg:text-xs">
-          {pergunta.rotulo}
+          {rotulo}
         </span>
       </div>
       <div className="mt-3 h-0.5 bg-mt-inverso-regua-fina lg:mt-3.5">
@@ -214,10 +319,19 @@ function ReguaProgresso({ indice }: { indice: number }) {
   );
 }
 
-export default function CarMatch() {
+export default function CarMatch({
+  parametros,
+}: {
+  /**
+   * As taxas, o ano mais antigo financiado e os bancos parceiros — a vigência
+   * de `parametros_financiamento`, lida pela página no servidor. A contagem da
+   * aba POR MÊS usa estes; a rota usa os mesmos, lidos do mesmo cache.
+   */
+  parametros: ParametrosDoFinanciamento;
+}) {
   const { companySettings } = useTheme();
   const [gameState, setGameState] = useState<EstadoQuiz>("intro");
-  const [answers, setAnswers] = useState<AnswerState>({ budgetMin: 0, budgetMax: 0, objective: "", experience: "", style: "", timeline: "" });
+  const [answers, setAnswers] = useState<AnswerState>(RESPOSTAS_EM_BRANCO);
   const [estoque, setEstoque] = useState<Veiculo[]>([]);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
 
@@ -228,6 +342,8 @@ export default function CarMatch() {
   const [afrouxados, setAfrouxados] = useState<ChaveDeFiltro[]>([]);
   /** "QUERO VER ESTE" — ids dos carros marcados, até os três do resultado. */
   const [escolhidos, setEscolhidos] = useState<string[]>([]);
+  /** "NÃO É PRA MIM" na carta "Já pensou neste?" — ela some até refazer. */
+  const [coringasRecusados, setCoringasRecusados] = useState<string[]>([]);
   /**
    * O lead leva carros ("quero ver"), só o pedido ("me avise quando chegar"),
    * ou — quando a consulta ao estoque falhou — um pedido de ajuda. Falha nossa
@@ -245,7 +361,13 @@ export default function CarMatch() {
     desc: string;
   }
   // Custom budget and upsell settings
-  const [budgetTab, setBudgetTab] = useState<"presets" | "custom" | "ai">("presets");
+  const [budgetTab, setBudgetTab] = useState<"presets" | "custom" | "porMes" | "ai">("presets");
+  /**
+   * A aba POR MÊS enquanto a pessoa mexe — vira resposta só no CONFIRMAR.
+   * A entrada é a estimativa DELA: dinheiro e o que espera da troca (decisão
+   * do dono em 25/09). O site não avalia o carro dela aqui.
+   */
+  const [rascunhoPorMes, setRascunhoPorMes] = useState<PorMes>(() => ({ ...PORMES_INICIAL, parametros }));
   /** `null` = ainda não mexeram no slider; o valor sai da mediana do pátio. */
   const [customMaxBudget, setCustomMaxBudget] = useState<number | null>(null);
   const [allowUpsell, setAllowUpsell] = useState<boolean>(true);
@@ -276,6 +398,27 @@ export default function CarMatch() {
    * outra régua fazia a faixa prometer 8 carros e o resultado achar 7.
    */
   const carrosDoPatio = useMemo(() => disponiveisDe(estoque).filter(elegivel), [estoque]);
+
+  /**
+   * O perfil de agora e o que sobra com ele — a mesma conta que o motor faz
+   * no servidor. É o "SOBRAM N DE M" e a base das contagens das opções.
+   */
+  const perfilAtual = useMemo(() => perfilDe(answers, carrosDoPatio), [answers, carrosDoPatio]);
+  const restantes = useMemo(
+    () => carrosNaFaixa(carrosDoPatio, criteriosDoPerfil(perfilAtual)),
+    [carrosDoPatio, perfilAtual],
+  );
+  const cambioUnico = useMemo(() => cambioUnicoDe(answers, carrosDoPatio), [answers, carrosDoPatio]);
+  const sequencia = useMemo(() => sequenciaDe(answers, carrosDoPatio), [answers, carrosDoPatio]);
+  /** Sem estoque carregado não há o que contar — a opção fica sem número. */
+  const semContagem = carrosDoPatio.length === 0;
+
+  /**
+   * Quantos sobram se a pessoa tocar nesta opção: a MESMA transição que o
+   * toque grava (`comLeva`, `comCambio`…), passada pelas mesmas regras de
+   * pulo — ver `lib/perguntasDoProfiler`.
+   */
+  const sobramCom = (novas: AnswerState): number => quantosSobram(novas, carrosDoPatio);
 
   /**
    * As faixas de orçamento — as quatro opções da pergunta 01.
@@ -362,7 +505,8 @@ export default function CarMatch() {
     setAnswers((prev) => ({
       ...prev,
       budgetMin: pisoDoValorExato(orcamentoDoSlider),
-      budgetMax: orcamentoDoSlider
+      budgetMax: orcamentoDoSlider,
+      porMes: null,
     }));
     setTimeout(() => {
       setGameState("q2");
@@ -384,25 +528,36 @@ export default function CarMatch() {
   const rotuloDaOpcao = (
     opcoes: readonly { id: string; titulo: string }[],
     id: string,
-  ) => opcoes.find((o) => o.id === id)?.titulo ?? "Não definido";
+  ) => opcoes.find((o) => o.id === id)?.titulo ?? "";
 
-  const formatObjective = (obj: AnswerState["objective"]) => rotuloDaOpcao(OPCOES_OBJETIVO, obj);
-  const formatExperience = (exp: AnswerState["experience"]) => rotuloDaOpcao(OPCOES_EXPERIENCIA, exp);
-  const formatStyle = (style: AnswerState["style"]) => rotuloDaOpcao(OPCOES_ESTILO, style);
+  // Pergunta não respondida (ou pulada) sai como "" — e não como um rótulo
+  // que ninguém tocou.
+  const formatLeva = (leva: PerfilDoQuiz["leva"]) => rotuloDaOpcao(OPCOES_LEVA, leva ?? "");
+  const formatJeitos = (jeitos: readonly string[]) => jeitos.map((j) => rotuloDaOpcao(OPCOES_JEITO, j)).filter(Boolean);
+  const formatCambio = (cambio: PerfilDoQuiz["cambio"]) => rotuloDaOpcao(OPCOES_CAMBIO, cambio ?? "");
+  const formatNaoPodeFaltar = (itens: readonly string[]) =>
+    itens.map((i) => rotuloDaOpcao(OPCOES_NAO_PODE_FALTAR, i)).filter(Boolean);
   const formatTimeline = (timeline: AnswerState["timeline"]) => rotuloDaOpcao(OPCOES_PRAZO, timeline);
 
-  const semTeto = !answers.budgetMax || answers.budgetMax >= Number.MAX_SAFE_INTEGER;
-  const textoDoOrcamento = () => textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax);
+  /** O pedido em uma linha, na voz do cliente: "até R$ 75 mil, Família, SUV". */
+  const resumoDoPedido = () =>
+    [
+      textoDoOrcamento(),
+      formatLeva(perfilAtual.leva),
+      ...formatJeitos(perfilAtual.jeitos ?? []),
+      formatCambio(perfilAtual.cambio),
+      ...formatNaoPodeFaltar(perfilAtual.naoPodeFaltar ?? []),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+  const semTeto = tetoDe(answers.budgetMax) === null;
+  const textoDoOrcamento = () =>
+    answers.porMes ? textoDoPorMes(answers.porMes) : textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax);
+  /** A 01 foi respondida — por faixa, valor exato, texto ou POR MÊS. */
+  const orcamentoRespondido = answers.budgetMax > 0 || answers.porMes !== null;
 
   const nomeDoQuiz = companySettings?.carMatchTitle || "Garagem Profiler";
-
-  /** Os carros que o lead leva: os marcados em QUERO VER ESTE, ou os três. */
-  const carrosDoLead = () => {
-    if (modoDoLead !== "carros") return [];
-    const cartoes = recomendacao?.cartoes ?? [];
-    const marcados = cartoes.filter((c) => escolhidos.includes(c.veiculo.id));
-    return marcados.length > 0 ? marcados : cartoes;
-  };
 
   const abrirLead = (modo: "carros" | "aviso" | "ajuda") => {
     setModoDoLead(modo);
@@ -411,6 +566,12 @@ export default function CarMatch() {
 
   const alternarEscolhido = (id: string) =>
     setEscolhidos((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
+
+  /** "NÃO É PRA MIM": a carta some, e deixa de ir no lead se estava marcada. */
+  const recusarCoringa = (id: string) => {
+    setCoringasRecusados((atual) => (atual.includes(id) ? atual : [...atual, id]));
+    setEscolhidos((atual) => atual.filter((x) => x !== id));
+  };
 
   /** O "e se": tira um filtro e refaz a busca. O teto nunca sai. */
   const afrouxar = (filtro: ChaveDeFiltro) => {
@@ -434,22 +595,37 @@ export default function CarMatch() {
     // ela nomeia os carros — o consultor abre a conversa sabendo quais separar,
     // e a coluna `interesse` do lead (que é esta mensagem) deixa de dizer só
     // "Curadoria Especial".
-    const carros = carrosDoLead();
-    const nomeComPreco = (c: (typeof carros)[number]) =>
-      `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))})`;
+    // Os marcados em QUERO VER ESTE (a carta "Já pensou neste?" só com FAZ
+    // SENTIDO), ou os três — ver `carrosDoLead` em lib/perguntasDoProfiler.
+    const carros = carrosDoLead(recomendacao, escolhidos, modoDoLead);
+    // No POR MÊS a pessoa pensa em parcela: a mensagem leva a estimativa junto
+    // — e a entrada que a gerou, senão o consultor lê "48× R$ 1.298" sem saber
+    // de onde saiu. Parcela zero não vira "48× R$ 0": é a entrada cobrindo.
+    const nomeComPreco = (c: (typeof carros)[number]) => {
+      const base = `${nomeCurto(c.veiculo)} (${formatPrice(precoDoCarro(c.veiculo))}`;
+      if (!answers.porMes || c.parcela === null) return `${base})`;
+      if (!(c.parcela > 0)) return `${base}, a minha entrada cobre)`;
+      const entrada = Math.min(answers.porMes.entrada, precoDoCarro(c.veiculo));
+      const comEntrada = entrada > 0 ? `com ${formatPrice(entrada)} de entrada` : "sem entrada";
+      return `${base}; pelo site, ≈ ${answers.porMes.prazo}× ${formatPrice(c.parcela)} ${comEntrada})`;
+    };
+    // A troca vai dita ao consultor — é ele quem avalia o carro.
+    const troca = answers.porMes?.troca ? " Tenho carro para dar na troca." : "";
     const lista =
       carros.length === 1
         ? `o ${nomeComPreco(carros[0])}`
         : carros.length > 1
           ? `estes carros: ${carros.slice(0, -1).map(nomeComPreco).join(", ")} e ${nomeComPreco(carros[carros.length - 1])}`
           : "";
-    const pedido = recomendacao?.filtros.length ? recomendacao.filtros.join(", ") : textoDoOrcamento();
+    // Os filtros do motor quando a busca respondeu; senão (a consulta falhou)
+    // o pedido montado aqui mesmo, com o que a pessoa tocou.
+    const pedido = recomendacao?.filtros.length ? recomendacao.filtros.join(", ") : resumoDoPedido();
     const finalMsg =
       carros.length > 0
-        ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site e quero ver ${lista}. Estão disponíveis?${sufixoRef()}`
+        ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site e quero ver ${lista}. Estão disponíveis?${troca}${sufixoRef()}`
         : modoDoLead === "ajuda"
-          ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site (${pedido}, foco em ${formatObjective(answers.objective)}). Podem me mostrar as opções do pátio?${sufixoRef()}`
-          : `Olá! Montei meu perfil no ${nomeDoQuiz} do site e não achei exatamente o que procuro: ${pedido}. Podem me avisar quando chegar um carro assim?${sufixoRef()}`;
+          ? `Olá! Montei meu perfil no ${nomeDoQuiz} do site (${pedido}). Podem me mostrar as opções do pátio?${troca}${sufixoRef()}`
+          : `Olá! Montei meu perfil no ${nomeDoQuiz} do site e não achei exatamente o que procuro: ${pedido}. Podem me avisar quando chegar um carro assim?${troca}${sufixoRef()}`;
 
     // Dispara telemetria de conversão (Lead) no GA4/Meta Pixel ANTES do POST,
     // para reaproveitar o mesmo event_id na deduplicação do CAPI (servidor).
@@ -480,19 +656,29 @@ export default function CarMatch() {
       canal: "Garagem Match Profiler",
       mensagem: finalMsg,
       perfil_curadoria: {
-        orcamento_maximo: semTeto ? null : answers.budgetMax,
+        orcamento_maximo: semTeto || answers.porMes ? null : answers.budgetMax,
         orcamento_minimo: answers.budgetMin,
-        objetivo_principal: formatObjective(answers.objective),
-        experiencia_valorizada: formatExperience(answers.experience),
-        estilo_preferido: formatStyle(answers.style),
+        quem_vai: formatLeva(perfilAtual.leva),
+        jeito: formatJeitos(perfilAtual.jeitos ?? []).join(", "),
+        cambio: formatCambio(perfilAtual.cambio),
+        nao_pode_faltar: formatNaoPodeFaltar(perfilAtual.naoPodeFaltar ?? []).join(", "),
         urgencia: formatTimeline(answers.timeline),
         resumo_ia: isAiCuratorActive
-          ? `IA Request: ${aiQuery}. Cliente focado em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)} com urgência ${formatTimeline(answers.timeline)} e orçamento ${textoDoOrcamento()}.`
-          : `Busca: ${formatStyle(answers.style)}, foco em ${formatObjective(answers.objective)} e ${formatExperience(answers.experience)}, orçamento ${textoDoOrcamento()}. Prazo: ${formatTimeline(answers.timeline)}.`
+          ? `IA Request: ${aiQuery}. Pedido: ${resumoDoPedido()}.`
+          : `Busca: ${resumoDoPedido()}.${answers.timeline ? ` Prazo: ${formatTimeline(answers.timeline)}.` : ""}`
       },
       intencao: {
-        nivel: answers.timeline === "immediate" ? "ALTO" : answers.timeline === "researching" ? "MÉDIO" : "BAIXO",
-        ticket: !semTeto && answers.budgetMax >= 200000 ? "PREMIUM" : "NORMAL"
+        // Prazo virou pergunta opcional no resultado: sem resposta não é
+        // "BAIXO" — é não informado.
+        nivel:
+          answers.timeline === "immediate"
+            ? "ALTO"
+            : answers.timeline === "researching"
+              ? "MÉDIO"
+              : answers.timeline === "future"
+                ? "BAIXO"
+                : "NÃO INFORMADO",
+        ticket: !semTeto && !answers.porMes && answers.budgetMax >= 200000 ? "PREMIUM" : "NORMAL"
       },
       cliente: {
         nome: leadData.nome,
@@ -512,6 +698,26 @@ export default function CarMatch() {
         filtros: recomendacao?.filtros ?? [],
         afrouxados,
         prazo: formatTimeline(answers.timeline),
+        // As respostas como o cliente as tocou — o card do Kanban
+        // (`leads.perfil`, lib/perfilDoLead) as mostra ao consultor.
+        perfil: {
+          leva: formatLeva(perfilAtual.leva),
+          jeitos: formatJeitos(perfilAtual.jeitos ?? []),
+          cambio: formatCambio(perfilAtual.cambio),
+          nao_pode_faltar: formatNaoPodeFaltar(perfilAtual.naoPodeFaltar ?? []),
+        },
+        na_faixa: recomendacao ? recomendacao.naFaixa : null,
+        // A aba POR MÊS, quando usada. A entrada é a estimativa do cliente
+        // (dinheiro e o que ele espera da troca) — não é avaliação nossa.
+        por_mes: answers.porMes
+          ? {
+              parcela: answers.porMes.parcela,
+              entrada: answers.porMes.entrada,
+              prazo: answers.porMes.prazo,
+              ocupacao: ROTULO_DA_OCUPACAO[answers.porMes.ocupacao],
+              troca: answers.porMes.troca,
+            }
+          : null,
         carros: carros.map((c) => ({
           id: c.veiculo.id,
           nome: nomeCurto(c.veiculo),
@@ -519,6 +725,7 @@ export default function CarMatch() {
           lugar: c.lugar,
           manchete: c.manchete,
           pesa_contra: c.pesaContra,
+          parcela: c.parcela,
         })),
       },
       agUid: agUid,
@@ -604,31 +811,55 @@ export default function CarMatch() {
     // pulava direto para o resultado, a pessoa terminava o quiz com duas
     // respostas que nunca deu — e o consultor recebia o perfil como se fossem
     // dela.
-    let obj: AnswerState["objective"] = "";
-    if (lower.includes("família") || lower.includes("familia") || lower.includes("viagem") || lower.includes("viajar") || lower.includes("filho") || lower.includes("espaço")) {
-      obj = "family";
-    } else if (lower.includes("cidade") || lower.includes("trabalho") || lower.includes("diário") || lower.includes("diario") || lower.includes("economia")) {
-      obj = "efficiency";
-    } else if (lower.includes("trilha") || lower.includes("offroad") || lower.includes("terra") || lower.includes("sítio") || lower.includes("fazenda")) {
-      obj = "offroad";
+    //
+    // Desde a fase 2 a leitura é por PALAVRA inteira, sem acento: "programa"
+    // e "grama" não viram a picape RAM (era o `includes("ram")` de antes), e
+    // "sedã" casa com "seda" e "sedan". O que o texto disser fica só
+    // PRÉ-SELECIONADO: a pessoa passa pelas perguntas e confirma.
+    const palavras = new Set(
+      lower
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean),
+    );
+    const disse = (...termos: string[]) => termos.some((t) => palavras.has(t));
+
+    let leva: AnswerState["leva"] = "";
+    if (disse("familia", "filho", "filhos", "filha", "filhas", "crianca", "criancas", "cadeirinha", "bebe")) {
+      leva = "familia";
+    } else if (
+      disse("carga", "ferramenta", "ferramentas", "mercadoria", "mercadorias", "cacamba", "picape", "picapes", "caminhonete", "ram", "hilux", "saveiro", "strada", "toro")
+    ) {
+      leva = "carga";
     }
 
-    let style: AnswerState["style"] = "";
-    if (lower.includes("suv") || lower.includes("4x4") || lower.includes("jeep")) {
-      style = "suv";
-    } else if (lower.includes("sedã") || lower.includes("sedan")) {
-      style = "sedan";
-    } else if (lower.includes("esportivo") || lower.includes("porsche") || lower.includes("coupé")) {
-      style = "sport";
-    } else if (lower.includes("picape") || lower.includes("caminhonete") || /\bram\b/.test(lower) || lower.includes("hilux")) {
-      // `\bram\b`, e não `includes("ram")`: "programa" e "grama" viravam
-      // picape — e desde 25/09 carroceria é filtro que corta.
-      style = "pickup";
-    } else if (/\bhatch\b/.test(lower)) {
-      style = "hatch";
-    }
+    const jeitos: Jeito[] = [];
+    if (disse("suv", "suvs", "jeep")) jeitos.push("SUV");
+    if (disse("seda", "sedas", "sedan", "sedans")) jeitos.push("Sedan");
+    if (disse("hatch", "hatches")) jeitos.push("Hatch");
+    if (disse("perua", "peruas", "minivan", "minivans")) jeitos.push("Perua");
 
-    return { budgetMax: parsedBudget, objective: obj, style };
+    let cambio: AnswerState["cambio"] = "";
+    if (disse("automatico", "automatica")) cambio = "so_automatico";
+    else if (disse("manual")) cambio = "prefiro_manual";
+
+    const naoPodeFaltar: ItemQueNaoPodeFaltar[] = [];
+    // Quem pedia "esportivo" ganhava um aviso de que o pátio não tem cupê; na
+    // fase 2 a emoção se pede como motor turbo, na 05.
+    if (disse("turbo", "esportivo", "esportiva")) naoPodeFaltar.push("turbo");
+    if (disse("4x4")) naoPodeFaltar.push("4x4");
+    if (disse("diesel") && leva === "carga") naoPodeFaltar.push("diesel");
+    if (disse("camera")) naoPodeFaltar.push("camera");
+    if (disse("multimidia")) naoPodeFaltar.push("multimidia");
+
+    return {
+      budgetMax: parsedBudget,
+      leva,
+      jeitos,
+      cambio,
+      naoPodeFaltar: naoPodeFaltar.slice(0, MAXIMO_DO_QUE_NAO_PODE_FALTAR),
+    };
   };
 
   /**
@@ -655,12 +886,17 @@ export default function CarMatch() {
 
     const parsed = parseFreeTextQuery(aiQuery);
 
+    // Lista vazia vira `null` ("a responder"), e não "Tanto faz"/"Nada
+    // disso": o texto não ter falado de carroceria não é resposta.
     setAnswers((prev) => ({
       ...prev,
       budgetMin: 0,
       budgetMax: parsed.budgetMax,
-      objective: parsed.objective,
-      style: parsed.style,
+      porMes: null,
+      leva: parsed.leva,
+      jeitos: parsed.jeitos.length > 0 ? parsed.jeitos : null,
+      cambio: parsed.cambio,
+      naoPodeFaltar: parsed.naoPodeFaltar.length > 0 ? parsed.naoPodeFaltar : null,
     }));
 
     setIsAiCuratorActive(true);
@@ -671,29 +907,75 @@ export default function CarMatch() {
   };
 
   const selectBudget = (range: BudgetRange) => {
-    setAnswers((prev) => ({ ...prev, budgetMin: range.min, budgetMax: range.max }));
+    setAnswers((prev) => ({ ...prev, budgetMin: range.min, budgetMax: range.max, porMes: null }));
     setTimeout(() => { setGameState("q2"); }, 200);
   };
 
-  const selectObjective = (objective: AnswerState["objective"]) => {
-    setAnswers((prev) => ({ ...prev, objective }));
-    setTimeout(() => { setGameState("q3"); }, 200);
+  /**
+   * POR MÊS responde a 01 pela parcela. O orçamento em preço fica zerado: a
+   * faixa passa a ser a parcela de cada carro, na conta do simulador.
+   */
+  const confirmarPorMes = () => {
+    setAnswers((prev) => ({ ...prev, budgetMin: 0, budgetMax: 0, porMes: { ...rascunhoPorMes } }));
+    setTimeout(() => { setGameState("q2"); }, 200);
   };
 
-  const selectExperience = (experience: AnswerState["experience"]) => {
-    setAnswers((prev) => ({ ...prev, experience }));
-    setTimeout(() => { setGameState("q4"); }, 200);
+  /**
+   * Tocar na opção já avança, como sempre foi — com 200 ms para ver o toque.
+   * O relógio fica guardado para VOLTAR (ou outro toque) cancelá-lo: sem isso,
+   * tocar e voltar dentro dos 200 ms avançava mesmo assim.
+   */
+  const avanco = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelarAvanco = () => {
+    if (avanco.current) clearTimeout(avanco.current);
+    avanco.current = null;
+  };
+  const irPara = (destino: EstadoQuiz) => {
+    cancelarAvanco();
+    avanco.current = setTimeout(() => {
+      avanco.current = null;
+      setGameState(destino);
+    }, 200);
   };
 
-  const selectStyle = (style: AnswerState["style"]) => {
-    setAnswers((prev) => ({ ...prev, style }));
-    setTimeout(() => { setGameState("q5"); }, 200);
+  const selectLeva = (leva: Leva) => {
+    const novas = comLeva(answers, leva);
+    setAnswers(novas);
+    // O destino sai das respostas NOVAS: marcar carga tira a 03 da sequência.
+    irPara(depoisDe("q2", novas, carrosDoPatio));
   };
 
-  const selectTimeline = (timeline: AnswerState["timeline"]) => {
-    setAnswers((prev) => ({ ...prev, timeline }));
+  const alternarJeito = (jeito: Jeito) => setAnswers((prev) => comJeitoAlternado(prev, jeito));
+
+  const jeitoTantoFaz = () => {
+    const novas: AnswerState = { ...answers, jeitos: [] };
+    setAnswers(novas);
+    irPara(depoisDe("q3", novas, carrosDoPatio));
+  };
+
+  const confirmarJeitos = () => {
+    cancelarAvanco();
+    setGameState(depoisDe("q3", answers, carrosDoPatio));
+  };
+
+  const selectCambio = (cambio: PreferenciaDeCambio) => {
+    const novas = comCambio(answers, cambio);
+    setAnswers(novas);
+    irPara(depoisDe("q4", novas, carrosDoPatio));
+  };
+
+  /** Até três. Com três marcados, os outros esperam alguém ser desmarcado. */
+  const alternarItem = (item: ItemQueNaoPodeFaltar) => setAnswers((prev) => comItemAlternado(prev, item));
+
+  const verResultado = (itens?: ItemQueNaoPodeFaltar[]) => {
+    cancelarAvanco();
+    setAnswers((prev) => ({ ...prev, naoPodeFaltar: itens ?? prev.naoPodeFaltar ?? [] }));
     setGameState("loading");
   };
+
+  /** O prazo, no resultado: opcional, e tocar de novo desmarca. */
+  const escolherPrazo = (timeline: AnswerState["timeline"]) =>
+    setAnswers((prev) => ({ ...prev, timeline: prev.timeline === timeline ? "" : timeline }));
 
   /**
    * A busca: as respostas vão para `/api/match`, que roda o motor de fatos
@@ -707,15 +989,33 @@ export default function CarMatch() {
   useEffect(() => {
     if (gameState !== "loading") return;
     let cancelado = false;
-    const idsDasRespostas = [answers.objective, answers.style, answers.experience, answers.timeline].filter(Boolean);
-    const teto = !answers.budgetMax || answers.budgetMax >= Number.MAX_SAFE_INTEGER ? null : answers.budgetMax;
+    // Ids, e nunca rótulos nem orçamento: é o que vai ao GA4, ao Pixel e à
+    // CAPI como termo de busca.
+    const ids = idsDasRespostas(perfilAtual);
 
     fetch("/api/match", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        respostas: { objetivo: answers.objective, experiencia: answers.experience, estilo: answers.style },
-        orcamento: { min: answers.budgetMin, max: teto },
+        perfil: {
+          leva: perfilAtual.leva,
+          jeitos: perfilAtual.jeitos,
+          cambio: perfilAtual.cambio,
+          naoPodeFaltar: perfilAtual.naoPodeFaltar,
+        },
+        // POR MÊS vai dentro do orçamento: é ele que faz a faixa. Só o que a
+        // pessoa disse — as taxas a rota lê do banco, não do corpo.
+        orcamento: {
+          ...perfilAtual.orcamento,
+          parcela: perfilAtual.parcela
+            ? {
+                max: perfilAtual.parcela.max,
+                entrada: perfilAtual.parcela.entrada,
+                prazo: perfilAtual.parcela.prazo,
+                ocupacao: perfilAtual.parcela.ocupacao,
+              }
+            : null,
+        },
         afrouxar: afrouxados,
         // Quem recusou o rastreamento não manda identificador para a consulta.
         ag_uid: rastreamentoRecusado() ? undefined : getActiveAgUid(),
@@ -735,14 +1035,14 @@ export default function CarMatch() {
         // que levariam o orçamento ("de R$ 55 mil a R$ 75 mil") ao Pixel e à
         // CAPI. A contagem é a da faixa: o complemento abaixo do piso não é
         // resultado da busca.
-        trackCarMatch(idsDasRespostas, r.naFaixa);
+        trackCarMatch(ids, r.naFaixa);
       })
       .catch((err) => {
         if (cancelado) return;
         console.error("[CarMatch] A consulta ao estoque falhou:", err);
         setRecomendacao(null);
         setBuscaFalhou(true);
-        trackCarMatch(idsDasRespostas, 0);
+        trackCarMatch(ids, 0);
       })
       .finally(() => {
         if (!cancelado) setGameState("results");
@@ -751,7 +1051,7 @@ export default function CarMatch() {
     return () => {
       cancelado = true;
     };
-  }, [gameState, answers, afrouxados]);
+  }, [gameState, perfilAtual, afrouxados]);
 
   // O funil passo a passo, para medir onde a pessoa desiste. Só o nome do
   // passo vai para o GA4 — nada de resposta nem de orçamento.
@@ -760,8 +1060,9 @@ export default function CarMatch() {
   }, [gameState]);
 
   const handleReset = () => {
-    setAnswers({ budgetMin: 0, budgetMax: 0, objective: "", experience: "", style: "", timeline: "" });
+    setAnswers(RESPOSTAS_EM_BRANCO);
     setBudgetTab("presets");
+    setRascunhoPorMes({ ...PORMES_INICIAL, parametros });
     setAllowUpsell(true);
     setAiQuery("");
     setIsAiCuratorActive(false);
@@ -769,6 +1070,7 @@ export default function CarMatch() {
     setBuscaFalhou(false);
     setAfrouxados([]);
     setEscolhidos([]);
+    setCoringasRecusados([]);
     setModoDoLead("carros");
     setGameState("intro");
   };
@@ -785,22 +1087,17 @@ export default function CarMatch() {
      real do estoque diante do orçamento respondido.
      ────────────────────────────────────────────────────────────────────── */
 
-  // Piso e teto, como o motor — e sem a moto, que o Profiler não sugere.
-  const estoqueCompativel = useMemo(() => {
-    if (!answers.budgetMax) return carrosDoPatio;
-    return carrosDoPatio.filter((v) => {
-      const preco = precoVigente(v);
-      return preco >= answers.budgetMin && preco <= answers.budgetMax;
-    });
-  }, [carrosDoPatio, answers.budgetMin, answers.budgetMax]);
-
-  /** Composição por carroceria do que cabe no orçamento — dado real, não score. */
+  /**
+   * Composição por carroceria do que SOBRA com as respostas até aqui — dado
+   * real, não score. Antes era só o recorte do orçamento; agora acompanha
+   * cada toque, como o "SOBRAM N DE M".
+   */
   const composicaoEstoque = useMemo(() => {
-    const total = estoqueCompativel.length;
+    const total = restantes.length;
     if (total === 0) return [];
 
     const contagem = new Map<string, number>();
-    for (const v of estoqueCompativel) {
+    for (const v of restantes) {
       const chave = (v.tipo || "").trim() || "Outros";
       contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
     }
@@ -813,37 +1110,94 @@ export default function CarMatch() {
         quantidade,
         percentual: Math.round((quantidade / total) * 100),
       }));
-  }, [estoqueCompativel]);
+  }, [restantes]);
 
   const respostasDoPainel = useMemo(() => {
-    const valor = (v: string | undefined) => v ?? "";
+    const resumo = (opcoes: readonly { id: string; resumo: string }[], id: string) =>
+      opcoes.find((o) => o.id === id)?.resumo ?? "";
+    const jeito =
+      answers.leva === "carga"
+        ? "Picape, utilitário ou van"
+        : answers.jeitos === null
+          ? ""
+          : answers.jeitos.length === 0
+            ? "Tanto faz"
+            : answers.jeitos.map((j) => resumo(OPCOES_JEITO, j)).join(", ");
+    const itens = perfilAtual.naoPodeFaltar ?? [];
     return [
       {
         numero: "01",
         rotulo: "ORÇAMENTO",
-        valor: answers.budgetMax
-          ? textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax).replace(/^./, (l) => l.toUpperCase())
-          : "",
+        valor: answers.porMes
+          ? [
+              `Até ${answers.porMes.parcela.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}/mês`,
+              `${answers.porMes.prazo}×`,
+              answers.porMes.entrada > 0 ? `entrada R$ ${formatShort(answers.porMes.entrada)}` : "sem entrada",
+            ].join(" · ")
+          : answers.budgetMax
+            ? textoDoOrcamentoDe(answers.budgetMin, answers.budgetMax).replace(/^./, (l) => l.toUpperCase())
+            : "",
       },
-      { numero: "02", rotulo: "OBJETIVO", valor: valor(OPCOES_OBJETIVO.find((o) => o.id === answers.objective)?.resumo) },
-      { numero: "03", rotulo: "EXPERIÊNCIA", valor: valor(OPCOES_EXPERIENCIA.find((o) => o.id === answers.experience)?.resumo) },
-      { numero: "04", rotulo: "ESTILO", valor: valor(OPCOES_ESTILO.find((o) => o.id === answers.style)?.resumo) },
-      { numero: "05", rotulo: "PRAZO", valor: valor(OPCOES_PRAZO.find((o) => o.id === answers.timeline)?.resumo) },
+      { numero: "02", rotulo: "QUEM VAI", valor: resumo(OPCOES_LEVA, answers.leva) },
+      { numero: "03", rotulo: "JEITO", valor: jeito },
+      {
+        numero: "04",
+        rotulo: "CÂMBIO",
+        // Pergunta pulada mostra o fato que a pulou, e não "a responder".
+        valor: cambioUnico
+          ? cambioUnico === "manual"
+            ? "Todos manuais"
+            : "Todos automáticos"
+          : resumo(OPCOES_CAMBIO, answers.cambio),
+      },
+      {
+        numero: "05",
+        rotulo: "NÃO PODE FALTAR",
+        valor:
+          answers.naoPodeFaltar === null
+            ? ""
+            : itens.length === 0
+              ? "Nada disso"
+              : itens.map((i) => resumo(OPCOES_NAO_PODE_FALTAR, i)).join(", "),
+      },
     ];
-  }, [answers]);
+  }, [answers, perfilAtual, cambioUnico]);
 
-  const indicePergunta = PERGUNTAS.findIndex((p) => p.id === gameState);
-  const emPergunta = indicePergunta >= 0;
-  const restantes = emPergunta ? PERGUNTAS.length - (indicePergunta + 1) : 0;
+  const perguntaAtual = PERGUNTAS.find((p) => p.id === gameState) ?? null;
+  const emPergunta = perguntaAtual !== null;
+  // A pergunta atual pode ter saído da sequência enquanto a pessoa está nela
+  // (o estoque chegou depois e a 04 deixou de separar carro): a régua conta a
+  // posição dela pela ordem fixa, e a inclui no total.
+  const naSequencia = perguntaAtual ? sequencia.includes(perguntaAtual.id) : false;
+  const posicaoNaSequencia = perguntaAtual
+    ? sequencia.filter((id) => ordemFixa(id) < ordemFixa(perguntaAtual.id)).length
+    : -1;
+  const totalDePerguntas = sequencia.length + (perguntaAtual && !naSequencia ? 1 : 0);
+  const perguntasQueFaltam = perguntaAtual ? totalDePerguntas - (posicaoNaSequencia + 1) : 0;
   const mostrarPainel = gameState === "intro" || emPergunta;
 
-  /** Volta uma pergunta; da primeira, volta para a abertura. */
+  /** Volta uma pergunta — pulando as que esta pessoa não viu; da primeira, para a abertura. */
   const voltarPergunta = () => {
-    if (indicePergunta <= 0) {
-      setGameState("intro");
-      return;
+    if (!perguntaAtual) return;
+    cancelarAvanco();
+    setGameState(antesDe(perguntaAtual.id, answers, carrosDoPatio));
+  };
+
+  /** O que a tela diz sobre a pergunta que sumiu — no lugar dela, na seguinte. */
+  const notasDaPergunta = (id: IdDaPergunta): string[] => {
+    const notas: string[] = [];
+    if (answers.leva === "carga" && ordemFixa(id) > ordemFixa("q3") && antesDe(id, answers, carrosDoPatio) === "q2") {
+      notas.push("Com carga, o jeito de carro já está decidido: picape, utilitário ou van.");
     }
-    setGameState(PERGUNTAS[indicePergunta - 1].id as EstadoQuiz);
+    if (cambioUnico && id === "q5") {
+      const n = carrosNaFaixa(carrosDoPatio, criteriosDoPerfil(perfilAteOJeito(answers))).length;
+      notas.push(
+        `Pulamos o câmbio: ${n === 1 ? "o carro que sobrou é" : `os ${n} carros que sobraram são todos`} ${
+          cambioUnico === "manual" ? (n === 1 ? "manual" : "manuais") : n === 1 ? "automático" : "automáticos"
+        }.`,
+      );
+    }
+    return notas;
   };
 
   const tituloBarra = (companySettings?.carMatchTitle || "Garagem Profiler").toUpperCase();
@@ -880,14 +1234,15 @@ export default function CarMatch() {
                 Cinco perguntas até o carro certo.
               </h1>
               <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-inverso-suave lg:text-base">
-                Cruzamos suas respostas com o pátio de hoje e mostramos três
-                carros, com o que cada um atende do seu pedido e o que pesa contra.
+                Cada opção mostra, antes do toque, quantos carros do pátio sobram
+                com ela. No fim, três carros, com o que cada um atende do seu
+                pedido e o que pesa contra.
               </p>
             </div>
 
             <div className="mt-9 flex border-t-2 border-mt-inverso-regua pt-4 lg:mt-11">
               {[
-                { valor: "05", rotulo: "PERGUNTAS" },
+                { valor: "05", rotulo: "PERGUNTAS, NO MÁXIMO" },
                 { valor: "30s", rotulo: "PARA RESPONDER" },
                 { valor: carrosDoPatio.length > 0 ? String(carrosDoPatio.length) : "—", rotulo: "CARROS NO PÁTIO" },
               ].map((item) => (
@@ -918,7 +1273,11 @@ export default function CarMatch() {
         {/* ─── Perguntas ─── */}
         {emPergunta && (
           <>
-            <ReguaProgresso indice={indicePergunta} />
+            <ReguaProgresso
+              posicao={Math.max(0, posicaoNaSequencia)}
+              total={totalDePerguntas}
+              rotulo={perguntaAtual?.rotulo ?? ""}
+            />
 
             {/* 01 — Orçamento */}
             {gameState === "q1" && (
@@ -927,19 +1286,25 @@ export default function CarMatch() {
                   Qual a faixa de investimento para a próxima garagem?
                 </h2>
 
-                {/* Modo de responder: faixa pronta, valor exato ou texto livre */}
-                <div className="mt-8 flex w-max border-2 border-mt-inverso-regua">
+                {/* Modo de responder: faixa pronta, valor exato, parcela ou texto
+                    livre. Quatro abas não cabem numa linha de celular: lá
+                    viram grade 2×2, e do tablet para cima voltam a ser linha. */}
+                <div className="mt-8 grid grid-cols-2 border-2 border-mt-inverso-regua sm:flex sm:w-max">
                   {([
                     { id: "presets", rotulo: "FAIXA" },
                     { id: "custom", rotulo: "VALOR EXATO" },
+                    { id: "porMes", rotulo: "POR MÊS" },
                     { id: "ai", rotulo: "DESCREVER" },
                   ] as const).map((aba, i) => (
                     <button
                       key={aba.id}
                       type="button"
                       onClick={() => setBudgetTab(aba.id)}
-                      className={`mt-foco px-5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors lg:px-7 lg:text-[13px] ${
-                        i > 0 ? "border-l-2 border-mt-inverso-regua" : ""
+                      aria-pressed={budgetTab === aba.id}
+                      className={`mt-foco px-3.5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors sm:px-5 lg:px-7 lg:text-[13px] ${
+                        i % 2 === 1 ? "border-l-2 border-mt-inverso-regua" : ""
+                      } ${i >= 2 ? "border-t-2 border-mt-inverso-regua sm:border-t-0" : ""} ${
+                        i === 2 ? "sm:border-l-2" : ""
                       } ${
                         budgetTab === aba.id
                           ? "bg-mt-accent text-mt-inverso"
@@ -999,6 +1364,123 @@ export default function CarMatch() {
                   </div>
                 )}
 
+                {budgetTab === "porMes" && (() => {
+                  const r = rascunhoPorMes;
+                  const mudar = (m: Partial<PorMes>) => setRascunhoPorMes((atual) => ({ ...atual, ...m }));
+                  const piso = Math.round(r.parcela * PISO_DO_VALOR_EXATO);
+                  // A mesma conta do resultado: quantos têm parcela entre 70%
+                  // e 100% do que a pessoa disse, com os filtros já respondidos.
+                  const n = semContagem ? null : sobramCom({ ...answers, budgetMin: 0, budgetMax: 0, porMes: r });
+                  return (
+                    <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
+                      <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                        PARCELA QUE CABE NO MÊS
+                      </Rotulo>
+                      <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
+                        {formatPrice(r.parcela)}
+                      </div>
+                      <input
+                        type="range"
+                        min={500}
+                        max={5000}
+                        step={50}
+                        value={r.parcela}
+                        onChange={(e) => mudar({ parcela: Number(e.target.value) })}
+                        aria-label="Parcela que cabe no mês"
+                        aria-valuetext={`${formatPrice(r.parcela)} por mês`}
+                        className="mt-range mt-foco mt-4 [--mt-range-trilho:var(--mt-inverso-regua)]"
+                      />
+
+                      <Rotulo className="mt-7 block text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                        ENTRADA
+                      </Rotulo>
+                      <div className="mt-1.5 text-2xl font-extrabold tracking-[-.03em]">
+                        {r.entrada > 0 ? formatPrice(r.entrada) : "Sem entrada"}
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={150000}
+                        step={1000}
+                        value={r.entrada}
+                        onChange={(e) => mudar({ entrada: Number(e.target.value) })}
+                        aria-label="Entrada"
+                        aria-valuetext={r.entrada > 0 ? formatPrice(r.entrada) : "Sem entrada"}
+                        className="mt-range mt-foco mt-4 [--mt-range-trilho:var(--mt-inverso-regua)]"
+                      />
+                      <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso-suave">
+                        Conte o dinheiro e, se tiver carro para a troca, quanto você espera que ele cubra. É a
+                        sua estimativa: o carro é avaliado com a gente, depois.
+                      </p>
+                      <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-[13px]">
+                        <input
+                          type="checkbox"
+                          checked={r.troca}
+                          onChange={(e) => mudar({ troca: e.target.checked })}
+                          className="mt-foco h-4 w-4 accent-[var(--mt-accent)]"
+                        />
+                        Tenho carro para dar na troca
+                      </label>
+                      {r.troca && r.entrada === 0 && (
+                        <p className="m-0 mt-2 text-[12px] leading-relaxed text-mt-inverso">
+                          Se o carro da troca entra na entrada, some acima o valor que você espera dele.
+                        </p>
+                      )}
+
+                      <Rotulo className="mt-7 block text-[10px] tracking-[.16em] text-mt-inverso-suave">PRAZO</Rotulo>
+                      <div className="mt-2.5 flex w-max border-2 border-mt-inverso-regua">
+                        {PRAZOS_DO_POR_MES.map((prazo, i) => (
+                          <button
+                            key={prazo}
+                            type="button"
+                            onClick={() => mudar({ prazo })}
+                            aria-pressed={r.prazo === prazo}
+                            className={`mt-foco px-4 py-2 text-xs font-extrabold transition-colors ${
+                              i > 0 ? "border-l-2 border-mt-inverso-regua" : ""
+                            } ${r.prazo === prazo ? "bg-mt-accent text-mt-inverso" : "text-mt-inverso-suave hover:text-mt-inverso"}`}
+                          >
+                            {prazo}×
+                          </button>
+                        ))}
+                      </div>
+
+                      <label className="mt-7 block">
+                        <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                          OCUPAÇÃO · MUDA A TAXA ESTIMADA
+                        </Rotulo>
+                        <select
+                          value={r.ocupacao}
+                          onChange={(e) => mudar({ ocupacao: e.target.value as Ocupacao })}
+                          className="mt-campo mt-foco mt-2 w-full border-b-2 border-mt-inverso-regua bg-transparent pb-2 text-mt-inverso"
+                        >
+                          {OCUPACOES.map((o) => (
+                            <option key={o} value={o} className="bg-mt-inverso-fundo">
+                              {ROTULO_DA_OCUPACAO[o]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {n !== null && (
+                        <p className="m-0 mt-7 text-[13px] font-extrabold leading-snug" aria-live="polite">
+                          {n === 0
+                            ? `Nenhum carro do pátio com parcela entre ${formatPrice(piso)} e ${formatPrice(r.parcela)} hoje.`
+                            : `${n === 1 ? "1 carro" : `${n} carros`} com parcela entre ${formatPrice(piso)} e ${formatPrice(r.parcela)}.`}
+                        </p>
+                      )}
+                      <p className="m-0 mt-2 text-[11px] leading-relaxed text-mt-inverso-suave">
+                        Parcela estimada pela {parametros.fonteDasTaxas}, com IOF. Os bancos parceiros
+                        financiam carros de {parametros.anoMaisAntigo} em diante: um mais antigo só entra se a
+                        sua entrada pagar ele inteiro. {avisoDeCredito(parametros.bancosParceiros)}
+                      </p>
+                      <button type="button" onClick={confirmarPorMes} className="mt-btn mt-btn-primario mt-foco mt-6">
+                        CONFIRMAR
+                        <Seta size={15} />
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {budgetTab === "ai" && (
                   <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
                     <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
@@ -1026,49 +1508,151 @@ export default function CarMatch() {
               </div>
             )}
 
-            {/* 02 — Objetivo */}
+            {/* 02 — Quem vai */}
             {gameState === "q2" && (
               <BlocoPergunta
-                titulo="Qual o principal objetivo na sua próxima compra?"
-                opcoes={OPCOES_OBJETIVO}
-                selecionado={answers.objective}
-                onSelecionar={(id) => selectObjective(id as AnswerState["objective"])}
+                titulo="O que o carro vai levar?"
+                opcoes={OPCOES_LEVA.map((o) => {
+                  const n = semContagem ? null : sobramCom(comLeva(answers, o.id));
+                  return {
+                    ...o,
+                    contagem: n === null ? null : textoDaContagem(n),
+                    zerada: n === 0,
+                    selecionada: answers.leva === o.id,
+                    onClick: () => selectLeva(o.id),
+                  };
+                })}
               />
             )}
 
-            {/* 03 — Experiência */}
+            {/* 03 — Jeito de carro (várias) */}
             {gameState === "q3" && (
               <BlocoPergunta
-                titulo="O que mais pesa na sua escolha?"
-                opcoes={OPCOES_EXPERIENCIA}
-                selecionado={answers.experience}
-                onSelecionar={(id) => selectExperience(id as AnswerState["experience"])}
+                titulo="Que jeito de carro?"
+                subtitulo="Pode marcar mais de um."
+                opcoes={[
+                  ...OPCOES_JEITO.map((o) => {
+                    // Várias respostas: o número de cada jeito é o dele
+                    // sozinho — é o que o "SOBRAM" diz se só ele ficar
+                    // marcado, e os números somam entre si.
+                    const n = semContagem ? null : sobramCom({ ...answers, jeitos: [o.id] });
+                    return {
+                      ...o,
+                      contagem: n === null ? null : textoDaContagem(n),
+                      zerada: n === 0,
+                      selecionada: (answers.jeitos ?? []).includes(o.id),
+                      onClick: () => alternarJeito(o.id),
+                    };
+                  }),
+                  {
+                    id: "tanto-faz",
+                    titulo: "Tanto faz",
+                    desc: "Mostrem o que o pátio tiver.",
+                    contagem: semContagem ? null : textoDaContagem(sobramCom({ ...answers, jeitos: [] })),
+                    zerada: false,
+                    selecionada: answers.jeitos !== null && answers.jeitos.length === 0,
+                    onClick: jeitoTantoFaz,
+                  },
+                ]}
               />
             )}
 
-            {/* 04 — Estilo */}
+            {/* 04 — Câmbio */}
             {gameState === "q4" && (
               <BlocoPergunta
-                titulo="Qual carroceria mais atrai você hoje?"
-                opcoes={OPCOES_ESTILO}
-                selecionado={answers.style}
-                onSelecionar={(id) => selectStyle(id as AnswerState["style"])}
+                titulo="Trocar marcha no trânsito?"
+                notas={notasDaPergunta("q4")}
+                opcoes={OPCOES_CAMBIO.map((o) => {
+                  const n = semContagem ? null : sobramCom(comCambio(answers, o.id));
+                  return {
+                    ...o,
+                    contagem: n === null ? null : textoDaContagem(n),
+                    zerada: n === 0,
+                    selecionada: answers.cambio === o.id,
+                    onClick: () => selectCambio(o.id),
+                  };
+                })}
               />
             )}
 
-            {/* 05 — Prazo */}
-            {gameState === "q5" && (
-              <BlocoPergunta
-                titulo="Qual o seu prazo ideal para fechar negócio?"
-                opcoes={OPCOES_PRAZO}
-                selecionado={answers.timeline}
-                onSelecionar={(id) => selectTimeline(id as AnswerState["timeline"])}
-              />
-            )}
+            {/* 05 — O que não pode faltar (até três) */}
+            {gameState === "q5" && (() => {
+              const marcados = perfilAtual.naoPodeFaltar ?? [];
+              const cheio = marcados.length >= MAXIMO_DO_QUE_NAO_PODE_FALTAR;
+              const visiveis = OPCOES_NAO_PODE_FALTAR.filter((o) => !o.soComCarga || answers.leva === "carga");
+              return (
+                <BlocoPergunta
+                  titulo="O que não pode faltar?"
+                  subtitulo={`Até ${MAXIMO_DO_QUE_NAO_PODE_FALTAR}. Ano, km e diesel tiram da lista quem não tem; o resto põe na frente quem tem na ficha.`}
+                  notas={notasDaPergunta("q5")}
+                  opcoes={[
+                    ...visiveis.map((o) => {
+                      const selecionada = marcados.includes(o.id);
+                      // Item que corta: quantos sobram se ele entrar. Item de
+                      // ficha não tira carro — o número honesto é em quantos
+                      // dos que sobram ele consta (na ficha ou, para turbo e
+                      // 4x4, no nome da versão).
+                      let contagem: string | null = null;
+                      let zerada = false;
+                      if (cheio && !selecionada) {
+                        // Desabilitada: um quarto item não entra, e um número
+                        // aqui não diria nada sobre ela.
+                      } else if (!semContagem && o.corta) {
+                        // Marcado: o que sobra com ele. Desmarcado: o que
+                        // sobraria se entrasse.
+                        const n = selecionada ? restantes.length : sobramCom(comItemAlternado(answers, o.id));
+                        contagem = textoDaContagem(n);
+                        zerada = n === 0;
+                      } else if (!semContagem && restantes.length > 0) {
+                        const pref = o.id as ChaveDePreferencia;
+                        const n = restantes.filter((v) => PREFERENCIAS[pref].avaliar(v) === "atende").length;
+                        contagem = `consta em ${n} de ${restantes.length}`;
+                        zerada = n === 0;
+                      }
+                      return {
+                        ...o,
+                        contagem,
+                        zerada,
+                        selecionada,
+                        desabilitada: cheio && !selecionada,
+                        onClick: () => alternarItem(o.id),
+                      };
+                    }),
+                    {
+                      id: "nada-disso",
+                      titulo: "Nada disso",
+                      desc: "Nenhum destes decide.",
+                      contagem: semContagem ? null : textoDaContagem(sobramCom({ ...answers, naoPodeFaltar: [] })),
+                      zerada: false,
+                      selecionada: answers.naoPodeFaltar !== null && answers.naoPodeFaltar.length === 0,
+                      onClick: () => verResultado([]),
+                    },
+                  ]}
+                />
+              );
+            })()}
 
-            {/* Navegação. Não há "PRÓXIMA": escolher uma opção já avança, que
-                é como o fluxo sempre funcionou em produção. */}
+            {/* Navegação. Nas perguntas de uma resposta não há "PRÓXIMA":
+                escolher já avança, que é como o fluxo sempre funcionou. As de
+                várias respostas (03 e 05) têm o botão de seguir. */}
             <div className="mt-8 flex flex-wrap items-center gap-5 lg:mt-9">
+              {gameState === "q3" && (
+                <button
+                  type="button"
+                  onClick={confirmarJeitos}
+                  disabled={(answers.jeitos ?? []).length === 0}
+                  className="mt-btn mt-btn-primario mt-foco disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  CONTINUAR
+                  <Seta size={15} />
+                </button>
+              )}
+              {gameState === "q5" && (
+                <button type="button" onClick={() => verResultado()} className="mt-btn mt-btn-primario mt-foco">
+                  VER RESULTADO
+                  <Seta size={15} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={voltarPergunta}
@@ -1076,13 +1660,23 @@ export default function CarMatch() {
               >
                 VOLTAR
               </button>
-              {restantes > 0 && (
+              {perguntasQueFaltam > 0 && (
                 <span className="text-xs text-mt-inverso-suave">
-                  {restantes === 1 ? "Falta 1 pergunta" : `Faltam ${restantes} perguntas`} · ~
-                  {restantes * SEGUNDOS_POR_PERGUNTA}s
+                  {perguntasQueFaltam === 1 ? "Falta 1 pergunta" : `Faltam ${perguntasQueFaltam} perguntas`} · ~
+                  {perguntasQueFaltam * SEGUNDOS_POR_PERGUNTA}s
                 </span>
               )}
             </div>
+
+            {/* No celular o painel fica lá embaixo; a conta que importa
+                acompanha a pergunta. */}
+            {!semContagem && orcamentoRespondido && (
+              <div className="sticky bottom-0 z-10 -mx-[18px] mt-6 border-t-2 border-mt-inverso-regua bg-mt-inverso-fundo px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 lg:hidden">
+                <span className="text-[11px] font-extrabold tracking-[.12em]">
+                  SOBRAM {restantes.length} DE {carrosDoPatio.length}
+                </span>
+              </div>
+            )}
           </>
         )}
 
@@ -1111,6 +1705,14 @@ export default function CarMatch() {
             escolhidos={escolhidos}
             afrouxados={afrouxados}
             onAlternar={alternarEscolhido}
+            coringaRecusado={
+              recomendacao?.coringa ? coringasRecusados.includes(recomendacao.coringa.veiculo.id) : false
+            }
+            onRecusarCoringa={recusarCoringa}
+            troca={answers.porMes?.troca ?? false}
+            prazo={answers.timeline}
+            opcoesDePrazo={OPCOES_PRAZO}
+            onPrazo={(id) => escolherPrazo(id as AnswerState["timeline"])}
             onAfrouxar={afrouxar}
             onFalar={() =>
               abrirLead(buscaFalhou || !recomendacao ? "ajuda" : recomendacao.cartoes.length > 0 ? "carros" : "aviso")
@@ -1160,8 +1762,8 @@ export default function CarMatch() {
           {composicaoEstoque.length > 0 && (
             <div className="mt-8">
               <Rotulo className="text-[11px] tracking-[.16em]">
-                {answers.budgetMax
-                  ? "O QUE CABE NO SEU ORÇAMENTO"
+                {orcamentoRespondido
+                  ? "O QUE SOBRA COM SUAS RESPOSTAS"
                   : "COMPOSIÇÃO DO ESTOQUE"}
               </Rotulo>
               <div className="mt-3.5 flex flex-col gap-3.5">
@@ -1196,12 +1798,13 @@ export default function CarMatch() {
               No fim, você vê <strong>três carros do pátio</strong>, com o porquê
               de cada um, e escolhe quais quer ver com o consultor.
             </p>
-            {estoqueCompativel.length > 0 && (
+            {!semContagem && (
               <div className="mt-3.5 flex items-center gap-2.5">
                 <span className="mt-pulso h-2 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
                 <span className="text-[11px] tracking-[.1em] text-mt-neutral-600">
-                  {estoqueCompativel.length}{" "}
-                  {answers.budgetMax ? "CARROS NA SUA FAIXA AGORA" : "CARROS NO PÁTIO"}
+                  {orcamentoRespondido
+                    ? `SOBRAM ${restantes.length} DE ${carrosDoPatio.length}`
+                    : `${carrosDoPatio.length} CARROS NO PÁTIO`}
                 </span>
               </div>
             )}
@@ -1223,32 +1826,56 @@ export default function CarMatch() {
 /**
  * Perguntas 02 a 05: título grande e a grade de opções.
  * A 01 fica fora porque tem três modos de resposta.
+ *
+ * Cada opção chega pronta — contagem, seleção e o que o toque faz —, porque
+ * as de uma resposta avançam e as de várias alternam, e isso é decisão de
+ * quem chama, não do bloco.
  */
 function BlocoPergunta({
   titulo,
+  subtitulo,
+  notas = [],
   opcoes,
-  selecionado,
-  onSelecionar,
 }: {
   titulo: string;
-  opcoes: readonly { id: string; letra: string; titulo: string; desc: string }[];
-  selecionado: string;
-  onSelecionar: (id: string) => void;
+  subtitulo?: string;
+  notas?: readonly string[];
+  opcoes: readonly {
+    id: string;
+    titulo: string;
+    desc: string;
+    contagem?: string | null;
+    zerada?: boolean;
+    selecionada: boolean;
+    desabilitada?: boolean;
+    onClick: () => void;
+  }[];
 }) {
   return (
     <div className="flex flex-1 flex-col">
+      {notas.map((nota) => (
+        <p key={nota} className="m-0 mt-7 max-w-[640px] border-l-2 border-mt-accent pl-3 text-[13px] leading-relaxed text-mt-inverso">
+          {nota}
+        </p>
+      ))}
       <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
         {titulo}
       </h2>
+      {subtitulo && (
+        <p className="m-0 mt-3 max-w-[640px] text-[13px] leading-relaxed text-mt-inverso-suave">{subtitulo}</p>
+      )}
       <div className="mt-8 grid gap-0.5 md:grid-cols-2 lg:mt-auto">
-        {opcoes.map((opcao) => (
+        {opcoes.map((opcao, i) => (
           <OpcaoQuiz
             key={opcao.id}
-            letra={opcao.letra}
+            letra={String.fromCharCode(65 + i)}
             titulo={opcao.titulo}
             desc={opcao.desc}
-            selecionada={selecionado === opcao.id}
-            onClick={() => onSelecionar(opcao.id)}
+            contagem={opcao.contagem}
+            zerada={opcao.zerada}
+            selecionada={opcao.selecionada}
+            desabilitada={opcao.desabilitada}
+            onClick={opcao.onClick}
           />
         ))}
       </div>

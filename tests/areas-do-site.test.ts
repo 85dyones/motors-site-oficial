@@ -179,6 +179,16 @@ describe("seção nova entra na vizinhança do catálogo, não no fim", () => {
     expect(ordem[ordem.indexOf("estoque_selecionado") + 1]).toBe("faixas_de_preco");
   });
 
+  it("a faixa do repasse entra logo depois das faixas de preço, sem passo no painel", () => {
+    // PR 4 do repasse (spec 2026-09-24 §10). A ordem salva não conhece
+    // `repasse` nem `faixas_de_preco`; as duas entram na vizinhança do catálogo.
+    const { ordem } = normalizarAreas({ ordem: ORDEM_DE_PRODUCAO, ocultas: [] });
+
+    expect(ordem.indexOf("repasse"), "a faixa do repasse não entrou na ordem").toBeGreaterThanOrEqual(0);
+    expect(ordem[ordem.indexOf("faixas_de_preco") + 1]).toBe("repasse");
+    expect(ordem.indexOf("repasse")).toBeLessThan(ordem.indexOf("contato"));
+  });
+
   it("vale para qualquer seção nova, não só esta", () => {
     // Tira do meio da ordem salva uma área que NÃO é a última do catálogo e
     // confere que ela volta para o lugar dela, e não para o fim.

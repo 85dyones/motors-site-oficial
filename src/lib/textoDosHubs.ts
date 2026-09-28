@@ -115,7 +115,7 @@ function enumerar(itens: string[]): string {
  */
 function paragrafoDaSelecao(genero: Genero = "m"): string {
   return (
-    "Todo veículo que entra passa por perícia cautelar independente antes de ir para a " +
+    "Todo veículo que entra no estoque passa por perícia cautelar independente antes de ir para a " +
     `vitrine, e de cada dez ${avaliados(genero)}, três entram. O laudo está disponível para ` +
     "consulta com o vendedor e o preço está no anúncio. O showroom fica no " +
     `${BAIRRO_DA_LOJA}, em ${CIDADE_DA_LOJA}, e lá dá para ver o carro, dirigir e conferir a ` +
@@ -432,7 +432,7 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
       resposta:
         "Pode valer, desde que o histórico acompanhe. Veículo de frota costuma ter manutenção " +
         "registrada e rodar mais quilômetro por ano que o de pessoa física, então vale conferir " +
-        "se as revisões seguiram a quilometragem. Todo veículo aqui passa por perícia cautelar " +
+        "se as revisões seguiram a quilometragem. Todo veículo do estoque passa por perícia cautelar " +
         "independente antes de ser anunciado, e o laudo está disponível para consulta com o vendedor.",
     },
   ],
@@ -499,7 +499,7 @@ export const PERGUNTAS_POR_CAMINHO: Record<string, PerguntaFrequente[]> = {
       pergunta: "Como saber se o carro foi preparado ou remapeado?",
       resposta:
         "Quem vendeu o carro antes nem sempre conta. Os sinais são chicote com emenda, central " +
-        "com módulo adicional e escapamento fora do original. Todo veículo aqui passa por perícia " +
+        "com módulo adicional e escapamento fora do original. Todo veículo do estoque passa por perícia " +
         "cautelar independente antes de ser anunciado, e o laudo está disponível para consulta " +
         "com o vendedor.",
     },
@@ -580,7 +580,7 @@ export function perguntasDeCategoria(
          string vai inteira para o `FAQPage` do JSON-LD, e quem transforma a
          citação em âncora é `segmentarComLinks`, no render. */
       resposta:
-        "Sim. Todo veículo passa por perícia cautelar independente antes de entrar na vitrine, e o laudo está disponível " +
+        "Sim. Todo veículo do estoque passa por perícia cautelar independente antes de entrar na vitrine, e o laudo está disponível " +
         "para consulta com o vendedor. É o mesmo exame para qualquer faixa de preço. " +
         TEXTO_PONTE_DO_GUIA,
     },

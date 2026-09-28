@@ -51,11 +51,13 @@ describe("o texto sobrevive à segmentação", () => {
       "../src/lib/paginasInstitucionais"
     );
     const { PERGUNTAS_POR_CAMINHO } = await import("../src/lib/textoDosHubs");
+    const { PERGUNTAS_DO_REPASSE } = await import("../src/lib/paginaDoRepasse");
 
     const respostas = [
       ...PERGUNTAS_DE_GARANTIA,
       ...PERGUNTAS_DE_FINANCIAMENTO,
       ...Object.values(PERGUNTAS_POR_CAMINHO).flat(),
+      ...PERGUNTAS_DO_REPASSE,
     ].map((p) => p.resposta);
 
     // Se este numero cair para zero por uma renomeacao, o teste vira teatro.

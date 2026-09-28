@@ -94,6 +94,20 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       items: [{ name: "Veículos", href: "/admin/estoque" }],
     },
     {
+      // Repasse Motors (2026-09-24): carros vendidos no estado, sem a
+      // garantia da loja. Todo perfil cadastra (dono, 24/09); a lista de
+      // inscritos — WhatsApp e CNPJ — é só de quem valida (Administrador,
+      // Gestor, Comercial), como a RLS e a página. O SDR (papel do #147)
+      // cadastra e não valida: entra em `roles` do grupo e fica fora do item
+      // da lista.
+      title: "Repasse",
+      roles: ["admin", "gestor", "comercial", "marketing", "financeiro", "sdr"],
+      items: [
+        { name: "Carros de repasse", href: "/admin/repasse" },
+        { name: "Lista do repasse", href: "/admin/repasse/inscritos", roles: ["admin", "gestor", "comercial"] },
+      ],
+    },
+    {
       // Motors Ciclo. Só Admin e Comercial pela matriz A17 ("Fechar venda do
       // Ciclo"), acrescentada em 2026-08-14.
       title: "Ciclo",
@@ -122,6 +136,15 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       title: "Investidores",
       roles: ["admin", "gestor", "financeiro"],
       items: [{ name: "Aportes e participações", href: "/admin/investidores" }],
+    },
+    {
+      // As condições do simulador (2026-09-28): taxas, ano mais antigo
+      // financiado e bancos parceiros, com vigência. A linha da A17 é
+      // "Editar texto legal e condições de financiamento" — Administrador e
+      // Financeiro —, a mesma que a página e a rota cobram.
+      title: "Financiamento",
+      roles: ["admin", "financeiro"],
+      items: [{ name: "Condições do simulador", href: "/admin/financiamento" }],
     },
     {
       // Marketing entra pela matriz A17: fotos, textos, SEO e destaques são

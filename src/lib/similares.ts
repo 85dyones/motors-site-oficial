@@ -1,4 +1,5 @@
 import type { Veiculo } from "../types";
+import { contaDoRepasse, type CarroceriaDoRepasse, type Repasse } from "./repasse";
 import { disponiveisDe, precoVigente } from "./regrasEstoque";
 
 /**
@@ -41,35 +42,45 @@ function ehMotocicleta(v: Veiculo): boolean {
   return (v.tipo || "").trim().toLowerCase() === "motocicleta";
 }
 
-function mesmaCarroceria(a: Veiculo, b: Veiculo): boolean {
-  const ta = (a.tipo || "").trim().toLowerCase();
-  const tb = (b.tipo || "").trim().toLowerCase();
+function mesmaCarroceria(tipo: string, v: Veiculo): boolean {
+  const ta = tipo.trim().toLowerCase();
+  const tb = (v.tipo || "").trim().toLowerCase();
   return ta.length > 0 && ta === tb;
 }
 
 /**
- * Os `limite` veículos do estoque mais próximos de `atual`.
+ * A referência de uma vizinhança: um preço, uma carroceria no vocabulário do
+ * feed ("Hatch", "SUV"…; "" quando não se sabe) e se é moto. `id` tira a
+ * própria ficha da lista; é `null` quando a página não é do estoque (o
+ * repasse).
+ */
+export interface ReferenciaDosParecidos {
+  id: string | null;
+  preco: number;
+  tipo: string;
+  moto: boolean;
+}
+
+/**
+ * Os `limite` veículos do estoque mais próximos da referência — o núcleo
+ * de `escolherSimilares`, extraído em 25/09 para a ficha do repasse usar a
+ * mesma régua sem ser um `Veiculo`.
  *
  * Devolve menos que `limite` — inclusive nenhum — quando não há candidato
  * dentro da banda. A seção some da página nesse caso, que é melhor que
  * completar a grade com vizinho ruim.
  */
-export function escolherSimilares(
-  atual: Veiculo,
-  estoque: Veiculo[],
-  limite = 3,
-): Veiculo[] {
-  const precoBase = precoVigente(atual);
+export function vizinhosPorPreco(ref: ReferenciaDosParecidos, estoque: Veiculo[], limite = 3): Veiculo[] {
+  const precoBase = ref.preco;
   if (!(precoBase > 0)) return [];
 
   const piso = precoBase * PISO_DA_BANDA;
   const teto = precoBase * TETO_DA_BANDA;
-  const atualEhMoto = ehMotocicleta(atual);
 
   return disponiveisDe(estoque)
     .filter((v) => {
-      if (v.id === atual.id) return false;
-      if (ehMotocicleta(v) !== atualEhMoto) return false;
+      if (ref.id !== null && v.id === ref.id) return false;
+      if (ehMotocicleta(v) !== ref.moto) return false;
       const preco = precoVigente(v);
       return preco >= piso && preco <= teto;
     })
@@ -77,7 +88,7 @@ export function escolherSimilares(
       const distancia = Math.abs(precoVigente(v) - precoBase) / precoBase;
       return {
         veiculo: v,
-        pontuacao: distancia - (mesmaCarroceria(atual, v) ? BONUS_DE_CARROCERIA : 0),
+        pontuacao: distancia - (mesmaCarroceria(ref.tipo, v) ? BONUS_DE_CARROCERIA : 0),
       };
     })
     .sort((a, b) => {
@@ -88,4 +99,45 @@ export function escolherSimilares(
     })
     .slice(0, limite)
     .map((c) => c.veiculo);
+}
+
+/** Os vizinhos de estoque no rodapé da PDP. A régua é `vizinhosPorPreco`. */
+export function escolherSimilares(atual: Veiculo, estoque: Veiculo[], limite = 3): Veiculo[] {
+  return vizinhosPorPreco(
+    { id: atual.id, preco: precoVigente(atual), tipo: atual.tipo || "", moto: ehMotocicleta(atual) },
+    estoque,
+    limite,
+  );
+}
+
+/**
+ * A carroceria do repasse no vocabulário do feed do estoque (`CARROCERIAS`
+ * em `classificacaoVeiculo.ts`; o feed normaliza para "Hatch", "Sedan",
+ * "SUV", "Picape"). "outro" não tem par e não ganha bônus.
+ */
+export const TIPO_NO_FEED: Record<CarroceriaDoRepasse, string> = {
+  hatch: "Hatch",
+  seda: "Sedan",
+  suv: "SUV",
+  picape: "Picape",
+  outro: "",
+};
+
+/**
+ * "Prefere com garantia?" — três carros do estoque na ficha do repasse
+ * (spec §7.2). A referência é a FIPE, ou "você gasta" sem ela: o carro com
+ * garantia do mesmo porte custa perto da FIPE, e pelo preço de repasse a
+ * banda cortaria justamente ele.
+ */
+export function parecidosDoRepasse(
+  r: Pick<Repasse, "preco" | "fipe_valor" | "itens_de_estado" | "carroceria">,
+  estoque: Veiculo[],
+  limite = 3,
+): Veiculo[] {
+  const conta = contaDoRepasse(r);
+  return vizinhosPorPreco(
+    { id: null, preco: conta.fipe ?? conta.voceGasta, tipo: r.carroceria ? TIPO_NO_FEED[r.carroceria] : "", moto: false },
+    estoque,
+    limite,
+  );
 }

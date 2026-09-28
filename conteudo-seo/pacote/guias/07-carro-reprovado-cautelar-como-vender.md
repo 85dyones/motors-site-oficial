@@ -50,7 +50,7 @@ Repintura extensa, peças trocadas em volume, desgaste incompatível com a idade
 
 **Lojas que trabalham com veículos recuperados.** Existe um segmento especializado nisso, que compra, regulariza e revende com o histórico declarado. É um mercado legítimo quando a informação circula.
 
-**Repasse entre lojistas.** Carros que não entram na vitrine de uma loja frequentemente seguem por esse canal, com preço e condições próprias.
+**Lojista que revende no estado.** Compra para revender como o carro está, com o preço ajustado ao que o laudo apontou.
 
 **Comprador direto que aceita o histórico.** Existe, e mais do que se imagina — desde que o preço reflita a situação e a informação esteja na mesa desde o começo. Quem procura um carro barato e sabe exatamente o que está comprando é um comprador tranquilo.
 
@@ -94,7 +94,7 @@ Não estamos dando parecer jurídico. Em caso de dúvida sobre o seu caso espec�
 
 Nossa vitrine tem um critério fechado: **de cada dez carros avaliados, três entram.** Os outros sete não entram, e isso não é julgamento sobre o carro — é o padrão que a gente assumiu para vender com garantia e com o resultado da perícia publicado na ficha de cada carro.
 
-Mas avaliar é gratuito, e o que acontece depois da avaliação depende do caso. Carro que não vai para a vitrine pode seguir por outro caminho comercial, em condições próprias. Carro com divergência de numeração não segue por caminho nenhum — nesse caso a conversa é para te orientar a procurar quem deve.
+Mas avaliar é gratuito, e o que acontece depois da avaliação depende do caso. Carro reprovado na cautelar não entra na nossa vitrine nem no Repasse Motors, que só recebe carro funcionando e com o estado declarado por escrito. Carro com divergência de numeração não segue por caminho nenhum — nesse caso a conversa é para te orientar a procurar quem deve.
 
 O que a gente não faz, em nenhuma hipótese, é receber o carro sem te dizer o que encontrou.
 
@@ -149,7 +149,7 @@ Não para a vitrine — o critério ali é fechado. Dependendo do caso pode have
 
 ## Pendências antes de publicar
 
-- [ ] **Verificação de T3 sobre repasse.** A `/garantia` afirma "sem termo de isenção — nunca pedimos". Se o repasse entre lojistas usa termo de isenção de garantia, decidir a redação: ou a frase da `/garantia` fica explicitamente restrita à venda ao consumidor, ou este guia não menciona repasse como caminho. Hoje o texto cita "outro caminho comercial" sem detalhar condições — é a redação mais segura, mas a decisão é sua
+- [x] **Verificação de T3 sobre repasse.** Fechado em 25/09/2026 pela spec `docs/superpowers/specs/2026-09-24-secao-de-repasse-design.md` §10: a frase da `/garantia` ("na venda ao consumidor, não pedimos termo de isenção") segue verdadeira, porque a ficha de estado que o comprador do repasse assina não é termo de isenção. A redação deste guia ("outro caminho comercial") fica como está.
 - [x] Confirmar que "avaliação gratuita mesmo quando o carro não entra" corresponde à prática
 - [x] Revisão jurídica do bloco sobre dever de informar
 
@@ -157,7 +157,7 @@ Não para a vitrine — o critério ali é fechado. Dependendo do caso pode have
 
 - [x] T1 — nenhum multiplicador de deságio. "Reduz o valor" e "varia conforme o caso" sem número
 - [x] T2 — nenhuma ocorrência de "abaixo da FIPE" ou "desconto". A peça aponta para `/avaliacao` e mantém o vocabulário dela
-- [ ] **T3 — pendente**, ver acima
+- [x] T3 — fechado em 25/09/2026, ver acima
 - [x] T4 — descritivo. O segmento de recuperados é descrito como legítimo quando a informação circula, sem ataque
 - [x] T5 — encaminha a advogado e Procon, e declara que não é parecer
 - [x] T6 — único número próprio é o 3 em 10

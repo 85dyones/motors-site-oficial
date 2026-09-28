@@ -163,3 +163,19 @@ describe("campoNegadoAoPerfil", () => {
     expect(campoNegadoAoPerfil("financeiro", [])).toBeNull();
   });
 });
+
+describe("repasse (spec 2026-09-24 §5)", () => {
+  it("qualquer perfil cadastra um carro de repasse", () => {
+    for (const p of PERFIS) {
+      expect(podeFazer(p, "Cadastrar carro de repasse")).toBe("faz");
+    }
+  });
+
+  it("só Administrador, Gestor e Comercial validam e publicam", () => {
+    expect(podeFazer("admin", "Validar e publicar repasse")).toBe("faz");
+    expect(podeFazer("gestor", "Validar e publicar repasse")).toBe("faz");
+    expect(podeFazer("comercial", "Validar e publicar repasse")).toBe("faz");
+    expect(podeFazer("marketing", "Validar e publicar repasse")).toBe("nao_ve");
+    expect(podeFazer("financeiro", "Validar e publicar repasse")).toBe("nao_ve");
+  });
+});

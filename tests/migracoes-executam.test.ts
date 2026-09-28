@@ -125,6 +125,17 @@ const CADEIA = [
   // provam num banco de verdade. Depende da papel_sdr, acima, para o SDR ser
   // staff.
   "20260925180000_etiquetas_do_lead.sql",
+  // O perfil do Garagem Profiler no lead (2026-09-25). Entra na cadeia porque
+  // o aceite prova, com uma sonda desfeita, que a equipe lê a coluna e que anon
+  // e cliente não veem o lead — RLS só se prova num banco de verdade.
+  "20260925200000_perfil_no_lead.sql",
+  // As condições de financiamento viram parâmetro com vigência (2026-09-28).
+  // Entra na cadeia porque o aceite veste um financeiro, um admin, um
+  // comercial, um gestor e um cliente para provar que só a A17 abre vigência,
+  // que escrita direta é 42501 e que o guarda e o índice de vigente única
+  // seguram — privilégio, RLS e SECURITY DEFINER só se provam num banco de
+  // verdade. Usa `org_padrao` e o guarda do recorte da F0 no andaime.
+  "20260928120000_parametros_financiamento.sql",
 ];
 
 /**
@@ -298,6 +309,26 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
       ehVerdade(
         `exists (select 1 from pg_policies where tablename='movimentacoes_investidor'
                    and policyname='Investidor le o proprio extrato')`,
+      ),
+    ).toBe(true);
+  });
+
+  it("as condições de financiamento são parâmetro com vigência, escrito só pela função", () => {
+    // A única porta de escrita roda como dono — é o que deixa a tabela sem
+    // INSERT/UPDATE para `authenticated` e sem policy de escrita.
+    expect(
+      ehVerdade(
+        `(select prosecdef from pg_proc
+           where oid = 'public.financiamento_nova_vigencia(numeric,numeric,numeric,integer,integer,text[],text,text)'::regprocedure) is true`,
+      ),
+    ).toBe(true);
+    // O site lê pela chave de serviço, no servidor; anônimo não lê nada.
+    expect(ehVerdade("not has_table_privilege('anon', 'public.parametros_financiamento', 'SELECT')")).toBe(true);
+    // Uma vigente só, e é a do dono: carro anterior a 2009 fica sem estimativa.
+    expect(
+      ehVerdade(
+        `(select count(*) = 1 and bool_and(ano_mais_antigo = 2009)
+            from public.parametros_financiamento where vigencia_ate is null)`,
       ),
     ).toBe(true);
   });

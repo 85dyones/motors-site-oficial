@@ -100,14 +100,30 @@ describe("a promessa do laudo carrega a condição", () => {
        verificação varre o código inteiro em vez de conferir arquivo a arquivo. */
     const infratores: string[] = [];
 
+    // Dois casos sintéticos (strings, não arquivos) passam pela MESMA
+    // varredura dos arquivos, para provar os dois lados da exceção de 25/09
+    // (ver `ficha de(?! estado)` abaixo): a promessa segue pega, e a ficha de
+    // estado do repasse não é promessa.
+    const SINTETICO_INFRATOR = "sintético (tem de ser infrator)";
+    const SINTETICO_LIMPO = "sintético (não pode ser infrator)";
+    const textos: Array<[string, string]> = [
+      [SINTETICO_INFRATOR, "O laudo fica na ficha de cada carro para todo mundo ver."],
+      [
+        SINTETICO_LIMPO,
+        "O sem laudo ainda não foi periciado: você examina no pátio, com o seu mecânico, e decide com a ficha de estado na mão.",
+      ],
+    ];
+
     for (const caminho of arquivosDeTexto()) {
       const bruto = readFileSync(caminho, "utf8");
       // Sem comentários: o histórico do defeito CITA a frase antiga, e citá-la
       // para explicar por que ela saiu não é reincidir nela.
       const fonte = bruto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
       // Junta quebras de linha e concatenações para a frase ser vista inteira.
-      const corrido = fonte.replace(/"\s*\+\s*\r?\n?\s*"/g, "").replace(/\s+/g, " ");
+      textos.push([caminho, fonte.replace(/"\s*\+\s*\r?\n?\s*"/g, "").replace(/\s+/g, " ")]);
+    }
 
+    for (const [caminho, corrido] of textos) {
       /* O regex NÃO exige verbo colado. A primeira versão pedia
          `laudo (fica|está|é publicado)`, e por isso deixou passar nove
          superfícies: "laudo na ficha" seco, "laudo DE CADA UNIDADE fica
@@ -157,8 +173,14 @@ describe("a promessa do laudo carrega a condição", () => {
          pela cauda gulosa. Nenhuma janela finita fecha um heurístico de "tem
          'aprovad' por perto" — isto é uma rede, não uma prova. A prova é ler o
          texto. */
+      /* `ficha de(?! estado)`, 25/09. No repasse, "ficha de estado" é a lista
+         de defeitos do carro, não lugar do laudo: "o sem laudo … decide com a
+         ficha de estado na mão" (`paginaDoRepasse.ts`) virava infrator sem
+         prometer nada. A exceção é só essa locução; "ficha de cada carro"
+         segue infrator. Os dois lados estão nos casos sintéticos do começo
+         deste teste. */
       const trechos =
-        corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de|de cada)[^.]{0,120}/gi) ?? [];
+        corrido.match(/laudo[^.]{0,90}?(?:na ficha|ficha do|ficha de(?! estado)|de cada)[^.]{0,120}/gi) ?? [];
       for (const trecho of trechos) {
         if (!/aprovad/i.test(trecho)) {
           infratores.push(`${caminho}: ${trecho.slice(0, 110)}`);
@@ -166,7 +188,10 @@ describe("a promessa do laudo carrega a condição", () => {
       }
     }
 
-    expect(infratores, `promessa sem ressalva:\n${infratores.join("\n")}`).toEqual([]);
+    expect(infratores.filter((i) => i.startsWith(SINTETICO_INFRATOR)), "a trava parou de pegar a promessa").toHaveLength(1);
+    expect(infratores.filter((i) => i.startsWith(SINTETICO_LIMPO)), "a ficha de estado voltou a contar como promessa").toEqual([]);
+    const reais = infratores.filter((i) => !i.startsWith("sintético"));
+    expect(reais, `promessa sem ressalva:\n${reais.join("\n")}`).toEqual([]);
   });
 
   it("o llms.txt não afirma 'aprovados 100%'", () => {

@@ -390,6 +390,131 @@ Tradução das respostas de hoje na fase 1:
 | Esportivo/Coupé | a tela diz que não há no pátio e mostra os turbo da faixa |
 | Aberto a sugestões, Prazo | nada |
 
+**Como a fase 2 começou a sair (25/09)** — as três partes que não dependiam de
+decisão do dono. O POR MÊS espera três respostas dele (taxas conferidas com o
+banco; troca como estimativa do cliente ou só entrada mínima; quantos carros o
+consultor consegue separar por lead) e não entrou.
+
+- **Perguntas-fato com contagem.** As 02 a 05 são as da tabela da seção 4.1.
+  Cada opção mostra o número antes do toque, com a mesma conta do resultado
+  (`carrosNaFaixa`, provada igual a `naFaixa` em toda faixa). Opção de ficha
+  (câmera, multimídia…) não tira carro, então o número dela é "na ficha de N"
+  dos que sobram, e não um total que não muda. A 03 some para carga; a 04 some
+  quando tudo o que sobrou tem o mesmo câmbio, e a 05 diz por quê — no pátio de
+  25/09 isso acontece em toda a faixa de R$ 115 a 175 mil (só automáticos) e
+  nos hatches e sedãs de R$ 50 a 75 mil (só manuais). Resposta de pergunta que
+  sumiu não vale (`lib/perguntasDoProfiler.ts`). "SOBRAM N DE M" no painel e,
+  no celular, numa faixa fixa sob a pergunta.
+- **Prazo no resultado, e não no modal.** A seção 4.4 pedia o prazo no modal do
+  lead, mas o `LeadCaptureModal` é o mesmo dos cinco formulários do site, e o
+  prazo que decide o botão precisa existir antes do toque no botão. Ficou como
+  escolha opcional no resultado ("Não muda os carros"); sem resposta, o lead
+  diz "não informado", e não "baixo".
+- **"Já pensou neste?"** A carta vem depois dos três, com CONTRA O [1º cartão]
+  e O QUE MUDA sempre visíveis (sem custo no cadastro, a tela diz isso). FAZ
+  SENTIDO a põe no lead com `lugar: "ja-pensou"`; NÃO É PRA MIM a tira até
+  refazer. Ainda não há duelos para ela evitar repetir (fase 3). A revisão
+  antes do merge achou a primeira versão virando "o mais barato que passa"
+  (98% das cartas abaixo da faixa; um Kwid contra um X4) e escondendo o que o
+  carro perdia. Regras de agora: preço de pelo menos 60% do 1º cartão; "custa
+  menos" é listado, mas não conta para as duas vantagens; cilindrada só se
+  compara entre motores do mesmo tipo (turbo com turbo); O QUE MUDA lista
+  também portas, 4x4, diesel, turbo e itens de ficha que o carro perde; a
+  frase só diz "cabe na sua faixa" quando cabe. No pátio de 25/09 a carta
+  aparece em cerca de 5% dos perfis — rara de propósito.
+- **Lead pronto.** `leads.perfil` (migração 20260925200000, com aceite) guarda
+  o retrato montado no servidor a partir de `intencao_busca`, e o card do
+  kanban o mostra (`BlocoDoPerfil`). A rota grava o lead mesmo sem a coluna.
+- Ficaram para depois: fronteira e contador diário do funil.
+
+**POR MÊS (27/09), com as respostas do dono de 25/09:** "as taxas são
+estimadas, verifique a média de mercado em pelo menos 5 bancos"; a troca
+"depende, mas geralmente a entrada do cliente estimada"; quantos carros o
+consultor separa "depende também" (fica o limite de hoje, três).
+
+- **Taxas.** Banco Central, "Taxas de juros de operações de crédito",
+  Aquisição de veículos – Prefixado – Pessoa Física, média das 41 janelas de
+  10/07 a 11/09/2026. Critério escrito: entra toda instituição da modalidade
+  menos os bancos de montadora e os públicos regionais, com taxa em pelo menos
+  metade das janelas — dezoito: Caixa 1,05 · Safra 1,69 · Inter 1,71 ·
+  Bradesco 1,76 · BB 1,78 · Sinosserra 1,84 · Santander 1,86 · Porto 1,94 ·
+  Bradesco Financ. 1,95 · C6 1,96 · Brasileiro de Crédito 2,01 · Itaú 2,06 ·
+  BV 2,27 · Agoracred 2,84 · Pan 2,88 · Finamax 3,21 · Daycoval 3,24 · Omni
+  CFI 3,34 (% a.m.). Média 2,19, mediana 1,95, quartis 1,79 e 2,70. O
+  simulador (da ficha e do Profiler) usa 1,79 / 1,95 / 2,70 para perfil bom,
+  regular e de risco — antes eram 1,45 / 1,95 / 2,65, sem fonte. A primeira
+  versão escolhia os bancos à mão e deixava de fora as financeiras de usado
+  mais caras, o que puxava a estimativa para baixo; a revisão de 27/09 pegou.
+  O número do BC mistura novo e usado, e por isso a tela diz sempre que é
+  simulação — desde 28/09, com o texto do dono e os bancos parceiros (abaixo).
+- **Texto de crédito num lugar só** (`lib/textoDaParcela`, CDC art. 54-B,
+  §3º): toda parcela vem com CET, total das parcelas, total a prazo (com a
+  entrada) e o preço à vista — no cartão, na carta, na lista "outros" e na
+  ficha. A primeira versão mostrava parcela sozinha na lista "outros" e
+  chamava de "total" só a soma das parcelas, ao lado da entrada. Carro com
+  mais de 5 anos ganha "aprovação e taxa variam mais de banco para banco".
+  O ano mais antigo e o agente financiador, pendentes aqui, o dono respondeu
+  em 28/09 (abaixo).
+- **Ano de referência congelado** (decisão 3): a idade do carro conta de
+  2026, e muda junto com a tabela de taxas, nunca pelo relógio.
+
+**Condições do simulador como dado (28/09), com as respostas do dono:**
+
+1. *"temos bancos parceiros que parcelam carros até 2009, abaixo disso muito
+   difícil, pois o comparativo começa a ficar discrepante demais da realidade
+   da fipe x valor de mercado"* → carro anterior a 2009 não recebe
+   estimativa. Na ficha, o simulador diz "Sem estimativa de parcela: os
+   bancos parceiros financiam carros de 2009 em diante" e oferece o
+   consultor. Em `/financiamento` o seletor só lista os que financiam. No
+   POR MÊS o carro não entra — a não ser que a entrada o pague inteiro, e aí
+   não há financiamento a recusar. Fora do POR MÊS ele segue no resultado:
+   a regra é da parcela, não do pátio.
+2. *"validado, é isso mesmo, mas precisamos complementar com 'Simulação,
+   não é oferta de crédito. Sujeito a aprovação mediante validação de
+   cadastro.'"* e a lista dos bancos → o aviso é o texto do dono, palavra por
+   palavra, e vai sempre com "Bancos parceiros: Sicredi, Safra, Banco Pan,
+   Santander, Bradesco, Itaú, BV Financeira, Banco C6, Mercado Pago, Banco
+   BBC, entre outros." (`avisoDeCredito`) — o agente financiador que o CDC
+   pede junto da oferta. Na ficha, em `/financiamento`, no resultado e na
+   aba POR MÊS.
+3. *"sim, gostaria muito de ter isso disponível"* → as taxas, o ano de
+   referência, o ano mais antigo, os bancos e a fonte das taxas moram em
+   `parametros_financiamento` (migração 20260928120000), com vigência datada
+   e o guarda D-T1.7: valor vigente nunca sofre UPDATE; abrir vigência nova
+   encerra a atual hoje. A única escrita é `financiamento_nova_vigencia`,
+   para Administrador e Financeiro (a linha da A17 "Editar texto legal e
+   condições de financiamento"). A tela é `/admin/financiamento`, com
+   exemplo ao vivo e histórico. O site lê a vigente no servidor (cache de
+   1 h, invalidado na hora ao salvar) e passa às telas; a contagem do POR MÊS
+   e a `/api/match` usam a mesma. Se a leitura falhar, o site simula com os
+   valores de fábrica — os mesmos do seed, e um teste trava os dois juntos.
+   Só leitura bem-sucedida entra no cache: a falha cai nos de fábrica fora
+   dele, e o acesso seguinte tenta o banco de novo.
+
+   Na revisão de 28/09 o FAQ de `/financiamento` ainda respondia "Sim" a
+   "financiam qualquer carro?" — e o assistente de IA repetia. O FAQ passou a
+   citar o ano da vigência, nas duas pontas; a grade "Seminovos para
+   financiar" também só lista o que os bancos financiam.
+- **CET.** O simulador calculava `(total/financiado)^(1/n) − 1`, que dava
+  menos que a própria taxa (≈ 12% a.a. para 1,95% a.m.); e a calculadora da
+  ficha chamava a taxa mensal de "CET". Agora o CET é a taxa interna de
+  retorno do fluxo (≈ 28,5% a.a. no mesmo caso), e a tela mostra taxa, CET,
+  quantidade e total juntos — o que a regra de publicidade de crédito pede.
+- **A aba.** Parcela que cabe no mês, entrada (estimativa do cliente, que
+  começa em "Sem entrada" para nada ser dito por ela),
+  "tenho carro para dar na troca", prazo (24 a 60×) e ocupação, que muda a
+  taxa estimada. A faixa é a parcela de cada carro: passa quem cabe na
+  parcela; de 70% a 100% dela é a faixa, e abaixo disso completa com rótulo
+  "SOBRAM R$ X POR MÊS". Cada cartão mostra ≈ parcela, entrada, taxa, CET e
+  total. Quem marcou troca vê "Quanto o seu carro cobre? AVALIAR MEU CARRO"
+  (/avaliacao). A FIPE da troca nunca entra na conta.
+- **Lead.** `intencao_busca.por_mes` (parcela, entrada estimada, prazo,
+  ocupação, troca) e a parcela de cada carro; o card do kanban mostra "Por
+  mês" e "Troca". Caso da Carla (R$ 1.500, R$ 20 mil, família): Kwid 2025 e
+  208 2023 a ≈ 48× R$ 1.298, Ka Sedan 2020 a ≈ R$ 1.311 (mais barato, mas com
+  mais de 5 anos: taxa de risco, 2,70% a.m.). `/api/match`
+  responde 400 a parcela inválida, em vez de buscar sem teto.
+
 ## 7. Finalistas que merecem teste depois
 
 1. **Porta "Comece pelo carro que você tem"** (guiado-melhor-que-o-meu +

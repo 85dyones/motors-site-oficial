@@ -35,6 +35,7 @@ import {
 } from "../../lib/funil";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
 import BlocoDaAvaliacao from "./BlocoDaAvaliacao";
+import BlocoDoPerfil from "./BlocoDoPerfil";
 import EtiquetasDoLead from "./EtiquetasDoLead";
 import { aplicarMudanca, type MudancaDeEtiquetas } from "../../lib/etiquetas";
 
@@ -129,6 +130,11 @@ interface Lead extends LeadDoFunil {
   avaliacao?: unknown;
   avaliacao_valor_ofertado?: number | string | null;
   avaliacao_valor_pago?: number | string | null;
+  /** O perfil do Garagem Match Profiler (migração 20260925200000): as
+   *  respostas do cliente e os carros que o site mostrou. Ausente antes dela
+   *  e em lead de outro canal — quem lê é `BlocoDoPerfil`, que confere a
+   *  forma. Só leitura: o PATCH de `/api/leads/gerenciar` não o grava. */
+  perfil?: unknown;
   /** As etiquetas da conversa do Chatwoot, como o n8n as espelhou em
    *  `atendimentos.tags` (2026-09-25). Ausentes antes disso. */
   etiquetas?: string[];
@@ -1092,6 +1098,11 @@ export default function LeadsKanban() {
                               salvar(l.id, { [campo]: valor }, { reiniciaORelogio: false })
                             }
                           />
+
+                          {/* O que o cliente respondeu ao Profiler (25/09). Ao
+                              lado da avaliação: os dois são o que o site
+                              coletou, e nenhum lead tem os dois. */}
+                          <BlocoDoPerfil perfil={l.perfil} />
 
                           {/* O atalho do dono: conversa aberta com o texto já
                               escrito, e o contato registrado no mesmo clique. */}
