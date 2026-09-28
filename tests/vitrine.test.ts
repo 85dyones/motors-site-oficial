@@ -756,7 +756,9 @@ describe("o ponto de chamada da busca, no `Catalogo`", () => {
   it("a lista recalcula quando a busca muda", () => {
     // `termos` fora das dependências: o `useMemo` devolve o resultado velho e
     // a vitrine congela na primeira busca. Verde em qualquer teste de função.
-    const memos = fonte.match(/\}, \[estoque, selecionados, precoMax[^\]]*\]\)/g) ?? [];
+    // `faixas` desde 28/09, quando o preço deixou de ser só `precoMax` e
+    // ganhou mínimo, e a quilometragem e o ano viraram faixa também.
+    const memos = fonte.match(/\}, \[estoque, selecionados, faixas[^\]]*\]\)/g) ?? [];
 
     expect(memos.length).toBe(2);
     for (const memo of memos) expect(memo).toContain("termos");
