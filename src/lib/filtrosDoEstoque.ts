@@ -338,3 +338,42 @@ export function urlDoEstado(estado: EstadoDoFiltro): string {
   if (estado.ordem !== ORDEM_PADRAO) params.set("ordem", estado.ordem);
   return params.toString();
 }
+
+/**
+ * Os parâmetros que o painel escreve — e os ÚNICOS que ele pode apagar.
+ *
+ * `ano` entra aqui mesmo sem ser escrito: é o nome antigo que a busca da home
+ * manda, e depois de lido ele vira `anoMin`/`anoMax`. Deixá-lo no endereço
+ * faria o link copiado carregar os dois.
+ */
+const PARAMETROS_DO_PAINEL = new Set<string>([
+  ...GRUPOS_DA_URL,
+  "q",
+  "ano",
+  "anoMin",
+  "anoMax",
+  "precoMin",
+  "precoMax",
+  "kmMin",
+  "kmMax",
+  "opcional",
+  "ordem",
+]);
+
+/**
+ * O endereço novo, a partir do atual: troca o filtro e preserva o resto.
+ *
+ * A primeira versão escrevia só `urlDoEstado` e apagava tudo o que não era
+ * filtro — achado na prévia da Vercel em 28/09, quando o `_vercel_share`
+ * sumiu da barra. Na chegada por anúncio, os apagados seriam `utm_*`, `gclid`
+ * e `fbclid`, que o `IntegrationsTracker` lê do `location.search` depois da
+ * hidratação: a atribuição do anúncio ia embora no primeiro clique no painel.
+ */
+export function enderecoComFiltro(buscaAtual: string, estado: EstadoDoFiltro): string {
+  const params = new URLSearchParams(buscaAtual);
+  for (const nome of [...params.keys()]) {
+    if (PARAMETROS_DO_PAINEL.has(nome)) params.delete(nome);
+  }
+  for (const [nome, valor] of new URLSearchParams(urlDoEstado(estado))) params.append(nome, valor);
+  return params.toString();
+}

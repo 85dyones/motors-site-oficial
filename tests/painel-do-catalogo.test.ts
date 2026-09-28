@@ -403,6 +403,20 @@ describe("o filtro mora no endereço — voltar da ficha devolve o que a pessoa 
     expect(chips()).toEqual(expect.arrayContaining(["TETO SOLAR", `ATÉ ${formatarPreco(80000)}`]));
   });
 
+  it("a UTM e o fbclid de quem chega pelo anúncio continuam no endereço", async () => {
+    // O `IntegrationsTracker` lê os dois do `location.search` depois da
+    // hidratação: apagá-los aqui era perder a atribuição do anúncio.
+    await montar("utm_source=meta&fbclid=abc&marca=Fiat");
+    const fiat = [...container.querySelectorAll("label")].find((l) =>
+      /^Fiat/.test((l.textContent ?? "").trim()),
+    )!;
+    await act(async () => fiat.querySelector("input")!.click());
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("utm_source")).toBe("meta");
+    expect(params.get("fbclid")).toBe("abc");
+    expect(params.getAll("marca")).toEqual([]);
+  });
+
   it("limpar tudo limpa o endereço também", async () => {
     await montar("marca=Fiat&precoMax=80000");
     await act(async () => botao(/^LIMPAR \(\d+\)$/).click());

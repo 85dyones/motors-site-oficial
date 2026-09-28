@@ -5,6 +5,7 @@ import {
   ajustarFaixa,
   catalogoDeOpcionais,
   dentroDaFaixa,
+  enderecoComFiltro,
   estadoDaUrl,
   lerValorDigitado,
   limitesDaRegua,
@@ -294,5 +295,37 @@ describe("o filtro mora no endereço", () => {
 
   it("ordenação desconhecida volta para a padrão", () => {
     expect(estadoDaUrl(new URLSearchParams("ordem=maior-desconto")).ordem).toBe("recentes");
+  });
+});
+
+describe("reescrever o endereço não apaga o que não é do painel", () => {
+  /**
+   * Achado na prévia da Vercel em 28/09, antes de ir ao ar: a primeira versão
+   * reescrevia a URL só com o filtro, e o `_vercel_share` sumiu do endereço.
+   * Na chegada por anúncio, os que sumiriam são `utm_*`, `gclid` e `fbclid` —
+   * e o `IntegrationsTracker` os lê do `location.search` DEPOIS da
+   * hidratação. Regra 7 do CLAUDE.md: não quebrar o tracking existente.
+   */
+  const vazio = estadoDaUrl(new URLSearchParams());
+
+  it("parâmetro de campanha sobrevive a qualquer mudança de filtro", () => {
+    const antes = "?utm_source=meta&utm_campaign=suv&fbclid=abc&gclid=xyz";
+    const depois = new URLSearchParams(
+      enderecoComFiltro(antes, { ...vazio, selecionados: { marca: ["Fiat"] } }),
+    );
+    expect(depois.get("utm_source")).toBe("meta");
+    expect(depois.get("utm_campaign")).toBe("suv");
+    expect(depois.get("fbclid")).toBe("abc");
+    expect(depois.get("gclid")).toBe("xyz");
+    expect(depois.getAll("marca")).toEqual(["Fiat"]);
+  });
+
+  it("o que É do painel sai quando o filtro sai — inclusive o `ano` antigo da home", () => {
+    const antes = "?utm_source=meta&marca=Fiat&ano=2021&precoMax=80000&opcional=teto+solar";
+    expect(enderecoComFiltro(antes, vazio)).toBe("utm_source=meta");
+  });
+
+  it("sem nada de fora e sem filtro, endereço limpo", () => {
+    expect(enderecoComFiltro("", vazio)).toBe("");
   });
 });

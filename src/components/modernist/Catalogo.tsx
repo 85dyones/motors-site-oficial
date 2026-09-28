@@ -15,12 +15,12 @@ import {
   ajustarFaixa,
   catalogoDeOpcionais,
   dentroDaFaixa,
+  enderecoComFiltro,
   estadoDaUrl,
   limitesDaRegua,
   rotuloDaFaixa,
   SEM_FAIXA,
   temTodosOsOpcionais,
-  urlDoEstado,
   type Faixa,
   type Ordenacao,
 } from "../../lib/filtrosDoEstoque";
@@ -426,9 +426,19 @@ export default function Catalogo({
    * degrau no botão voltar — ele levaria a pessoa de volta pelas próprias
    * caixas, uma a uma, antes de sair da página. O Next integra as duas
    * chamadas nativas ao roteador desde a 14.1, sem ida ao servidor.
+   *
+   * `enderecoComFiltro` e não `urlDoEstado` cru: o endereço também carrega
+   * `utm_*`, `gclid` e `fbclid` de quem chegou por anúncio, e o rastreamento
+   * os lê depois da hidratação. Só o que é do painel é reescrito.
    */
   useEffect(() => {
-    const query = urlDoEstado({ selecionados, ...faixas, opcionais, busca, ordem });
+    const query = enderecoComFiltro(window.location.search, {
+      selecionados,
+      ...faixas,
+      opcionais,
+      busca,
+      ordem,
+    });
     const destino = query ? `${window.location.pathname}?${query}` : window.location.pathname;
     if (destino !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(null, "", destino);
