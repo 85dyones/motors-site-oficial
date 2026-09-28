@@ -178,6 +178,9 @@ export default async function AdminEstoquePage() {
       modelo: v.modelo,
       versao: versaoParaExibir(v.modelo, v.versao),
       ano: v.ano ?? null,
+      // Da linha crua: o mapper público não lê `ano_fabricacao`. O `0` que o
+      // feed grava quando a origem vem vazia vira `null` aqui.
+      anoFabricacao: Number(bruto.ano_fabricacao) || null,
       quilometragem: v.quilometragem ?? null,
       preco: promocional > 0 && promocional < cheio ? promocional : cheio || null,
       foto: imagens[0] ?? null,
@@ -193,7 +196,8 @@ export default async function AdminEstoquePage() {
       perfisUso: v.perfis_uso ?? [],
       // Da linha crua, não do objeto mapeado: o mapper deixou de devolver
       // `placa` para não serializá-la no HTML público. Aqui a consulta é
-      // direta e autenticada, e a busca da tabela procura por placa.
+      // direta e autenticada: a busca da tabela procura por placa, e desde
+      // 28/09 a linha a mostra, para a simulação de financiamento.
       placa: bruto.placa ?? "",
       destacado: destacados.includes(id),
       naSemana: naSemana.includes(id),
