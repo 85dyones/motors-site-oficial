@@ -117,9 +117,15 @@ export async function GET(request: Request) {
 
     for (const car of vehicles) {
       // Carro em preparação só entra com as quatro fotos de sempre — decisão
-      // do dono em 28/09, "só no site". Ver `entraNoFeedDeAnuncios`. Antes de
-      // `decidirNoFeed`: ele nunca esteve no catálogo, então não há item a
-      // manter como `out_of_stock`.
+      // do dono em 28/09, "só no site". Ver `entraNoFeedDeAnuncios`.
+      //
+      // O corte vem antes de `decidirNoFeed`, então o carro sai sem a fase
+      // `out_of_stock`. No caso comum não há o que manter: ele chegou com a
+      // foto de cadastro e nunca esteve no catálogo. Mas nem sempre — o carro
+      // que já tinha quatro fotos, foi marcado "em preparação" e depois perdeu
+      // uma sai do catálogo de uma carga para a outra, e o portal o lê como
+      // item removido. Ele segue à venda, e volta na primeira carga em que
+      // tiver as quatro fotos de novo.
       if (!entraNoFeedDeAnuncios(car)) continue;
 
       // O vendido não some da noite para o dia. Ver `decidirNoFeed`: para o
