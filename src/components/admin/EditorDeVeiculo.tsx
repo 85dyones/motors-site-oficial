@@ -808,6 +808,10 @@ export default function EditorDeVeiculo({
                  portão de edição da galeria, para carro de qualquer origem. */
               podeEditar={podeGravar("whatsapp_images")}
               aoGravar={aoGravarFotos}
+              /* Pelo estado SALVO, pela mesma razão do botão Publicar: a
+                 régua da galeria fala do que está no ar, e o site só conhece
+                 a caixa depois de salva. */
+              emPreparacao={liberadoEmPreparacao(salvo)}
             />
           )}
 

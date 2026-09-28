@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import TabelaDeEstoque from "../src/components/admin/TabelaDeEstoque";
 import type { LinhaDeEstoque } from "../src/lib/estoqueTabela";
+import { bloqueiosDePublicacao } from "../src/lib/coerenciaDoCadastro";
 
 /**
  * O carro em preparação na tabela de /admin/estoque — spec
@@ -113,5 +114,45 @@ describe("o carro em preparação na tabela", () => {
     const texto = textoDaLinha("8335204");
     expect(texto).not.toContain("em preparação");
     expect(texto).not.toContain("previsão vencida");
+  });
+});
+
+/**
+ * A célula de fotos segue a régua que a linha já traz — achado da revisão
+ * final (28/09): ela comparava com `MINIMO_DE_FOTOS` e pintava "1/4" de
+ * vermelho num carro "Publicado" em preparação, que está no ar. Os
+ * `bloqueios` saem da função de verdade, como no servidor.
+ */
+describe("a célula de fotos", () => {
+  const umaFoto = ["https://cdn.exemplo/f.jpg"];
+
+  /** A classe do número de fotos da linha, achando a coluna pelo cabeçalho. */
+  function classeDoNumeroDeFotos(id: string): string {
+    const coluna = [...container.querySelectorAll("thead th")].findIndex(
+      (th) => (th.textContent ?? "").trim() === "Fotos",
+    );
+    expect(coluna, 'cabeçalho "Fotos" não encontrado').toBeGreaterThan(-1);
+    const tr = [...container.querySelectorAll("tbody tr")].find((l) => (l.textContent ?? "").includes(id));
+    const celula = tr?.querySelectorAll("td")[coluna];
+    const numero = celula?.querySelector("span");
+    // A coluna certa: o número de fotos é o que abre a célula.
+    expect(numero?.textContent).toBe("1");
+    return numero!.className;
+  }
+
+  it("em preparação e liberado, com uma foto: sem cor de alerta", async () => {
+    const bloqueios = bloqueiosDePublicacao({
+      whatsapp_images: umaFoto,
+      em_preparacao: true,
+      previsao_chegada_em: "2026-10-03T17:00:00Z",
+    });
+    await montar([linha("8497421", { emPreparacao: true, previsaoVencidaHaDias: null, fotos: 1, bloqueios })]);
+    expect(classeDoNumeroDeFotos("8497421")).not.toContain("text-mt-accent-800");
+  });
+
+  it("carro comum com uma foto: com cor de alerta", async () => {
+    const bloqueios = bloqueiosDePublicacao({ whatsapp_images: umaFoto });
+    await montar([linha("8335204", { fotos: 1, bloqueios })]);
+    expect(classeDoNumeroDeFotos("8335204")).toContain("text-mt-accent-800");
   });
 });

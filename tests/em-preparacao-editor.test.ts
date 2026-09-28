@@ -186,6 +186,43 @@ describe("o Publicar julga pelo que está salvo", () => {
 });
 
 /**
+ * A galeria recebe do editor a régua do carro em preparação — pelo estado
+ * SALVO, como o Publicar. É na aba "Fotos e mídia" que o editor abre, e antes
+ * da revisão final (28/09) ela dizia "Faltam 3 de 4 para este veículo aparecer
+ * na vitrine" sobre o carro em preparação que estava no ar.
+ */
+describe("a galeria no editor", () => {
+  async function irParaFotos() {
+    const aba = Array.from(container.querySelectorAll("button")).find((b) =>
+      /fotos e mídia/i.test(b.textContent ?? ""),
+    );
+    await act(async () => aba!.click());
+  }
+  const NO_AR = "Em preparação: no ar com 1 foto.";
+  const REGUA_CHEIA = `Faltam ${MINIMO_DE_FOTOS - 1} de ${MINIMO_DE_FOTOS} para este veículo aparecer na vitrine`;
+  const texto = () => (container.textContent ?? "").replace(/\s+/g, " ");
+
+  it("carro em preparação salvo, com uma foto: a galeria diz que está no ar", async () => {
+    await abrir({ ...COM_COLUNA, em_preparacao: true, previsao_chegada_em: "2026-10-03T17:00:00.000Z" });
+    await irParaFotos();
+    expect(texto()).toContain(NO_AR);
+    expect(texto()).not.toContain(REGUA_CHEIA);
+  });
+
+  it("caixa marcada sem salvar: a galeria segue a régua cheia; salvo, muda", async () => {
+    await abrir(COM_COLUNA);
+    await act(async () => caixa()!.click());
+    await digitar(campoDaData()!, "2026-10-03T14:00");
+    await irParaFotos();
+    expect(texto()).toContain(REGUA_CHEIA);
+    expect(texto()).not.toContain(NO_AR);
+
+    await salvar();
+    expect(texto()).toContain(NO_AR);
+  });
+});
+
+/**
  * O primeiro degrau do checklist reage à régua condicional — achado da
  * revisão da Tarefa 6 (2026-09-28). A fonte prova que `minimoDeFotos` vem de
  * `MINIMO_DE_FOTOS`/`MINIMO_DE_FOTOS_EM_PREPARACAO` (ver

@@ -13,7 +13,11 @@ import {
   validarFoto,
   type FotoDoVeiculo,
 } from "../../lib/fotosDoVeiculo";
-import { FOTOS_DA_FICHA_COMPLETA, MINIMO_DE_FOTOS } from "../../lib/coerenciaDoCadastro";
+import {
+  FOTOS_DA_FICHA_COMPLETA,
+  MINIMO_DE_FOTOS,
+  MINIMO_DE_FOTOS_EM_PREPARACAO,
+} from "../../lib/coerenciaDoCadastro";
 import type { DestinoDasFotos } from "../../lib/destinoDasFotos";
 
 /**
@@ -71,6 +75,21 @@ type Estado =
   | { tipo: "erro"; mensagem: string };
 
 /**
+ * O que ainda falta ao carro em preparação que já está no ar: "Faltam 3 para o
+ * feed de anúncios e 7 para a ficha completa." A parte que já zerou não
+ * aparece; com as duas zeradas, nada. O verbo concorda com o primeiro número.
+ */
+function faltasDoEmPreparacao(fotos: number): string {
+  const partes = [
+    { n: MINIMO_DE_FOTOS - fotos, para: "o feed de anúncios" },
+    { n: FOTOS_DA_FICHA_COMPLETA - fotos, para: "a ficha completa" },
+  ].filter((p) => p.n > 0);
+  if (partes.length === 0) return "";
+  const verbo = partes[0].n === 1 ? "Falta" : "Faltam";
+  return `${verbo} ${partes.map((p) => `${p.n} para ${p.para}`).join(" e ")}.`;
+}
+
+/**
  * O destino padrão: o estoque. Mora aqui porque é a galeria que o conhece
  * (e `tests/fotos-do-veiculo` lê este arquivo atrás do endpoint do estoque).
  */
@@ -91,6 +110,7 @@ export default function GaleriaDeFotos({
   podeEditar,
   aoGravar,
   destino,
+  emPreparacao = false,
 }: {
   estoqueId: number | string;
   fotos: FotoDoVeiculo[];
@@ -129,6 +149,19 @@ export default function GaleriaDeFotos({
    * passa `destinoDoRepasse(id)` (src/lib/destinoDasFotos.ts).
    */
   destino?: DestinoDasFotos;
+  /**
+   * A exceção do carro "em preparação" vale para este carro
+   * (`liberadoEmPreparacao`)? Com ela, a porta é
+   * `MINIMO_DE_FOTOS_EM_PREPARACAO` e a régua fala do feed de anúncios e da
+   * ficha completa, que continuam pedindo as fotos de sempre.
+   *
+   * Quem decide é o editor, pelo estado SALVO da caixa: é o que o site e o
+   * servidor enxergam. Sem isto, o carro em preparação com uma foto, que está
+   * no ar, lia "Faltam 3 de 4 para este veículo aparecer na vitrine, no feed
+   * de anúncios e na busca" — falso para vitrine e busca (revisão final,
+   * 28/09).
+   */
+  emPreparacao?: boolean;
 }) {
   const [estado, setEstado] = useState<Estado>({ tipo: "parado" });
   const [gravadoEm, setGravadoEm] = useState<string | null>(null);
@@ -139,7 +172,9 @@ export default function GaleriaDeFotos({
   const doPainel = origem === "painel";
   const ocupado =
     estado.tipo === "enviando" || estado.tipo === "gravando" || estado.tipo === "importando";
-  const faltam = Math.max(0, MINIMO_DE_FOTOS - fotos.length);
+  // A porta que vale para ESTE carro — a mesma conta de `bloqueiosDePublicacao`.
+  const minimoParaPublicar = emPreparacao ? MINIMO_DE_FOTOS_EM_PREPARACAO : MINIMO_DE_FOTOS;
+  const faltam = Math.max(0, minimoParaPublicar - fotos.length);
 
   /**
    * Grava a lista nas três colunas e, só DEPOIS de a gravação voltar OK,
@@ -362,7 +397,25 @@ export default function GaleriaDeFotos({
               : "border-mt-ink bg-mt-surface text-mt-neutral-800"
           }`}
         >
-          {faltam > 0 ? (
+          {/* O carro em preparação tem a sua régua: vitrine e busca abrem
+              com `MINIMO_DE_FOTOS_EM_PREPARACAO`, e o feed de anúncios
+              continua pedindo `MINIMO_DE_FOTOS` (`entraNoFeedDeAnuncios`). */}
+          {emPreparacao && faltam > 0 ? (
+            <>
+              <strong className="tabular-nums">
+                Em preparação: {faltam === 1 ? "falta" : "faltam"} {faltam} de{" "}
+                {MINIMO_DE_FOTOS_EM_PREPARACAO}
+              </strong>{" "}
+              para aparecer na vitrine e na busca. O feed de anúncios pede {MINIMO_DE_FOTOS}.
+            </>
+          ) : emPreparacao ? (
+            <>
+              <strong className="tabular-nums">
+                Em preparação: no ar com {fotos.length} {fotos.length === 1 ? "foto" : "fotos"}.
+              </strong>
+              {faltasDoEmPreparacao(fotos.length) && <> {faltasDoEmPreparacao(fotos.length)}</>}
+            </>
+          ) : faltam > 0 ? (
             <>
               <strong className="tabular-nums">
                 Faltam {faltam} de {MINIMO_DE_FOTOS}

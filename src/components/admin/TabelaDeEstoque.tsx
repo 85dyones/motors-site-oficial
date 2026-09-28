@@ -1093,12 +1093,18 @@ export default function TabelaDeEstoque({
                   {/* O mínimo vem de `MINIMO_DE_FOTOS`, não do "8" digitado
                       aqui, que era o que estava. O número tem nome justamente
                       porque pode baixar — e no dia em que baixar, esta coluna
-                      não pode continuar cobrando oito. */}
+                      não pode continuar cobrando oito.
+
+                      A COR, porém, segue a régua que a linha já traz
+                      (`prontoParaPublicar`, sobre `l.bloqueios`), e não a
+                      comparação com `MINIMO_DE_FOTOS`: o carro em preparação
+                      está no ar com uma foto, e "1/4" em vermelho num
+                      "Publicado" dizia o contrário (revisão final, 28/09). O
+                      "/4" fica: no carro comum é a porta; no em preparação,
+                      é o que o feed de anúncios ainda pede. */}
                   <td className="py-2.5 pr-3 text-[11px] tabular-nums">
                     <span
-                      className={
-                        l.fotos >= MINIMO_DE_FOTOS ? "text-mt-neutral-800" : "text-mt-accent-800"
-                      }
+                      className={prontoParaPublicar(l) ? "text-mt-neutral-800" : "text-mt-accent-800"}
                     >
                       {l.fotos}
                     </span>
