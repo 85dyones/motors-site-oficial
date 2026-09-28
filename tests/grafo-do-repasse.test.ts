@@ -73,7 +73,7 @@ describe("a página /repasse", () => {
     expect(tipos(nos)).toEqual(["BreadcrumbList", "ItemList", "FAQPage", "AutoDealer", "WebSite"]);
     const lista = nos[1] as { itemListElement: Array<{ url: string }> };
     expect(lista.itemListElement.map((i) => i.url)).toEqual([`${SITE_URL}/repasse/${ABERTO.slug}`]);
-    expect((nos[2] as { mainEntity: unknown[] }).mainEntity).toHaveLength(10);
+    expect((nos[2] as { mainEntity: unknown[] }).mainEntity).toHaveLength(11);
   });
 
   it("sem carro aberto, sem ItemList", () => {

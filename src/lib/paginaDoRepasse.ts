@@ -75,7 +75,7 @@ export const ANCORA_DA_CONTA = "como-ler";
 export const TITULO_DO_REPASSE = "Carros de repasse em Curitiba";
 
 export const DESCRICAO_DO_REPASSE =
-  "Abaixo da FIPE e sem a garantia da loja. Cada anúncio diz se o carro tem laudo cautelar e mostra a conta, com o reparo orçado quando ele existe.";
+  "Carros funcionando, vendidos no estado: sem os reparos feitos e sem a garantia da loja, por isso abaixo da FIPE. Você confere o carro no pátio antes de fechar.";
 
 export const TITULO_SEO_DO_REPASSE = `${TITULO_DO_REPASSE} | Motors Store`;
 
@@ -84,7 +84,11 @@ export const TRILHA_DO_REPASSE = { inicio: "Início", repasse: "Repasse" } as co
 export const HEROI_DO_REPASSE = {
   rotulo: "REPASSE MOTORS · REPASSE ÀS CLARAS",
   titulo: TITULO_DO_REPASSE,
-  texto: DESCRICAO_DO_REPASSE,
+  // Item 2 da tabela de textos aprovados (28/09): separado de
+  // `DESCRICAO_DO_REPASSE` — o herói e a busca/compartilhamento não dizem
+  // mais a mesma frase.
+  texto:
+    "Carros funcionando, vendidos no estado em que estão: sem os reparos feitos e sem a garantia da loja, por isso abaixo da FIPE. Cada anúncio diz se o carro tem laudo cautelar e mostra a conta, e você confere tudo no pátio antes de fechar.",
   legenda: "Para que você compra",
   usar: {
     botao: "COMPRO PARA USAR",
@@ -327,6 +331,9 @@ export function notaDoSinistro(detalhe: string): string {
 export const REPASSE_OU_ESTOQUE = {
   rotulo: "REPASSE OU ESTOQUE",
   titulo: "A diferença, lado a lado",
+  // Item 3 da tabela de textos aprovados (28/09).
+  texto:
+    "O mesmo carro pode estar nos dois lugares. No estoque, ele sai com os reparos feitos e com a garantia da loja. No repasse, sai como está, funcionando, sem essa garantia e por um preço menor.",
   colunaRepasse: "REPASSE",
   colunaEstoque: "ESTOQUE COM GARANTIA",
   linhas: [
@@ -338,8 +345,8 @@ export const REPASSE_OU_ESTOQUE = {
     { tema: "Garantia da loja", repasse: "Não tem", estoque: PRAZO_COM_MAIUSCULA },
     {
       tema: "Estado do carro",
-      repasse: "No estado. O anúncio diz se tem laudo cautelar, e a ficha de estado lista os defeitos conhecidos",
-      estoque: "Aprovado na perícia cautelar independente antes de entrar na vitrine",
+      repasse: "Funcionando, no estado em que está, sem os reparos feitos. O anúncio diz se tem laudo cautelar, e a ficha de estado lista os defeitos conhecidos",
+      estoque: "Com os reparos feitos e aprovado na perícia cautelar independente antes de entrar na vitrine",
     },
     {
       tema: "Pagamento",
@@ -496,12 +503,17 @@ export const PERGUNTAS_DO_REPASSE_CABECALHO = {
   botao: "PERGUNTAR NO WHATSAPP",
 } as const;
 
-/** As dez perguntas, na ordem em que a prancha as mostra. Também vão para o `FAQPage`. */
+/** As onze perguntas, na ordem em que a prancha as mostra. Também vão para o `FAQPage`. */
 export const PERGUNTAS_DO_REPASSE: PerguntaFrequente[] = [
   {
     pergunta: "O que é um carro de repasse?",
     resposta:
-      "É o carro que a loja vende no estado, sem preparar e sem a garantia da loja, por um preço abaixo da FIPE. Cada anúncio diz se o carro tem laudo cautelar e, quando há reparo pendente, quanto ele custa.",
+      "É o carro que a loja vende no estado em que está: funcionando, mas sem preparar e sem a garantia da loja, por um preço abaixo da FIPE. Cada anúncio diz se o carro tem laudo cautelar e, quando há reparo pendente, quanto ele custa.",
+  },
+  {
+    pergunta: "O mesmo carro pode estar no estoque e no repasse?",
+    resposta:
+      "Pode. No estoque, ele é entregue com os reparos feitos e com a garantia da loja, pelo preço de loja. No repasse, sai como está, funcionando, sem os reparos e sem a garantia, e por isso custa menos. Nos dois casos você vê o carro no pátio antes de fechar.",
   },
   {
     pergunta: "O que muda entre um repasse com laudo e um sem laudo?",
@@ -515,7 +527,7 @@ export const PERGUNTAS_DO_REPASSE: PerguntaFrequente[] = [
   },
   {
     pergunta: "Carro de repasse tem garantia?",
-    resposta: `Não tem a garantia da loja, a de ${PRAZO_DA_GARANTIA}, que vale para o estoque.`,
+    resposta: `Não tem a garantia da loja, a de ${PRAZO_DA_GARANTIA}, que vale para o estoque. O carro funciona, e o estado dele você confere no pátio, com o seu mecânico, antes de fechar.`,
   },
   {
     pergunta: "O que é a ficha de estado?",
@@ -582,7 +594,7 @@ export const FICHA_DO_REPASSE = {
   naoConsta: "Não consta",
   naoVemRotulo: "O QUE NÃO VEM COM ESTE CARRO",
   naoVem: [`A garantia da loja, de ${PRAZO_DA_GARANTIA}`, "Financiamento", "O seu carro na troca"],
-  naoVemDestaque: "O preço já leva em conta o que não vem.",
+  naoVemDestaque: "O carro funciona, e o preço já leva em conta o que não vem.",
   naoVemTexto: "Se você precisa de garantia, financiamento ou troca, o estoque com garantia tem as três coisas.",
   entenda: "ENTENDA O REPASSE",
   exameRotulo: "EXAME NO PÁTIO",

@@ -92,6 +92,7 @@ export function RepasseOuEstoque() {
     <section className={SECAO}>
       <Rotulo accent>{R.rotulo}</Rotulo>
       <h2 className={TITULO}>{R.titulo}</h2>
+      <p className={TEXTO}>{R.texto}</p>
       <div className="mt-6 overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
           <thead>
@@ -182,7 +183,7 @@ export function ComoComprar() {
 }
 
 /**
- * As dez perguntas, visíveis, e o `FAQPage` do grafo é a mesma lista. Sem
+ * As onze perguntas, visíveis, e o `FAQPage` do grafo é a mesma lista. Sem
  * link automático no texto (decisão 27 do plano): o linkador ligaria "laudo
  * cautelar" à `/garantia`, a garantia que o repasse justamente não tem.
  */

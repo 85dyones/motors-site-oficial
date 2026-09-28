@@ -115,9 +115,24 @@ describe("/repasse com carro no lote", () => {
     expect(html).not.toContain("FORD KA SE 2017");
   });
 
-  it("as dez perguntas estão visíveis e a lista usa a linha da §7.4", async () => {
+  it("o texto do herói é o do item 2, separado da busca e do compartilhamento", async () => {
+    const html = await servida([ABERTO]);
+    expect(html).toContain(
+      "Carros funcionando, vendidos no estado em que estão: sem os reparos feitos e sem a garantia da loja, por isso abaixo da FIPE. Cada anúncio diz se o carro tem laudo cautelar e mostra a conta, e você confere tudo no pátio antes de fechar.",
+    );
+  });
+
+  it("a diferença lado a lado traz o parágrafo novo abaixo do título", async () => {
+    const html = await servida([ABERTO]);
+    expect(html).toContain(
+      "O mesmo carro pode estar nos dois lugares. No estoque, ele sai com os reparos feitos e com a garantia da loja. No repasse, sai como está, funcionando, sem essa garantia e por um preço menor.",
+    );
+  });
+
+  it("as onze perguntas estão visíveis e a lista usa a linha da §7.4", async () => {
     const html = await servida([ABERTO]);
     expect(html).toContain("O que é um carro de repasse?");
+    expect(html).toContain("O mesmo carro pode estar no estoque e no repasse?");
     expect(html).toContain("Sou lojista. O que muda para mim?");
     expect(html).toContain("Ao entrar na lista, você aceita receber avisos de repasse pelo WhatsApp e pode sair quando quiser.");
     expect(html).toContain("QUERO RECEBER OS REPASSES");
@@ -154,7 +169,10 @@ describe("o cabeçalho da página", () => {
     const meta = await pagina.generateMetadata();
     expect(meta.title).toBe("Carros de repasse em Curitiba | Motors Store");
     expect(meta.alternates?.canonical).toBe("/repasse");
-    expect(String(meta.description).length).toBeLessThanOrEqual(155);
+    // Item 1 da tabela de textos aprovados pelo dono (28/09) tem 159
+    // caracteres — passou dos 155 do teto antigo desta página de propósito;
+    // documentado em textos-mesmo-carro.md.
+    expect(String(meta.description).length).toBeLessThanOrEqual(160);
     expect(meta.openGraph?.title).toBe("Carros de repasse em Curitiba");
   });
 });

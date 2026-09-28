@@ -149,7 +149,7 @@ describe("a ficha do carro aberto a todos", () => {
     expect(html).toContain("Total orçado R$ 2.020");
     expect(html).toContain("Laudo cautelar aprovado, sai a pedido");
     expect(html).toContain("Feita em 22/09");
-    expect(html).toContain("O preço já leva em conta o que não vem.");
+    expect(html).toContain("O carro funciona, e o preço já leva em conta o que não vem.");
   });
 
   it("três parecidos do estoque com garantia", async () => {
