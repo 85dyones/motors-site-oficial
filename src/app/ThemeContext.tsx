@@ -257,20 +257,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [instagramCuradoria, setInstagramCuradoria] = useState<PublicacaoInstagram[]>([]);
 
   useEffect(() => {
-    // Theme and compare IDs are UI-only preferences — localStorage is fine for these
-    const savedTheme = localStorage.getItem("ag_theme") as ThemeType;
-    if (ehTema(savedTheme)) {
-      setThemeState(savedTheme);
-      applyThemeProperties(savedTheme);
-    }
-
-    const savedCompare = localStorage.getItem("ag_compare_ids");
-    if (savedCompare) {
-      try {
-        setCompareIds(JSON.parse(savedCompare));
-      } catch (e) {
-        console.error("Failed to parse compare IDs from localStorage", e);
+    // Tema e comparação são preferências de interface — o localStorage serve.
+    // O `try` é porque o navegador com armazenamento bloqueado LANÇA no
+    // acesso: sem ele, o efeito parava aqui e `/api/settings` (telefone,
+    // ajustes do painel, Pixel) nunca era carregado.
+    try {
+      const savedTheme = localStorage.getItem("ag_theme");
+      if (ehTema(savedTheme)) {
+        setThemeState(savedTheme);
+        applyThemeProperties(savedTheme);
       }
+
+      const savedCompare = localStorage.getItem("ag_compare_ids");
+      if (savedCompare) {
+        try {
+          setCompareIds(JSON.parse(savedCompare));
+        } catch (e) {
+          console.error("Failed to parse compare IDs from localStorage", e);
+        }
+      }
+    } catch (e) {
+      console.warn("[ThemeContext] Armazenamento do navegador indisponível:", e);
     }
 
     // Settings loaded EXCLUSIVELY from Supabase via /api/settings
