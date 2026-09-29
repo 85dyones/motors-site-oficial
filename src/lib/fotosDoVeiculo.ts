@@ -200,9 +200,9 @@ export function ehFotoPropria(url: string | null | undefined): boolean {
 export const LARGURA_DA_VERSAO_WEB = 1280;
 
 export function urlDaFotoNaLargura(url: string, largura: number, qualidade = 75): string {
-  const i = url.indexOf(PREFIXO_PUBLICO);
-  if (i < 0) return url;
-  const semQuery = url.split("?")[0];
+  const limpo = url.trim();
+  if (limpo.indexOf(PREFIXO_PUBLICO) < 0) return url;
+  const semQuery = limpo.split("?")[0];
   const renderizada = semQuery.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
   const w = Math.max(1, Math.min(Math.round(largura), LARGURA_DA_VERSAO_WEB));
   // `resize=contain` é obrigatório: só com `width`, o Storage mantém a altura

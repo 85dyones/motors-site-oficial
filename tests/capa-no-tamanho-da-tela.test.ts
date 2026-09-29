@@ -32,6 +32,10 @@ describe("urlDaFotoNaLargura", () => {
     expect(urlDaFotoNaLargura(FOTO, 639.6, 60)).toMatch(/width=640&resize=contain&quality=60$/);
   });
 
+  it("tolera espaço nas pontas, como ehFotoPropria", () => {
+    expect(urlDaFotoNaLargura(`  ${FOTO} `, 640)).toMatch(/^https:\/\/.*\?width=640&resize=contain&quality=75$/);
+  });
+
   it("descarta query antiga da URL guardada", () => {
     expect(urlDaFotoNaLargura(`${FOTO}?v=2`, 640)).not.toContain("v=2");
   });
