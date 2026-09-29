@@ -277,7 +277,6 @@ export default async function CarDetailsPage({ params }: PageProps) {
     permanentRedirect(pdpUrl);
   }
 
-
   const [{ historico, disponiveis }, settings, publicacao, parametrosDaSimulacao] = await Promise.all([
     recortesDoEstoque(),
     getCachedSettings(),

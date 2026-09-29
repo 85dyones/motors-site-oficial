@@ -57,12 +57,11 @@ describe("a regra do nome repetido", () => {
     // Campos diferentes: o corte de sempre continua valendo.
     expect(modeloDeNomeRepetido("Ka Sedan SE 1.5 12v", "Sedan SE 1.5 12v")).toBeNull();
     // Primeira palavra sem dígito nem hífen não é nome de modelo sozinha:
-    // "Novo Voyage" iria para /novo e misturaria Voyage e Polo no mesmo hub,
-    // e o C-180 que o dono chamou de "Classe C" ganharia um segundo hub.
+    // "Novo Voyage" iria para /novo e misturaria Voyage e Polo no mesmo hub.
     expect(modeloDeNomeRepetido("Novo Voyage 1.0", "novo voyage 1.0")).toBeNull();
     expect(modeloDeNomeRepetido("Grand Siena 1.4", "Grand Siena 1.4")).toBeNull();
     expect(modeloDeNomeRepetido("Range Rover Evoque", "Range Rover Evoque")).toBeNull();
-        // Uma palavra só: não há o que separar.
+    // Uma palavra só: não há o que separar.
     expect(modeloDeNomeRepetido("Kwid", "Kwid")).toBeNull();
     expect(modeloDeNomeRepetido("", "")).toBeNull();
   });
