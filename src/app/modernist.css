@@ -335,6 +335,10 @@
 .mt-range-duplo {
   position: relative;
   height: 24px;
+  /* Contexto de empilhamento próprio: os pegadores têm z-index 2 e 3, e sem
+     isto competiam com o rodapé fixo da folha de filtros do celular —
+     passavam por cima do "VER N VEÍCULOS" ao rolar (revisão de 29/09). */
+  isolation: isolate;
 }
 .mt-range-duplo::before {
   content: "";
@@ -410,6 +414,46 @@
 .mt-grupo > legend + * {
   clear: both;
 }
+/* — folha de filtros do celular (tarefa 3.5, 29/09) —
+   O painel de filtros, aberto abaixo do `lg`, deixa de empurrar a grade para
+   baixo e vira uma folha presa ao pé da tela: rolagem própria, cabeçalho e
+   botão "VER N VEÍCULOS" fixos (sticky, no Catalogo). Acima do `lg` a classe
+   não faz nada — a coluna da esquerda do desktop não muda.
+   `overscroll-behavior` segura a rolagem dentro da folha: sem ele, chegar ao
+   fim da lista rolava a página por trás. */
+@media (width < 64rem) {
+  .mt-folha {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    max-height: 88vh; /* iOS anterior ao 15.4 não conhece `svh` */
+    max-height: 88svh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* O cabeçalho e o rodapé da folha ficam presos: sem esta folga, o campo
+       que recebe o foco por Tab parava escondido atrás deles (WCAG 2.4.11). */
+    scroll-padding-top: 64px;
+    scroll-padding-bottom: 88px;
+    background: var(--mt-bg);
+    border-top: 2px solid var(--mt-ink);
+    box-shadow: var(--mt-shadow-lg);
+    animation: mt-folha-sobe 0.18s ease-out;
+  }
+}
+@keyframes mt-folha-sobe {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-folha {
+    animation: none;
+  }
+}
+
 .mt-grupo-conta {
   font-size: 11px;
   font-weight: 800;

@@ -143,6 +143,13 @@ export default function Catalogo({
   // painel não obedece a este estado.
   const [filtroAberto, setFiltroAberto] = useState(false);
   const botaoDoFiltro = useRef<HTMLButtonElement>(null);
+  const painel = useRef<HTMLElement>(null);
+  const fecharDaFolha = useRef<HTMLButtonElement>(null);
+  const botaoVerVeiculos = useRef<HTMLButtonElement>(null);
+  /** A mesma condição do `@media` de `.mt-folha` (modernist.css). */
+  const MIDIA_DA_FOLHA = "(width < 64rem)";
+  const folhaNaTela = () =>
+    typeof window !== "undefined" && window.matchMedia(MIDIA_DA_FOLHA).matches;
   const campoDeBusca = useRef<HTMLInputElement>(null);
   const regiaoDeResultados = useRef<HTMLDivElement>(null);
 
@@ -171,6 +178,10 @@ export default function Catalogo({
    * `VER TODO O ESTOQUE` do estado vazio — tornam falsa a própria condição de
    * renderização e saem do DOM levando o foco de quem os acionou para o
    * `<body>` (WCAG 2.4.3).
+   *
+   * Desde a 3.5 (29/09), o `LIMPAR (N)` passa antes por `limparDoPainel`: com
+   * a folha do celular aberta, a grade fica coberta e o foco vai para o "VER N
+   * VEÍCULOS", dentro da folha. Fora dela, cai aqui como os outros dois.
    *
    * `botaoDoFiltro` não servia de destino, que foi o motivo de o conserto ter
    * sido adiado. Ele é o "FILTROS", que tem `SO_NO_CELULAR`: no desktop é
@@ -203,6 +214,101 @@ export default function Catalogo({
     flushSync(() => limparTudo());
     regiaoDeResultados.current?.focus();
   };
+
+  /**
+   * O `LIMPAR (N)` do topo do painel, que no celular está DENTRO da folha.
+   *
+   * Com a folha aberta, a região de resultados fica atrás dela e do fundo
+   * escurecido: mandar o foco para lá o deixava invisível, e o leitor de tela
+   * ia parar no fundo da página (WCAG 2.4.3). Aberta, o destino é o "VER N
+   * VEÍCULOS", que continua na folha e já diz a contagem nova. Fechada (ou no
+   * desktop, onde o painel é coluna), vale a regra de cima.
+   */
+  const limparDoPainel = () => {
+    if (filtroAberto && folhaNaTela()) {
+      flushSync(() => limparTudo());
+      botaoVerVeiculos.current?.focus();
+      return;
+    }
+    limparTudoComFocoNosResultados();
+  };
+
+  /**
+   * A folha de filtros do celular (tarefa 3.5): foco preso nela, Esc fecha,
+   * a página por trás não rola, e o foco volta ao "FILTROS" ao fechar
+   * (`fecharFiltro`).
+   *
+   * Tudo isso só vale ABAIXO do `lg`, onde o painel aberto é uma folha. No
+   * desktop o mesmo `<aside>` é a coluna da esquerda e nada disso pode agir —
+   * por isso a pergunta à mídia, e não só ao `filtroAberto`. Quem abre no
+   * celular e gira o tablet até passar do `lg` vê a folha fechar sozinha.
+   */
+  useEffect(() => {
+    if (!filtroAberto || typeof window === "undefined") return;
+    const celular = window.matchMedia(MIDIA_DA_FOLHA);
+    if (!celular.matches) return;
+
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    // Semântica de diálogo só enquanto é folha: no desktop o mesmo `<aside>`
+    // é a coluna da esquerda. A trava de Tab abaixo depende de teclado; é
+    // `aria-modal` que segura o leitor de tela de deslizar para a grade coberta.
+    const aside = painel.current;
+    aside?.setAttribute("role", "dialog");
+    aside?.setAttribute("aria-modal", "true");
+    fecharDaFolha.current?.focus();
+
+    const aoTeclar = (e: KeyboardEvent) => {
+      // Um Esc já consumido (a lista de sugestões dos opcionais) ou no meio de
+      // uma composição de teclado não é para a folha.
+      if (e.defaultPrevented || e.isComposing || !painel.current) return;
+      // Outra camada por cima da folha (o pop-up de captura, o aviso de
+      // cookies) tem o foco: a folha não rouba o Tab nem fecha com o Esc dela.
+      const dentro = painel.current.contains(document.activeElement);
+      if (!dentro && document.activeElement !== document.body) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        fecharFiltro();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focaveis = [
+        ...painel.current.querySelectorAll<HTMLElement>(
+          'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+        // Só o que está desenhado: `getClientRects` vem vazio para o que
+        // tem `display:none` em si ou num ancestral (o "FILTROS" do desktop,
+        // a opção de um grupo recolhido).
+      ].filter((el) => !el.hasAttribute("disabled") && el.getClientRects().length > 0);
+      if (focaveis.length === 0) return;
+      const primeiro = focaveis[0];
+      const ultimo = focaveis[focaveis.length - 1];
+      if (e.shiftKey && (document.activeElement === primeiro || !dentro)) {
+        e.preventDefault();
+        ultimo.focus();
+      } else if (!e.shiftKey && (document.activeElement === ultimo || !dentro)) {
+        e.preventDefault();
+        primeiro.focus();
+      }
+    };
+    // Passou do `lg` com a folha aberta: fecha, e o foco — que estava no X,
+    // agora `lg:hidden` — vai para a grade, que existe nas duas larguras.
+    const aoMudarLargura = (e: MediaQueryListEvent) => {
+      if (e.matches) return;
+      const focoNaFolha = painel.current?.contains(document.activeElement) ?? false;
+      setFiltroAberto(false);
+      if (focoNaFolha) regiaoDeResultados.current?.focus();
+    };
+    document.addEventListener("keydown", aoTeclar);
+    celular.addEventListener("change", aoMudarLargura);
+    return () => {
+      document.body.style.overflow = antes;
+      aside?.removeAttribute("role");
+      aside?.removeAttribute("aria-modal");
+      document.removeEventListener("keydown", aoTeclar);
+      celular.removeEventListener("change", aoMudarLargura);
+    };
+  }, [filtroAberto]);
 
   const alternar = (chave: string, valor: string) => {
     setSelecionados((prev) => {
@@ -698,6 +804,16 @@ export default function Catalogo({
       </div>
 
       <div className="flex flex-col lg:flex-row lg:items-stretch">
+        {/* O fundo escurecido por trás da folha — tocar nele fecha. Só no
+            celular e só com a folha aberta; fora da árvore acessível, porque
+            o X e o Esc já fecham. */}
+        {filtroAberto && (
+          <div
+            aria-hidden="true"
+            onClick={fecharFiltro}
+            className={`fixed inset-0 z-[55] touch-none bg-[rgba(20,18,18,.55)] ${filtro.classeDoBotao}`}
+          />
+        )}
         {/* Coluna de filtros.
             `filtro.classe` esconde no celular e mantém no desktop. O elemento
             NÃO sai da árvore: decidir isso em JavaScript exigiria medir a
@@ -706,10 +822,14 @@ export default function Catalogo({
             `soDesktop`. Escondido por CSS, o que o cliente marcou continua no
             estado e volta intacto quando ele reabre. */}
         <aside
+          ref={painel}
           id="painel-de-filtros"
-          className={`${filtro.classe} shrink-0 px-[18px] pb-8 lg:w-[290px] lg:border-r-2 lg:border-mt-regua lg:py-0 lg:pl-10 lg:pr-7`}
+          aria-label="Filtros"
+          className={`${filtro.classe} shrink-0 px-[18px] lg:w-[290px] lg:border-r-2 lg:border-mt-regua lg:py-0 lg:pl-10 lg:pr-7`}
         >
-          <div className="flex items-baseline justify-between border-b-2 border-mt-regua pb-3.5 pt-5">
+          {/* No celular, o cabeçalho da folha fica preso no topo enquanto a
+              lista rola por baixo — com o X de fechar à mão. */}
+          <div className="flex items-baseline justify-between gap-3 border-b-2 border-mt-regua pb-3.5 pt-5 max-lg:sticky max-lg:top-0 max-lg:z-10 max-lg:bg-mt-bg">
             <span className="text-[11px] font-extrabold tracking-[.16em]">FILTROS</span>
             {/* Este botão some do DOM ao ser acionado. O destino do foco é a
                 região de resultados, e não o alternador do filtro: ele aparece
@@ -718,12 +838,31 @@ export default function Catalogo({
             {chipsAtivos.length > 0 && (
               <button
                 type="button"
-                onClick={limparTudoComFocoNosResultados}
+                onClick={limparDoPainel}
                 className="mt-foco text-[11px] font-semibold text-mt-accent"
               >
                 LIMPAR ({chipsAtivos.length})
               </button>
             )}
+            <button
+              ref={fecharDaFolha}
+              type="button"
+              onClick={fecharFiltro}
+              aria-label="Fechar os filtros"
+              className={`mt-foco -my-2 -mr-2 flex h-11 w-11 items-center justify-center self-center text-mt-ink ${filtro.classeDoBotao}`}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="square"
+                className="h-4 w-4"
+              >
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
           </div>
 
           {grupos.map((grupo) => {
@@ -852,20 +991,25 @@ export default function Catalogo({
           )}
 
 
-          {/* A saída do painel no celular, com o resultado já contado.
-              Sem ela o cliente que abriu o filtro precisa rolar de volta até o
-              topo para achar o botão que fecha — e a contagem, que é a
-              resposta ao que ele acabou de marcar, fica fora da tela.
+          {/* A saída do painel no celular, com o resultado já contado — preso
+              ao pé da folha, porque a contagem é a resposta ao que se acabou
+              de marcar e tem que estar na tela sem rolar. A margem de baixo
+              respeita a barra de gestos do iPhone.
 
               `fecharFiltro` e não `setFiltroAberto(false)`: este botão some
               junto com o painel, e o foco precisa ir para algum lugar. */}
-          <button
-            type="button"
-            onClick={fecharFiltro}
-            className={`mt-btn mt-btn-tinta mt-foco mt-5 w-full ${filtro.classeDoBotao}`}
+          <div
+            className={`sticky bottom-0 z-10 -mx-[18px] mt-5 border-t border-mt-regua-fina bg-mt-bg px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 ${filtro.classeDoBotao}`}
           >
-            VER {totalFiltrado} {totalFiltrado === 1 ? "VEÍCULO" : "VEÍCULOS"}
-          </button>
+            <button
+              ref={botaoVerVeiculos}
+              type="button"
+              onClick={fecharFiltro}
+              className={`mt-btn mt-btn-tinta mt-foco w-full justify-center ${filtro.classeDoBotao}`}
+            >
+              VER {totalFiltrado} {totalFiltrado === 1 ? "VEÍCULO" : "VEÍCULOS"}
+            </button>
+          </div>
         </aside>
 
         {/* Grade — e o alvo de foco de quem limpa os filtros.

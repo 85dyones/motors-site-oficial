@@ -108,7 +108,10 @@ export interface PainelDeFiltro {
  */
 export function painelDeFiltro(aberto: boolean): PainelDeFiltro {
   return {
-    classe: aberto ? "lg:block" : "hidden lg:block",
+    // Aberto, no celular o painel é uma FOLHA que sobe de baixo (`.mt-folha`,
+    // modernist.css — tarefa 3.5, 29/09). A classe só age abaixo do `lg`; no
+    // desktop o `lg:block` segue mandando e a coluna continua a mesma.
+    classe: aberto ? "mt-folha lg:block" : "hidden lg:block",
     classeDoBotao: SO_NO_CELULAR,
     rotulo: aberto ? "FECHAR FILTROS" : "FILTROS",
   };
