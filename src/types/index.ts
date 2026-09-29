@@ -1,6 +1,6 @@
 // Global TypeScript Interfaces for Motors Store
 
-export type ThemeType = "luxury-light" | "stealth-dark" | "sport-nardo" | "motors-modernist";
+export type ThemeType = "motors-cobre" | "luxury-light" | "stealth-dark" | "sport-nardo" | "motors-modernist";
 
 export interface ThemeProperties {
   "--brand-background": string;
@@ -8,6 +8,8 @@ export interface ThemeProperties {
   "--brand-primary": string;
   "--brand-primary-hover": string;
   "--brand-gold": string;
+  /** Cor de identidade para texto pequeno (marca, código, numeração). Ver `lib/temas.ts`. */
+  "--brand-cobre": string;
   "--brand-card": string;
   "--brand-card-border": string;
   "--brand-border": string;

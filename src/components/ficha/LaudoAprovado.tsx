@@ -21,12 +21,12 @@ export default function LaudoAprovado({ laudo, children }: { laudo: string; chil
     <div className="flex flex-col gap-4">
       <div>
         <h3 className="mt-etiqueta m-0 gap-2 text-[11px]">
-          <span className="h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
+          <span className="h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
           LAUDO TÉCNICO APROVADO
         </h3>
         <p className="m-0 mt-2 text-sm text-mt-neutral-700">Histórico livre de sinistros e leilão</p>
       </div>
-      <blockquote className="m-0 border-l-2 border-mt-accent pl-4 text-[15px] leading-relaxed text-mt-neutral-800">
+      <blockquote className="m-0 border-l-2 border-mt-cobre pl-4 text-[15px] leading-relaxed text-mt-neutral-800">
         &ldquo;{laudo}&rdquo;
       </blockquote>
       {children}

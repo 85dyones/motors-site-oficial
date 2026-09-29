@@ -9,6 +9,7 @@ import MolduraDoSite, { AvisoLegalDoSite } from "../components/MolduraDoSite";
 import IntegrationsTracker from "../components/IntegrationsTracker";
 import BootstrapDeTags from "../components/BootstrapDeTags";
 import CamadaDeDados from "../components/CamadaDeDados";
+import { scriptAntiFlicker } from "../lib/temas";
 import { ThemeProvider } from "./ThemeContext";
 import { SITE_URL } from "../lib/site";
 import { getNavegacaoDoRodape } from "../lib/navegacaoDoRodape";
@@ -131,62 +132,9 @@ export default async function RootLayout({
         <BootstrapDeTags />
       </head>
       <body className="min-h-full flex flex-col bg-brand-bg text-brand-text font-sans transition-colors duration-300">
-        {/* Anti-Flicker: blocking inline script restores theme BEFORE first paint */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var t = localStorage.getItem('ag_theme') || 'luxury-light';
-                  var p = {
-                    'motors-modernist': {
-                      '--brand-background':'#f3f2f2','--brand-foreground':'#201e1d',
-                      '--brand-primary':'#ec3013','--brand-primary-hover':'#ae1800',
-                      '--brand-gold':'#ec3013','--brand-card':'#eae9e9',
-                      '--brand-card-border':'#d7d3d3','--brand-border':'#d7d3d3',
-                      '--brand-shadow':'rgba(45,43,43,0.22)',
-                      '--brand-glass-bg':'rgba(243,242,242,0.86)',
-                      '--brand-footer-bg':'#201e1d'
-                    },
-                    'luxury-light': {
-                      '--brand-background':'#fafafc','--brand-foreground':'#1a1a23',
-                      '--brand-primary':'#C83F00','--brand-primary-hover':'#9E3100',
-                      '--brand-gold':'#9E3100','--brand-card':'#ffffff',
-                      '--brand-card-border':'#f3f4f6','--brand-border':'#f1f3f5',
-                      '--brand-shadow':'rgba(0,0,0,0.03)',
-                      '--brand-glass-bg':'rgba(255,255,255,0.8)',
-                      '--brand-footer-bg':'#f1f3f5'
-                    },
-                    'stealth-dark': {
-                      '--brand-background':'#09090B','--brand-foreground':'#F4F4F7',
-                      '--brand-primary':'#D4AF37','--brand-primary-hover':'#bfa030',
-                      '--brand-gold':'#D4AF37','--brand-card':'#14141B',
-                      '--brand-card-border':'#24242b','--brand-border':'#1e1e24',
-                      '--brand-shadow':'rgba(0,0,0,0.5)',
-                      '--brand-glass-bg':'rgba(20, 20, 27, 0.85)',
-                      '--brand-footer-bg':'#09090B'
-                    },
-                    'sport-nardo': {
-                      '--brand-background':'#1A1D20','--brand-foreground':'#FFFFFF',
-                      '--brand-primary':'#E30613','--brand-primary-hover':'#c50510',
-                      '--brand-gold':'#E30613','--brand-card':'#272B30',
-                      '--brand-card-border':'#363b42','--brand-border':'#363b42',
-                      '--brand-shadow':'rgba(227,6,19,0.08)',
-                      '--brand-glass-bg':'rgba(39,43,48,0.85)',
-                      '--brand-footer-bg':'#1A1D20'
-                    }
-                  };
-                  var a = p[t] || p['luxury-light'];
-                  var d = document.documentElement;
-                  for (var k in a) d.style.setProperty(k, a[k]);
-                  d.setAttribute('data-theme', t);
-                  // motors-modernist e luxury-light são temas claros
-                  if (t === 'stealth-dark' || t === 'sport-nardo') d.classList.add('dark');
-                } catch(e) {}
-              })();
-            `,
-          }}
-        />
+        {/* Anti-flicker: aplica a paleta ANTES da primeira pintura. O script é
+            gerado de `lib/temas.ts`, a mesma fonte do ThemeContext. */}
+        <script dangerouslySetInnerHTML={{ __html: scriptAntiFlicker() }} />
         <ThemeProvider>
           {/* A camada de dados vem ANTES do carregador de tags: o contexto da
               página precisa estar no `dataLayer` quando o GTM inicializar. */}

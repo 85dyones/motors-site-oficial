@@ -21,6 +21,17 @@
   --mt-accent: var(--brand-primary, #ec3013);
   --mt-accent-hover: var(--brand-primary-hover, #ae1800);
 
+  /* — cobre: identidade, e não ação (tarefas 3.1 e 3.2, 29/09) —
+     `--mt-accent` é a cor de AÇÃO: botão e link que levam a algum lugar.
+     `--mt-cobre` é a de IDENTIDADE, para texto pequeno no fundo claro: marca
+     no card, código do veículo, numeração de seção, rótulo em versalete,
+     régua de destaque. Vem da paleta ativa (`--brand-cobre`, lib/temas.ts).
+     `--mt-cobre-marca` é o cobre do LOGO, fixo em qualquer paleta: 2,8:1 no
+     claro, então só em área grande ou sobre o fundo escuro (selo de perícia,
+     numeração das faixas escuras), onde passa de 5,6:1. */
+  --mt-cobre: var(--brand-cobre, #8a6647);
+  --mt-cobre-marca: #b29172;
+
   /* — réguas —
      A régua de 2px é o elemento estrutural do sistema: separa seções.
      A de 1px separa itens dentro de uma seção. */
@@ -125,8 +136,9 @@
   text-transform: uppercase;
   color: var(--mt-neutral-600);
 }
+/* Rótulo "em destaque" é identidade, não ação: cobre desde 29/09. */
 .mt-rotulo-accent {
-  color: var(--mt-accent);
+  color: var(--mt-cobre);
 }
 
 /* — numeração de seção (01 —, 02 —) — */
@@ -134,7 +146,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.18em;
-  color: var(--mt-accent);
+  color: var(--mt-cobre);
 }
 
 /* — título de display —
@@ -403,7 +415,7 @@
   font-weight: 800;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
-  color: var(--mt-accent);
+  color: var(--mt-cobre);
 }
 
 /* — foco visível —

@@ -61,7 +61,7 @@ export default function FaixasDePreco({
             className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
           >
             {faixa.nome}
-            <span className="text-[10px] font-semibold text-mt-accent">
+            <span className="text-[10px] font-semibold text-mt-cobre">
               {faixa.veiculos.length}
             </span>
           </Link>
