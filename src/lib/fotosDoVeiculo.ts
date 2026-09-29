@@ -178,6 +178,39 @@ export function ehFotoPropria(url: string | null | undefined): boolean {
   return caminhoDaUrlPublica(url) !== null;
 }
 
+/**
+ * A foto nossa na largura em que a tela vai desenhá-la — pelo redimensionamento
+ * do próprio Storage (`/storage/v1/render/image/public/…`).
+ *
+ * Por que existe (revisão de UI de 29/09, tarefa 1.9): o card servia a versão
+ * `web` inteira, 1280 px e ~90–130 KB, num espaço de 308 px no desktop. As três
+ * primeiras capas do `/estoque` já carregavam com prioridade; o cinza que se via
+ * era a espera pelos bytes. A 640 px a mesma capa tem ~31 KB (era 126 KB).
+ *
+ * Por que o Storage e não o otimizador da Vercel: a cota da Vercel já estourou
+ * (402 em produção, ver `primitivos.tsx`), e a transformação do Supabase está no
+ * plano Pro da organização, cobrada por FOTO DE ORIGEM (100 por mês incluídas),
+ * não por largura pedida — então o srcset inteiro de uma capa conta uma vez.
+ * Conferido em 29/09 contra o projeto: `?width=640&resize=contain` devolve
+ * 640×427 em WebP.
+ *
+ * Nunca pede mais que a versão gravada (`LARGURA_DA_VERSAO_WEB`): ampliar só
+ * gastaria byte. URL que não é do nosso bucket volta como veio.
+ */
+export const LARGURA_DA_VERSAO_WEB = 1280;
+
+export function urlDaFotoNaLargura(url: string, largura: number, qualidade = 75): string {
+  const i = url.indexOf(PREFIXO_PUBLICO);
+  if (i < 0) return url;
+  const semQuery = url.split("?")[0];
+  const renderizada = semQuery.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
+  const w = Math.max(1, Math.min(Math.round(largura), LARGURA_DA_VERSAO_WEB));
+  // `resize=contain` é obrigatório: só com `width`, o Storage mantém a altura
+  // ORIGINAL e corta o centro — a capa de 1280×853 pedida a 640 voltava como
+  // um retrato de 640×853 (medido em 29/09). Com `contain`, 640×427.
+  return `${renderizada}?width=${w}&resize=contain&quality=${qualidade}`;
+}
+
 /** Uma fotografia do anúncio, nas suas duas versões. */
 export interface FotoDoVeiculo {
   /** Para `whatsapp_images` — JPEG. Galeria da ficha, og:image e feed. */

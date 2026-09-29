@@ -900,7 +900,14 @@ describe("o site continua servindo as fotos", () => {
   });
 
   it("o card pula o otimizador SÓ na foto nossa", () => {
-    expect(card).toContain("unoptimized={ehFotoPropria(foto)}");
+    // Desde 29/09 a foto nossa vai por `FotoPropriaDoCard`, com o `loader` do
+    // Storage — continua fora do `/_next/image`, agora com srcset. A do
+    // carro57 segue no `<Image>` otimizado.
+    expect(card).toContain("ehFotoPropria(foto) ? (");
+    expect(card).toContain("<FotoPropriaDoCard");
+    const componente = ler("src", "components", "modernist", "FotoPropriaDoCard.tsx");
+    expect(componente).toContain("loader={carregador}");
+    expect(componente).toContain("urlDaFotoNaLargura");
     // O `next/image` e o `sizes` continuam — é o que faz a foto do carro57
     // valer a pena otimizar (`tests/rodape-e-imagens.test.ts` também cobra).
     expect(card).toMatch(/import Image from "next\/image"/);
