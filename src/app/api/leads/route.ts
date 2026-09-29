@@ -6,7 +6,7 @@ import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
 import { interesseDoLead } from "../../../lib/interesseDoLead";
-import { grafiaDaMarca, grafiaDaVersao, grafiaDoModelo } from "../../../lib/grafiaCanonica";
+import { grafiaDoCarro } from "../../../lib/grafiaCanonica";
 import { contextoDeMidiaDoLead } from "../../../lib/contextoDeMidia";
 import {
   MENSAGEM_DA_INSCRICAO,
@@ -130,8 +130,9 @@ export async function POST(request: NextRequest) {
           valorDoRepasse = carro.preco ?? undefined;
           // Na grafia canônica: o cadastro em maiúsculas chegava ao Kanban
           // como "FIAT PALIO 1.0 ECONOMY…" (revisão de 28/09).
+          // A mesma composição do nome da ficha (`grafiaDoCarro`, 29/09).
           interesseDoRepasse = interesseDoLead({
-            veiculo: { marca: grafiaDaMarca(carro.marca), modelo: grafiaDoModelo(carro.modelo), versao: grafiaDaVersao(carro.versao) },
+            veiculo: grafiaDoCarro({ marca: carro.marca, modelo: carro.modelo, versao: carro.versao }),
           });
         }
       } else {

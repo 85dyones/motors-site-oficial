@@ -406,3 +406,40 @@ describe("o envio: grava o lead, mede e abre o WhatsApp com a mensagem do repass
     expect(abrirJanela).toHaveBeenCalledWith(linkEsperado(mensagem), "_blank", "noopener,noreferrer");
   });
 });
+
+// Revisão de 29/09: o "Interesse no veículo" do modal saía com o cadastro cru,
+// "FIAT PALIO (2010)", na ficha e no card do lote. Só o nome do MODAL passa
+// pela grafia da casa; a mensagem do WhatsApp segue com o carro do banco.
+describe("o modal nomeia o carro na grafia da casa", () => {
+  const PALIO = repasseDeTeste({
+    situacao: "publicado",
+    lojistas_desde: "2026-09-22T12:00:00Z",
+    aberto_ao_publico_em: "2026-09-24T12:00:00Z",
+    marca: "FIAT",
+    modelo: "PALIO",
+    versao: "1.0 ECONOMY FIRE FLEX 8V 4P",
+    ano_modelo: 2010,
+    ano_fabricacao: 2010,
+  });
+
+  it("ficha: Fiat Palio (2010), e não FIAT PALIO", async () => {
+    await montarFicha(PALIO);
+    await clicar(botoes(FICHA_DO_REPASSE.quero)[0]);
+    expect(dialogo()?.textContent).toContain("Fiat Palio (2010)");
+    expect(dialogo()?.textContent).not.toContain("PALIO");
+  });
+
+  it("card do lote: o mesmo nome", async () => {
+    await montarPagina([PALIO]);
+    await clicar(botoes(CARD_DO_REPASSE.quero)[0]);
+    expect(dialogo()?.textContent).toContain("Fiat Palio (2010)");
+    expect(dialogo()?.textContent).not.toContain("PALIO");
+  });
+
+  it("a mensagem do WhatsApp segue com o carro como está no banco", async () => {
+    await montarFicha(PALIO);
+    await clicar(botoes(FICHA_DO_REPASSE.quero)[0]);
+    await preencherEEnviar();
+    expect(abrirJanela).toHaveBeenCalledWith(linkEsperado(mensagemDoRepasse(PALIO, "aberto", REF)), "_blank", "noopener,noreferrer");
+  });
+});

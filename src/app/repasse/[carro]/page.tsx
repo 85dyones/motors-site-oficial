@@ -13,6 +13,7 @@ import { montarCompartilhamento, previaDaFotoDoVeiculo } from "../../../lib/comp
 import { diasDoExame } from "../../../lib/exameNoPatio";
 import { ehFotoPropria } from "../../../lib/fotosDoVeiculo";
 import { generoDeModelo } from "../../../lib/generoDoVeiculo";
+import { grafiaDoCarro } from "../../../lib/grafiaCanonica";
 import { grafoDoRepasse } from "../../../lib/grafoDoRepasse";
 import { ddmmEmCuritiba } from "../../../lib/horarioDaLoja";
 import { carroDoWhatsApp } from "../../../lib/leadDoRepasse";
@@ -96,6 +97,15 @@ export async function generateStaticParams() {
   return repasses.map((r) => ({ carro: r.slug }));
 }
 
+/**
+ * O nome do carro na ficha vem na grafia da casa, e não como o cadastro
+ * gravou (pedido do dono em 29/09: o `<h1>` mostrava "PALIO 1.0 ECONOMY FIRE
+ * FLEX 8V 4P"). Quem chama passa o carro por `grafiaDoCarro`, a composição que
+ * a rota de leads já usava (#163). Só onde a ficha NOMEIA o carro: `<h1>`,
+ * `<title>`, card de compartilhamento, JSON-LD, a FIPE da conta e os títulos
+ * do exame e dos parecidos. Slug, mensagem do WhatsApp e rastreio seguem com o
+ * carro como está no banco.
+ */
 const nomeDe = (r: Repasse) => nomeComAno({ marca: r.marca, modelo: r.modelo, versao: r.versao, ano: r.ano_modelo });
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -104,7 +114,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!r || !aparecePublicamente(r, new Date())) {
     return { title: NAO_ENCONTRADO_NO_REPASSE.tituloNaBusca, description: NAO_ENCONTRADO_NO_REPASSE.descricaoNaBusca };
   }
-  const nome = nomeDe(r);
+  const nome = nomeDe(grafiaDoCarro(r));
   const caminho = `${CAMINHO_DO_REPASSE}/${r.slug}`;
   const estado = estadoDoRepasse(r);
   const { companySettings } = await getCachedSettings();
@@ -155,10 +165,11 @@ export default async function FichaDoRepasse({ params }: PageProps) {
   ]);
 
   const F = FICHA_DO_REPASSE;
-  const nome = nomeDe(r);
+  const naGrafia = grafiaDoCarro(r);
+  const nome = nomeDe(naGrafia);
   const caminho = `${CAMINHO_DO_REPASSE}/${r.slug}`;
   const conta = contaDoRepasse(r);
-  const genero = generoDeModelo(r.modelo, { tipo: r.carroceria ? TIPO_NO_FEED[r.carroceria] : "" });
+  const genero = generoDeModelo(naGrafia.modelo, { tipo: r.carroceria ? TIPO_NO_FEED[r.carroceria] : "" });
   const parecidos = parecidosDoRepasse(r, estoque);
   const whatsappDaLoja: WhatsappDaLoja = {
     whatsappRaw: companySettings?.whatsappRaw ?? "",
@@ -167,7 +178,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
   const temWhatsApp = estado !== "lojistas" && numeroDaLoja(whatsappDaLoja) !== "";
   const carroDoContato = carroDoWhatsApp(r);
   const grafo = grafoDoRepasse({
-    repasse: r,
+    repasse: naGrafia,
     caminho,
     trilha: [
       { nome: TRILHA_DO_REPASSE.inicio, caminho: "/" },
@@ -225,7 +236,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
         <GaleriaDoRepasse fotos={fotos} etiqueta={etiquetaDoRepasse(r)} />
         <div>
           <p className="m-0 text-[11px] font-semibold tracking-[.16em] text-mt-accent">{r.marca.toUpperCase()}</p>
-          <h1 className="mt-titulo m-0 mt-1 text-[34px] lg:text-[44px]">{[r.modelo, r.versao].filter(Boolean).join(" ")}</h1>
+          <h1 className="mt-titulo m-0 mt-1 text-[34px] lg:text-[44px]">{[naGrafia.modelo, naGrafia.versao].filter(Boolean).join(" ")}</h1>
           <p className="m-0 mt-2 text-[13px] text-mt-neutral-700">{especificacoes}</p>
           <span className="mt-etiqueta mt-3 inline-block">{selo}</span>
 
@@ -233,7 +244,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
             <ContaDoRepasse
               repasse={r}
               variante="ficha"
-              carroNaFipe={[r.modelo, r.versao, String(r.ano_modelo)].filter(Boolean).join(" ")}
+              carroNaFipe={[naGrafia.modelo, naGrafia.versao, String(r.ano_modelo)].filter(Boolean).join(" ")}
             />
           </div>
 
@@ -411,7 +422,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
         <ExameNoPatio
           carro={{ id: r.id, slug: r.slug, marca: r.marca, modelo: r.modelo, versao: r.versao, ano_modelo: r.ano_modelo, preco: r.preco }}
           dias={diasDoExame(agora)}
-          titulo={tituloDoExame(r.modelo, genero)}
+          titulo={tituloDoExame(naGrafia.modelo, genero)}
         />
       )}
 
@@ -426,7 +437,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <Rotulo accent>{F.parecidosRotulo}</Rotulo>
-              <h2 className={TITULO}>{tituloDosParecidos(r.modelo, genero)}</h2>
+              <h2 className={TITULO}>{tituloDosParecidos(naGrafia.modelo, genero)}</h2>
             </div>
             <LinkRegua href="/estoque">{F.verOEstoque}</LinkRegua>
           </div>

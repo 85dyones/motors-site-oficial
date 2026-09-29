@@ -18,6 +18,7 @@ import {
   mensagemDoRepasse,
   type EstadoDoRepasseNaMensagem,
 } from "../../lib/mensagensDoVeiculo";
+import { grafiaDoCarro } from "../../lib/grafiaCanonica";
 import { nomeDoVeiculo } from "../../lib/nomeDoVeiculo";
 import {
   getActiveAgUid,
@@ -100,6 +101,14 @@ export default function WhatsAppDoRepasse({
   // de propósito — no Pixel ele viraria id de catálogo de um carro que o
   // catálogo não tem.
   const noRelatorio = carro ? { vehicle_name: nomeDoVeiculo(carro), vehicle_price: carro.preco } : {};
+  // O carro que o MODAL nomeia ("Interesse no veículo", e a frase de saída do
+  // captcha que ele monta daí), na grafia da casa como a ficha e o card
+  // (revisão de 29/09: saía "FIAT PALIO (2010)"). Só aqui: a mensagem do
+  // WhatsApp e a medição seguem com o carro como está no banco, e o modal do
+  // estoque não passa por este componente.
+  const noModal = carro
+    ? { ...grafiaDoCarro({ marca: carro.marca, modelo: carro.modelo, versao: carro.versao }), ano: carro.ano_modelo }
+    : undefined;
 
   function abrir() {
     // O `ref` do rastreio é lido no clique, como na ficha do estoque: ele pode
@@ -204,7 +213,7 @@ export default function WhatsAppDoRepasse({
             onClose={() => setAberto(false)}
             onSubmit={enviar}
             action={ACOES.repasse}
-            vehicleInfo={carro ? { marca: carro.marca, modelo: carro.modelo, versao: carro.versao, ano: carro.ano_modelo } : undefined}
+            vehicleInfo={noModal}
           />,
           document.body,
         )}

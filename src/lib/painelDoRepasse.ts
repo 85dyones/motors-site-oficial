@@ -1,6 +1,17 @@
 /** As abas da lista `/admin/repasse` (spec §6): por situação, com contagem. */
 import { SITUACOES_DO_REPASSE, type SituacaoDoRepasse } from "./repasse";
 
+/**
+ * Os endereços do carro no painel. Desde 28/09 (pedido do dono: "não existe
+ * um modo visualização interna, ele só abre edição") abrir o carro mostra a
+ * VISÃO, e o editor mora em `/editar`. Todo link interno para um carro vai à
+ * visão; só o "Cadastrar carro" leva direto ao editor, porque quem acabou de
+ * criar o rascunho vai preencher o resto.
+ */
+export const CAMINHO_DO_PAINEL_DO_REPASSE = "/admin/repasse";
+export const caminhoDoCarroNoPainel = (id: string) => `${CAMINHO_DO_PAINEL_DO_REPASSE}/${id}`;
+export const caminhoDoEditorNoPainel = (id: string) => `${caminhoDoCarroNoPainel(id)}/editar`;
+
 export const ABAS_DO_PAINEL: ReadonlyArray<{ situacao: SituacaoDoRepasse; rotulo: string }> = [
   { situacao: "em_validacao", rotulo: "Aguardando validação" },
   { situacao: "rascunho", rotulo: "Rascunhos" },

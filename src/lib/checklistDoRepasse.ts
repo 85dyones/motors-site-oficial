@@ -26,7 +26,7 @@
 import { anoMaximo } from "./anoDoVeiculo";
 import { MINIMO_DE_FOTOS } from "./coerenciaDoCadastro";
 import { ehFotoPropria } from "./fotosDoVeiculo";
-import { PISO_DO_ANO_NO_BANCO, type Repasse } from "./repasse";
+import { PISO_DO_ANO_NO_BANCO, type Repasse, type SituacaoDoRepasse } from "./repasse";
 
 /** O que o dono mandou não citar: CDC, direitos do consumidor, garantia legal. */
 export const TERMOS_JURIDICOS_DO_REPASSE: ReadonlyArray<{ termo: string; padrao: RegExp }> = [
@@ -91,6 +91,19 @@ export function termosProibidosEm(
 export interface FaltaDoChecklist {
   campo: string;
   mensagem: string;
+}
+
+/** Onde o checklist ainda é a porta da validação: o carro não chegou a ela. */
+const ANTES_DA_VALIDACAO: readonly SituacaoDoRepasse[] = ["rascunho"];
+
+/**
+ * O que o painel escreve quando o checklist não acha falta. No rascunho, o
+ * próximo passo; em qualquer outra situação, só "Completo" — pedido do dono
+ * em 29/09: o carro que já está no site não "pode ir à validação", e o que
+ * está em validação (revisão do mesmo dia) já foi.
+ */
+export function checklistCompletoNa(situacao: SituacaoDoRepasse): string {
+  return ANTES_DA_VALIDACAO.includes(situacao) ? "Completo: o carro pode ir à validação." : "Completo";
 }
 
 /**

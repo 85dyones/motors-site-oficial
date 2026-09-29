@@ -149,6 +149,8 @@ describe("as regras, token a token", () => {
   it.each([
     ["citroen", "Citroën"], ["mercedes-benz", "Mercedes-Benz"], ["harley-davidson", "Harley-Davidson"],
     ["bmw", "BMW"], ["jtz", "JTZ"], ["volkswagen", "Volkswagen"], ["land rover", "Land Rover"],
+    // A sigla que o cadastro do repasse recebe ("VW"): sem a entrada, virava "Vw".
+    ["VW", "VW"], ["vw", "VW"],
   ])("marca %s → %s", (bruta, esperada) => {
     expect(grafiaDaMarca(bruta)).toBe(esperada);
   });

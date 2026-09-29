@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checklistDoRepasse } from "../src/lib/checklistDoRepasse";
+import { checklistCompletoNa, checklistDoRepasse } from "../src/lib/checklistDoRepasse";
 import { ANO_MINIMO, anoMaximo } from "../src/lib/cadastroDeVeiculo";
 import { ANO_MINIMO as ANO_MINIMO_PURO, anoMaximo as anoMaximoPuro } from "../src/lib/anoDoVeiculo";
 import { MINIMO_DE_FOTOS } from "../src/lib/coerenciaDoCadastro";
@@ -80,5 +80,19 @@ describe("as fotos (M9)", () => {
       campo: "itens_de_estado[0].foto",
       mensagem: "A foto do defeito precisa ser enviada pelo painel.",
     });
+  });
+});
+
+// Pedido do dono em 29/09: carro publicado, reservado ou vendido não "pode ir
+// à validação" — já passou por ela. Ali o checklist sem falta diz só "Completo".
+describe("o checklist completo, conforme a situação", () => {
+  it("rascunho: completo aponta o próximo passo", () => {
+    expect(checklistCompletoNa("rascunho")).toBe("Completo: o carro pode ir à validação.");
+  });
+
+  // Em validação o carro JÁ está na validação (revisão de 29/09): "pode ir"
+  // é tão falso ali quanto no publicado.
+  it.each(["em_validacao", "publicado", "reservado", "vendido", "arquivado"] as const)("%s: só \"Completo\"", (situacao) => {
+    expect(checklistCompletoNa(situacao)).toBe("Completo");
   });
 });

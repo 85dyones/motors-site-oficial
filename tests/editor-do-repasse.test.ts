@@ -29,7 +29,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { ConfirmProvider } = await import("../src/components/admin/ConfirmDialog");
-const PaginaDoCarro = (await import("../src/app/admin/repasse/[id]/page")).default;
+// O editor mudou para /editar em 28/09: abrir o carro mostra a visão (`visao-do-repasse`).
+const PaginaDoCarro = (await import("../src/app/admin/repasse/[id]/editar/page")).default;
 const PaginaNovo = (await import("../src/app/admin/repasse/novo/page")).default;
 const NovoRepasse = (await import("../src/components/admin/repasse/NovoRepasse")).default;
 const EditorDeRepasse = (await import("../src/components/admin/repasse/EditorDeRepasse")).default;
@@ -62,7 +63,7 @@ async function abrirCarro(id = ID) {
   return texto(await PaginaDoCarro({ params: Promise.resolve({ id }) }));
 }
 
-describe("a página do carro", () => {
+describe("o editor do carro (/editar)", () => {
   it("id que não é uuid: não encontrado", async () => {
     await expect(PaginaDoCarro({ params: Promise.resolve({ id: "123" }) })).rejects.toThrow("NEXT_NOT_FOUND");
   });
@@ -95,6 +96,26 @@ describe("a página do carro", () => {
     banco.leituras.repasses = { data: linhaDoBancoDeTeste({ resumo: null }), error: null };
     const html = await abrirCarro();
     expect(html).toContain("Escreva a linha do card.");
+  });
+
+  it("o editor volta para a visão do carro", async () => {
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste(), error: null };
+    const html = renderToStaticMarkup(
+      createElement(ConfirmProvider, null, await PaginaDoCarro({ params: Promise.resolve({ id: ID }) })),
+    );
+    expect(html).toContain(`href="/admin/repasse/${ID}"`);
+  });
+
+  it("carro publicado e completo: o checklist diz só \"Completo\" (dono, 29/09)", async () => {
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste({ situacao: "publicado", lojistas_desde: ISO }), error: null };
+    const html = await abrirCarro();
+    expect(html).toContain("Completo");
+    expect(html).not.toContain("pode ir à validação");
+  });
+
+  it("rascunho completo: o checklist aponta a validação", async () => {
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste(), error: null };
+    expect(await abrirCarro()).toContain("Completo: o carro pode ir à validação.");
   });
 
   it("o rascunho devolvido mostra a nota", async () => {
@@ -161,7 +182,8 @@ describe("novo carro", () => {
           body: JSON.stringify({ marca: "Renault", modelo: "Kwid", versao: "Zen 1.0", ano_modelo: 2021, quilometragem: 71200, preco: 36900 }),
         }),
       );
-      expect(empurrar).toHaveBeenCalledWith(`/admin/repasse/${ID}`);
+      // Quem acabou de cadastrar vai preencher o resto: o editor, não a visão.
+      expect(empurrar).toHaveBeenCalledWith(`/admin/repasse/${ID}/editar`);
     });
   });
 });

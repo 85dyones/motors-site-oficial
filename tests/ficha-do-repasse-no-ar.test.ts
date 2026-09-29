@@ -221,6 +221,64 @@ describe("o endereço que não abre carro", () => {
   });
 });
 
+// Pedido do dono em 29/09: o cadastro em maiúsculas não chega ao nome da
+// ficha. O `<h1>`, o `<title>`, o card de compartilhamento e o `Car.name` do
+// JSON-LD saem na grafia da casa (`grafiaDoCarro`).
+describe("o nome da ficha na grafia de sempre, não em maiúsculas", () => {
+  const PALIO = repasseDeTeste({
+    marca: "FIAT",
+    modelo: "PALIO",
+    versao: "1.0 ECONOMY FIRE FLEX 8V 4P",
+    ano_modelo: 2010,
+    ano_fabricacao: 2010,
+    situacao: "publicado",
+    lojistas_desde: "2026-09-22T12:00:00Z",
+    aberto_ao_publico_em: "2026-09-24T12:00:00Z",
+  });
+  const HB20 = repasseDeTeste({
+    marca: "HYUNDAI",
+    modelo: "HB20",
+    versao: "1.0 COMFORT PLUS",
+    ano_modelo: 2019,
+    ano_fabricacao: 2019,
+    situacao: "publicado",
+    lojistas_desde: "2026-09-22T12:00:00Z",
+    aberto_ao_publico_em: "2026-09-24T12:00:00Z",
+  });
+
+  it("o h1 e a página inteira: nada em maiúsculas do cadastro", async () => {
+    estado.porSlug[SLUG] = PALIO;
+    const html = await servida();
+    expect(html).toMatch(/<h1[^>]*>Palio 1\.0 Economy Fire Flex 8V 4P<\/h1>/);
+    // A trilha escreve em caixa alta por desenho, para todo carro ("INÍCIO /
+    // REPASSE / RENAULT KWID ZEN 1.0 2021"). Fora dela, nada do cadastro cru.
+    const foraDaTrilha = html.replace(/<nav aria-label="Trilha"[\s\S]*?<\/nav>/, "");
+    expect(foraDaTrilha).not.toContain("PALIO");
+    expect(foraDaTrilha).not.toContain("ECONOMY");
+  });
+
+  it("o Car.name do JSON-LD", async () => {
+    estado.porSlug[SLUG] = PALIO;
+    const carro = nos(await servida())[0];
+    expect(carro.name).toBe("Fiat Palio 1.0 Economy Fire Flex 8V 4P 2010");
+  });
+
+  it("o título e o card de compartilhamento", async () => {
+    estado.porSlug[SLUG] = PALIO;
+    const meta = await ficha.generateMetadata({ params: Promise.resolve({ carro: SLUG }) });
+    expect(meta.title).toBe("Fiat Palio 1.0 Economy Fire Flex 8V 4P 2010 no repasse | Motors Store");
+    expect(String(meta.openGraph?.title)).toContain("Fiat Palio 1.0 Economy Fire Flex 8V 4P 2010");
+    expect(JSON.stringify(meta)).not.toContain("PALIO");
+  });
+
+  it("modelo que é sigla fica inteiro: HB20", async () => {
+    estado.porSlug[SLUG] = HB20;
+    const html = await servida();
+    expect(html).toMatch(/<h1[^>]*>HB20 1\.0 Comfort Plus<\/h1>/);
+    expect(nos(html)[0].name).toBe("Hyundai HB20 1.0 Comfort Plus 2019");
+  });
+});
+
 describe("o cabeçalho da ficha", () => {
   it("título do carro, canônico no slug e descrição do resumo", async () => {
     estado.porSlug[SLUG] = ABERTO;
