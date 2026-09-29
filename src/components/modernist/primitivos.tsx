@@ -16,6 +16,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Veiculo } from "../../types";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
+import FotoPropriaDoCard from "./FotoPropriaDoCard";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
 import FaixaEmPreparacao from "./FaixaEmPreparacao";
 
@@ -310,18 +311,38 @@ export function CardVeiculo({
              A PDP não recebe o mesmo tratamento, de propósito: lá a fonte é
              `whatsapp_images` (1600px) e a mesma foto é desenhada como
              miniatura de 240px — é o caso em que o srcset ainda vale mais que
-             a cota. */
-          <Image
-            src={foto}
-            alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            priority={prioridade}
-            fetchPriority={prioridade ? "high" : "auto"}
-            loading={prioridade ? "eager" : "lazy"}
-            unoptimized={ehFotoPropria(foto)}
-            className="object-cover"
-          />
+             a cota.
+
+             ⚠️ Desde 29/09 a foto nossa também tem `srcset`, mas não pela
+             Vercel: `FotoPropriaDoCard` pede cada largura ao redimensionamento
+             do próprio Storage (`urlDaFotoNaLargura`). A capa de 1280px saía
+             inteira num card de 308px — ~126 KB contra ~31 KB a 640px — e era
+             essa espera que aparecia como bloco cinza no topo do `/estoque`.
+             O item 1 acima continua valendo: nada disso passa pelo
+             `/_next/image`. */
+          ehFotoPropria(foto) ? (
+            <FotoPropriaDoCard
+              src={foto}
+              alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              priority={prioridade}
+              fetchPriority={prioridade ? "high" : "auto"}
+              loading={prioridade ? "eager" : "lazy"}
+              className="object-cover"
+            />
+          ) : (
+            <Image
+              src={foto}
+              alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              priority={prioridade}
+              fetchPriority={prioridade ? "high" : "auto"}
+              loading={prioridade ? "eager" : "lazy"}
+              className="object-cover"
+            />
+          )
         ) : null}
         {etiqueta && (
           <Etiqueta className="pointer-events-none absolute left-0 top-0 text-[9px]">
