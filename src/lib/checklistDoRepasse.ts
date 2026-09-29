@@ -93,14 +93,14 @@ export interface FaltaDoChecklist {
   mensagem: string;
 }
 
-/** Onde o checklist ainda é a porta da validação: o carro não passou por ela. */
-const ANTES_DA_VALIDACAO: readonly SituacaoDoRepasse[] = ["rascunho", "em_validacao"];
+/** Onde o checklist ainda é a porta da validação: o carro não chegou a ela. */
+const ANTES_DA_VALIDACAO: readonly SituacaoDoRepasse[] = ["rascunho"];
 
 /**
- * O que o painel escreve quando o checklist não acha falta. Antes da
- * validação, o próximo passo; depois dela (publicado, reservado, vendido,
- * arquivado), só "Completo" — pedido do dono em 29/09: o carro que já está no
- * site não "pode ir à validação".
+ * O que o painel escreve quando o checklist não acha falta. No rascunho, o
+ * próximo passo; em qualquer outra situação, só "Completo" — pedido do dono
+ * em 29/09: o carro que já está no site não "pode ir à validação", e o que
+ * está em validação (revisão do mesmo dia) já foi.
  */
 export function checklistCompletoNa(situacao: SituacaoDoRepasse): string {
   return ANTES_DA_VALIDACAO.includes(situacao) ? "Completo: o carro pode ir à validação." : "Completo";

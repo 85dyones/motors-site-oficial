@@ -33,9 +33,6 @@ import { CANAL_DO_EXAME, CANAL_DO_WHATSAPP } from "./leadDoRepasse";
 export const CANAL_DO_PEDIDO_DE_EXAME = CANAL_DO_EXAME;
 export const CANAL_DO_CONTATO_PELO_WHATSAPP = CANAL_DO_WHATSAPP;
 
-/** Os dois canais que a página lê, numa consulta só, e depois separa. */
-export const CANAIS_DOS_LEADS_DO_CARRO = [CANAL_DO_PEDIDO_DE_EXAME, CANAL_DO_CONTATO_PELO_WHATSAPP] as const;
-
 export const COLUNAS_DOS_LEADS_DO_CARRO =
   "id, nome, telefone, interesse, created_at, canal, situacao, desfecho, desfecho_motivo, responsavel";
 
@@ -129,7 +126,8 @@ export function situacaoDoLead(
 }
 
 /**
- * As duas listas da visão do carro, a partir da leitura única de `leads`.
+ * As duas listas da visão do carro, a partir das linhas de `leads` (uma
+ * leitura por canal, em `lerLeadsDoCarro`), separadas de novo pelo canal.
  *
  * Sem etapas no banco (migração do funil pendente, ou leitura vazia), vale o
  * funil de sempre: a mesma queda do Kanban (`LeadsKanban`, `ETAPAS_PADRAO`).

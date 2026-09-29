@@ -86,11 +86,13 @@ describe("as fotos (M9)", () => {
 // Pedido do dono em 29/09: carro publicado, reservado ou vendido não "pode ir
 // à validação" — já passou por ela. Ali o checklist sem falta diz só "Completo".
 describe("o checklist completo, conforme a situação", () => {
-  it.each(["rascunho", "em_validacao"] as const)("%s: completo aponta o próximo passo", (situacao) => {
-    expect(checklistCompletoNa(situacao)).toBe("Completo: o carro pode ir à validação.");
+  it("rascunho: completo aponta o próximo passo", () => {
+    expect(checklistCompletoNa("rascunho")).toBe("Completo: o carro pode ir à validação.");
   });
 
-  it.each(["publicado", "reservado", "vendido", "arquivado"] as const)("%s: só \"Completo\"", (situacao) => {
+  // Em validação o carro JÁ está na validação (revisão de 29/09): "pode ir"
+  // é tão falso ali quanto no publicado.
+  it.each(["em_validacao", "publicado", "reservado", "vendido", "arquivado"] as const)("%s: só \"Completo\"", (situacao) => {
     expect(checklistCompletoNa(situacao)).toBe("Completo");
   });
 });

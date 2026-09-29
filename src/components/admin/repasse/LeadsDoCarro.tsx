@@ -37,7 +37,8 @@ function ListaDeLeads({
   id: string;
   titulo: string;
   vazio: string;
-  leads: LeadDoCarroNaTela[];
+  /** null: a leitura falhou, o que não é o mesmo que não haver lead. */
+  leads: LeadDoCarroNaTela[] | null;
   /** O pedido de exame traz telefone e o dia escolhido; o contato pelo WhatsApp, não. */
   comPedido: boolean;
 }) {
@@ -46,7 +47,11 @@ function ListaDeLeads({
       <h2 id={id} className="mt-titulo m-0 text-xl">
         {titulo}
       </h2>
-      {leads.length === 0 ? (
+      {leads === null ? (
+        <p role="alert" className="m-0 text-sm text-mt-accent-800">
+          {LEITURA_QUE_FALHOU}
+        </p>
+      ) : leads.length === 0 ? (
         <p className="m-0 text-sm text-mt-neutral-700">{vazio}</p>
       ) : (
         <ul className="m-0 flex list-none flex-col divide-y divide-mt-regua-fina p-0">
@@ -70,7 +75,16 @@ function ListaDeLeads({
   );
 }
 
-export default function LeadsDoCarro({ pedidos, contatos }: { pedidos: LeadDoCarroNaTela[]; contatos: LeadDoCarroNaTela[] }) {
+/** A leitura que falhou (revisão de 29/09): "nenhum pedido ainda" seria falso. */
+const LEITURA_QUE_FALHOU = "Não deu para ler os leads deste carro agora.";
+
+export default function LeadsDoCarro({
+  pedidos,
+  contatos,
+}: {
+  pedidos: LeadDoCarroNaTela[] | null;
+  contatos: LeadDoCarroNaTela[] | null;
+}) {
   return (
     <>
       <ListaDeLeads

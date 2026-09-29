@@ -24,6 +24,14 @@ export interface Escrita {
   filtros: Array<[string, unknown]>;
 }
 
+/** Uma leitura: a tabela, os filtros encadeados, as colunas e o `limit`. */
+export interface Leitura {
+  tabela: string;
+  filtros: Array<[string, unknown]>;
+  colunas?: unknown;
+  limite?: number;
+}
+
 export function bancoDeTeste() {
   const leituras: Record<string, Resposta> = {};
   const escritas: Escrita[] = [];
@@ -33,7 +41,13 @@ export function bancoDeTeste() {
    * colunas do `select` dela (sem isso, esquecer uma coluna no `select`
    * passaria: `leituras` devolve a linha inteira de qualquer jeito).
    */
-  const consultas: Array<{ tabela: string; filtros: Array<[string, unknown]>; colunas?: unknown }> = [];
+  const consultas: Leitura[] = [];
+  /**
+   * Quem quiser que a leitura dependa da consulta (filtros e limite, como o
+   * banco faria) registra aqui um leitor para a tabela; sem leitor, vale
+   * `leituras[tabela]`, que devolve o mesmo para qualquer consulta.
+   */
+  const leitores: Record<string, (c: Leitura) => Resposta> = {};
 
   const padrao = (e: Escrita): Resposta =>
     e.operacao === "update"
@@ -41,13 +55,19 @@ export function bancoDeTeste() {
       : { data: null, error: null };
   let responder: (e: Escrita) => Resposta = padrao;
 
-  function consulta(tabela: string, escrita: Escrita | null, leitura?: { filtros: Array<[string, unknown]>; colunas?: unknown }) {
-    const resolver = (): Resposta => (escrita ? responder(escrita) : (leituras[tabela] ?? { data: null, error: null }));
+  function consulta(tabela: string, escrita: Escrita | null, leitura?: Leitura) {
+    const resolver = (): Resposta =>
+      escrita
+        ? responder(escrita)
+        : leitura && leitores[tabela]
+          ? leitores[tabela](leitura)
+          : (leituras[tabela] ?? { data: null, error: null });
     const q: Record<string, unknown> = {};
     const encadeia =
       (nome: string) =>
       (...args: unknown[]) => {
         if (nome === "select" && leitura) leitura.colunas = args[0];
+        if (nome === "limit" && leitura) leitura.limite = Number(args[0]);
         // `in` também: "um canal OU outro" é filtro da consulta, e a prova de
         // que a página não lê o carro inteiro está nele.
         if (nome === "eq" || nome === "is" || nome === "in") {
@@ -75,7 +95,7 @@ export function bancoDeTeste() {
       };
     return {
       ...(() => {
-        const leitura = { tabela, filtros: [] as Array<[string, unknown]> };
+        const leitura: Leitura = { tabela, filtros: [] };
         consultas.push(leitura);
         return consulta(tabela, null, leitura);
       })(),
@@ -95,6 +115,9 @@ export function bancoDeTeste() {
     consultas,
     responderEscrita(fn: (e: Escrita) => Resposta) {
       responder = fn;
+    },
+    responderLeitura(tabela: string, fn: (c: Leitura) => Resposta) {
+      leitores[tabela] = fn;
     },
     /** Escritas numa tabela, fora a auditoria. */
     escritasEm(tabela: string) {

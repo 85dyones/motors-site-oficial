@@ -324,17 +324,46 @@ describe("os leads do carro", () => {
     expect(exame).toContain("Sem responsável");
   });
 
-  it("uma leitura por tabela, pelo carro e pelos dois canais, com a sessão", async () => {
+  // Uma leitura de `leads` POR CANAL, cada uma com o seu limite (revisão de
+  // 29/09): numa leitura só, com o limite sobre a soma, cem contatos pelo
+  // WhatsApp mais novos expulsavam o pedido de exame da lista.
+  it("leads: uma leitura por canal, cada uma com o seu limite; o resto, uma por tabela", async () => {
     await abrir();
-    for (const tabela of new Set(banco.lidas)) {
+    const doLead = banco.consultas.filter((c) => c.tabela === "leads");
+    expect(doLead.map((c) => c.filtros)).toEqual([
+      [
+        ["repasse_id", ID],
+        ["canal", "repasse-exame"],
+      ],
+      [
+        ["repasse_id", ID],
+        ["canal", "repasse-whatsapp"],
+      ],
+    ]);
+    expect(doLead.map((c) => c.limite)).toEqual([50, 50]);
+    for (const tabela of new Set(banco.lidas.filter((t) => t !== "leads"))) {
       expect(banco.lidas.filter((t) => t === tabela), `${tabela} lida mais de uma vez`).toHaveLength(1);
     }
-    expect(banco.consultas.find((c) => c.tabela === "leads")?.filtros).toEqual([
-      ["repasse_id", ID],
-      ["canal", ["repasse-exame", "repasse-whatsapp"]],
-    ]);
     expect(banco.lidas).toContain("funil_etapas");
     expect(banco.lidas).toContain("funil_motivos");
+  });
+
+  it("cem contatos pelo WhatsApp mais novos não escondem o pedido de exame", async () => {
+    const zap = Array.from({ length: 100 }, (_, i) =>
+      linha({ id: `w-${i}`, nome: `Contato ${i}`, canal: "repasse-whatsapp", created_at: `2026-09-2${5 + (i % 3)}T1${i % 10}:00:00Z` }),
+    );
+    const exame = linha({ id: "e-velho", nome: "Pedido Antigo", canal: "repasse-exame", created_at: "2026-09-20T12:00:00Z" });
+    const noBanco = [...zap, exame].map((l) => ({ ...l, repasse_id: ID }));
+    // O banco de verdade: filtra, ordena do mais novo e corta no limite.
+    banco.responderLeitura("leads", (c) => {
+      const casa = (l: Record<string, unknown>) =>
+        c.filtros.every(([coluna, valor]) => (Array.isArray(valor) ? valor.includes(l[coluna]) : l[coluna] === valor));
+      const ordem = noBanco.filter(casa).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      return { data: c.limite ? ordem.slice(0, c.limite) : ordem, error: null };
+    });
+    const exames = semTags(secao(await abrir(), "pedidos-de-exame"));
+    expect(exames).toContain("Pedido Antigo");
+    expect(exames).not.toContain("Nenhum pedido de exame");
   });
 
   it("sem lead, as duas listas dizem que não há", async () => {
@@ -342,6 +371,22 @@ describe("os leads do carro", () => {
     const t = semTags(await abrir());
     expect(t).toContain("Nenhum pedido de exame para este carro ainda.");
     expect(t).toContain("Nenhum contato pelo WhatsApp para este carro ainda.");
+  });
+
+  // Leitura que falhou não é lista vazia (revisão de 29/09): "nenhum pedido"
+  // seria afirmação falsa sobre o carro.
+  it("leitura de leads que falhou: diz que não deu para ler, e registra no log", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    banco.leituras.leads = { data: null, error: { message: "column leads.desfecho does not exist", code: "42703" } };
+    const h = await abrir();
+    const exames = semTags(secao(h, "pedidos-de-exame"));
+    const zap = semTags(secao(h, "contatos-pelo-whatsapp"));
+    expect(exames).toContain("Não deu para ler os leads deste carro agora.");
+    expect(exames).not.toContain("Nenhum pedido de exame");
+    expect(zap).toContain("Não deu para ler os leads deste carro agora.");
+    expect(zap).not.toContain("Nenhum contato pelo WhatsApp");
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("[Repasse no painel]"), expect.stringContaining("desfecho does not exist"));
+    log.mockRestore();
   });
 });
 

@@ -17,7 +17,8 @@ import { COLUNAS_DO_INSCRITO, inscritoDaLinha, type InscritoDoRepasse } from "./
 import { validaRepasse } from "./edicaoDoRepasse";
 import { papelPadraoPorEmail } from "./papelPadrao";
 import {
-  CANAIS_DOS_LEADS_DO_CARRO,
+  CANAL_DO_CONTATO_PELO_WHATSAPP,
+  CANAL_DO_PEDIDO_DE_EXAME,
   COLUNAS_DOS_LEADS_DO_CARRO,
   leadsDoCarroNaTela,
   type LeadDoCarroNaTela,
@@ -68,36 +69,60 @@ function lista<T>(r: { data: unknown; error: unknown }): T[] | null {
   return r.error || !Array.isArray(r.data) ? null : (r.data as T[]);
 }
 
+/** Quantos leads de cada canal a visão mostra, os mais recentes. */
+export const LIMITE_POR_CANAL = 50;
+
 /**
  * Só a visão chama: o editor não mostra os leads (decisão do dono em 29/09).
  *
  * Os pedidos de exame e os contatos pelo WhatsApp deste carro, cada um com o
- * desfecho. Uma leitura por tabela, em paralelo: `leads` pelo carro E pelos
- * dois canais (os outros canais nunca gravam `repasse_id`, mas a leitura não
- * conta com isso), e as etapas e os motivos do funil para dar nome à chave
- * que o lead guarda. Todos os motivos, ativos ou não: o desfecho de ontem
- * pode ter um motivo que o dono desativou hoje.
+ * desfecho. Em paralelo: `leads` numa leitura POR CANAL, pelo carro e pelo
+ * canal, cada uma com o seu limite, e as etapas e os motivos do funil para dar
+ * nome à chave que o lead guarda. Todos os motivos, ativos ou não: o desfecho
+ * de ontem pode ter um motivo que o dono desativou hoje.
+ *
+ * Por canal, e não uma leitura com `.in` e um limite só (revisão de 29/09):
+ * com o corte sobre a soma, cem contatos pelo WhatsApp mais novos expulsavam
+ * o pedido de exame, o lead mais quente do carro, sem aviso.
+ *
+ * Lista `null` é leitura que falhou, e a tela diz isso em vez de "nenhum
+ * pedido ainda", que seria afirmação falsa sobre o carro. A falha vai para o
+ * log com a mensagem do banco.
  */
 export async function lerLeadsDoCarro(
   supabase: Sessao,
   id: string,
-): Promise<{ pedidos: LeadDoCarroNaTela[]; contatos: LeadDoCarroNaTela[] }> {
-  const [leads, etapas, motivos] = await Promise.all([
+): Promise<{ pedidos: LeadDoCarroNaTela[] | null; contatos: LeadDoCarroNaTela[] | null }> {
+  const doCanal = (canal: string) =>
     supabase
       .from("leads")
       .select(COLUNAS_DOS_LEADS_DO_CARRO)
       .eq("repasse_id", id)
-      .in("canal", [...CANAIS_DOS_LEADS_DO_CARRO])
+      .eq("canal", canal)
       .order("created_at", { ascending: false })
-      .limit(100),
+      .limit(LIMITE_POR_CANAL);
+  const [exame, whatsapp, etapas, motivos] = await Promise.all([
+    doCanal(CANAL_DO_PEDIDO_DE_EXAME),
+    doCanal(CANAL_DO_CONTATO_PELO_WHATSAPP),
     supabase.from("funil_etapas").select("chave, rotulo").order("ordem"),
     supabase.from("funil_motivos").select("chave, rotulo"),
   ]);
-  return leadsDoCarroNaTela({
-    linhas: lista<Record<string, unknown>>(leads) ?? [],
+  for (const [canal, leitura] of [
+    [CANAL_DO_PEDIDO_DE_EXAME, exame],
+    [CANAL_DO_CONTATO_PELO_WHATSAPP, whatsapp],
+  ] as const) {
+    if (leitura.error) console.error(`[Repasse no painel] Leads do carro ${id} (${canal}) não lidos:`, leitura.error.message);
+  }
+  const linhasDoExame = lista<Record<string, unknown>>(exame);
+  const linhasDoWhatsApp = lista<Record<string, unknown>>(whatsapp);
+  // A separação por canal continua no código: a leitura já filtra, e o que
+  // viesse de outro canal não entraria em lista nenhuma.
+  const { pedidos, contatos } = leadsDoCarroNaTela({
+    linhas: [...(linhasDoExame ?? []), ...(linhasDoWhatsApp ?? [])],
     etapas: lista<{ chave: string; rotulo: string }>(etapas),
     motivos: lista<{ chave: string; rotulo: string }>(motivos),
   });
+  return { pedidos: linhasDoExame ? pedidos : null, contatos: linhasDoWhatsApp ? contatos : null };
 }
 
 /**

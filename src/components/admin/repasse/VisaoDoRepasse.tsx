@@ -88,8 +88,9 @@ export default function VisaoDoRepasse({
   perfis: Perfil[];
   urlDaFicha: string;
   agora: Date;
-  pedidos: LeadDoCarroNaTela[];
-  contatos: LeadDoCarroNaTela[];
+  /** null: a leitura daquele canal falhou (`lerLeadsDoCarro`). */
+  pedidos: LeadDoCarroNaTela[] | null;
+  contatos: LeadDoCarroNaTela[] | null;
   /** null: o perfil não vê a lista do repasse. */
   inscritos: InscritoDoRepasse[] | null;
   avisados: string[];

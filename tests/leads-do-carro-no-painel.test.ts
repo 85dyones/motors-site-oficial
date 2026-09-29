@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { lerCodigo } from "./fonte";
 import { ETAPAS_PADRAO, NAO_E_OPORTUNIDADE, ROTULO_DO_DESFECHO, type EtapaDoFunil, type MotivoDoFunil } from "../src/lib/funil";
 import {
-  CANAIS_DOS_LEADS_DO_CARRO,
+  CANAL_DO_CONTATO_PELO_WHATSAPP,
+  CANAL_DO_PEDIDO_DE_EXAME,
   COLUNAS_DOS_LEADS_DO_CARRO,
   leadDoCarroDaLinha,
   leadsDoCarroNaTela,
@@ -171,7 +172,7 @@ describe("leadsDoCarroNaTela", () => {
   });
 
   it("os dois canais são os que a leitura pede", () => {
-    expect([...CANAIS_DOS_LEADS_DO_CARRO]).toEqual(["repasse-exame", "repasse-whatsapp"]);
+    expect([CANAL_DO_PEDIDO_DE_EXAME, CANAL_DO_CONTATO_PELO_WHATSAPP]).toEqual(["repasse-exame", "repasse-whatsapp"]);
   });
 
   it("sem funil no banco, o funil de sempre (a queda do Kanban)", () => {
