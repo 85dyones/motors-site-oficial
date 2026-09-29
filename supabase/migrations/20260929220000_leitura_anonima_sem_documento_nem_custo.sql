@@ -45,6 +45,20 @@
 -- em `COLUNAS_PUBLICAS_DO_ESTOQUE` e num `grant select (coluna)` de migração;
 -- se é interna, em `COLUNAS_INTERNAS_DO_ESTOQUE`. A autoconferência abaixo
 -- falha se a tabela tiver coluna fora das duas listas.
+--
+-- ⚠️ NUMA TRANSAÇÃO SÓ. O revoke sem o grant deixa o `anon` sem leitura
+-- nenhuma, e o site cai. `aplicar-migracao.js`, `execute_sql` e o `DO …
+-- EXECUTE` do runbook já rodam tudo junto; `psql -f` precisa de `-1`.
+--
+-- ⚠️ DESFAZER: `supabase/manutencao/reversao/leitura-anonima-2026-09-29.sql`.
+-- Voltar o CÓDIGO para antes desta PR (rollback da Vercel) com a migração
+-- aplicada derruba a vitrine e transforma toda ficha em 404: rode a reversão
+-- ANTES de promover o deploy antigo.
+--
+-- ⚠️ REAPLICAR depois que existir coluna nova aborta no passo 1 (coluna fora
+-- das duas listas) — e é bom que aborte: no Postgres, o REVOKE de TABELA leva
+-- junto os grants de COLUNA, e reaplicar sem a trava apagaria o grant de
+-- qualquer coluna pública concedida por migração posterior.
 -- ============================================================================
 
 revoke select on public.estoque_motors from anon;

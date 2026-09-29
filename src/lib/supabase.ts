@@ -1136,20 +1136,34 @@ export async function getVeiculoById(id: string): Promise<Veiculo | null> {
         .maybeSingle();
 
       // If not found and ID is numeric, try numeric match
-      if (!data && /^\d+$/.test(id)) {
+      if (!error && !data && /^\d+$/.test(id)) {
         const numericId = parseInt(id, 10);
-        const { data: numData } = await supabase
+        const { data: numData, error: numError } = await supabase
           .from("estoque_motors")
           .select(SELECT_PUBLICO_DO_ESTOQUE)
           .eq("id", numericId)
           .maybeSingle();
         data = numData;
+        error = numError;
+      }
+
+      // Recusa do banco NÃO é "carro não encontrado". Desde 20260929220000 a
+      // chave pública lê só as colunas da lista: se código e banco divergirem
+      // (coluna na constante sem grant, coluna renomeada), o PostgREST recusa
+      // a consulta inteira. Tratada como `data` nulo, TODA ficha viraria 404 —
+      // calada, e guardada pelo ISR. Assim vira 500 com o alerta "parada",
+      // como a vitrine. O 404 continua só para o id que não existe.
+      if (error) {
+        await estoqueIndisponivel(`o banco recusou a ficha ${id} — ${error.message}`);
       }
 
       if (data) {
         car = mapVeiculoDbToVeiculo(data);
       }
     } catch (err) {
+      // A recusa acima já é a falha tratada (e avisada): relançar, senão o
+      // `catch` a devolveria ao 404 calado que ela veio evitar.
+      if (err instanceof EstoqueIndisponivelError) throw err;
       console.warn(`[Supabase] Connection error for ID ${id}, falling back to offline database:`, err);
     }
   }
