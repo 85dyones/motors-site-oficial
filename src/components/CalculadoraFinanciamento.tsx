@@ -162,12 +162,26 @@ Consegue verificar se aprova nessas condições?`;
         <h2 className="mt-titulo m-0 mt-3 text-[28px] text-mt-ink lg:text-[32px]">
           Monte sua parcela
         </h2>
-        <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-neutral-800">
-          Esta simulação usa taxas que podem variar dependendo de análises das
-          instituições bancárias referente ao crédito disponível e
-          &ldquo;score&rdquo; de cada pessoa. Valores incluem IOF. Taxas
-          estimadas pela {parametros.fonteDasTaxas}.
-        </p>
+        {/* Como a conta é feita: recolhido por padrão (tarefa 2.5 da revisão
+            de UI, 29/09). No celular eram cinco linhas antes do primeiro
+            controle. O que a lei pede junto da oferta — CET, total a prazo,
+            o aviso de que não é oferta e os bancos — NÃO entra aqui: fica
+            sempre à mostra, ao lado da parcela. */}
+        <details className="group mt-4 border-t border-mt-regua-fina pt-3">
+          <summary className="mt-foco flex cursor-pointer list-none items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 [&::-webkit-details-marker]:hidden">
+            Como a simulação é feita
+            <span aria-hidden="true" className="text-base font-normal leading-none text-mt-accent">
+              <span className="group-open:hidden">+</span>
+              <span className="hidden group-open:inline">−</span>
+            </span>
+          </summary>
+          <p className="m-0 mt-2.5 text-[12px] leading-relaxed text-mt-neutral-800">
+            Esta simulação usa taxas que podem variar dependendo de análises das
+            instituições bancárias referente ao crédito disponível e
+            &ldquo;score&rdquo; de cada pessoa. Valores incluem IOF. Taxas
+            estimadas pela {parametros.fonteDasTaxas}.
+          </p>
+        </details>
       </div>
 
       {semEstimativa ? (
@@ -179,6 +193,7 @@ Consegue verificar se aprova nessas condições?`;
             Para este carro, um consultor mostra as outras formas de pagamento.
           </p>
           <button
+            type="button"
             onClick={() =>
               onSimulateClick(`Olá! Tenho interesse no ${vehicleName}. Quais são as formas de pagamento para ele?`)
             }
@@ -239,7 +254,7 @@ Consegue verificar se aprova nessas condições?`;
               <label htmlFor="calc-range-entrada" className="mt-rotulo mb-2.5 block">
                 ENTRADA ({downPaymentPercent}%)
               </label>
-              <div className="text-[24px] font-extrabold tracking-[-.03em] text-mt-ink">
+              <div className="text-[24px] font-extrabold tabular-nums tracking-[-.03em] text-mt-ink">
                 {formatCurrency(entradaValue)}
               </div>
               <input
@@ -257,13 +272,16 @@ Consegue verificar se aprova nessas condições?`;
             </div>
 
             <div className="flex-1 border-b border-mt-regua-fina py-4 md:border-b-0 md:border-r md:border-mt-regua-media md:px-6 md:py-5">
-              <span className="mt-rotulo mb-2.5 block">PRAZO</span>
-              <div className="flex w-max border border-mt-regua">
+              <span id="calc-prazo" className="mt-rotulo mb-2.5 block">PRAZO</span>
+              {/* 44 px de altura: é alvo de toque, e com `py-1.5` tinha 28. */}
+              <div role="group" aria-labelledby="calc-prazo" className="flex w-max border border-mt-regua">
                 {[24, 36, 48, 60].map((prazo, i) => (
                   <button
                     key={prazo}
+                    type="button"
                     onClick={() => setInstallments(prazo)}
-                    className={`mt-foco cursor-pointer px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    aria-pressed={installments === prazo}
+                    className={`mt-foco h-11 min-w-[52px] cursor-pointer px-3 text-[13px] font-semibold tabular-nums transition-colors ${
                       i > 0 ? "border-l border-mt-regua" : ""
                     } ${
                       installments === prazo
@@ -279,10 +297,18 @@ Consegue verificar se aprova nessas condições?`;
 
             <div className="flex-[1.1] py-4 md:py-5 md:pl-6">
               <span className="mt-rotulo mb-2.5 block">PARCELA ESTIMADA</span>
-              <div className="text-[32px] font-extrabold leading-none tracking-[-.04em] text-mt-accent lg:text-[38px]">
+              {/* Em tinta e um degrau abaixo do preço à vista (38 / 48 px na
+                  coluna do preço da ficha; em /financiamento não há preço ao
+                  lado e a regra é a mesma): até 29/09 a parcela era o número
+                  em destaque da página, na cor de ação, e competia com o preço.
+                  A cor de destaque fica para o botão. */}
+              <div
+                data-numero="parcela"
+                className="text-[28px] font-extrabold leading-none tabular-nums tracking-[-.04em] text-mt-ink lg:text-[34px]"
+              >
                 R$ {result.parcela_mensal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div className="mt-2 text-[11px] leading-relaxed text-mt-neutral-600">
+              <div className="mt-2.5 text-[12px] leading-relaxed text-mt-neutral-700">
                 {/* A taxa de juros e o CET são números diferentes: o rótulo
                     antigo chamava a taxa de "CET". E o total é o total A PRAZO,
                     com a entrada, ao lado do preço à vista — "total" só das
@@ -295,13 +321,20 @@ Consegue verificar se aprova nessas condições?`;
                     {detalheDaParcela.cautela}
                   </>
                 )}
-                <br />
-                {avisoDeCredito(parametros.bancosParceiros)}
               </div>
             </div>
           </div>
 
+          {/* O aviso e os bancos parceiros: a lei pede o agente financiador
+              junto da oferta, então fica à mostra, a 12 px, na largura toda
+              logo abaixo da parcela — e não espremido na coluna dela, onde
+              ocupava oito linhas. */}
+          <p className="m-0 max-w-[760px] border-t border-mt-regua-fina pt-3 text-[12px] leading-relaxed text-mt-neutral-700">
+            {avisoDeCredito(parametros.bancosParceiros)}
+          </p>
+
           <button
+            type="button"
             onClick={handleSimulateAction}
             className="mt-btn mt-btn-primario mt-foco mt-6 px-6 py-4 text-xs tracking-[.1em]"
           >

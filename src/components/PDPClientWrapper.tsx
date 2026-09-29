@@ -115,7 +115,7 @@ export default function PDPClientWrapper({
   qrDaFicha = null,
   parametrosDoFinanciamento,
 }: PDPClientWrapperProps) {
-  const { companySettings, stockOverrides } = useTheme();
+  const { companySettings, stockOverrides, configuracoesCarregadas } = useTheme();
 
   /**
    * O veículo exibido é derivado, não estado.
@@ -170,8 +170,32 @@ export default function PDPClientWrapper({
   // A trava de rolagem e o teclado da tela cheia moram em
   // `ficha/GaleriaEmTelaCheia`, que só existe montada enquanto está aberta.
 
-  // Fetch tracking ID from LocalStorage on mount
+  /**
+   * A visualização é anunciada UMA vez por carro, e só depois de
+   * `/api/settings` responder.
+   *
+   * O efeito abaixo depende de `veiculo`, que é derivado dos ajustes do painel
+   * (`stockOverrides`) — e eles chegam do cliente DEPOIS do primeiro render.
+   * Em todo carro com ajuste (49 no dia 29/09), o objeto era recriado e o
+   * efeito rodava de novo: `view_vehicle`, `view_item` e o ViewContent da CAPI
+   * saíam duas vezes, com `event_id` diferentes. Medido em produção na
+   * conferência da tarefa 2.6.
+   *
+   * Travar só por id não bastava, e é por isso que o efeito também espera
+   * `configuracoesCarregadas`: o `metaPixelId` chega na MESMA resposta dos
+   * ajustes, e só então o `IntegrationsTracker` cria o `fbq`. O primeiro
+   * disparo, na hidratação, saía sem Pixel (e quase sempre sem `_fbp` na
+   * CAPI); era o segundo, o duplicado, que levava o Pixel. Esperando o sinal,
+   * sai um evento só, com o Pixel pronto e com os campos que o painel corrige
+   * (`tipo`, `laudo_pericia`) já aplicados. Trocar de carro anuncia de novo.
+   */
+  const visualizacaoAnunciada = useRef<string | null>(null);
+
+  // A visualização da ficha: dataLayer, GA4, Pixel e CAPI (ver a nota acima).
   useEffect(() => {
+    if (!configuracoesCarregadas) return;
+    if (visualizacaoAnunciada.current === veiculo.id) return;
+    visualizacaoAnunciada.current = veiculo.id;
     const uid = getActiveAgUid();
 
     // Dynamic page view logger
@@ -243,7 +267,7 @@ export default function PDPClientWrapper({
         console.warn("[Telemetry] Failed to track seen vehicle:", e);
       }
     }
-  }, [veiculo]);
+  }, [veiculo, configuracoesCarregadas]);
 
   // Track scroll inside horizontal scroll-snap gallery to highlight corresponding thumbnail
   const handleCarouselScroll = () => {
