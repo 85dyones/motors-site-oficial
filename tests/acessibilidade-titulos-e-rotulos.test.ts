@@ -158,6 +158,11 @@ describe("o nome acessível contém o texto visível", () => {
       const modelo = i === 0 ? "Kwid" : "Sandero";
       expect(visivel).toBe(`${String(i + 1).padStart(2, "0")} ${modelo}`);
       expect(dentro).toMatch(new RegExp(`class="sr-only">[^<]*Renault ${modelo}`));
+      // E na ORDEM: o que se vê vem primeiro. Com o `sr-only` antes do "01",
+      // o nome viraria "— ver Renault Kwid 01 Kwid" (WCAG 2.5.3 pede que ele
+      // comece pelo texto visível).
+      const nome = dentro.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      expect(nome.startsWith(`${String(i + 1).padStart(2, "0")} ${modelo}`), nome).toBe(true);
     });
   });
 

@@ -11,9 +11,11 @@ import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 /**
  * Hero editorial da home.
  *
- * Três fotos em crossfade atrás de um título fixo. O texto não troca com o
- * slide — só a foto e a placa do veículo em destaque, para o hero não piscar
- * conteúdo (mesma regra que o painel documenta em "Áreas do site").
+ * Fotos em crossfade e um título fixo. O texto não troca com o slide — só a
+ * foto e a placa do veículo em destaque, para o hero não piscar conteúdo
+ * (mesma regra que o painel documenta em "Áreas do site"). Do `lg` para cima
+ * a foto é o fundo e o título fica sobre ela; abaixo, a foto vem numa faixa
+ * própria, em cima do texto (29/09).
  */
 
 const INTERVALO_MS = 5200;
@@ -123,7 +125,8 @@ export default function HeroHome({
           `object-cover` mostrava um terço da largura e o carro saía cortado
           ao meio, ainda coberto pelo título e pelo degradê. Em 3:2 a foto
           entra inteira. Do `lg` para cima volta a ser o fundo, como antes. */}
-      <div className="relative aspect-[3/2] w-full overflow-hidden lg:absolute lg:inset-0 lg:aspect-auto">
+      {slides.some((v) => v.web_full_images?.[0] ?? v.whatsapp_images?.[0]) && (
+      <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] lg:absolute lg:inset-0 lg:aspect-auto">
       {slides.map((v, i) => {
         const foto = v.web_full_images?.[0] ?? v.whatsapp_images?.[0];
         if (!foto) return null;
@@ -155,15 +158,16 @@ export default function HeroHome({
             texto: o carro fica limpo, sem véu por cima. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-[linear-gradient(180deg,rgba(28,26,25,0),var(--mt-inverso-fundo))] lg:hidden"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-[linear-gradient(180deg,rgba(32,30,29,0),var(--mt-inverso-fundo))] lg:hidden"
         />
       </div>
+      )}
 
       {/* O véu grafite da esquerda, só onde o texto fica SOBRE a foto (lg+).
           É ele que garante a leitura do título com carro branco ou preto. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(28,26,25,.92)_0%,rgba(28,26,25,.6)_46%,rgba(28,26,25,0)_78%)] lg:block"
+        className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(32,30,29,.92)_0%,rgba(32,30,29,.55)_46%,rgba(32,30,29,0)_78%)] lg:block"
       />
 
       {/* Conteúdo do hero.
@@ -197,12 +201,11 @@ export default function HeroHome({
          * `tests/h1-da-home-com-praca.test.ts` trava as duas pontas, e trava
          * também que o `<h1>` continue sendo UM só.
          *
-         * O que SAIU daqui: "3 DE CADA 10 ENTRAM". Na home mobile esta era a
-         * única aparição da frase-mãe do posicionamento — a régua de
-         * estatísticas que repete "100% PASSAM PELA CAUTELAR" só existe de
-         * `lg:` para cima. Recolocar é decisão de texto do dono, não de código. */}
-        <h1 className="mt-display m-0 text-[52px] text-mt-inverso lg:text-[length:clamp(52px,calc(var(--hero-cabe)*0.1333),112px)] lg:leading-[.88]">
-          <span className="mb-6 flex items-center gap-3 leading-[1.5] lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
+         * "3 DE CADA 10 ENTRAM" saiu daqui (do `<h1>`) em 08/09. A frase
+         * voltou à capa em 29/09 no parágrafo logo abaixo, no lugar de
+         * "Curadoria, não vitrine." (decisão D4 do dono). */}
+        <h1 className="mt-display m-0 text-[44px] text-mt-inverso sm:text-[52px] lg:text-[length:clamp(52px,calc(var(--hero-cabe)*0.1333),112px)] lg:leading-[.88]">
+          <span className="mb-3 flex items-center gap-3 leading-[1.5] sm:mb-6 lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
             <span className="h-0.5 w-5 bg-mt-cobre-marca lg:w-7" aria-hidden="true" />
             <span className="text-[9px] font-semibold uppercase tracking-[.2em] text-mt-cobre-marca lg:text-[11px]">
               Seminovos selecionados em Curitiba
@@ -244,11 +247,9 @@ export default function HeroHome({
             // análise. O compromisso real da loja, confirmado pelo dono, é de
             // processo: todo carro é enviado para a perícia. O rótulo agora
             // diz isso, e não o resultado.
-            {
-              valor: <NumeroQueConta valor={100} sufixo="%" />,
-              rotulo: "PASSAM PELA CAUTELAR",
-              accent: true,
-            },
+            // O 100% fica parado: contando, ele passava por "37%", num
+            // rótulo que já foi mal lido antes (ver acima).
+            { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
           ]}
         />
       </div>
@@ -257,7 +258,7 @@ export default function HeroHome({
           No mobile a linha não cabe (4 indicadores + placa de 280px > 360px),
           então o rodapé empilha: indicadores em cima, placa embaixo em
           largura total. */}
-      <div className="mt-auto flex flex-col gap-6 pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
+      <div className="mt-auto flex flex-col gap-3 pt-5 sm:gap-6 sm:pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
         {slides.length > 1 ? (
           <div className="flex items-center gap-4 lg:gap-[18px]">
             {slides.map((v, i) => (
@@ -291,7 +292,11 @@ export default function HeroHome({
                   <span className="text-[11px] font-extrabold tracking-[.12em]">
                     {String(i + 1).padStart(2, "0")}
                   </span>{" "}
-                  <span className="block w-full truncate text-[10px] font-semibold tracking-[.04em]">
+                  {/* O modelo só do `sm` para cima: a 64 px ele virava "911
+                      Carre…", e no celular a segunda linha empurrava o preço da
+                      placa para fora da primeira dobra. O leitor de tela ouve o
+                      nome pelo `sr-only` em qualquer largura. */}
+                  <span className="hidden w-full truncate text-[10px] font-semibold tracking-[.04em] sm:block">
                     {modeloEVersaoParaExibir(v.modelo, v.versao).modelo}
                   </span>
                   <span className="sr-only">{` — ver ${v.marca} ${v.modelo}`}</span>
@@ -311,19 +316,19 @@ export default function HeroHome({
              280px voltam a caber na mesma linha. */
           <Link
             href={getVeiculoPdpUrl(destaque)}
-            className="mt-foco flex w-full flex-col items-start bg-[rgba(20,18,18,.86)] px-[22px] py-[18px] no-underline sm:w-auto sm:min-w-[280px] lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
+            className="mt-foco flex w-full flex-col items-start bg-[rgba(20,18,18,.86)] px-[18px] py-3 no-underline sm:px-[22px] sm:py-[18px] sm:w-auto sm:min-w-[280px] lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
           >
             <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent-400">
               EM DESTAQUE
             </span>
-            <span className="mt-[7px] text-xl font-extrabold tracking-[-.02em] text-mt-inverso lg:text-[length:clamp(15px,calc(var(--hero-cabe)*0.0238),20px)]">
+            <span className="mt-1.5 text-lg font-extrabold tracking-[-.02em] text-mt-inverso sm:mt-[7px] sm:text-xl lg:text-[length:clamp(15px,calc(var(--hero-cabe)*0.0238),20px)]">
               {destaque?.marca} {modeloDestaque}
             </span>
             {versaoDestaque && (
               <span className="mt-0.5 text-xs text-mt-inverso-suave">{versaoDestaque}</span>
             )}
-            <span className="mt-3 flex w-full items-baseline gap-2.5 border-t border-[rgba(243,242,242,.25)] pt-3 lg:mt-[min(12px,calc(var(--hero-cabe)*0.0143))] lg:pt-[min(12px,calc(var(--hero-cabe)*0.0143))]">
-              <span className="text-[22px] font-extrabold tracking-[-.03em] text-mt-inverso lg:text-[length:clamp(16px,calc(var(--hero-cabe)*0.0262),22px)]">
+            <span className="mt-2 flex w-full items-baseline gap-2.5 border-t border-[rgba(243,242,242,.25)] pt-2 sm:mt-3 sm:pt-3 lg:mt-[min(12px,calc(var(--hero-cabe)*0.0143))] lg:pt-[min(12px,calc(var(--hero-cabe)*0.0143))]">
+              <span className="text-[20px] font-extrabold tracking-[-.03em] text-mt-inverso sm:text-[22px] lg:text-[length:clamp(16px,calc(var(--hero-cabe)*0.0262),22px)]">
                 {formatarPreco(preco)}
               </span>
               <span className="ml-auto text-[11px] text-mt-inverso-suave">

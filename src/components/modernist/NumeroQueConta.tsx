@@ -1,17 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+/** Quando os números aparecem (ms desde a navegação) — o mesmo atraso do CSS. */
+const APARECE_EM_MS = 700;
 
 /**
  * Um número que conta de zero até o valor — tarefa 3.7 da revisão de UI de
- * 29/09, o único movimento do site junto com a régua da capa que se desenha.
+ * 29/09, o único movimento de entrada do site, junto com a régua da capa que
+ * se desenha.
  *
- * O servidor desenha o valor FINAL: quem não roda JavaScript, o buscador e o
- * primeiro quadro veem o número certo. A contagem só começa no cliente, e só
- * para quem não pediu menos movimento — para esses o número fica parado.
+ * A coreografia: a régua se desenha, e os números aparecem (`.mt-numeros-
+ * surgem`, invisíveis até 0,7 s) já contando. O servidor desenha o valor
+ * FINAL — quem não roda JavaScript e o buscador leem o número certo, e é
+ * também o que aparece se a contagem não rodar.
  *
- * O leitor de tela ouve o valor uma vez, no `sr-only`; a parte que conta é
- * `aria-hidden`, senão ele leria cada passo (ou nenhum, com o valor errado).
+ * A contagem NÃO roda quando:
+ * - a pessoa pediu menos movimento;
+ * - o número não está na tela (a régua da capa só existe do `lg` para cima —
+ *   no celular seriam dezenas de renders à toa na janela do LCP);
+ * - a hidratação chegou depois de o número aparecer: contar a partir dali
+ *   seria mostrar o valor final, cair para zero e recontar.
+ *
+ * Um span só, sem `sr-only` duplicado: o texto do DOM é o que o rastreador
+ * lê, e "4141" não é um número. A contagem dura menos de um segundo e não
+ * tem `aria-live`, então o leitor de tela não a anuncia.
  */
 export default function NumeroQueConta({
   valor,
@@ -23,38 +36,51 @@ export default function NumeroQueConta({
   /** Milissegundos até chegar ao valor. */
   duracao?: number;
 }) {
-  const [mostrado, setMostrado] = useState(valor);
+  // `null` = mostra o valor de verdade. Só vira número durante a contagem, e
+  // por isso uma troca de `valor` nunca deixa o número velho na tela.
+  const [contagem, setContagem] = useState<number | null>(null);
+  const alvo = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!alvo.current || alvo.current.getClientRects().length === 0) return;
+    const agora = performance.now();
+    if (agora > APARECE_EM_MS) return;
 
     let quadro = 0;
-    const inicio = performance.now();
-    const passo = (agora: number) => {
-      const p = Math.min(1, (agora - inicio) / duracao);
-      // Desacelera no fim: o número assenta, não freia de uma vez.
+    let inicio: number | null = null;
+    const passo = (t: number) => {
+      // O primeiro quadro marca o início: o carimbo do rAF pode ser anterior
+      // ao `performance.now()` do efeito, e a conta daria número negativo.
+      if (inicio === null) inicio = t;
+      const p = Math.min(1, Math.max(0, (t - inicio) / duracao));
       const suavizado = 1 - Math.pow(1 - p, 3);
-      setMostrado(Math.round(valor * suavizado));
-      if (p < 1) quadro = requestAnimationFrame(passo);
+      if (p < 1) {
+        setContagem(Math.round(valor * suavizado));
+        quadro = requestAnimationFrame(passo);
+      } else {
+        setContagem(null);
+      }
     };
-    quadro = requestAnimationFrame(passo);
+    // Vai a zero no próximo quadro (o número ainda está invisível) e passa a
+    // avançar quando ele aparece.
+    const zera = requestAnimationFrame(() => setContagem(0));
+    const espera = window.setTimeout(() => {
+      quadro = requestAnimationFrame(passo);
+    }, APARECE_EM_MS - agora);
     return () => {
+      cancelAnimationFrame(zera);
+      window.clearTimeout(espera);
       cancelAnimationFrame(quadro);
-      setMostrado(valor);
+      setContagem(null);
     };
   }, [valor, duracao]);
 
   return (
-    <>
-      <span aria-hidden="true" className="mt-numeros-surgem tabular-nums">
-        {mostrado}
-        {sufixo}
-      </span>
-      <span className="sr-only">
-        {valor}
-        {sufixo}
-      </span>
-    </>
+    <span ref={alvo} className="mt-numeros-surgem tabular-nums">
+      {contagem ?? valor}
+      {sufixo}
+    </span>
   );
 }

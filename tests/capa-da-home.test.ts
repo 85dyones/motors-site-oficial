@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Veiculo } from "../src/types";
+import { execSync } from "node:child_process";
 import { ler, lerCodigo } from "./fonte";
 
 /**
@@ -52,9 +53,14 @@ async function capa() {
 describe("no celular, a foto entra inteira", () => {
   const fonte = lerCodigo("src/components/modernist/HeroHome.tsx");
 
-  it("faixa própria em 3:2 acima do texto; só do lg para cima vira fundo", () => {
-    const moldura = /<div className="([^"]*aspect-\[3\/2\][^"]*)">\s*\{slides\.map/.exec(fonte)?.[1] ?? "";
-    expect(moldura).toContain("aspect-[3/2]");
+  it("faixa própria acima do texto (16:9, 21:9 no tablet); só do lg para cima vira fundo", () => {
+    // 16:9 e não os 3:2 da foto: em 3:2 a placa com o preço saía da primeira
+    // dobra de um celular de 375 × 667 (medido: 704 px). Em 16:9 a foto
+    // perde só uma faixa do céu e do piso — o carro fica inteiro. No tablet,
+    // 21:9, senão a foto ocupava a dobra inteira de um iPad em pé.
+    const moldura = /<div className="([^"]*aspect-\[16\/9\][^"]*)">\s*\{slides\.map/.exec(fonte)?.[1] ?? "";
+    expect(moldura).toContain("aspect-[16/9]");
+    expect(moldura).toContain("sm:aspect-[21/9]");
     expect(moldura).toContain("w-full");
     for (const classe of ["lg:absolute", "lg:inset-0", "lg:aspect-auto"]) expect(moldura).toContain(classe);
     // E ela não é mais `absolute` sem prefixo: seria o fundo de tela inteira de novo.
@@ -66,7 +72,14 @@ describe("no celular, a foto entra inteira", () => {
   });
 
   it("o véu escuro sobre a foto só existe onde o texto fica em cima dela (lg)", () => {
-    expect(fonte).toMatch(/hidden bg-\[linear-gradient\(90deg,rgba\(28,26,25,\.92\)[^"]*lg:block/);
+    expect(fonte).toMatch(/hidden bg-\[linear-gradient\(90deg,rgba\(32,30,29,\.92\)[^"]*lg:block/);
+  });
+
+  it("sem nenhuma foto, não sobra um retângulo vazio no celular", async () => {
+    const { default: HeroHome } = await import("../src/components/modernist/HeroHome");
+    const sem = { ...veiculo("9", "Kwid"), web_full_images: [], whatsapp_images: [] } as Veiculo;
+    const html = renderToStaticMarkup(createElement(HeroHome, { slides: [sem], totalEstoque: 1, totalMarcas: 1 }));
+    expect(html).not.toContain("aspect-[16/9]");
   });
 });
 
@@ -85,19 +98,26 @@ describe("3.6 · o texto da capa", () => {
 });
 
 describe("3.7 · o único movimento: a régua se desenha e os números contam", () => {
-  it("a régua da capa se desenha; os números sobem do servidor já com o valor final", async () => {
+  it("a régua da capa se desenha; os números saem do servidor já com o valor final, uma vez", async () => {
     const html = await capa();
     expect(html).toContain("mt-regua-desenha");
-    // Quem não roda JS (e o buscador) lê o número certo, uma vez.
-    const lidos = [...html.replace(/<!-- -->/g, "").matchAll(/<span class="sr-only">([^<]*)<\/span>/g)].map((m) => m[1]);
-    for (const n of ["41", "17", "100%"]) expect(lidos).toContain(n);
+    // Quem não roda JS (e o buscador) lê o número certo — e uma vez só: com um
+    // `sr-only` ao lado, o texto do DOM virava "4141 EM ESTOQUE".
+    const numeros = [...html.replace(/<!-- -->/g, "").matchAll(/<span class="mt-numeros-surgem tabular-nums">([^<]*)<\/span>/g)].map((m) => m[1]);
+    expect(numeros).toEqual(["41", "17"]);
+    expect(html).not.toMatch(/4141|1717/);
+    // O 100% fica parado.
+    expect(html).toMatch(/>100%</);
   });
 
   it("só a capa se mexe: nenhum outro componente pede para desenhar a régua", () => {
-    const usos = ["src/app/page.tsx", "src/app/sobre/page.tsx", "src/components/SobreClientWrapper.tsx"]
-      .map((f) => lerCodigo(f))
-      .join("\n");
-    expect(usos).not.toMatch(/<EstatisticasRegua[^>]*\bdesenhar\b/);
+    const quem = execSync("grep -rl -E '<EstatisticasRegua|NumeroQueConta' src --include=*.tsx || true", { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
+    const comMovimento = quem.filter(
+      (f) => /\bdesenhar\b/.test(lerCodigo(f).replace(/desenhar = false|desenhar\?: boolean|desenhar &&|desenhar\s*\?/g, "")) || /<NumeroQueConta/.test(lerCodigo(f)),
+    );
+    expect(comMovimento).toEqual(["src/components/modernist/HeroHome.tsx"]);
   });
 
   it("com movimento reduzido, nada se mexe", () => {
@@ -120,10 +140,17 @@ describe("NumeroQueConta", () => {
     container?.remove();
     root = undefined;
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
-  async function montar(reduzido: boolean) {
+  async function montar({ reduzido = false, agora = 100, naTela = true, valor = 41 } = {}) {
+    vi.useFakeTimers();
     vi.stubGlobal("matchMedia", () => ({ matches: reduzido, addEventListener() {}, removeEventListener() {} }));
+    vi.spyOn(performance, "now").mockReturnValue(agora);
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue(
+      (naTela ? [{}] : []) as unknown as DOMRectList,
+    );
     const quadros: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (f: FrameRequestCallback) => (quadros.push(f), quadros.length));
     vi.stubGlobal("cancelAnimationFrame", () => {});
@@ -132,28 +159,50 @@ describe("NumeroQueConta", () => {
     document.body.appendChild(container);
     const r = createRoot(container);
     root = r;
-    await act(async () => r.render(createElement(NumeroQueConta, { valor: 41, duracao: 900 })));
-    const visivel = () => container!.querySelector('[aria-hidden="true"]')!.textContent;
-    return { quadros, visivel };
+    await act(async () => r.render(createElement(NumeroQueConta, { valor, duracao: 900 })));
+    const visivel = () => container!.querySelector("span")!.textContent;
+    const trocar = (novo: number) =>
+      act(async () => r.render(createElement(NumeroQueConta, { valor: novo, duracao: 900 })));
+    return { quadros, visivel, trocar };
   }
 
-  it("com movimento reduzido fica no valor final, sem pedir quadro nenhum", async () => {
-    const { quadros, visivel } = await montar(true);
+  it("com movimento reduzido fica no valor — e acompanha quando ele muda", async () => {
+    const { quadros, visivel, trocar } = await montar({ reduzido: true });
+    expect(quadros).toHaveLength(0);
+    expect(visivel()).toBe("41");
+    await trocar(39);
+    expect(visivel()).toBe("39");
+  });
+
+  it("fora da tela (a régua é só do desktop) não conta", async () => {
+    const { quadros, visivel } = await montar({ naTela: false });
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(quadros).toHaveLength(0);
     expect(visivel()).toBe("41");
   });
 
-  it("sem a preferência, conta de perto de zero e assenta no valor", async () => {
-    const { quadros, visivel } = await montar(false);
-    const inicio = performance.now();
-    await act(async () => quadros.shift()!(inicio + 1));
-    expect(Number(visivel())).toBeLessThan(5);
-    await act(async () => quadros.shift()!(inicio + 450));
+  it("hidratação depois de o número aparecer: não conta — seria final, zero, final", async () => {
+    const { quadros, visivel } = await montar({ agora: 1500 });
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(quadros).toHaveLength(0);
+    expect(visivel()).toBe("41");
+  });
+
+  it("hidratação cedo: parte do zero, espera o número aparecer, conta e assenta no valor", async () => {
+    const { quadros, visivel } = await montar({ agora: 100 });
+    // Primeiro quadro: vai a zero, ainda invisível (o CSS só mostra aos 0,7 s).
+    expect(quadros).toHaveLength(1);
+    await act(async () => quadros.shift()!(0));
+    expect(visivel()).toBe("0");
+    await act(async () => vi.advanceTimersByTime(600));
+    expect(quadros).toHaveLength(1);
+    // O carimbo do rAF pode vir ANTES do início medido: nunca negativo.
+    await act(async () => quadros.shift()!(50));
+    expect(Number(visivel())).toBeGreaterThanOrEqual(0);
+    await act(async () => quadros.shift()!(500));
     expect(Number(visivel())).toBeGreaterThan(20);
-    await act(async () => quadros.shift()!(inicio + 2000));
+    await act(async () => quadros.shift()!(2000));
     expect(visivel()).toBe("41");
     expect(quadros).toHaveLength(0);
-    // O leitor de tela ouve o valor uma vez, no `sr-only`.
-    expect(container!.querySelector(".sr-only")!.textContent).toBe("41");
   });
 });
