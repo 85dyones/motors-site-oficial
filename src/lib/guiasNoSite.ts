@@ -255,9 +255,6 @@ export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
   "volkswagen/polo": TSI,
   "volkswagen/virtus": TSI,
   "volkswagen/t-cross": TSI,
-  // O hub do T-Cross está publicado com a versão no slug do modelo. Enquanto
-  // for assim, a chave precisa ser a que a rota recebe.
-  "volkswagen/t-cross-highline-250-tsi-aut": TSI,
   "volkswagen/nivus": TSI,
   "volkswagen/taos": [TSI[0]],
   "volkswagen/golf": [
@@ -307,7 +304,7 @@ export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
     guia(CARBONIZACAO, "No 1.5 turbo da geração passada."),
   ],
 
-  "mercedes-benz/a250-turbo-sport": [guia(DUPLA, "O Classe A usa o 7G-DCT.")],
+  "mercedes-benz/a250": [guia(DUPLA, "O Classe A usa o 7G-DCT.")],
 };
 
 /** Os guias de mecânica de um hub de modelo; lista vazia quando não há. */

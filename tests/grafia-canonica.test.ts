@@ -61,12 +61,22 @@ function veiculoAntigo([id, marca, modelo, versao, mo, vo, tipo]: Linha) {
   };
 }
 
+/**
+ * A única ficha que muda de endereço, e muda de propósito: o T-Cross, que o feed
+ * manda com o nome inteiro em modelo e versão. Desde 29/09/2026 o modelo é a
+ * primeira palavra (`modeloDeNomeRepetido`), e a comparação entre as grafias
+ * perde o sentido para ele — "T Cross" e "T-Cross" dão primeiras palavras
+ * diferentes. O endereço novo tem teste próprio logo abaixo.
+ */
+const MUDA_DE_PROPOSITO = new Set([8479269]);
+const QUE_NAO_MUDAM = ESTOQUE.filter((l) => !MUDA_DE_PROPOSITO.has(l[0]));
+
 describe("nenhuma URL muda com a grafia nova — estoque real de 21/09", () => {
   it("a amostra é o estoque inteiro, não um recorte", () => {
     expect(ESTOQUE.length).toBe(119);
   });
 
-  it.each(ESTOQUE.map((l) => [l[0], l] as const))("ficha %s", (_id, linha) => {
+  it.each(QUE_NAO_MUDAM.map((l) => [l[0], l] as const))("ficha %s", (_id, linha) => {
     const novo = veiculoNovo(linha);
     const antigo = veiculoAntigo(linha);
     expect(getVeiculoPdpUrl(novo)).toBe(getVeiculoPdpUrl(antigo));
@@ -77,7 +87,7 @@ describe("nenhuma URL muda com a grafia nova — estoque real de 21/09", () => {
   });
 
   it("o recorte do nome do hub cai no mesmo lugar — muda a grafia, não o slug", () => {
-    for (const linha of ESTOQUE) {
+    for (const linha of QUE_NAO_MUDAM) {
       const n = veiculoNovo(linha);
       const a = veiculoAntigo(linha);
       const rn = rotuloLimpo(rotuloDoModelo(n.marca, n.modelo, n.versao));
@@ -87,15 +97,19 @@ describe("nenhuma URL muda com a grafia nova — estoque real de 21/09", () => {
     }
   });
 
-  it("T-Cross: o nome ganha o hífen, e a URL — que já tinha — não muda", () => {
+  it("T-Cross: o nome ganha o hífen, e o modelo sai da versão (29/09/2026)", () => {
+    // Até 29/09 a URL era `/carros/volkswagen/t-cross-highline-250-tsi-aut/…`,
+    // com `/carros/volkswagen/t-cross` em 404. O endereço velho do hub tem 301
+    // em `next.config.ts`, e o da ficha tem 308 na própria rota.
     const linha = ESTOQUE.find((l) => l[0] === 8479269)!;
     const tcross = veiculoNovo(linha);
     expect(tcross.modelo).toBe("T-Cross Highline 250 TSI Aut");
     expect(tcross.versao).toBe("T-Cross Highline 250 TSI Aut");
     expect(getVeiculoPdpUrl(tcross)).toBe(
-      "/carros/volkswagen/t-cross-highline-250-tsi-aut/t-cross-highline-250-tsi-automatico-8479269",
+      "/carros/volkswagen/t-cross/highline-250-tsi-automatico-8479269",
     );
-    expect(getVeiculoPdpUrl(veiculoAntigo(linha))).toBe(getVeiculoPdpUrl(tcross));
+    expect(slugDeModelo(tcross.marca, tcross.modelo, tcross.versao)).toBe("t-cross");
+    expect(rotuloDoModelo(tcross.marca, tcross.modelo, tcross.versao)).toBe("T-Cross");
   });
 });
 

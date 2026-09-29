@@ -22,6 +22,7 @@ import {
 } from "./generoDoVeiculo";
 import {
   SEGMENTOS_DE_PDP,
+  modeloDeNomeRepetido,
   segmentoDoVeiculo,
   slugDeMarca,
   slugDeModelo,
@@ -133,6 +134,11 @@ export function rotuloDoModelo(marca: string, modelo: string, versao?: string | 
   if (marcaLimpa && texto.toLowerCase().startsWith(marcaLimpa.toLowerCase())) {
     texto = texto.slice(marcaLimpa.length).trim();
   }
+  // Modelo e versão iguais: a mesma regra de `limparModelo`, para o rótulo do
+  // hub e o segmento da URL chegarem ao mesmo nome ("T-Cross", e não
+  // "T-Cross Highline").
+  const repetido = modeloDeNomeRepetido(texto, versaoLimpa);
+  if (repetido) return repetido;
   if (versaoLimpa && texto.toLowerCase().endsWith(versaoLimpa.toLowerCase())) {
     texto = texto.slice(0, texto.length - versaoLimpa.length).trim();
   }
