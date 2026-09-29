@@ -17,16 +17,18 @@ import { ler } from "./fonte";
  *   2. a trava do sync (allowlist por construção) descartava documento no carro
  *      já importado — então o conserto do n8n sozinho só valeria para carro novo.
  *
- * Placa, chassi e motor o feed PREENCHE no vazio, nunca troca; a FIPE segue o
- * feed quando ele tem valor — ver o cabeçalho da migração
- * `20260929120000_documentos_do_feed_preenchem_o_vazio`.
+ * Placa e motor o feed PREENCHE no vazio, nunca troca (o painel os edita); o
+ * chassi válido e a FIPE seguem o feed; chassi com I/O/Q e motor 0.0 nunca
+ * entram — ver as migrações `20260929120000_documentos_do_feed_preenchem_o_vazio`
+ * e `20260929170000_chassi_valido_segue_o_feed`.
  */
 
 const WORKFLOW = "Antigravity - Sincronizador de Estoque (estoque_motors).json";
 const DOCUMENTOS = ["placa", "chassi", "motor", "valor_fipe", "codigo_fipe"] as const;
 
 type No = { name: string; parameters: { body?: string; jsCode?: string } };
-const nos = (JSON.parse(ler(WORKFLOW)) as { nodes: No[] }).nodes;
+const exportado = JSON.parse(ler(WORKFLOW)) as { nodes: No[]; activeVersion?: { nodes: No[] } };
+const nos = exportado.nodes;
 const no = (nome: RegExp): No => {
   const achado = nos.find((n) => nome.test(n.name));
   expect(achado, `nó ${nome} sumiu do workflow`).toBeDefined();
@@ -110,6 +112,36 @@ describe("o n8n: o upsert manda os documentos que o nó de classificação monta
     expect(classificar({ ...ANUNCIO, MOTOR: "150.0" }).motor).toBe("150.0");
   });
 
+  it("chassi com I, O ou Q não é VIN — vai nulo; o chassi antigo sem elas passa", () => {
+    // O erro real do RevendaMais em 29/09: a Spin 8446229 e o Logan 8506571 com
+    // a letra O no lugar de zero. VIN (ISO 3779) não usa I, O nem Q.
+    expect(classificar({ ...ANUNCIO, CHASSI: "9BGJR75ZOEB278512" }).chassi).toBeNull();
+    expect(classificar({ ...ANUNCIO, CHASSI: "9bwzzz377vt00425i" }).chassi).toBeNull();
+    // O Fusca 1976: chassi de 8 posições, anterior ao VIN, sem nenhuma das três.
+    expect(classificar({ ...ANUNCIO, CHASSI: "bj438840" }).chassi).toBe("BJ438840");
+  });
+
+  it("motor em texto passa como veio — só o zero é 'não sei'", () => {
+    // A primeira versão usava `parseFloat(...) > 0` e jogava fora "V8 5.0".
+    expect(classificar({ ...ANUNCIO, MOTOR: "V8 5.0" }).motor).toBe("V8 5.0");
+    expect(classificar({ ...ANUNCIO, MOTOR: " 1.3 Turbo " }).motor).toBe("1.3 Turbo");
+    expect(classificar({ ...ANUNCIO, MOTOR: "0" }).motor).toBeNull();
+    expect(classificar({ ...ANUNCIO, MOTOR: "0,0" }).motor).toBeNull();
+  });
+
+  it("a versão publicada do workflow é a mesma que a de edição", () => {
+    // O export do n8n traz duas cópias dos nós: `nodes` (a de edição) e
+    // `activeVersion.nodes` (a publicada, que o agendamento roda). A revisão
+    // pegou a primeira versão desta entrega editando só uma — importado assim,
+    // o cron seguiria com o upsert antigo e todo teste daqui passaria verde.
+    expect(exportado.activeVersion, "o export perdeu a versão publicada").toBeDefined();
+    const publicada = new Map(exportado.activeVersion!.nodes.map((n) => [n.name, n.parameters]));
+    expect([...publicada.keys()].sort()).toEqual(nos.map((n) => n.name).sort());
+    for (const n of nos) {
+      expect(publicada.get(n.name), `nó "${n.name}" difere entre as duas cópias`).toEqual(n.parameters);
+    }
+  });
+
   it("o upsert continua sem as colunas que o sync não pode escrever", () => {
     const corpo = corpoDoUpsert(classificar(ANUNCIO));
     for (const proibido of ["vendido", "estado_cadastro", "origem", "renavam", "first_seen_at"]) {
@@ -126,6 +158,8 @@ describe("o n8n: o upsert manda os documentos que o nó de classificação monta
 
 const PASTA = "supabase/migrations";
 const MIGRACAO = "20260929120000_documentos_do_feed_preenchem_o_vazio.sql";
+/** A emenda do mesmo dia: é ela que define as duas funções vigentes. */
+const EMENDA = "20260929170000_chassi_valido_segue_o_feed.sql";
 
 /** SQL sem as linhas de comentário — a explicação cita o código que proíbe. */
 const executavel = (arquivo: string) =>
@@ -195,8 +229,8 @@ describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () =
     /if current_user = 'service_role'\s+or new\.last_seen_at is distinct from old\.last_seen_at then/,
   );
 
-  it("a versão vigente é a desta entrega", () => {
-    expect(arquivo).toBe(MIGRACAO);
+  it("a versão vigente é a da emenda", () => {
+    expect(arquivo).toBe(EMENDA);
   });
 
   it("a allowlist é exatamente esta — uma escrita por coluna, nenhuma a mais", () => {
@@ -236,24 +270,44 @@ describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () =
     );
   });
 
-  it("placa e chassi: só no vazio, e nunca o documento de outro carro", () => {
-    for (const doc of ["placa", "chassi"]) {
-      expect(contar(corpo, new RegExp(`\\bold\\.${doc}\\s*:=`)), doc).toBe(1);
-      expect(corpo, doc).toMatch(
-        new RegExp(
-          `if nullif\\(btrim\\(old\\.${doc}\\), ''\\) is null\\s+and ${doc}_do_feed is not null\\s+` +
-            `and not exists \\(\\s+select 1 from public\\.estoque_motors o\\s+where o\\.id <> old\\.id\\s+` +
-            `and upper\\(replace\\(replace\\(btrim\\(o\\.${doc}\\), '-', ''\\), ' ', ''\\)\\) = ${doc}_do_feed\\s+` +
-            `\\) then\\s+old\\.${doc} := ${doc}_do_feed;\\s+end if;`,
-        ),
-      );
-    }
+  /** A busca de documento alheio, com o predicado do índice parcial. */
+  const outroCarroCom = (doc: string) =>
+    `not exists \\(\\s+select 1 from public\\.estoque_motors o\\s+` +
+    `where o\\.${doc} is not null and btrim\\(o\\.${doc}\\) <> ''\\s+` +
+    `and o\\.id <> old\\.id\\s+` +
+    `and upper\\(replace\\(replace\\(btrim\\(o\\.${doc}\\), '-', ''\\), ' ', ''\\)\\) = ${doc}_do_feed\\s+\\)`;
+
+  it("placa: só no vazio, e nunca a de outro carro", () => {
+    expect(contar(corpo, /\bold\.placa\s*:=/)).toBe(1);
+    expect(corpo).toMatch(
+      new RegExp(
+        `if nullif\\(btrim\\(old\\.placa\\), ''\\) is null\\s+and placa_do_feed is not null\\s+` +
+          `and ${outroCarroCom("placa")} then\\s+old\\.placa := placa_do_feed;\\s+end if;`,
+      ),
+    );
   });
 
-  it("motor: só no vazio — e preencher move o lastmod, porque sai na página", () => {
+  it("chassi: o válido segue o feed, sem I/O/Q e nunca o de outro carro", () => {
+    // Congelado no primeiro valor, um chassi errado só sairia por SQL — o
+    // painel não edita chassi de carro do feed. A revisão pegou o caso real.
+    expect(contar(corpo, /\bold\.chassi\s*:=/)).toBe(1);
+    expect(corpo).toMatch(/if chassi_do_feed ~ '\[IOQ\]' then\s+chassi_do_feed := null;\s+end if;/);
+    expect(corpo).toMatch(
+      new RegExp(
+        `if chassi_do_feed is not null\\s+and chassi_do_feed is distinct from\\s+` +
+          `nullif\\(upper\\(replace\\(replace\\(btrim\\(old\\.chassi\\), '-', ''\\), ' ', ''\\)\\), ''\\)\\s+` +
+          `and ${outroCarroCom("chassi")} then\\s+old\\.chassi := chassi_do_feed;\\s+end if;`,
+      ),
+    );
+  });
+
+  it("motor: só no vazio, 0.0 é 'não sei' — e preencher move o lastmod", () => {
     expect(contar(corpo, /\bold\.motor\s*:=/)).toBe(1);
     expect(corpo).toMatch(
-      /if nullif\(btrim\(old\.motor\), ''\) is null and nullif\(btrim\(new\.motor\), ''\) is not null then\s+old\.motor := btrim\(new\.motor\);\s+motor_preenchido := true;\s+end if;/,
+      /if motor_do_feed ~ '\^0\+\(\[\.,\]0\+\)\?\$' then\s+motor_do_feed := null;\s+end if;/,
+    );
+    expect(corpo).toMatch(
+      /if nullif\(btrim\(old\.motor\), ''\) is null and motor_do_feed is not null then\s+old\.motor := motor_do_feed;\s+motor_preenchido := true;\s+end if;/,
     );
   });
 
@@ -280,8 +334,8 @@ describe("o INSERT do feed: forma canônica, e colisão vira vazio", () => {
   // O limiar fica na abertura: trocar 900000001 faz o `if` não ser achado.
   const faixa = ramosDoIf(corpo, /if new\.id >= 900000001 then/);
 
-  it("a versão vigente é a desta entrega, e decide pela faixa antes de tudo", () => {
-    expect(arquivo).toBe(MIGRACAO);
+  it("a versão vigente é a da emenda, e decide pela faixa antes de tudo", () => {
+    expect(arquivo).toBe(EMENDA);
     expect(faixa.antes).toMatch(/\bbegin\s*$/);
     expect(faixa.senao, "o ramo do feed sumiu").not.toBe("");
   });
@@ -310,12 +364,51 @@ describe("o INSERT do feed: forma canônica, e colisão vira vazio", () => {
       expect(faixa.senao, doc).toMatch(
         new RegExp(
           `if new\\.${doc} is not null and exists \\(\\s+select 1 from public\\.estoque_motors o\\s+` +
-            `where o\\.id is distinct from new\\.id\\s+` +
+            `where o\\.${doc} is not null and btrim\\(o\\.${doc}\\) <> ''\\s+` +
+            `and o\\.id is distinct from new\\.id\\s+` +
             `and upper\\(replace\\(replace\\(btrim\\(o\\.${doc}\\), '-', ''\\), ' ', ''\\)\\) = new\\.${doc}\\s+` +
             `\\) then[\\s\\S]{0,200}?new\\.${doc} := null;\\s+end if;`,
         ),
       );
     }
+  });
+});
+
+describe("o INSERT do feed recusa o que a trava recusa", () => {
+  const { corpo } = vigente("estoque_motors_marcar_origem");
+  const faixa = ramosDoIf(corpo, /if new\.id >= 900000001 then/);
+
+  it("chassi com I/O/Q e motor 0.0 não entram nem no carro novo", () => {
+    expect(faixa.senao).toMatch(/if new\.chassi ~ '\[IOQ\]' then[\s\S]{0,160}?new\.chassi := null;\s+end if;/);
+    expect(faixa.senao).toMatch(
+      /if btrim\(new\.motor\) ~ '\^0\+\(\[\.,\]0\+\)\?\$' then\s+new\.motor := null;\s+end if;/,
+    );
+    expect(faixa.entao).not.toMatch(/\bnew\.motor\b/);
+  });
+});
+
+describe("a emenda se prova antes de gravar", () => {
+  const sql = executavel(EMENDA);
+
+  it("ensaia a guarda da própria trava por UPDATE direto como service_role", () => {
+    // No upsert o marcar_origem zera o documento alheio antes; só o UPDATE
+    // direto chega ao `not exists` da trava — e o preenchimento de 29/09 foi
+    // um UPDATE direto.
+    expect(sql).toMatch(
+      /set local role service_role;\s+update public\.estoque_motors set placa = 'zzb-9z32', chassi = '9ZZZZZZZZZZ000032' where id = id_d;\s+reset role;/,
+    );
+  });
+
+  it("o lastmod de ensaio nasce ontem, e o fim apaga as linhas de ensaio", () => {
+    expect(sql).toMatch(/ontem\s+timestamptz := now\(\) - interval '1 day';/);
+    expect(sql).toMatch(/delete from public\.estoque_motors where id in \(id_a, id_b, id_c, id_d\);/);
+    expect(sql).toMatch(/raise exception 'Autoconferência falhou em % ponto\(s\)\.'/);
+  });
+
+  it("termina com o rodapé do livro-razão", () => {
+    expect(sql).toMatch(
+      /insert into supabase_migrations\.schema_migrations \(version, name\)\s+values \('20260929170000', 'chassi_valido_segue_o_feed'\)\s+on conflict \(version\) do nothing;\s*$/,
+    );
   });
 });
 

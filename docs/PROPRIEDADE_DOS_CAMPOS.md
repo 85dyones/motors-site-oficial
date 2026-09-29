@@ -16,8 +16,8 @@ correção desfeita no sync seguinte, em silêncio.
 | Origem | O que acontece | Campos |
 |---|---|---|
 | **Feed, só na importação** | O sincronizador traz quando o carro nasce. **Desde 30/08 ele não reescreve** estas colunas — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor` |
-| **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09 (portas 04/09, opcionais 08/09). A FIPE desde 29/09, e só quando o feed manda valor: zero e vazio não apagam. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at`, `portas`, `opcionais`, `valor_fipe`, `codigo_fipe` |
-| **Nosso, o feed preenche o vazio** | Desde 29/09. Enquanto a coluna está vazia, o sincronizador a preenche com o valor do RevendaMais — na importação e em todo ciclo. **Nunca troca valor existente** e nunca grava documento que já é de outro carro. `placa` e `motor` o painel edita, e o que ele escreve fica. | `placa`, `chassi`, `motor` |
+| **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09 (portas 04/09, opcionais 08/09). A FIPE e o chassi desde 29/09, e só quando o feed manda valor — zero e vazio não apagam, e chassi com I, O ou Q (que não é VIN) nunca entra. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at`, `portas`, `opcionais`, `valor_fipe`, `codigo_fipe`, `chassi` |
+| **Nosso, o feed preenche o vazio** | Desde 29/09. Enquanto a coluna está vazia, o sincronizador a preenche com o valor do RevendaMais — na importação e em todo ciclo. **Nunca troca valor existente** e nunca grava documento que já é de outro carro. O painel edita os dois, e o que ele escreve fica. | `placa`, `motor` |
 | **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro`, `em_preparacao`, `previsao_chegada_em` |
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
 | **Do feed, mas nosso para editar** | Coluna que o feed preenche no nascimento e o painel sobrescreve para valer, em veículo de qualquer origem. | `whatsapp_images`, `web_full_images`, `url_imagem` |
@@ -35,11 +35,18 @@ campos, e a trava descartava documento no carro já importado.
 
 A regra (migração `20260929120000`):
 
-- **Placa, chassi e motor: preencher o vazio, nunca trocar.** Coluna vazia
-  recebe o valor do feed, em todo ciclo, até ser preenchida; preenchida, não
-  muda — nem pelo feed. Placa e chassi não mudam na vida do carro, e quem
-  corrigiu à mão no painel não pode ver a correção desfeita. (Se o painel
-  apagar a placa, o próximo ciclo a traz de volta.)
+- **Placa e motor: preencher o vazio, nunca trocar.** Coluna vazia recebe o
+  valor do feed, em todo ciclo, até ser preenchida; preenchida, não muda — nem
+  pelo feed. O painel edita os dois, e quem corrigiu à mão não pode ver a
+  correção desfeita. (Se o painel apagar a placa, o próximo ciclo a traz de
+  volta.) Motor `0.0` é como o feed diz "não sei", e não entra.
+- **Chassi: o válido segue o feed** (emenda `20260929170000`, achado da
+  revisão). O painel não edita chassi de carro do feed, então congelado no
+  primeiro valor um erro do RevendaMais só sairia por SQL — e a correção feita
+  lá nunca chegaria. Chassi com I, O ou Q nunca entra: o padrão VIN (ISO 3779)
+  não usa essas letras, e nelas é erro de digitação. Caso real de 29/09: a Spin
+  `8446229` e o Logan `8506571` estão com O no lugar de zero no RevendaMais —
+  corrigindo lá, o próximo ciclo traz.
 - **FIPE: segue o feed.** `valor_fipe` e `codigo_fipe` o painel não edita, e o
   valor muda todo mês — congelado no primeiro, viraria dado velho. O feed
   atualiza a cada ciclo, mas só quando manda valor: o `0` e o vazio com que ele

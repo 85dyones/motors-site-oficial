@@ -19,15 +19,28 @@
 --
 -- Este arquivo é o estado ANTERIOR das colunas que mudaram, um UPDATE por carro.
 -- Placa e chassi só aparecem como `null` — o anterior era vazio — então nenhum
--- documento está aqui. Rodar como postgres (NÃO como service_role: a trava
--- trataria como sync e não deixaria apagar). Não é migração e não tem rodapé.
+-- documento está aqui. Não é migração e não tem rodapé.
 --
--- O gatilho do lastmod fica desligado DENTRO da transação: com ele ligado, o
--- `conteudo_atualizado_em` escrito aqui seria descartado ("quem decide é o
--- banco", 20260817120000) e voltar o motor a vazio carimbaria agora.
+-- Aplicar pelo pooler, com ensaio antes:
+--   node supabase/manutencao/aplicar-migracao.js supabase/manutencao/reversao/documentos-do-feed-2026-09-29.sql
+--   node supabase/manutencao/aplicar-migracao.js supabase/manutencao/reversao/documentos-do-feed-2026-09-29.sql --gravar
+--
+-- ⚠️ Antes de rodar, leia:
+-- - Sem BEGIN/COMMIT aqui dentro: o script já abre a transação, e um COMMIT no
+--   meio do arquivo gravaria o ensaio.
+-- - Rodar como postgres, NUNCA como service_role: a trava trataria a escrita
+--   como sync e não deixaria apagar nada.
+-- - Isto não confere se o valor atual ainda é o do preenchimento: placa ou
+--   motor corrigidos no painel DEPOIS de 29/09 seriam apagados junto. Confira
+--   os carros antes.
+-- - Enquanto a trava da 20260929120000/170000 e o workflow novo estiverem de
+--   pé, o próximo ciclo do sync preenche tudo de novo. Desfazer de verdade é
+--   reverter os três — as duas funções e o upsert do n8n — antes deste arquivo.
+-- - O gatilho do lastmod fica desligado DENTRO da transação: ligado, ele
+--   descartaria o `conteudo_atualizado_em` escrito aqui ("quem decide é o
+--   banco", 20260817120000) e voltar o motor a vazio carimbaria agora.
 -- ============================================================================
 
-begin;
 alter table public.estoque_motors disable trigger estoque_motors_conteudo_atualizado;
 update public.estoque_motors set valor_fipe = 48655.00 where id = 7416830;
 update public.estoque_motors set valor_fipe = 70875.00 where id = 7812719;
@@ -68,4 +81,3 @@ update public.estoque_motors set placa = null, motor = null, codigo_fipe = null,
 update public.estoque_motors set valor_fipe = null, codigo_fipe = null where id = 8517481;
 update public.estoque_motors set chassi = null, motor = null, valor_fipe = null, codigo_fipe = null, conteudo_atualizado_em = '2026-09-29T18:29:55.012367+00:00' where id = 8517681;
 alter table public.estoque_motors enable trigger estoque_motors_conteudo_atualizado;
-commit;
