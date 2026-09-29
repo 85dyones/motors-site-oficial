@@ -140,14 +140,18 @@ function guia(slug: string, apoio: string): GuiaRelacionado {
 /**
  * Os guias de cada página comercial.
  *
- * Duas ausências são decisão, não esquecimento (auditoria de 29/09):
+ * Duas entradas passaram por decisão do dono em 29/09/2026, e o motivo de cada
+ * uma fica escrito para ninguém tirar achando que foi descuido:
  *
- *  · "Tabela FIPE não é preço de venda" fica fora de `/avaliacao`. A regra da
- *    página é que a FIPE é a única cifra e que "abaixo da FIPE" e "desconto"
- *    não aparecem; o título não usa nenhuma das duas, mas ali ele pode ler
- *    como aviso de que o valor virá menor.
- *  · "Vício oculto" fica fora de `/garantia`. O guia trata da garantia legal,
- *    e o material comercial da loja não explica o CDC.
+ *  · "Tabela FIPE não é preço de venda" em `/avaliacao`. A regra da página é
+ *    que a FIPE é a única cifra e que "abaixo da FIPE" e "desconto" não
+ *    aparecem. O card não traz cifra nem essas palavras, o guia também não
+ *    usa nenhuma das duas, e "Quanto vale meu carro usado", que já estava na
+ *    lista, explica a mesma conta (a avaliação parte da FIPE e tira da média).
+ *  · "Vício oculto" em `/garantia`. A regra do material comercial é não
+ *    explicar a garantia legal nem enumerar o escopo dela. O guia segue a
+ *    regra: diz que vício oculto é conceito jurídico, manda a dúvida de
+ *    direito para o Procon ou um advogado e descreve só o que a loja cobre.
  */
 export const GUIAS_DA_PAGINA = {
   "/avaliacao": [
@@ -156,6 +160,7 @@ export const GUIAS_DA_PAGINA = {
     guia("vender-carro-financiado", "A loja quita o banco, e o saldo vira entrada ou dinheiro."),
     guia("o-que-a-loja-assume-na-compra", "O que a loja resolve e o que sai do valor."),
     guia("documentos-para-vender-carro", "O que o vendedor precisa, na ordem, no Paraná."),
+    guia("tabela-fipe-nao-e-preco-de-venda", "O que a tabela mede, e por que cada carro vale diferente dela."),
   ],
   "/financiamento": [
     guia("vender-carro-financiado", "Quem ainda paga o carro atual também troca: a loja quita o banco."),
@@ -164,6 +169,7 @@ export const GUIAS_DA_PAGINA = {
   "/garantia": [
     guia("garantia-carro-usado-loja", "O que a garantia de uma loja cobre e o que fica de fora."),
     guia("garantia-estendida-vale-a-pena", "Quando o plano opcional compensa, e o que perguntar antes."),
+    guia("vicio-oculto-carro-usado", "O defeito que já existia na venda: até onde a perícia alcança e o que a garantia da loja banca."),
   ],
   "/seminovos-curitiba": [
     guia("pericia-cautelar-curitiba", "Onde fazer, quanto demora e o que levar."),

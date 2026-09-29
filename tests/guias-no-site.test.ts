@@ -58,12 +58,26 @@ describe("o registro de guias do site", () => {
     }
   });
 
-  it("mantém fora as duas ligações que dependem de decisão do dono", () => {
-    // /avaliacao: a FIPE é a única cifra da página, e o título do guia pode
-    // ler como aviso de valor menor. /garantia: o material comercial não
-    // explica a garantia legal, que é o assunto do guia de vício oculto.
-    expect(GUIAS_DA_PAGINA["/avaliacao"].map((g) => g.slug)).not.toContain("tabela-fipe-nao-e-preco-de-venda");
-    expect(GUIAS_DA_PAGINA["/garantia"].map((g) => g.slug)).not.toContain("vicio-oculto-carro-usado");
+  it("as duas ligações decididas pelo dono em 29/09 respeitam as regras das páginas", () => {
+    // /avaliacao: a FIPE é a única cifra, e "abaixo da FIPE" e "desconto" não
+    // aparecem, nem no card nem no guia para onde ele leva.
+    const fipe = GUIAS_DA_PAGINA["/avaliacao"].find((g) => g.slug === "tabela-fipe-nao-e-preco-de-venda");
+    expect(fipe).toBeDefined();
+    for (const texto of [fipe!.titulo, fipe!.apoio, textoDo(fipe!.slug)]) {
+      expect(texto).not.toMatch(/abaixo da FIPE|desconto/i);
+    }
+    for (const g of GUIAS_DA_PAGINA["/avaliacao"]) {
+      expect(`${g.titulo} ${g.apoio}`, g.slug).not.toMatch(/R\$|\d+\s*mil\b|abaixo da FIPE|desconto/i);
+    }
+
+    // /garantia: o guia de vício oculto não explica a garantia legal nem
+    // enumera o escopo dela (sem CDC, sem prazo legal) e manda a dúvida de
+    // direito para o Procon ou um advogado.
+    const vicio = GUIAS_DA_PAGINA["/garantia"].find((g) => g.slug === "vicio-oculto-carro-usado");
+    expect(vicio).toBeDefined();
+    const texto = textoDo("vicio-oculto-carro-usado");
+    expect(texto).not.toMatch(/\bCDC\b|Código de Defesa|90 dias|noventa dias/i);
+    expect(texto).toMatch(/Procon ou um advogado/);
   });
 
   it("só liga um guia de mecânica a modelo que o texto do guia cita pelo nome", () => {
