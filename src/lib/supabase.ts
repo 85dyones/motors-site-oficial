@@ -4,6 +4,7 @@ import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./vei
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
 import { grafiaDaMarca, grafiaDaVersao, grafiaDoModelo } from "./grafiaCanonica";
 import { publicavel } from "./coerenciaDoCadastro";
+import { kmImplausivelParaAIdade } from "./kmDiscrepante";
 import type { Veiculo } from "../types";
 export type { Veiculo };
 
@@ -402,8 +403,12 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   // O badge afirma aprovação ao cliente; só o status real pode acendê-lo.
   const hasCautelar100 = periciaVal === "PERÍCIA APROVADA";
 
-  // baixa_km: km < 40000
-  const hasBaixaKm = (typeof dbItem.quilometragem === "number" ? dbItem.quilometragem : (Number(dbItem.quilometragem) || 0)) < 40000;
+  // baixa_km: km < 40000 — e só com km plausível para a idade. Desde
+  // 20260929200000 o km do RevendaMais é publicado como vier (decisão do dono),
+  // e 1 km numa Spin 2014 não pode acender o selo: seria afirmar ao comprador
+  // uma baixa quilometragem que é erro de digitação. Ver `lib/kmDiscrepante.ts`.
+  const kmDaLinha = typeof dbItem.quilometragem === "number" ? dbItem.quilometragem : (Number(dbItem.quilometragem) || 0);
+  const hasBaixaKm = kmDaLinha < 40000 && !kmImplausivelParaAIdade(kmDaLinha, Number(dbItem.ano));
 
   // unico_dono
   const hasUnicoDono = rawDesc.includes("único dono") || rawDesc.includes("unico dono") || rawDesc.includes("única dona") || rawDesc.includes("unica dona") || (dbItem.laudo_pericia && (dbItem.laudo_pericia.toLowerCase().includes("único dono") || dbItem.laudo_pericia.toLowerCase().includes("unico dono")));

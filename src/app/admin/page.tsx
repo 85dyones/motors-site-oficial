@@ -58,6 +58,9 @@ export default async function AdminVisaoGeralPage() {
   // não existe mais, e o financeiro renasce sobre o razão do handoff.
   // Mídia paga dos últimos 7 dias, vinda das plataformas (desde 2026-09-24).
   // `null` quando as tabelas da mídia sincronizada não respondem.
+  // A leitura do histórico de km sai já, em paralelo com o resto: não depende
+  // de nada e só é usada no alerta, lá embaixo.
+  const trocasDeKm = trocasDeKmRecentes(supabase);
   const midia = await resumoDeMidia(supabase);
   const campanhasNoAr = midia ? midia.meta.noAr + midia.google.noAr : 0;
 
@@ -77,7 +80,7 @@ export default async function AdminVisaoGeralPage() {
   // Km discrepante (decisão do dono, 2026-09-29): o site publica o km que o
   // RevendaMais mandar, e o painel avisa quando ele não faz sentido. A queda de
   // km vem do histórico que a trava do sync grava (migração 20260929200000).
-  const comKmDiscrepante = kmDiscrepantes(disponiveis, await trocasDeKmRecentes(supabase));
+  const comKmDiscrepante = kmDiscrepantes(disponiveis, await trocasDeKm);
 
   // Overrides gravados só no JSON: o sintoma do bug corrigido em 2026-08-07.
   // Enquanto houver divergência, o site anuncia carro já vendido.

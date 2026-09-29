@@ -162,7 +162,7 @@ const MIGRACAO = "20260929120000_documentos_do_feed_preenchem_o_vazio.sql";
 const EMENDA = "20260929170000_chassi_valido_segue_o_feed.sql";
 /** Desde a 20260929200000 a trava vigente é a da ficha técnica — que conserva
  *  as regras dos documentos inteiras. `marcar_origem` segue sendo a da emenda. */
-const FICHA = "20260929200000_ficha_tecnica_segue_o_feed.sql";
+const FICHA = "20260929210000_ficha_tecnica_so_no_carro_do_feed.sql";
 
 /** SQL sem as linhas de comentário — a explicação cita o código que proíbe. */
 const executavel = (arquivo: string) =>

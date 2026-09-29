@@ -1,4 +1,5 @@
 import type { CondicaoDeTag, QuickTag, StockOverrides, Veiculo } from "../types";
+import { kmImplausivelParaAIdade } from "./kmDiscrepante";
 
 /**
  * Regras de leitura do estoque.
@@ -95,6 +96,11 @@ function condicaoCasa(cond: CondicaoDeTag, car: Veiculo): boolean {
   if (cond.field === "preco") {
     fieldValue = precoVigente(car);
   } else if (cond.field === "quilometragem") {
+    // Km implausível para a idade (erro de digitação no RevendaMais, publicado
+    // como veio por decisão do dono) não entra em curadoria nenhuma por km —
+    // "BAIXA QUILOMETRAGEM" em cima de 1 km numa Spin 2014 seria afirmação
+    // falsa. Ver `lib/kmDiscrepante.ts`.
+    if (kmImplausivelParaAIdade(car.quilometragem, car.ano)) return false;
     fieldValue = car.quilometragem;
   } else if (cond.field === "combustivel") {
     fieldValue = resolveTipoCombustivel(car);

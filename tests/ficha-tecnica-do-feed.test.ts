@@ -6,8 +6,12 @@ import {
   IDADE_MINIMA_EM_ANOS,
   KM_MINIMO_PLAUSIVEL,
   kmDiscrepantes,
+  kmImplausivelParaAIdade,
   motivoDeKmDiscrepante,
 } from "../src/lib/kmDiscrepante";
+import { mapVeiculoDbToVeiculo } from "../src/lib/supabase";
+import { checkTagMatchesVehicle } from "../src/lib/regrasEstoque";
+import type { QuickTag, Veiculo } from "../src/types";
 
 /**
  * A ficha técnica segue o RevendaMais, e o km discrepante vira alerta.
@@ -22,6 +26,8 @@ import {
 
 const PASTA = "supabase/migrations";
 const MIGRACAO = "20260929200000_ficha_tecnica_segue_o_feed.sql";
+/** A emenda do mesmo dia (revisão da PR #177): é ela que define a trava vigente. */
+const EMENDA = "20260929210000_ficha_tecnica_so_no_carro_do_feed.sql";
 const FICHA = ["quilometragem", "ano", "ano_fabricacao", "cambio", "combustivel", "cor"] as const;
 
 const executavel = (arquivo: string) =>
@@ -48,27 +54,38 @@ const contar = (texto: string, re: RegExp) => (texto.match(new RegExp(re, "g")) 
 describe("a trava: a ficha técnica segue o feed", () => {
   const { arquivo, corpo } = travaVigente();
 
-  it("a versão vigente é a desta entrega", () => {
-    expect(arquivo).toBe(MIGRACAO);
+  it("a versão vigente é a emenda, que herda a ficha técnica", () => {
+    expect(arquivo).toBe(EMENDA);
   });
 
   it("cada campo da ficha tem UMA escrita, e ela vai para o histórico junto", () => {
     for (const campo of FICHA) {
       expect(contar(corpo, new RegExp(`\\bold\\.${campo}\\s*:=`)), campo).toBe(1);
       // A troca e o registro no mesmo bloco: não existe troca sem linha no
-      // histórico — é o que faz o sync ser conferível.
+      // histórico — é o que faz o sync ser conferível. Texto entra limpo.
+      const valor = ["cambio", "combustivel", "cor"].includes(campo) ? `${campo}_do_feed` : `new\\.${campo}`;
       expect(corpo, campo).toMatch(
         new RegExp(
           `insert into public\\.historico_veiculo \\(veiculo_id, campo, valor_anterior, valor_novo, autor_id, autor_nome, registrado_em\\)\\s+` +
             `values \\(old\\.id, '${campo}',[^;]*c_autor, clock_timestamp\\(\\)\\);\\s+` +
-            `old\\.${campo} := new\\.${campo};\\s+ficha_mudou := true;`,
+            `old\\.${campo} := ${valor};\\s+ficha_mudou := true;`,
         ),
       );
     }
     expect(corpo).toMatch(/c_autor constant text := 'RevendaMais \(sync\)';/);
   });
 
-  it("o 'não sei' do nó do n8n nunca apaga: km 0, ano fora da faixa, N/D", () => {
+  it("a ficha só muda no carro do feed — o nativo não sai assinado 'RevendaMais'", () => {
+    const inicio = corpo.indexOf("if old.origem is distinct from 'painel' then");
+    expect(inicio, "a guarda da origem sumiu").toBeGreaterThan(-1);
+    for (const campo of FICHA) {
+      expect(corpo.indexOf(`old.${campo} :=`), campo).toBeGreaterThan(inicio);
+    }
+    // e o bloco fecha antes dos documentos
+    expect(corpo.indexOf("old.placa :=")).toBeGreaterThan(corpo.indexOf("old.cor := cor_do_feed;"));
+  });
+
+  it("o 'não sei' do nó do n8n nunca apaga: km 0, ano fora da faixa, N/D — e espaço não é troca", () => {
     // O nó manda `parseInt(x || 0)` e `x || "N/D"`. Sem esta guarda, um feed sem
     // MILEAGE zeraria o km do site inteiro.
     expect(corpo).toMatch(/if new\.quilometragem > 0 and new\.quilometragem is distinct from old\.quilometragem then/);
@@ -77,10 +94,11 @@ describe("a trava: a ficha técnica segue o feed", () => {
       /if new\.ano_fabricacao between 1900 and 2100 and new\.ano_fabricacao is distinct from old\.ano_fabricacao then/,
     );
     for (const campo of ["cambio", "combustivel", "cor"]) {
+      expect(corpo, campo).toMatch(new RegExp(`${campo}_do_feed\\s*:= nullif\\(btrim\\(new\\.${campo}\\), ''\\);`));
       expect(corpo, campo).toMatch(
         new RegExp(
-          `if nullif\\(btrim\\(new\\.${campo}\\), ''\\) is not null and upper\\(btrim\\(new\\.${campo}\\)\\) <> 'N/D'\\s+` +
-            `and new\\.${campo} is distinct from old\\.${campo} then`,
+          `if ${campo}_do_feed is not null and upper\\(${campo}_do_feed\\) <> 'N/D'\\s+` +
+            `and ${campo}_do_feed is distinct from btrim\\(old\\.${campo}\\) then`,
         ),
       );
     }
@@ -95,6 +113,23 @@ describe("a trava: a ficha técnica segue o feed", () => {
   it("mudar a ficha move o lastmod — a página mudou", () => {
     expect(corpo).toMatch(
       /if preco_mudou or opcionais_mudou or ficha_mudou or motor_preenchido then\s+old\.conteudo_atualizado_em := now\(\);/,
+    );
+  });
+});
+
+describe("a emenda se prova antes de gravar", () => {
+  const sql = executavel(EMENDA);
+
+  it("ensaia o ano de fabricação, o espaço e o nativo", () => {
+    expect(sql).toMatch(/campo = 'ano_fabricacao' and valor_anterior = '2014' and valor_novo = '2015'/);
+    expect(sql).toMatch(/' manual', 'flex  ', 'prata '/);
+    expect(sql).toMatch(/update public\.estoque_motors set quilometragem = 10, cor = 'rosa' where id = id_nativo;/);
+    expect(sql).toMatch(/delete from public\.historico_veiculo where veiculo_id in \(id_a, id_b, id_nativo\);/);
+  });
+
+  it("termina com o rodapé do livro-razão", () => {
+    expect(sql).toMatch(
+      /insert into supabase_migrations\.schema_migrations \(version, name\)\s+values \('20260929210000', 'ficha_tecnica_so_no_carro_do_feed'\)\s+on conflict \(version\) do nothing;\s*$/,
     );
   });
 });
@@ -169,6 +204,26 @@ describe("km discrepante: o site publica, o painel avisa", () => {
     ).toBeNull();
   });
 
+  it("corrigido no RevendaMais, o alerta de queda se apaga no mesmo ciclo", () => {
+    // Revisão da PR #177: acusar a PRIMEIRA queda deixava o alerta urgente no
+    // ar por 30 dias depois de o dono já ter corrigido.
+    expect(
+      motivoDeKmDiscrepante(
+        { ...SPIN, quilometragem: 186600 },
+        [
+          { veiculo_id: 8446229, valor_anterior: "186600", valor_novo: "1" },
+          { veiculo_id: 8446229, valor_anterior: "1", valor_novo: "186600" },
+        ],
+        HOJE,
+      ),
+    ).toBeNull();
+  });
+
+  it("carro do painel fica fora: o km dele não vem do RevendaMais", () => {
+    expect(kmDiscrepantes([{ ...SPIN, origem: "painel" }], [], HOJE)).toEqual([]);
+    expect(kmDiscrepantes([{ ...SPIN, origem: "sync" }], [], HOJE)).toHaveLength(1);
+  });
+
   it("a lista junta o histórico por carro, e não de um carro no outro", () => {
     const achados = kmDiscrepantes(
       [
@@ -189,7 +244,44 @@ describe("o painel mostra o alerta", () => {
     const leitura = lerCodigo("src/lib/kmDiscrepante.ts");
     expect(leitura).toContain('.eq("campo", "quilometragem")');
     expect(leitura).toContain('.eq("autor_nome", "RevendaMais (sync)")');
-    expect(painel).toMatch(/kmDiscrepantes\(disponiveis, await trocasDeKmRecentes\(supabase\)\)/);
+    expect(painel).toMatch(/const trocasDeKm = trocasDeKmRecentes\(supabase\);/);
+    expect(painel).toMatch(/kmDiscrepantes\(disponiveis, await trocasDeKm\)/);
     expect(painel).toMatch(/com km discrepante no RevendaMais`,[\s\S]{0,600}?urgente: true/);
+  });
+});
+
+describe("o site não anuncia baixa km em cima de km implausível", () => {
+  const LINHA = {
+    id: 8446229,
+    marca: "chevrolet",
+    modelo: "spin advantage 1.8",
+    versao: "advantage 1.8",
+    ano: 2014,
+    quilometragem: 1,
+    preco_original: 59900,
+    whatsapp_images: ["https://cdn.exemplo/f.jpg"],
+  };
+
+  it("o número é publicado como veio, mas o selo BAIXA KM não acende", () => {
+    const v = mapVeiculoDbToVeiculo(LINHA);
+    expect(v.quilometragem).toBe(1);
+    expect(v.baixa_km).toBe(false);
+    // Carro novo com km baixo continua com o selo, e carro usado com 30 mil também.
+    expect(mapVeiculoDbToVeiculo({ ...LINHA, ano: new Date().getFullYear(), quilometragem: 12 }).baixa_km).toBe(true);
+    expect(mapVeiculoDbToVeiculo({ ...LINHA, ano: 2020, quilometragem: 30000 }).baixa_km).toBe(true);
+  });
+
+  it("e fica fora das curadorias por km", () => {
+    const baixaKm = {
+      id: "baixa_km",
+      name: "BAIXA QUILOMETRAGEM",
+      field: "quilometragem",
+      operator: "less",
+      value: "40000",
+    } as unknown as QuickTag;
+    const spin = mapVeiculoDbToVeiculo(LINHA) as Veiculo;
+    expect(checkTagMatchesVehicle(baixaKm, spin, {})).toBe(false);
+    expect(checkTagMatchesVehicle(baixaKm, { ...spin, ano: 2020, quilometragem: 30000 }, {})).toBe(true);
+    expect(kmImplausivelParaAIdade(1, 2014, HOJE)).toBe(true);
   });
 });
