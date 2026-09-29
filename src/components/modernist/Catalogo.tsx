@@ -145,6 +145,11 @@ export default function Catalogo({
   const botaoDoFiltro = useRef<HTMLButtonElement>(null);
   const painel = useRef<HTMLElement>(null);
   const fecharDaFolha = useRef<HTMLButtonElement>(null);
+  const botaoVerVeiculos = useRef<HTMLButtonElement>(null);
+  /** A mesma condição do `@media` de `.mt-folha` (modernist.css). */
+  const MIDIA_DA_FOLHA = "(width < 64rem)";
+  const folhaNaTela = () =>
+    typeof window !== "undefined" && window.matchMedia(MIDIA_DA_FOLHA).matches;
   const campoDeBusca = useRef<HTMLInputElement>(null);
   const regiaoDeResultados = useRef<HTMLDivElement>(null);
 
@@ -201,6 +206,29 @@ export default function Catalogo({
    * vazio ouve "Resultados: 0 veículos" no exato momento em que os 36 voltaram
    * para a tela.
    */
+  const limparTudoComFocoNosResultados = () => {
+    flushSync(() => limparTudo());
+    regiaoDeResultados.current?.focus();
+  };
+
+  /**
+   * O `LIMPAR (N)` do topo do painel, que no celular está DENTRO da folha.
+   *
+   * Com a folha aberta, a região de resultados fica atrás dela e do fundo
+   * escurecido: mandar o foco para lá o deixava invisível, e o leitor de tela
+   * ia parar no fundo da página (WCAG 2.4.3). Aberta, o destino é o "VER N
+   * VEÍCULOS", que continua na folha e já diz a contagem nova. Fechada (ou no
+   * desktop, onde o painel é coluna), vale a regra de cima.
+   */
+  const limparDoPainel = () => {
+    if (filtroAberto && folhaNaTela()) {
+      flushSync(() => limparTudo());
+      botaoVerVeiculos.current?.focus();
+      return;
+    }
+    limparTudoComFocoNosResultados();
+  };
+
   /**
    * A folha de filtros do celular (tarefa 3.5): foco preso nela, Esc fecha,
    * a página por trás não rola, e o foco volta ao "FILTROS" ao fechar
@@ -213,20 +241,33 @@ export default function Catalogo({
    */
   useEffect(() => {
     if (!filtroAberto || typeof window === "undefined") return;
-    const celular = window.matchMedia("(width < 64rem)");
+    const celular = window.matchMedia(MIDIA_DA_FOLHA);
     if (!celular.matches) return;
 
     const antes = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Semântica de diálogo só enquanto é folha: no desktop o mesmo `<aside>`
+    // é a coluna da esquerda. A trava de Tab abaixo depende de teclado; é
+    // `aria-modal` que segura o leitor de tela de deslizar para a grade coberta.
+    const aside = painel.current;
+    aside?.setAttribute("role", "dialog");
+    aside?.setAttribute("aria-modal", "true");
     fecharDaFolha.current?.focus();
 
     const aoTeclar = (e: KeyboardEvent) => {
+      // Um Esc já consumido (a lista de sugestões dos opcionais) ou no meio de
+      // uma composição de teclado não é para a folha.
+      if (e.defaultPrevented || e.isComposing || !painel.current) return;
+      // Outra camada por cima da folha (o pop-up de captura, o aviso de
+      // cookies) tem o foco: a folha não rouba o Tab nem fecha com o Esc dela.
+      const dentro = painel.current.contains(document.activeElement);
+      if (!dentro && document.activeElement !== document.body) return;
       if (e.key === "Escape") {
         e.preventDefault();
         fecharFiltro();
         return;
       }
-      if (e.key !== "Tab" || !painel.current) return;
+      if (e.key !== "Tab") return;
       const focaveis = [
         ...painel.current.querySelectorAll<HTMLElement>(
           'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])',
@@ -238,7 +279,6 @@ export default function Catalogo({
       if (focaveis.length === 0) return;
       const primeiro = focaveis[0];
       const ultimo = focaveis[focaveis.length - 1];
-      const dentro = painel.current.contains(document.activeElement);
       if (e.shiftKey && (document.activeElement === primeiro || !dentro)) {
         e.preventDefault();
         ultimo.focus();
@@ -247,24 +287,23 @@ export default function Catalogo({
         primeiro.focus();
       }
     };
+    // Passou do `lg` com a folha aberta: fecha, e o foco — que estava no X,
+    // agora `lg:hidden` — vai para a grade, que existe nas duas larguras.
     const aoMudarLargura = (e: MediaQueryListEvent) => {
-      if (!e.matches) setFiltroAberto(false);
+      if (e.matches) return;
+      setFiltroAberto(false);
+      regiaoDeResultados.current?.focus();
     };
     document.addEventListener("keydown", aoTeclar);
     celular.addEventListener("change", aoMudarLargura);
     return () => {
       document.body.style.overflow = antes;
+      aside?.removeAttribute("role");
+      aside?.removeAttribute("aria-modal");
       document.removeEventListener("keydown", aoTeclar);
       celular.removeEventListener("change", aoMudarLargura);
     };
-    // `fecharFiltro` é recriada a cada render e só lê refs e o setter.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroAberto]);
-
-  const limparTudoComFocoNosResultados = () => {
-    flushSync(() => limparTudo());
-    regiaoDeResultados.current?.focus();
-  };
 
   const alternar = (chave: string, valor: string) => {
     setSelecionados((prev) => {
@@ -760,13 +799,6 @@ export default function Catalogo({
       </div>
 
       <div className="flex flex-col lg:flex-row lg:items-stretch">
-        {/* Coluna de filtros.
-            `filtro.classe` esconde no celular e mantém no desktop. O elemento
-            NÃO sai da árvore: decidir isso em JavaScript exigiria medir a
-            janela no cliente — divergência de hidratação e piscar de campos na
-            primeira pintura, a armadilha que `BuscaRegua.tsx` documenta no
-            `soDesktop`. Escondido por CSS, o que o cliente marcou continua no
-            estado e volta intacto quando ele reabre. */}
         {/* O fundo escurecido por trás da folha — tocar nele fecha. Só no
             celular e só com a folha aberta; fora da árvore acessível, porque
             o X e o Esc já fecham. */}
@@ -774,14 +806,21 @@ export default function Catalogo({
           <div
             aria-hidden="true"
             onClick={fecharFiltro}
-            className={`fixed inset-0 z-[55] bg-[rgba(20,18,18,.55)] ${filtro.classeDoBotao}`}
+            className={`fixed inset-0 z-[55] touch-none bg-[rgba(20,18,18,.55)] ${filtro.classeDoBotao}`}
           />
         )}
+        {/* Coluna de filtros.
+            `filtro.classe` esconde no celular e mantém no desktop. O elemento
+            NÃO sai da árvore: decidir isso em JavaScript exigiria medir a
+            janela no cliente — divergência de hidratação e piscar de campos na
+            primeira pintura, a armadilha que `BuscaRegua.tsx` documenta no
+            `soDesktop`. Escondido por CSS, o que o cliente marcou continua no
+            estado e volta intacto quando ele reabre. */}
         <aside
           ref={painel}
           id="painel-de-filtros"
           aria-label="Filtros"
-          className={`${filtro.classe} shrink-0 px-[18px] lg:w-[290px] lg:border-r-2 lg:border-mt-regua lg:py-0 lg:pb-8 lg:pl-10 lg:pr-7`}
+          className={`${filtro.classe} shrink-0 px-[18px] lg:w-[290px] lg:border-r-2 lg:border-mt-regua lg:py-0 lg:pl-10 lg:pr-7`}
         >
           {/* No celular, o cabeçalho da folha fica preso no topo enquanto a
               lista rola por baixo — com o X de fechar à mão. */}
@@ -794,7 +833,7 @@ export default function Catalogo({
             {chipsAtivos.length > 0 && (
               <button
                 type="button"
-                onClick={limparTudoComFocoNosResultados}
+                onClick={limparDoPainel}
                 className="mt-foco text-[11px] font-semibold text-mt-accent"
               >
                 LIMPAR ({chipsAtivos.length})
@@ -947,20 +986,18 @@ export default function Catalogo({
           )}
 
 
-          {/* A saída do painel no celular, com o resultado já contado.
-              Sem ela o cliente que abriu o filtro precisa rolar de volta até o
-              topo para achar o botão que fecha — e a contagem, que é a
-              resposta ao que ele acabou de marcar, fica fora da tela.
+          {/* A saída do painel no celular, com o resultado já contado — preso
+              ao pé da folha, porque a contagem é a resposta ao que se acabou
+              de marcar e tem que estar na tela sem rolar. A margem de baixo
+              respeita a barra de gestos do iPhone.
 
               `fecharFiltro` e não `setFiltroAberto(false)`: este botão some
               junto com o painel, e o foco precisa ir para algum lugar. */}
-          {/* Preso ao pé da folha: a contagem é a resposta ao que se acabou
-              de marcar, e tem que estar na tela sem rolar. A margem de baixo
-              respeita a barra de gestos do iPhone. */}
           <div
-            className={`sticky bottom-0 -mx-[18px] mt-5 border-t border-mt-regua-fina bg-mt-bg px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 ${filtro.classeDoBotao}`}
+            className={`sticky bottom-0 z-10 -mx-[18px] mt-5 border-t border-mt-regua-fina bg-mt-bg px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 ${filtro.classeDoBotao}`}
           >
             <button
+              ref={botaoVerVeiculos}
               type="button"
               onClick={fecharFiltro}
               className={`mt-btn mt-btn-tinta mt-foco w-full justify-center ${filtro.classeDoBotao}`}

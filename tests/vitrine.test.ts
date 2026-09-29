@@ -444,14 +444,19 @@ describe("limpar tudo não larga o foco no `<body>` — em nenhuma largura", () 
     // condição de renderização e saem do DOM levando o foco junto. Ancorado no
     // rótulo de cada um — um `toContain` solto passaria com só um convertido.
     expect(fonte).not.toMatch(/onClick=\{limparTudo\}/);
+    // O `LIMPAR (N)` do painel passa por `limparDoPainel` desde a 3.5: com a
+    // folha do celular aberta, o foco fica NELA (no "VER N VEÍCULOS"), e não
+    // na grade coberta; fora da folha, ele cai em `limparTudoComFocoNosResultados`.
+    // O comportamento é travado por render em tests/folha-de-filtros.test.ts.
+    expect(fonte).toMatch(/onClick=\{limparDoPainel\}[\s\S]{0,300}LIMPAR \(\{chipsAtivos\.length\}\)/);
     expect(fonte).toMatch(
-      /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}LIMPAR \(\{chipsAtivos\.length\}\)/,
+      /const limparDoPainel = \(\) => \{[\s\S]{0,300}botaoVerVeiculos\.current\?\.focus\(\);[\s\S]{0,80}limparTudoComFocoNosResultados\(\);/,
     );
     expect(fonte).toMatch(
       /onClick=\{limparTudoComFocoNosResultados\}[\s\S]{0,300}VER TODO O ESTOQUE/,
     );
     const chamadas = fonte.match(/onClick=\{limparTudoComFocoNosResultados\}/g) ?? [];
-    expect(chamadas).toHaveLength(3);
+    expect(chamadas).toHaveLength(2);
   });
 
   it("o handler limpa E move o foco — sem a segunda linha ninguém recebe", () => {

@@ -99,6 +99,11 @@ export default function CampoDeOpcionais({
               e.preventDefault();
               escolher(sugestoes[ativoNaLista].chave);
             } else if (e.key === "Escape") {
+              // Com a lista aberta, o Esc é DELA: fecha as sugestões e para
+              // aí. Sem o `preventDefault`, o mesmo Esc fechava também a folha
+              // de filtros do celular, que escuta no `document` (padrão APG de
+              // combobox: um Esc por camada).
+              if (listaAberta) e.preventDefault();
               setAberto(false);
               setAtivo(-1);
             }

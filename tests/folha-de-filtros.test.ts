@@ -17,7 +17,11 @@ import { ler } from "./fonte";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const midia = vi.hoisted(() => ({ celular: true, ouvintes: [] as ((e: { matches: boolean }) => void)[] }));
+const midia = vi.hoisted(() => ({
+  celular: true,
+  ouvintes: [] as ((e: { matches: boolean }) => void)[],
+  consultas: [] as string[],
+}));
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/image", () => ({
@@ -60,7 +64,8 @@ let root: Root;
 beforeEach(() => {
   midia.celular = true;
   midia.ouvintes = [];
-  vi.stubGlobal("matchMedia", (q: string) => ({
+  midia.consultas = [];
+  vi.stubGlobal("matchMedia", (q: string) => (midia.consultas.push(q), {
     media: q,
     get matches() {
       return midia.celular;
@@ -113,6 +118,50 @@ describe("no celular, o painel aberto é uma folha", () => {
     expect(painel().className).not.toMatch(/(^|\s)hidden(\s|$)/);
     expect(document.activeElement?.getAttribute("aria-label")).toBe("Fechar os filtros");
     expect(document.body.style.overflow).toBe("hidden");
+    // E se anuncia como diálogo modal — só enquanto é folha.
+    expect(painel().getAttribute("role")).toBe("dialog");
+    expect(painel().getAttribute("aria-modal")).toBe("true");
+  });
+
+  it("a mídia que o componente consulta é a mesma do `@media` da folha", async () => {
+    await montar();
+    await act(async () => alternador().click());
+    const css = ler("src/app/modernist.css");
+    const condicao = /@media (\(width < [^)]+\)) \{\s*\.mt-folha/.exec(css)![1];
+    expect(new Set(midia.consultas)).toEqual(new Set([condicao]));
+  });
+
+  it("LIMPAR (N) com a folha aberta deixa o foco NA folha, no VER N VEÍCULOS", async () => {
+    await montar();
+    await act(async () => alternador().click());
+    const caixa = [...painel().querySelectorAll("label")].find((l) => l.textContent?.includes("Fiat"))!;
+    await act(async () => caixa.querySelector("input")!.click());
+    const limpar = [...painel().querySelectorAll("button")].find((b) => b.textContent?.startsWith("LIMPAR ("))!;
+    await act(async () => limpar.click());
+    expect(painel().contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.textContent).toMatch(/^VER 3 VEÍCULOS$/);
+  });
+
+  it("um Esc já consumido (lista de sugestões) não fecha a folha", async () => {
+    await montar();
+    await act(async () => alternador().click());
+    await act(async () => {
+      const e = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+      e.preventDefault();
+      document.dispatchEvent(e);
+    });
+    expect(painel().className).toContain("mt-folha");
+  });
+
+  it("com o foco numa camada por cima (pop-up, cookies), a folha não rouba o Tab", async () => {
+    await montar();
+    await act(async () => alternador().click());
+    const popup = document.createElement("button");
+    document.body.appendChild(popup);
+    popup.focus();
+    await tecla("Tab");
+    expect(document.activeElement).toBe(popup);
+    popup.remove();
   });
 
   it("Esc fecha e devolve o foco ao botão que abriu", async () => {
@@ -153,6 +202,7 @@ describe("no celular, o painel aberto é uma folha", () => {
     await act(async () => alternador().click());
     await act(async () => midia.ouvintes.forEach((f) => f({ matches: false })));
     expect(painel().className).toContain("hidden");
+    expect(painel().hasAttribute("role")).toBe(false);
   });
 });
 
