@@ -15,12 +15,31 @@ correção desfeita no sync seguinte, em silêncio.
 
 | Origem | O que acontece | Campos |
 |---|---|---|
-| **Feed, só na importação** | O sincronizador traz quando o carro nasce. **Desde 30/08 ele não reescreve** estas colunas — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor` |
-| **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09 (portas 04/09, opcionais 08/09). A FIPE e o chassi desde 29/09, e só quando o feed manda valor — zero e vazio não apagam, e chassi com I, O ou Q (que não é VIN) nunca entra. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at`, `portas`, `opcionais`, `valor_fipe`, `codigo_fipe`, `chassi` |
+| **Feed, só na importação** | O sincronizador traz quando o carro nasce. **Desde 30/08 ele não reescreve** estas colunas — mudar o nome muda título e URL da ficha; para corrigir, use o override. | `marca`, `modelo`, `versao` |
+| **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09 (portas 04/09, opcionais 08/09). A FIPE e o chassi desde 29/09, e só quando o feed manda valor — zero e vazio não apagam, e chassi com I, O ou Q (que não é VIN) nunca entra. A **ficha técnica** também desde 29/09 (`20260929200000`), com cada troca registrada no histórico do veículo como "RevendaMais (sync)"; o "não sei" do nó (`N/D`, ano fora de 1900–2100, km 0) não apaga nada — e só no carro do feed, nunca no nativo. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at`, `portas`, `opcionais`, `valor_fipe`, `codigo_fipe`, `chassi`, `quilometragem`, `ano`, `ano_fabricacao`, `cambio`, `combustivel`, `cor` |
 | **Nosso, o feed preenche o vazio** | Desde 29/09. Enquanto a coluna está vazia, o sincronizador a preenche com o valor do RevendaMais — na importação e em todo ciclo. **Nunca troca valor existente** e nunca grava documento que já é de outro carro. O painel edita os dois, e o que ele escreve fica. | `placa`, `motor` |
 | **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro`, `em_preparacao`, `previsao_chegada_em` |
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
 | **Do feed, mas nosso para editar** | Coluna que o feed preenche no nascimento e o painel sobrescreve para valer, em veículo de qualquer origem. | `whatsapp_images`, `web_full_images`, `url_imagem` |
+
+### A ficha técnica segue o RevendaMais desde 2026-09-29
+
+Queixa do dono, literal: *"alterei a quilometragem de um veículo no revenda, mas
+ele não alterou no site, preciso que tudo seja conferido no sync, os ajustes
+estão no revenda"*. O n8n sempre mandou km, ano, câmbio, combustível e cor — a
+trava é que os descartava desde 30/08.
+
+Decisões do mesmo dia: o sync traz a ficha técnica a cada ciclo; marca, modelo e
+versão ficam (título e URL); e o km vem **como estiver lá, e é publicado** —
+*"deixe um alerta em casos discrepantes, mas publique"*.
+
+- Cada troca vai para o `historico_veiculo`, campo a campo, assinada
+  "RevendaMais (sync)": o sync é conferível — o que trocou, de quê para quê, quando.
+- A visão geral do painel alerta (urgente) o **km discrepante**
+  (`src/lib/kmDiscrepante.ts`): km que diminuiu no RevendaMais nos últimos 30
+  dias (odômetro não volta) e km abaixo de 1.000 em carro de 2 anos ou mais.
+- Caso que motivou: a Spin `8446229` (2014) está com km = 1 no RevendaMais. Foi
+  publicada assim, por decisão do dono, e é o primeiro alerta do painel.
 
 ### Os documentos do feed preenchem o vazio desde 2026-09-29
 
