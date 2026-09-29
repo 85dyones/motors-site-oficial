@@ -112,6 +112,31 @@ const PASSOS_PROFILER = [
   },
 ];
 
+/**
+ * Os três passos da Avaliação Express, com os nomes do trilho do próprio
+ * formulário (`PASSOS` em `AutoAvaliacao.tsx`): quem clica encontra lá as
+ * mesmas três etapas. Entraram na coluna direita da seção na revisão de UI de
+ * 29/09 — a seção ocupava só a metade esquerda da página. Nenhum valor em
+ * dinheiro aqui: no funil, a FIPE é o único número e a proposta é do consultor.
+ */
+const PASSOS_DA_AVALIACAO = [
+  {
+    n: "01",
+    t: "Seu veículo",
+    d: "Marca, modelo, versão e ano, escolhidos na lista da Tabela FIPE.",
+  },
+  {
+    n: "02",
+    t: "Estado e quilometragem",
+    d: "A quilometragem atual e como o carro está hoje.",
+  },
+  {
+    n: "03",
+    t: "Contato e proposta",
+    d: "Um consultor da Motors faz a proposta pelo WhatsApp.",
+  },
+];
+
 export default async function Home() {
   const agora = new Date();
   const [estoque, settings, reputacao, repasses] = await Promise.all([
@@ -308,7 +333,7 @@ export default async function Home() {
 
     /* ─── 02 Consultoria ─── */
     consultoria: (
-      <section className="mt-16 flex flex-col gap-10 bg-mt-inverso-fundo px-[18px] py-12 text-mt-inverso lg:mt-20 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
+      <section className="mt-faixa-cheia mt-16 flex flex-col gap-10 bg-mt-inverso-fundo px-[18px] py-12 text-mt-inverso lg:mt-20 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
         <div className="lg:flex-[1.15]">
           <div className="mb-3.5 text-[10px] font-semibold tracking-[.18em] text-mt-accent-400 lg:text-[11px]">
             02 — CONSULTORIA
@@ -323,7 +348,7 @@ export default async function Home() {
             consultores enviam apenas o que faz sentido — direto no WhatsApp.
           </p>
           <Link href="/carro-perfeito" className="mt-btn mt-btn-primario mt-foco mt-6 lg:mt-8">
-            INICIAR CURADORIA
+            MONTAR MEU PERFIL
             <Seta />
           </Link>
         </div>
@@ -352,7 +377,8 @@ export default async function Home() {
 
     /* ─── 03 Venda ou troca ─── */
     venda_troca: (
-      <section className="border-b-2 border-mt-regua px-[18px] py-12 lg:px-10 lg:py-16">
+      <section className="flex flex-col gap-10 border-b-2 border-mt-regua px-[18px] py-12 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
+        <div className="lg:flex-[1.15]">
         <Rotulo accent className="text-[11px] tracking-[.18em]">
           03 — VENDA OU TROCA
         </Rotulo>
@@ -380,6 +406,22 @@ export default async function Home() {
         <Link href="/avaliacao" className="mt-btn mt-btn-contorno mt-foco mt-8">
           AVALIAR MEU CARRO
         </Link>
+        </div>
+
+        {/* A mesma régua de passos do Garagem Profiler, no tema claro. */}
+        <ol className="m-0 flex list-none flex-col border-t-2 border-mt-regua p-0 lg:flex-1">
+          {PASSOS_DA_AVALIACAO.map((passo) => (
+            <li key={passo.n} className="flex gap-5 border-b border-mt-regua-fina py-5">
+              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-accent">
+                {passo.n}
+              </span>
+              <div>
+                <div className="text-[17px] font-extrabold tracking-[-.01em]">{passo.t}</div>
+                <div className="mt-1.5 text-[13px] text-mt-neutral-700">{passo.d}</div>
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
 
     ),
@@ -425,7 +467,7 @@ export default async function Home() {
 
     /* ─── Faixa de contato ─── */
     contato: (
-      <section className="bg-mt-accent px-[18px] py-14 text-mt-inverso lg:px-10 lg:py-[76px]">
+      <section className="mt-faixa-cheia bg-mt-accent px-[18px] py-14 text-mt-inverso lg:px-10 lg:py-[76px]">
         <h2 className="mt-display m-0 max-w-[1000px] text-[34px] lg:text-[88px]">
           Estoque selecionado a dedo para quem não aceita qualquer escolha.
         </h2>

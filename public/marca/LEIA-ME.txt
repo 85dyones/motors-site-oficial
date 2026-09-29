@@ -1,0 +1,25 @@
+MOTORS STORE — LOGOS EM VETOR
+Extraídos de "Motors Store - Peças.cdr" (página 4) em 29/09/2026.
+
+Pastas
+  *.svg  vetor editável (Figma, Illustrator, Inkscape, CorelDRAW, código do site)
+  pdf/   vetor em PDF, um arquivo por versão
+  png/   prévia rasterizada a 4x, fundo transparente
+
+Versões
+  horizontal / vertical ............ fundo claro (MOTORS grafite, símbolo e STORE cobre)
+  horizontal-negativo / vertical-negativo ... fundo escuro (MOTORS branco)
+  horizontal-mono-grafite / mono-branco ..... uma cor só
+  simbolo / simbolo-branco .................. só o "M" (favicon, selo, avatar)
+
+Cores (conferidas no arquivo e no manual)
+  Cobre ........ #B29172
+  Grafite ...... #434343 (palavra MOTORS)
+  Fundo escuro . #323137 (fundo das aplicações no manual)
+
+Tudo está em curvas: não depende de fonte instalada. Cada SVG separa os grupos
+"simbolo", "motors" e "store" para recolorir sem desmontar o desenho.
+
+Observação: na versão vertical clara do .cdr, os dois traços do STORE estavam
+empilhados no centro, em cima da palavra. A versão vertical daqui usa a
+geometria da vertical escura, que está correta.

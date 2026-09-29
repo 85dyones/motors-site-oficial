@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { lerCodigo } from "./fonte";
 
@@ -59,13 +59,42 @@ describe("o otimizador de imagem não serve SVG sem defesa", () => {
     );
   });
 
-  it("nenhum SVG é servido pelo site", () => {
+  it("nenhum SVG é servido pelo site fora de public/marca/", () => {
     // A premissa que sustenta a remoção. No dia em que alguém adicionar um
     // `.svg` em `public/`, este caso falha e obriga a decisão consciente: ou
     // ele não passa pelo `next/image` (um `<img>` comum serve SVG sem a flag),
     // ou a flag volta com a CSP do caso acima.
-    const svgs = [...arquivos("public"), ...arquivos("src")].filter((f) => f.endsWith(".svg"));
+    //
+    // A decisão foi tomada uma vez, em 29/09, para os logos da marca: os SVGs
+    // de `public/marca/` saíram do arquivo original da marca (.cdr), são só
+    // curvas, e o site os serve DIRETO do `public/` — `unoptimized`, nunca
+    // pelo `/_next/image`. Os dois casos abaixo seguram essas condições.
+    const svgs = [...arquivos("public"), ...arquivos("src")].filter(
+      (f) => f.endsWith(".svg") && !f.startsWith(join("public", "marca")),
+    );
 
     expect(svgs, `SVGs no repositório: ${svgs.join(", ")}`).toHaveLength(0);
+  });
+
+  it("os logos de public/marca/ são só desenho: nada que execute ou busque fora", () => {
+    const logos = arquivos(join("public", "marca")).filter((f) => f.endsWith(".svg"));
+    expect(logos.length).toBeGreaterThan(0);
+    for (const logo of logos) {
+      const conteudo = readFileSync(logo, "utf8");
+      expect(conteudo, logo).not.toMatch(/<script|<foreignObject|\son[a-z]+\s*=|href\s*=|url\(/i);
+    }
+  });
+
+  it("quem usa os logos com next/image passa unoptimized (não vão pelo otimizador)", () => {
+    const usuarios = arquivos("src").filter(
+      (f) => /\.(tsx?|jsx?)$/.test(f) && readFileSync(f, "utf8").includes("/marca/motors-store"),
+    );
+    expect(usuarios.length).toBeGreaterThan(0);
+    for (const arquivo of usuarios) {
+      const codigo = readFileSync(arquivo, "utf8");
+      if (!codigo.includes("next/image")) continue;
+      const imagens = [...codigo.matchAll(/<Image\b[\s\S]*?\/>/g)].map((m) => m[0]);
+      for (const img of imagens) expect(img, `${arquivo}: <Image> sem unoptimized`).toContain("unoptimized");
+    }
   });
 });

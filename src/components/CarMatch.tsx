@@ -1263,7 +1263,7 @@ export default function CarMatch({
                 onClick={() => setGameState("q1")}
                 className="mt-btn mt-btn-primario mt-foco"
               >
-                INICIAR CURADORIA
+                MONTAR MEU PERFIL
                 <Seta size={15} />
               </button>
             </div>
