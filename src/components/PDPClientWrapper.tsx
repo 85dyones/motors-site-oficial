@@ -170,8 +170,24 @@ export default function PDPClientWrapper({
   // A trava de rolagem e o teclado da tela cheia moram em
   // `ficha/GaleriaEmTelaCheia`, que só existe montada enquanto está aberta.
 
+  /**
+   * A visualização é anunciada UMA vez por carro.
+   *
+   * O efeito abaixo depende de `veiculo`, que é derivado dos ajustes do painel
+   * (`stockOverrides`) — e eles chegam do cliente DEPOIS do primeiro render.
+   * Em todo carro com ajuste (49 no dia 29/09), o objeto era recriado e o
+   * efeito rodava de novo: `view_vehicle`, `view_item` e o ViewContent da CAPI
+   * saíam duas vezes, com dois `event_id` diferentes — o Meta não deduplica
+   * isso, e as visualizações da ficha contavam em dobro. Medido em produção na
+   * conferência da tarefa 2.6. A trava é pelo id: trocar de carro (navegação
+   * entre fichas) anuncia de novo, como deve.
+   */
+  const visualizacaoAnunciada = useRef<string | null>(null);
+
   // Fetch tracking ID from LocalStorage on mount
   useEffect(() => {
+    if (visualizacaoAnunciada.current === veiculo.id) return;
+    visualizacaoAnunciada.current = veiculo.id;
     const uid = getActiveAgUid();
 
     // Dynamic page view logger
