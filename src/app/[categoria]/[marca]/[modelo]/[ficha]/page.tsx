@@ -306,6 +306,32 @@ export default async function CarDetailsPage({ params }: PageProps) {
     permanentRedirect(destinoDoVeiculoArquivado(veiculo, historico, disponiveis));
   }
 
+  // Marca ou modelo fora do endereço canônico vai para ele, com 308.
+  //
+  // Até 29/09/2026 a ficha só redirecionava pelo segmento, e o id no fim do
+  // último trecho resolvia o carro em qualquer marca/modelo: o endereço velho
+  // respondia 200 junto com o novo. Isso passou a importar quando o modelo
+  // repetido na versão foi corrigido (`modeloDeNomeRepetido`): o T-Cross saiu
+  // de `/carros/volkswagen/t-cross-highline-250-tsi-aut/…` para
+  // `/carros/volkswagen/t-cross/…`. Só marca e modelo entram na comparação —
+  // o trecho da versão já tem a sua própria história de 308 (rota `[legado]`).
+  // Depois do arquivamento, e não antes: o carro vendido pedido no endereço
+  // velho vai direto para o hub, num salto só.
+  const [, , marcaCanonica, modeloCanonico] = pdpUrl.split("/");
+  const semEscape = (s: string) => {
+    try {
+      return decodeURIComponent(s);
+    } catch {
+      return s;
+    }
+  };
+  if (
+    semEscape(resolvedParams.marca) !== marcaCanonica ||
+    semEscape(resolvedParams.modelo) !== modeloCanonico
+  ) {
+    permanentRedirect(pdpUrl);
+  }
+
   /**
    * O QR que devolve o papel ao anúncio.
    *

@@ -162,6 +162,34 @@ export function slugDeMarca(marca: string): string {
 }
 
 /**
+ * Modelo e versão iguais: o feed pôs o nome inteiro nos dois campos.
+ *
+ * Medido em 29/09/2026: T-Cross ("T-Cross Highline 250 TSI Aut" nos dois),
+ * F-250 ("F-250 XLT"), Mercedes-Benz ("A250 Turbo Sport") e a Suzuki
+ * ("GSX-R 750 W SRAD"). Sem esta regra o corte do sufixo da versão apagava o
+ * modelo inteiro, o fallback devolvia o nome completo, e o hub nascia em
+ * `/carros/volkswagen/t-cross-highline-250-tsi-aut`, com `/carros/volkswagen/t-cross`
+ * respondendo 404. No Search Console o hub longo estava "detectado, não
+ * indexado", e quem busca "T-Cross seminovo Curitiba" não tinha página para
+ * achar. O modelo é a primeira palavra; o resto fica na versão, que a URL da
+ * ficha já limpa do prefixo do modelo.
+ *
+ * Só quando a primeira palavra tem dígito ou hífen, que é o que faz dela um
+ * nome de modelo sozinha (T-Cross, F-250, A250, GSX-R). "Novo Voyage", "Grand
+ * Siena" ou "Range Rover" repetidos nos dois campos cairiam em `/novo`,
+ * `/grand` e `/range`, misturando modelos no mesmo hub: esses ficam como
+ * estavam, e o dono corrige pelo override, como fez com o Voyage e o Classe C.
+ */
+export function modeloDeNomeRepetido(modelo: string, versao: string): string | null {
+  const m = (modelo ?? "").trim();
+  const v = (versao ?? "").trim();
+  if (!m || m.toLowerCase() !== v.toLowerCase()) return null;
+  const primeiro = m.split(/\s+/)[0];
+  if (!primeiro || primeiro.length >= m.length) return null;
+  return /[\d-]/.test(primeiro) ? primeiro : null;
+}
+
+/**
  * O segmento de modelo — `renegade` em `/carros/jeep/renegade`.
  *
  * O RevendaMais manda o modelo com a marca na frente ("Chevrolet Cruze") e às
@@ -177,6 +205,8 @@ export function limparModelo(marca: string, modelo: string, versao: string): str
   if (marcaLower && limpo.startsWith(marcaLower)) {
     limpo = limpo.slice(marcaLower.length).trim();
   }
+  const repetido = modeloDeNomeRepetido(limpo, versaoLower);
+  if (repetido) return repetido;
   if (versaoLower && limpo.endsWith(versaoLower)) {
     limpo = limpo.slice(0, limpo.length - versaoLower.length).trim();
   }

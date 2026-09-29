@@ -81,8 +81,7 @@ describe("o registro de guias do site", () => {
   it("só liga um guia de mecânica a modelo que o texto do guia cita pelo nome", () => {
     // O nome como o guia escreve, quando o slug do hub não é o nome.
     const nome: Record<string, string> = {
-      "t-cross-highline-250-tsi-aut": "T-Cross",
-      "a250-turbo-sport": "Classe A",
+      a250: "Classe A",
       "onix-plus": "Onix Plus",
     };
     for (const [chave, guias] of Object.entries(GUIAS_POR_MODELO)) {
@@ -109,7 +108,7 @@ describe("o que o guia desmente não entra", () => {
   });
 
   it("os 250 TSI não levam ao guia de dupla embreagem: usam automático de conversor", () => {
-    for (const chave of ["volkswagen/polo", "volkswagen/virtus", "volkswagen/t-cross", "volkswagen/t-cross-highline-250-tsi-aut", "volkswagen/nivus", "volkswagen/taos"]) {
+    for (const chave of ["volkswagen/polo", "volkswagen/virtus", "volkswagen/t-cross", "volkswagen/nivus", "volkswagen/taos"]) {
       expect(slugsDe(chave), chave).not.toContain("cambio-dupla-embreagem-usado");
     }
   });

@@ -230,6 +230,16 @@ const nextConfig: NextConfig = {
         destination: "/privacidade",
         permanent: true,
       },
+      // Hubs de modelo que nasciam com a versão no endereço porque o feed
+      // repetia o nome inteiro em modelo e versão (29/09/2026, ver
+      // `modeloDeNomeRepetido`). EXATOS: as fichas embaixo deles têm a
+      // própria regra, na rota da ficha, que manda para o endereço canônico.
+      ...[
+        ["/carros/volkswagen/t-cross-highline-250-tsi-aut", "/carros/volkswagen/t-cross"],
+        ["/carros/ford/f-250-xlt", "/carros/ford/f-250"],
+        ["/carros/mercedes-benz/a250-turbo-sport", "/carros/mercedes-benz/a250"],
+        ["/motos/suzuki/gsx-r-750-w-srad", "/motos/suzuki/gsx-r"],
+      ].map(([source, destination]) => ({ source, destination, permanent: true })),
       // A página institucional do site antigo. Ficou fora da medição de 20/09
       // porque não estava no sitemap de lá, mas continua indexada: em
       // 29/09/2026 `motorsstoreoficial.com.br/empresa` ainda aparecia nas
