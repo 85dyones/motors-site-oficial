@@ -115,9 +115,12 @@
    O rótulo pequeno de letra espaçada aparece acima de quase todo bloco:
    é ele que dá o tom técnico do sistema. */
 .mt-rotulo {
-  font-size: 10px;
+  /* 11px e 0,12em desde a revisão de UI de 29/09 (eram 10px e 0,16em): é o
+     texto mais repetido do site, e a 10px em caixa alta cansava no celular.
+     O espaçamento menor segura a largura quase igual à de antes. */
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   line-height: 1;
   text-transform: uppercase;
   color: var(--mt-neutral-600);

@@ -339,8 +339,8 @@ export function CardVeiculo({
 
       <div className="mt-3 border-t-2 border-mt-regua pt-2.5">
         <div
-          className={`font-semibold tracking-[.16em] text-mt-accent ${
-            grande ? "text-[10px]" : "text-[9px]"
+          className={`font-semibold tracking-[.12em] text-mt-accent ${
+            grande ? "text-xs" : "text-[11px]"
           }`}
         >
           {veiculo.marca}
@@ -352,17 +352,21 @@ export function CardVeiculo({
         >
           {modeloExibido}
         </div>
-        {versaoExibida && (
-          <div
-            className={`text-mt-neutral-700 ${grande ? "text-[13px]" : "text-xs"}`}
-          >
-            {versaoExibida}
-          </div>
-        )}
+        {/* A linha da versão existe SEMPRE, mesmo vazia (revisão de UI de
+            29/09). Sem versão — a F-250 do estoque daquele dia —, ano, km e
+            preço subiam uma linha em relação aos vizinhos, e o preço fora da
+            linha é o que o olho pega primeiro numa grade de três. Uma linha
+            só, com reticências: a versão inteira está na ficha, a um clique. */}
+        <div
+          data-linha="versao"
+          className={`min-h-[1.45em] truncate leading-[1.45] text-mt-neutral-700 ${grande ? "text-[13px]" : "text-xs"}`}
+        >
+          {versaoExibida || "\u00a0"}
+        </div>
 
         <div
-          className={`mt-2 flex gap-2 border-t border-mt-regua-fina pt-2 tracking-[.05em] text-mt-neutral-600 ${
-            grande ? "text-[11px]" : "text-[10px]"
+          className={`mt-2 flex gap-2 border-t border-mt-regua-fina pt-2 tracking-[.04em] tabular-nums text-mt-neutral-600 ${
+            grande ? "text-xs" : "text-[11px]"
           }`}
         >
           <span>{veiculo.ano}</span>
@@ -376,7 +380,7 @@ export function CardVeiculo({
 
         <div className="mt-2 flex items-end justify-between gap-3">
           <div
-            className={`font-extrabold tracking-[-.03em] ${
+            className={`font-extrabold tracking-[-.03em] tabular-nums ${
               grande ? "text-[28px]" : "text-[23px]"
             }`}
           >
@@ -384,7 +388,7 @@ export function CardVeiculo({
           </div>
           {parcela && (
             <div
-              className={`text-mt-neutral-600 ${grande ? "text-[11px]" : "text-[10px]"}`}
+              className={`tabular-nums text-mt-neutral-600 ${grande ? "text-xs" : "text-[11px]"}`}
             >
               {parcela}
             </div>
