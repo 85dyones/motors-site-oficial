@@ -40,6 +40,7 @@ const MARCAS: Record<string, string> = {
   byd: "BYD",
   gwm: "GWM",
   gm: "GM",
+  vw: "VW",
   jtz: "JTZ",
   ram: "RAM",
   jac: "JAC",
