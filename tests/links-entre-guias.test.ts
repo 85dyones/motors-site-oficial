@@ -5,7 +5,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { TERMOS_COM_DESTINO, criarLinkador, segmentarComLinks } from "../src/lib/linksNoTexto";
 import BlocoLaudoPendente from "../src/components/BlocoLaudoPendente";
-import { perguntasDeCategoria } from "../src/lib/textoDosHubs";
+import { perguntasDeCategoria, textoDeModelo } from "../src/lib/textoDosHubs";
+import { PAGINAS_GEO } from "../src/lib/paginasGeo";
 import { TEXTO_PONTE_DO_GUIA } from "../src/lib/textoDoLaudo";
 
 /**
@@ -116,7 +117,20 @@ describe("cada termo casa no texto", () => {
   });
 
   it("todo termo de guia aparece no texto de alguma peça — termo que não casa é link morto", () => {
-    const tudo = lote.guias.flatMap(textosDaPeca).join("\n");
+    /* Desde 29/09/2026 há termos cujo lugar é o HUB, e não a peça: as
+       variações de "de cada dez avaliados, três entram" levam ao levantamento
+       de "O que reprova…", e algumas só existem no texto que o código escreve
+       para os hubs (o parágrafo da seleção no feminino, a pergunta extra de
+       `/estoque/ate-60-mil`) e nas páginas geo. Esse texto é servido como sai
+       daqui, porque as pergunta frequentes e o parágrafo da seleção não têm
+       override no banco; por isso ele entra no corpus junto com as peças. */
+    const hubs = [
+      ...textoDeModelo("Honda", "ADV", [], "m"),
+      ...textoDeModelo("Honda", "ADV", [], "f"),
+      ...perguntasDeCategoria("até R$ 60 mil", "m", "/estoque/ate-60-mil").map((p) => p.resposta),
+      ...PAGINAS_GEO.flatMap((p) => [...p.paragrafos, ...p.faq.map((f) => f.resposta)]),
+    ];
+    const tudo = [...lote.guias.flatMap(textosDaPeca), ...hubs].join("\n");
     const mortos = DESTINOS_DE_GUIA.filter((d) => !new RegExp(`\\b${d.termo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(tudo));
     expect(mortos.map((d) => d.termo), "termo que não aparece em peça nenhuma").toEqual([]);
   });

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GUIAS_DA_PAGINA } from "../../lib/guiasNoSite";
 import PaginaDeEstoque from "../../components/modernist/PaginaDeEstoque";
 import SimuladorDeFinanciamento from "../../components/SimuladorDeFinanciamento";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
@@ -137,6 +138,7 @@ export default async function FinanciamentoPage() {
               .map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })),
           },
         ]}
+        guias={{ titulo: "Se o seu carro entra na negociação", lista: GUIAS_DA_PAGINA["/financiamento"] }}
         faq={perguntas}
         caminho={CAMINHO}
       />

@@ -22,7 +22,7 @@
  * No dia em que outra pessoa escrever, isto vira coluna na linha do guia — o
  * lugar é `guias` no banco, não uma segunda constante aqui.
  */
-export const AUTOR_DOS_GUIAS = { nome: "Dyones Oliveira" } as const;
+export const AUTOR_DOS_GUIAS = { nome: "Dyones Oliveira", cargo: "Fundador" } as const;
 
 /** "Dyones Oliveira, Motors Store" — a loja pelo nome que o `#dealer` publica. */
 export function assinaturaDoAutor(nomeDaLoja: string | null | undefined): string {

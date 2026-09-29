@@ -182,6 +182,32 @@ export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   // de venda aparece em toda peça de quem vende, e é a dúvida que mais pesa
   // depois da venda.
   { termo: "comunicação de venda", href: "/guias/documentos-para-vender-carro" },
+
+  // ---- Auditoria de linkagem de 29/09/2026 --------------------------------
+  //
+  // "Chassi remarcado" recebia UM link de outro guia, embora quatro guias
+  // falassem de remarcação e adulteração com outras palavras. As duas
+  // expressões abaixo já estão escritas no corpo de "Laudo cautelar: o que
+  // verifica…" e de "O que reprova…"; o link nasce sem mexer em texto.
+  { termo: "remarcação irregular", href: "/guias/chassi-remarcado" },
+  { termo: "adulteração de numeração", href: "/guias/chassi-remarcado" },
+
+  // A afirmação que o site inteiro repete, ligada à peça que a sustenta.
+  // "O que reprova um carro na perícia cautelar" é o único guia com número da
+  // operação (57 avaliados, 10 comprados, motivos em porcentagem) e recebia
+  // dois links de guia e nenhum do resto do site. O número "três de cada dez"
+  // aparece na abertura de `/estoque`, no parágrafo da seleção dos hubs e em
+  // 16 dos 26 guias, com as variações abaixo, medidas no texto publicado.
+  // A frase é a pergunta ("por que só três?"), e a peça é a resposta.
+  { termo: "de cada dez avaliados, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez avaliadas, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez carros avaliados, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez veículos avaliados, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez carros que avaliamos, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez veículos que avaliamos, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez que avaliamos, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez carros que a loja avalia, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+  { termo: "de cada dez que a Motors Store avalia, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
 ];
 
 export interface SegmentoDeTexto {

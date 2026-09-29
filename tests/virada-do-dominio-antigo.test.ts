@@ -139,6 +139,18 @@ describe("a virada do domínio antigo", () => {
     expect(r!.permanent).toBe(true);
   });
 
+  it("a página institucional do site antigo vai para /sobre, pelos dois caminhos da virada", async () => {
+    const r = await resolver("/empresa");
+    expect(r).not.toBeNull();
+    expect(r!.destino).toBe("/sobre");
+    expect(r!.permanent).toBe(true);
+
+    // Chegando pelo domínio velho, a regra de caminho vem antes da de host.
+    for (const host of ["motorsstoreoficial.com.br", "www.motorsstoreoficial.com.br"]) {
+      expect((await resolver("/empresa", host))!.destino).toBe("/sobre");
+    }
+  });
+
   it("a busca velha cai na vitrine", async () => {
     expect((await resolver("/busca"))!.destino).toBe("/estoque");
     expect((await resolver("/busca/chevrolet-onix"))!.destino).toBe("/estoque");

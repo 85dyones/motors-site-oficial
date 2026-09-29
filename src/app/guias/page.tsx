@@ -7,6 +7,7 @@ import { blocoJsonLd } from "../../lib/schemaListagem";
 import { grafoDoIndiceDeGuias } from "../../lib/schemaGuia";
 import { NOME_DA_SECAO } from "../../lib/guias";
 import { cabecalhoDosGuias } from "../../lib/secaoDeGuias";
+import { agruparGuias } from "../../lib/guiasNoSite";
 
 const CAMINHO = "/guias";
 
@@ -65,7 +66,11 @@ export default async function GuiasPage() {
     listarGuiasPublicados(),
     cabecalhoDosGuias(),
   ]);
-  const grafo = grafoDoIndiceDeGuias({ guias, empresa: companySettings });
+  /* Por assunto desde 29/09/2026. Até ali a lista vinha na ordem de
+     publicação, e a procedência, que é o que só esta loja escreve, já estava
+     no fim e descia a cada guia novo. O `ItemList` segue a mesma ordem da tela. */
+  const grupos = agruparGuias(guias);
+  const grafo = grafoDoIndiceDeGuias({ guias: grupos.flatMap((g) => g.guias), empresa: companySettings });
 
   return (
     <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
@@ -89,24 +94,32 @@ export default async function GuiasPage() {
         </p>
       </div>
 
-      <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-        <div className="grid gap-4 md:grid-cols-2">
-          {guias.map((guia) => (
-            <Link
-              key={guia.slug}
-              href={`/guias/${guia.slug}`}
-              className="mt-foco flex flex-col gap-2 border border-mt-regua p-5 no-underline hover:border-mt-accent"
-            >
-              <span className="mt-titulo text-[18px] text-mt-ink lg:text-[20px]">
-                {guia.titulo}
-              </span>
-              <span className="text-[13px] leading-relaxed text-mt-neutral-800">
-                {guia.descricao}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {grupos.map((grupo) => (
+        <section key={grupo.titulo} className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
+          <h2 className="mt-titulo m-0 text-[22px] lg:text-[28px]">{grupo.titulo}</h2>
+          {grupo.resumo && (
+            <p className="m-0 mt-2 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800">
+              {grupo.resumo}
+            </p>
+          )}
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {grupo.guias.map((guia) => (
+              <Link
+                key={guia.slug}
+                href={`/guias/${guia.slug}`}
+                className="mt-foco flex flex-col gap-2 border border-mt-regua p-5 no-underline hover:border-mt-accent"
+              >
+                <span className="mt-titulo text-[18px] text-mt-ink lg:text-[20px]">
+                  {guia.titulo}
+                </span>
+                <span className="text-[13px] leading-relaxed text-mt-neutral-800">
+                  {guia.descricao}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
         <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Depois de ler</h2>

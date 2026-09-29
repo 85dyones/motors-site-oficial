@@ -5,6 +5,8 @@ import { resumirSelecao } from "../../lib/destaquesRapidos";
 import { criarLinkador } from "../../lib/linksNoTexto";
 import GradeDeVeiculos from "./GradeDeVeiculos";
 import BotaoWhatsApp from "./BotaoWhatsApp";
+import GuiasRelacionados from "./GuiasRelacionados";
+import type { GuiaRelacionado } from "../../lib/guiasNoSite";
 import { formatarKm, formatarPreco } from "./primitivos";
 
 /**
@@ -90,6 +92,12 @@ export interface PaginaDeEstoqueProps {
    */
   encomenda?: ReactNode;
   blocos?: BlocoDeLinks[];
+  /**
+   * Os guias que respondem à próxima pergunta de quem está nesta página
+   * (`lib/guiasNoSite.ts`). Entram depois dos blocos de navegação e antes do
+   * FAQ: são leitura, e o FAQ é o fecho de toda página desta família.
+   */
+  guias?: { titulo: string; lista: readonly GuiaRelacionado[] };
   faq?: PerguntaFrequente[];
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
   acao?: ReactNode;
@@ -194,6 +202,7 @@ export default function PaginaDeEstoque({
   avisarHref = "",
   encomenda,
   blocos = [],
+  guias,
   faq = [],
   acao,
   contagem = true,
@@ -467,6 +476,8 @@ export default function PaginaDeEstoque({
             </div>
           </section>
           ))}
+
+        {guias && <GuiasRelacionados titulo={guias.titulo} guias={guias.lista} />}
 
         {faq.length > 0 && (
           <section className="border-t-2 border-mt-regua py-6">

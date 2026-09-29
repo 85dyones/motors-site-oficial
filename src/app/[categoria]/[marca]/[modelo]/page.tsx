@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { guiasDoModelo } from "../../../../lib/guiasNoSite";
 import { notFound } from "next/navigation";
 import PaginaDeEstoque from "../../../../components/modernist/PaginaDeEstoque";
 import EncomendaDeCarro from "../../../../components/EncomendaDeCarro";
@@ -244,6 +245,12 @@ export default async function HubDeModeloPage({ params }: PageProps) {
               ]
             : []
         }
+        /* Os guias de mecânica que o texto dos próprios guias liga a este
+           modelo (auditoria de 29/09: nenhum hub de modelo linkava guia). */
+        guias={{
+          titulo: `Antes de comprar ${um(hub.genero)} ${hub.marca} ${hub.nome}: motor e câmbio`,
+          lista: hub.segmento === "carros" ? guiasDoModelo(hub.slugMarca, hub.slug) : [],
+        }}
         faq={perguntas}
       />
     </div>

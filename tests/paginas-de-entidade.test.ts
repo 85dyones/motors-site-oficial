@@ -60,7 +60,11 @@ vi.mock("../src/lib/supabase", async (original) => ({
   ...(await original<Record<string, unknown>>()),
   getEstoque: async () => [VEICULO],
 }));
-vi.mock("../src/components/SobreClientWrapper", () => ({ default: () => null }));
+// O wrapper é client e lê o painel; aqui ele só devolve o bloco do autor, que
+// a rota monta no servidor e é o destino do `url` da pessoa no schema.
+vi.mock("../src/components/SobreClientWrapper", () => ({
+  default: ({ autor }: { autor?: unknown }) => autor ?? null,
+}));
 vi.mock("../src/lib/telemetry", () => ({ trackContactClick: () => {} }));
 vi.mock("../src/app/ThemeContext", () => ({ useTheme: () => ({ companySettings: EMPRESA }) }));
 
@@ -89,8 +93,23 @@ describe("/sobre publica a entidade, não só a trilha", () => {
     expect(tipos).toContain("WebSite");
   });
 
-  it("são três — remover um tem que quebrar aqui", async () => {
-    expect(await sobre()).toHaveLength(3);
+  it("são quatro — remover um tem que quebrar aqui", async () => {
+    // O quarto, desde 29/09/2026, é a pessoa que assina os guias: o `url`
+    // dela aponta para o bloco `#autor` desta página.
+    expect(await sobre()).toHaveLength(4);
+  });
+
+  it("publica o autor dos guias com o mesmo @id do Article, e o bloco que o url cita", async () => {
+    const publicados = await sobre();
+    const autor = publicados.find((n) => n["@type"] === "Person");
+    const { ID_DO_AUTOR_DOS_GUIAS, URL_DO_AUTOR_DOS_GUIAS } = await import("../src/lib/schemaGuia");
+
+    expect(autor!["@id"]).toBe(ID_DO_AUTOR_DOS_GUIAS);
+    expect(autor!.url).toBe(URL_DO_AUTOR_DOS_GUIAS);
+    expect(URL_DO_AUTOR_DOS_GUIAS.endsWith("/sobre#autor")).toBe(true);
+
+    const { default: SobrePage } = await import("../src/app/sobre/page");
+    expect(renderToStaticMarkup(await SobrePage())).toContain('id="autor"');
   });
 
   it("a loja e o site se ligam pelo mesmo @id", async () => {
