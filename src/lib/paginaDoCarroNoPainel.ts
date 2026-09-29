@@ -69,6 +69,8 @@ function lista<T>(r: { data: unknown; error: unknown }): T[] | null {
 }
 
 /**
+ * Só a visão chama: o editor não mostra os leads (decisão do dono em 29/09).
+ *
  * Os pedidos de exame e os contatos pelo WhatsApp deste carro, cada um com o
  * desfecho. Uma leitura por tabela, em paralelo: `leads` pelo carro E pelos
  * dois canais (os outros canais nunca gravam `repasse_id`, mas a leitura não

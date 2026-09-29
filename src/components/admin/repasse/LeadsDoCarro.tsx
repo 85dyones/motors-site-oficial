@@ -3,7 +3,8 @@ import { ddmmEmCuritiba } from "../../../lib/horarioDaLoja";
 import { SEM_RESPONSAVEL, type LeadDoCarroNaTela, type SituacaoDoLead } from "../../../lib/pedidosDeExame";
 
 /**
- * Os leads do carro, abaixo da visão e do editor: os pedidos de exame no
+ * Os leads do carro, no fim da visão (só nela: o editor não os mostra desde
+ * 29/09, decisão do dono): os pedidos de exame no
  * pátio e, numa lista à parte, os contatos pelo WhatsApp. Leitura só: o
  * atendimento continua no Kanban e no Chatwoot; aqui a equipe vê, junto do
  * carro, quem pediu para vê-lo e em que pé cada um está (pedido do dono em

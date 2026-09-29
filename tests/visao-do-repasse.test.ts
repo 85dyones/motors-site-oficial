@@ -131,6 +131,23 @@ describe("a visão do carro", () => {
     expect(t).toContain("Não informado");
   });
 
+  // Pedido do dono em 29/09: depois da validação, "pode ir à validação" é falso.
+  it.each([
+    { situacao: "publicado", lojistas_desde: ISO },
+    { situacao: "reservado", lojistas_desde: ISO, aberto_ao_publico_em: ISO, reservado_em: ISO },
+    { situacao: "vendido", lojistas_desde: ISO, aberto_ao_publico_em: ISO, vendido_em: ISO },
+  ] as Partial<Repasse>[])("$situacao e completo: o checklist diz só \"Completo\"", async (parcial) => {
+    carro(parcial);
+    const t = semTags(await abrir());
+    expect(t).toContain("Completo");
+    expect(t).not.toContain("pode ir à validação");
+  });
+
+  it("rascunho completo: o checklist aponta a validação", async () => {
+    carro();
+    expect(semTags(await abrir())).toContain("Completo: o carro pode ir à validação.");
+  });
+
   it("o checklist e a nota da devolução continuam à vista", async () => {
     banco.leituras.repasses = { data: { ...linhaDoBancoDeTeste({ resumo: null }), devolvido_com: "Falta a foto do farol" }, error: null };
     const t = semTags(await abrir());

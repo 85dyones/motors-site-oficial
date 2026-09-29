@@ -6,7 +6,7 @@ import AcoesDaVisao from "./AcoesDaVisao";
 import InscritosQueCombinam from "./InscritosQueCombinam";
 import LeadsDoCarro from "./LeadsDoCarro";
 import type { InscritoDoRepasse } from "../../../lib/avisosDoRepasse";
-import { checklistDoRepasse } from "../../../lib/checklistDoRepasse";
+import { checklistCompletoNa, checklistDoRepasse } from "../../../lib/checklistDoRepasse";
 import { podeEditarORepasse, validaRepasse } from "../../../lib/edicaoDoRepasse";
 import { fotosDoVeiculo } from "../../../lib/fotosDoVeiculo";
 import { ddmmEmCuritiba } from "../../../lib/horarioDaLoja";
@@ -245,7 +245,7 @@ export default function VisaoDoRepasse({
 
       <Secao id="checklist" titulo="Checklist">
         {faltas.length === 0 ? (
-          <p className="m-0 text-xs">Completo: o carro pode ir à validação.</p>
+          <p className="m-0 text-xs">{checklistCompletoNa(r.situacao)}</p>
         ) : (
           <ul className="m-0 list-disc pl-4 text-xs text-mt-accent-800">
             {faltas.map((f) => (

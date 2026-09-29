@@ -9,7 +9,7 @@ import ConsultaFipeDoRepasse from "./ConsultaFipeDoRepasse";
 import FichaDeEstadoNoEditor from "./FichaDeEstadoNoEditor";
 import InscritosQueCombinam from "./InscritosQueCombinam";
 import type { InscritoDoRepasse } from "../../../lib/avisosDoRepasse";
-import { checklistDoRepasse, termosProibidosEm } from "../../../lib/checklistDoRepasse";
+import { checklistCompletoNa, checklistDoRepasse, termosProibidosEm } from "../../../lib/checklistDoRepasse";
 import { destinoDoRepasse } from "../../../lib/destinoDasFotos";
 import { alteracoes, formularioDe, podeEditarORepasse, validaRepasse, type FormularioDoRepasse } from "../../../lib/edicaoDoRepasse";
 import { comItem } from "../../../lib/fichaDeEstado";
@@ -334,7 +334,7 @@ export default function EditorDeRepasse({
       <section className="flex flex-col gap-2">
         <div className="mt-rotulo">Checklist</div>
         {faltas.length === 0 ? (
-          <p className="text-xs">Completo: o carro pode ir à validação.</p>
+          <p className="text-xs">{checklistCompletoNa(repasse.situacao)}</p>
         ) : (
           <ul className="list-disc pl-4 text-xs text-mt-accent-800">
             {faltas.map((f) => (

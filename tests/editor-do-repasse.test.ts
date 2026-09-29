@@ -106,6 +106,18 @@ describe("o editor do carro (/editar)", () => {
     expect(html).toContain(`href="/admin/repasse/${ID}"`);
   });
 
+  it("carro publicado e completo: o checklist diz só \"Completo\" (dono, 29/09)", async () => {
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste({ situacao: "publicado", lojistas_desde: ISO }), error: null };
+    const html = await abrirCarro();
+    expect(html).toContain("Completo");
+    expect(html).not.toContain("pode ir à validação");
+  });
+
+  it("rascunho completo: o checklist aponta a validação", async () => {
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste(), error: null };
+    expect(await abrirCarro()).toContain("Completo: o carro pode ir à validação.");
+  });
+
   it("o rascunho devolvido mostra a nota", async () => {
     banco.leituras.repasses = { data: { ...linhaDoBancoDeTeste(), devolvido_com: "Falta a foto do farol" }, error: null };
     expect(await abrirCarro()).toContain("Falta a foto do farol");
