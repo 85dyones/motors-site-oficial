@@ -162,14 +162,6 @@ export function slugDeMarca(marca: string): string {
 }
 
 /**
- * O segmento de modelo — `renegade` em `/carros/jeep/renegade`.
- *
- * O RevendaMais manda o modelo com a marca na frente ("Chevrolet Cruze") e às
- * vezes com a versão no fim ("Cruze LTZ 1.4 Turbo"). As duas limpezas são as
- * mesmas que a ficha aplica; repeti-las aqui é o que garante que hub e ficha
- * cheguem ao mesmo texto.
- */
-/**
  * Modelo e versão iguais: o feed pôs o nome inteiro nos dois campos.
  *
  * Medido em 29/09/2026: T-Cross ("T-Cross Highline 250 TSI Aut" nos dois),
@@ -181,15 +173,30 @@ export function slugDeMarca(marca: string): string {
  * indexado", e quem busca "T-Cross seminovo Curitiba" não tinha página para
  * achar. O modelo é a primeira palavra; o resto fica na versão, que a URL da
  * ficha já limpa do prefixo do modelo.
+ *
+ * Só quando a primeira palavra tem dígito ou hífen, que é o que faz dela um
+ * nome de modelo sozinha (T-Cross, F-250, A250, GSX-R). "Novo Voyage", "Grand
+ * Siena" ou "Range Rover" repetidos nos dois campos cairiam em `/novo`,
+ * `/grand` e `/range`, misturando modelos no mesmo hub: esses ficam como
+ * estavam, e o dono corrige pelo override, como fez com o Voyage e o Classe C.
  */
 export function modeloDeNomeRepetido(modelo: string, versao: string): string | null {
   const m = (modelo ?? "").trim();
   const v = (versao ?? "").trim();
   if (!m || m.toLowerCase() !== v.toLowerCase()) return null;
   const primeiro = m.split(/\s+/)[0];
-  return primeiro && primeiro.length < m.length ? primeiro : null;
+  if (!primeiro || primeiro.length >= m.length) return null;
+  return /[\d-]/.test(primeiro) ? primeiro : null;
 }
 
+/**
+ * O segmento de modelo — `renegade` em `/carros/jeep/renegade`.
+ *
+ * O RevendaMais manda o modelo com a marca na frente ("Chevrolet Cruze") e às
+ * vezes com a versão no fim ("Cruze LTZ 1.4 Turbo"). As duas limpezas são as
+ * mesmas que a ficha aplica; repeti-las aqui é o que garante que hub e ficha
+ * cheguem ao mesmo texto.
+ */
 export function limparModelo(marca: string, modelo: string, versao: string): string {
   const marcaLower = marca.toLowerCase().trim();
   const versaoLower = versao.toLowerCase().trim();

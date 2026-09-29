@@ -56,9 +56,21 @@ describe("a regra do nome repetido", () => {
     expect(modeloDeNomeRepetido("F-250 XLT", "F-250 XLT")).toBe("F-250");
     // Campos diferentes: o corte de sempre continua valendo.
     expect(modeloDeNomeRepetido("Ka Sedan SE 1.5 12v", "Sedan SE 1.5 12v")).toBeNull();
-    // Uma palavra só: não há o que separar.
+    // Primeira palavra sem dígito nem hífen não é nome de modelo sozinha:
+    // "Novo Voyage" iria para /novo e misturaria Voyage e Polo no mesmo hub,
+    // e o C-180 que o dono chamou de "Classe C" ganharia um segundo hub.
+    expect(modeloDeNomeRepetido("Novo Voyage 1.0", "novo voyage 1.0")).toBeNull();
+    expect(modeloDeNomeRepetido("Grand Siena 1.4", "Grand Siena 1.4")).toBeNull();
+    expect(modeloDeNomeRepetido("Range Rover Evoque", "Range Rover Evoque")).toBeNull();
+        // Uma palavra só: não há o que separar.
     expect(modeloDeNomeRepetido("Kwid", "Kwid")).toBeNull();
     expect(modeloDeNomeRepetido("", "")).toBeNull();
+  });
+
+  it("os casos que o dono corrigiu à mão não mudam sem o override", async () => {
+    const { slugDeModelo } = await import("../src/lib/veiculoUrl");
+    // Sem override, o comportamento de antes de 29/09 (nome inteiro).
+    expect(slugDeModelo("Volkswagen", "Novo Voyage 1.0", "Novo Voyage 1.0")).toBe("novo-voyage-1-0");
   });
 
   it("os quatro veículos medidos em 29/09 ganham o endereço do modelo", async () => {

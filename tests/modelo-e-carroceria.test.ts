@@ -115,7 +115,7 @@ describe("1b · o WHERE de uma migração de correção sai do dado, não do slu
 });
 
 describe("2b · a URL que o override conserta", () => {
-  it("modelo = versao: a regra do nome repetido chega ao mesmo endereço do override", async () => {
+  it("modelo = versao triplica o segmento; o override desfaz", async () => {
     // A forma real do defeito, lida da produção: o feed manda `versao` igual
     // a `modelo`, as duas com a versão inteira. A limpeza de versão esvazia e
     // cai de volta no texto original — daí o segmento três vezes.
@@ -125,14 +125,14 @@ describe("2b · a URL que o override conserta", () => {
     const { getVeiculoPdpUrl } = await import("../src/lib/supabase");
 
     const sujo = "Ka Sedan 1.0 Se Flex 4p";
-    // Até 29/09/2026 isto saía `/carros/ford/ka-sedan-1-0-se-flex-4p/ka-sedan-
-    // 1-0-se-flex-4p-8059102`, o mesmo pedaço duas vezes, e só o override
-    // consertava. Desde então o modelo é a primeira palavra quando os dois
-    // campos são iguais (`modeloDeNomeRepetido`), e o dado sujo já chega ao
-    // endereço que o override produzia — sem ninguém precisar editar o carro.
     expect(
       getVeiculoPdpUrl({ id: "8059102", marca: "Ford", modelo: sujo, versao: sujo, tipo: "Sedan" }),
-    ).toBe("/carros/ford/ka/sedan-1-0-se-flex-4p-8059102");
+    ).toBe(
+      // O defeito continua visível — o mesmo pedaço DUAS vezes —, e é esse o
+      // ponto do teste. Sumiu a terceira repetição, que vinha do quinto
+      // segmento aposentado em 2026-08-31.
+      "/carros/ford/ka-sedan-1-0-se-flex-4p/ka-sedan-1-0-se-flex-4p-8059102",
+    );
 
     expect(
       getVeiculoPdpUrl({
