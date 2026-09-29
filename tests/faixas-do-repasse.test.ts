@@ -134,6 +134,17 @@ describe("a faixa da home", () => {
     expect(semLaudo).toContain("SEM LAUDO");
   });
 
+  // Pedido do dono em 29/09: o card das faixas nomeia o carro como a ficha e
+  // o card do lote, na grafia da casa (`grafiaDoCarro`), e não em maiúsculas.
+  it("cadastro em maiúsculas: o título sai na caixa normal, e sigla fica inteira", () => {
+    const PALIO = { ...COM_REPARO, id: "f1000000-0000-4000-8000-000000000001", marca: "FIAT", modelo: "PALIO", versao: "1.0 ECONOMY FIRE FLEX 8V 4P", ano_modelo: 2010 };
+    const HB20 = { ...COM_REPARO, id: "f2000000-0000-4000-8000-000000000002", marca: "HYUNDAI", modelo: "HB20", versao: "1.0 COMFORT PLUS", ano_modelo: 2019 };
+    const [palio, hb20] = cards(html(createElement(FaixaDoRepasseNaHome, { faixa: { carros: [PALIO, HB20, COM_REPARO], totalNoLote: 3 } })));
+    expect(palio).toContain(">Fiat Palio 2010<");
+    expect(palio).not.toContain("PALIO");
+    expect(hb20).toContain(">Hyundai HB20 2019<");
+  });
+
   it("o título não leva a versão, como a prancha", () => {
     const [reparo, laudo] = cards(html(createElement(FaixaDoRepasseNaHome, { faixa })));
     expect(reparo).not.toContain("Zen 1.0");

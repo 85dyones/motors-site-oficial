@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
+import { grafiaDoCarro } from "../../lib/grafiaCanonica";
 import { nomeComAno } from "../../lib/nomeDoVeiculo";
 import { CAMINHO_DO_REPASSE, abaixoDaFipeNaBarra } from "../../lib/paginaDoRepasse";
 import { contaDoRepasse, emReais, etiquetaDoRepasse, type Repasse } from "../../lib/repasse";
@@ -21,8 +22,11 @@ export default function CardDaFaixa({ repasse: r }: { repasse: Repasse }) {
   // A mesma guarda da conta e da barra da ficha: sem FIPE, ou acima dela, a
   // linha some. Diferença negativa "abaixo da FIPE" seria rótulo que mente.
   const abaixo = abaixoDaFipe !== null && abaixoDaFipe > 0 ? abaixoDaFipe : null;
-  // Marca, modelo e ano, sem a versão: "Fiat Argo 2019", como a prancha.
-  const nome = nomeComAno({ marca: r.marca, modelo: r.modelo, versao: null, ano: r.ano_modelo });
+  // Marca, modelo e ano, sem a versão: "Fiat Argo 2019", como a prancha. Na
+  // grafia da casa, como a ficha e o card do lote (29/09): o cadastro em
+  // maiúsculas dava "FIAT PALIO 2010".
+  const naGrafia = grafiaDoCarro(r);
+  const nome = nomeComAno({ marca: naGrafia.marca, modelo: naGrafia.modelo, versao: null, ano: r.ano_modelo });
 
   return (
     <Link href={`${CAMINHO_DO_REPASSE}/${r.slug}`} className="mt-foco flex h-full flex-col bg-mt-bg text-mt-ink no-underline">
