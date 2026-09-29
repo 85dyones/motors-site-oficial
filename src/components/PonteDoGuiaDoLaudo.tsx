@@ -30,7 +30,7 @@ export default function PonteDoGuiaDoLaudo({ className }: { className?: string }
           <Link
             key={i}
             href={parte.href}
-            className="underline decoration-brand-primary/40 underline-offset-2 hover:decoration-brand-primary"
+            className="mt-foco text-mt-ink underline decoration-mt-accent decoration-2 underline-offset-4 hover:text-mt-accent"
           >
             {parte.texto}
           </Link>
