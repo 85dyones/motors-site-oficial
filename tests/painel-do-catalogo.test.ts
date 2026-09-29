@@ -343,7 +343,9 @@ describe("OPCIONAIS: uma caixa com sugestões, em vez de 81 caixas de marcar", (
 describe("MARCA mostra todas — o corte em 8 escondia 6 marcas", () => {
   function marcasNaTela(): string[] {
     const legenda = [...container.querySelectorAll("legend")].find(
-      (l) => (l.textContent ?? "").trim() === "MARCA",
+      // O primeiro `<span>` é o título; depois dele pode vir a contagem de
+      // marcados (`.mt-grupo-conta`), que não faz parte do nome do grupo.
+      (l) => (l.querySelector("span")?.textContent ?? l.textContent ?? "").trim() === "MARCA",
     );
     const grupo = legenda!.closest("fieldset")!;
     return [...grupo.querySelectorAll("label")].map((l) => (l.querySelectorAll("span")[1]?.textContent ?? "").trim());

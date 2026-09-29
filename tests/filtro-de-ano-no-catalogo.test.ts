@@ -153,13 +153,19 @@ function totalNaTela(): string | null {
 describe("o grupo ANO existe no painel, logo depois de MARCA", () => {
   it("vem imediatamente depois de MARCA na régua de grupos", async () => {
     await montar();
-    const legendas = [...container.querySelectorAll("legend")].map((l) => l.textContent?.trim());
+    // Título pelo primeiro `<span>`: a contagem de marcados (`.mt-grupo-conta`)
+    // mora ao lado dele no legend e não faz parte do nome do grupo.
+    const legendas = [...container.querySelectorAll("legend")].map((l) =>
+      (l.querySelector("span")?.textContent ?? l.textContent ?? "").trim(),
+    );
     expect(legendas.indexOf("ANO")).toBe(legendas.indexOf("MARCA") + 1);
   });
 
   it("são duas listas, DE e ATÉ — não uma coluna de caixas", async () => {
     await montar();
-    const legenda = [...container.querySelectorAll("legend")].find((l) => l.textContent?.trim() === "ANO")!;
+    const legenda = [...container.querySelectorAll("legend")].find(
+      (l) => (l.querySelector("span")?.textContent ?? l.textContent ?? "").trim() === "ANO",
+    )!;
     const grupo = legenda.closest("fieldset")!;
     expect(grupo.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(grupo.querySelectorAll("select")).toHaveLength(2);

@@ -354,6 +354,55 @@
   background: var(--mt-accent);
 }
 
+/* — grupo de filtro (`<fieldset>` do painel do catálogo) —
+   Revisão de UI de 29/09/2026: o `<legend>` de um `<fieldset>` é desenhado em
+   cima da borda superior e IGNORA o `padding-top` do fieldset. Com o `pt-5`
+   antigo, o rótulo ficava a 0px da régua do grupo de cima e a 32px do próprio
+   conteúdo — "OPCIONAIS" era lido como rodapé de "COMBUSTÍVEL", nos nove
+   grupos. Medido no navegador em produção.
+
+   O `float` resolve pela regra do HTML: um legend flutuado deixa de ser o
+   "legend renderizado" do fieldset e passa a ocupar o fluxo normal, então o
+   padding vale para ele também. O `clear` no irmão seguinte devolve o
+   conteúdo para baixo do rótulo. A conta fica 22px da régua ao rótulo e 10px
+   do rótulo ao conteúdo: o rótulo fica perto do que nomeia.
+
+   `display: flex` no legend põe a contagem de marcados (`.mt-grupo-conta`) na
+   ponta direita, na mesma linha do rótulo. */
+.mt-grupo {
+  min-width: 0;
+  margin: 0;
+  padding: 22px 0 20px;
+  border: 0;
+  border-bottom: 1px solid var(--mt-regua-fina);
+}
+.mt-grupo > legend {
+  float: left;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--mt-neutral-700);
+}
+.mt-grupo > legend + * {
+  clear: both;
+}
+.mt-grupo-conta {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--mt-accent);
+}
+
 /* — foco visível —
    Herdado do DS: contorno de acento, sem raio. */
 .mt-foco:focus-visible {

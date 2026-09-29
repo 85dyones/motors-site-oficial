@@ -489,10 +489,8 @@ export default function Catalogo({
       ajustarFaixa({ ...faixas.ano, [ponta]: valor === "" ? null : Number(valor) }, null),
     );
   const blocoDoAno = anos.length > 0 && (
-    <fieldset className="border-b border-mt-regua-fina pb-4 pt-5">
-      <legend className="mb-3 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
-        ANO
-      </legend>
+    <fieldset className="mt-grupo">
+      <legend>ANO</legend>
       <div className="grid grid-cols-2 gap-2">
         <label className="min-w-0">
           <PontaDaFaixa>DE</PontaDaFaixa>
@@ -740,9 +738,17 @@ export default function Catalogo({
                 : grupo.opcoes;
             return (
             <Fragment key={grupo.chave}>
-            <fieldset className="border-b border-mt-regua-fina pb-4 pt-5">
-              <legend className="mb-3 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
-                {grupo.titulo}
+            {/* `.mt-grupo` (modernist.css) põe o rótulo junto do conteúdo que
+                ele nomeia. A contagem é só visual: cada caixa já anuncia se
+                está marcada, e o número repetiria isso para o leitor de tela. */}
+            <fieldset className="mt-grupo">
+              <legend>
+                <span>{grupo.titulo}</span>
+                {marcados.length > 0 && (
+                  <span aria-hidden="true" className="mt-grupo-conta">
+                    {marcados.length}
+                  </span>
+                )}
               </legend>
               <div className="flex flex-col gap-2.5">
                 {naTela.map((opcao) => {
