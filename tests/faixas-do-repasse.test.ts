@@ -209,16 +209,18 @@ describe("a faixa da home", () => {
       expect(h).not.toContain("<ul");
     });
 
-    it("um carro: só ele, o CTA no singular, e a grade continua de três colunas (o card não estica)", () => {
+    it("um carro: só ele, o CTA no singular, e texto e carro dividem a faixa ao meio (revisão de UI de 29/09)", () => {
       const h = html(createElement(FaixaDoRepasseNaHome, { faixa: { carros: [COM_REPARO], totalNoLote: 1 } }));
       const lista = cards(h);
       expect(lista).toHaveLength(1);
       expect(lista[0]).toContain(`href="/repasse/${COM_REPARO.slug}"`);
       expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${verOsCarros(1)}<`));
-      expect(h).toMatch(/<ul[^>]*sm:grid-cols-3/);
+      // Era três colunas com um card só: sobravam dois terços em branco.
+      expect(h).not.toMatch(/<ul[^>]*grid-cols-3/);
+      expect(h).toMatch(/<div[^>]*lg:grid-cols-2/);
     });
 
-    it("dois carros: só os dois, na ordem, com o lote inteiro no CTA e a grade de três colunas", () => {
+    it("dois carros: só os dois, na ordem, com o lote inteiro no CTA e a grade de duas colunas", () => {
       const h = html(
         createElement(FaixaDoRepasseNaHome, { faixa: { carros: [COM_REPARO, COM_LAUDO], totalNoLote: 5 } }),
       );
@@ -227,7 +229,7 @@ describe("a faixa da home", () => {
       expect(lista[0]).toContain(`href="/repasse/${COM_REPARO.slug}"`);
       expect(lista[1]).toContain(`href="/repasse/${COM_LAUDO.slug}"`);
       expect(h).toMatch(new RegExp(`<a[^>]*href="/repasse"[^>]*>${verOsCarros(5)}<`));
-      expect(h).toMatch(/<ul[^>]*sm:grid-cols-3/);
+      expect(h).toMatch(/<ul[^>]*sm:grid-cols-2/);
     });
 
     it("quatro abertos, pela regra: a faixa renderiza três cards, os três mais recentes", () => {

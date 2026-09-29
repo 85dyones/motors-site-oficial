@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
@@ -54,11 +55,18 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
       <div className="mx-auto max-w-[1600px]">
         <div className="flex flex-col gap-10 border-b border-mt-inverso-regua-fina pb-10 md:flex-row md:gap-14">
           <div className="flex-[1.2]">
-            <div className="mb-4 flex items-center gap-2.5">
-              <span className="h-6 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
-              <span className="text-[17px] font-extrabold text-mt-inverso">
-                {companySettings.name}
-              </span>
+            {/* O logo inteiro, na versão para fundo escuro, no lugar do nome
+                em texto com uma barra ferrugem que não faz parte da marca
+                (revisão de UI de 29/09). O nome da loja segue no `alt`. */}
+            <div className="mb-5">
+              <Image
+                src="/marca/motors-store-horizontal-negativo.svg"
+                alt={companySettings.name}
+                width={191}
+                height={32}
+                unoptimized
+                className="h-8 w-auto"
+              />
             </div>
             <p className="m-0 max-w-[300px] text-[13px] leading-relaxed">
               Compra, venda e troca de seminovos selecionados. De cada dez

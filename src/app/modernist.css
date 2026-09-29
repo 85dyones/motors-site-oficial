@@ -517,6 +517,21 @@
 
 } /* fim de @layer components */
 
+/* — faixas de fundo cheio encostadas —
+   As seções da home com fundo próprio (repasse, consultoria, contato) levam
+   `.mt-faixa-cheia`. Quando duas ficam em sequência, a margem de cima da
+   segunda mostrava o fundo da página entre elas: uma faixa de ~80px sem
+   conteúdo entre o repasse e o Garagem Profiler (revisão de UI de 29/09). A
+   ordem das seções vem do painel (tela A3), então a regra é de vizinhança, e
+   não de posição fixa.
+
+   Fora do `@layer components` de propósito: a margem vem de utilities do
+   Tailwind (`mt-16 lg:mt-20`), que vivem em `@layer utilities` e venceriam
+   qualquer regra em camada. CSS sem camada vence as duas. */
+.mt-faixa-cheia + .mt-faixa-cheia {
+  margin-top: 0;
+}
+
 /* — pulso do indicador ao vivo (quiz, integrações) — */
 @keyframes mtPulso {
   0%,

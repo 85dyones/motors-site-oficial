@@ -29,30 +29,44 @@ import { trackContactClick } from "../lib/telemetry";
  * fora da tela. Abaixo de `lg:` vale o cabeçalho compacto de hambúrguer.
  */
 
-const LOGO_PADRAO = "/motors-store-logo-1.png";
-
-const LOGO_POR_TEMA: Record<string, string> = {
-  "motors-modernist": "/motors-store-logo-1.png",
-  "luxury-light": "/motors-store-logo-1.png",
-  "stealth-dark": "/motors-store-logo-2.png",
-  "sport-nardo": "/motors-store-logo-3.png",
-};
+/**
+ * O logo do cabeçalho é SEMPRE o negativo: o cabeçalho tem fundo grafite
+ * (`bg-mt-inverso-fundo`) em qualquer tema do painel.
+ *
+ * VERTICAL, e não horizontal: a barra de 68px não tem folga para a largura
+ * do horizontal (≈180px). A régua medida em `lib/menuDoCabecalho.ts` deixa
+ * 13px livres em 1281px com o logo antigo (≈82px, com a barra ao lado); o
+ * vertical a 40px de altura ocupa 80px, e a régua não muda. O horizontal
+ * mandava o telefone para duas linhas já em 1366px (medido em 29/09).
+ *
+ * Até 29/09 o tema claro servia `motors-store-logo-1.png`, a versão vertical
+ * para fundo CLARO: a palavra MOTORS em grafite #434343 sobre o grafite do
+ * cabeçalho sumia, e o visitante via só o símbolo — e ao lado dele uma barra
+ * ferrugem que não faz parte da marca. Os SVGs de `public/marca/` saíram do
+ * arquivo original da marca (.cdr) em 29/09; o `LEIA-ME.txt` de lá lista as
+ * versões e as cores.
+ *
+ * O logo enviado pelo painel (`companySettings.logoUrl`) NÃO entra aqui.
+ * Medido em produção em 29/09: o painel guarda um arquivo só
+ * (`branding/uploads/logo-…webp`, 800×392), e é a versão para fundo claro — a
+ * mesma do PNG antigo. Um campo só não tem como servir a um cabeçalho que é
+ * sempre escuro. Ele continua valendo onde o fundo é claro: a prévia de
+ * compartilhamento (`app/og/route.tsx`) e a barra do painel.
+ */
+const LOGO_DO_CABECALHO = "/marca/motors-store-vertical-negativo.svg";
 
 // A lista saiu daqui em 07/09 e virou dado em `lib/menuDoCabecalho.ts`. O
 // docblock de lá tem a ordem, o porquê da extração e a medição de largura.
 const NAV = MENU_DO_CABECALHO;
 
 export default function Header() {
-  const { theme, companySettings } = useTheme();
+  const { companySettings } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const pathname = usePathname();
 
-  // A logo é derivada do tema e das configurações — não precisa de estado
-  // nem de efeito. Só a falha de carregamento é estado, e ela é resetada
-  // pela `key` do <Image> quando a fonte muda.
-  const logoSrc =
-    companySettings?.logoUrl || LOGO_POR_TEMA[theme] || LOGO_PADRAO;
+  // Fixo: ver `LOGO_DO_CABECALHO`. Só a falha de carregamento é estado.
+  const logoSrc = LOGO_DO_CABECALHO;
   const [logoFalhou, setLogoFalhou] = useState(false);
   const usarFallbackTextual = logoFalhou;
 
@@ -77,18 +91,17 @@ export default function Header() {
       {/* ─── Desktop ─── */}
       <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-5 px-10 lg:flex desktop:gap-9">
         <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">
-          <span className="h-[26px] w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
           {!usarFallbackTextual ? (
             <Image
               key={logoSrc}
               src={encodeURI(logoSrc)}
               alt={companySettings?.name || "Motors Store"}
-              width={160}
+              width={80}
               height={40}
               priority
               unoptimized
               onError={() => setLogoFalhou(true)}
-              className="h-8 w-auto max-w-[170px] object-contain object-left"
+              className="h-10 w-auto max-w-[170px] object-contain object-left"
             />
           ) : (
             <span className="text-[18px] font-extrabold tracking-[.02em]">
@@ -202,18 +215,17 @@ export default function Header() {
       {/* ─── Mobile e tablet (até lg) ─── */}
       <div className="flex h-[58px] items-center gap-3 px-[18px] lg:hidden">
         <Link href="/" className="mt-foco mr-auto flex items-center gap-2.5">
-          <span className="h-[22px] w-1.5 shrink-0 bg-mt-accent" aria-hidden="true" />
           {!usarFallbackTextual ? (
             <Image
               key={logoSrc}
               src={encodeURI(logoSrc)}
               alt={companySettings?.name || "Motors Store"}
-              width={120}
-              height={30}
+              width={72}
+              height={36}
               priority
               unoptimized
               onError={() => setLogoFalhou(true)}
-              className="h-7 w-auto max-w-[130px] object-contain object-left"
+              className="h-9 w-auto max-w-[130px] object-contain object-left"
             />
           ) : (
             <span className="text-[15px] font-extrabold">MOTORS</span>
