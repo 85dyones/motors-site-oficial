@@ -235,6 +235,7 @@ export function CardVeiculo({
   contagemFotos,
   kmEmDestaque = false,
   prioridade = false,
+  inverso = false,
 }: {
   veiculo: Veiculo;
   href: string;
@@ -248,8 +249,33 @@ export function CardVeiculo({
   /** Pinta a quilometragem de vermelho — usado na landing de baixa km */
   kmEmDestaque?: boolean;
   prioridade?: boolean;
+  /**
+   * Sobre fundo escuro (o resultado do Profiler, em /carro-perfeito). O card
+   * fixa cores de texto desde a 3.4 — tinta nos valores, cobre na marca —, e
+   * no escuro elas somem: a tinta ficava a 1,04:1. Aqui cada uma troca pela
+   * versão do fundo escuro, como em `EstatisticasRegua`.
+   */
+  inverso?: boolean;
 }) {
   const grande = densidade === "destaque";
+  // As cores que mudam no fundo escuro, num lugar só.
+  const cor = inverso
+    ? {
+        marca: "text-mt-cobre-marca",
+        apoio: "text-mt-inverso-suave",
+        valor: "text-mt-inverso",
+        regua: "border-mt-inverso-regua",
+        fina: "border-mt-inverso-regua-fina",
+        kmDestaque: "text-mt-accent-inverso",
+      }
+    : {
+        marca: "text-mt-cobre",
+        apoio: "text-mt-neutral-600",
+        valor: "text-mt-ink",
+        regua: "border-mt-regua",
+        fina: "border-mt-regua-fina",
+        kmDestaque: "text-mt-accent-800",
+      };
   const foto = veiculo.web_full_images?.[0] ?? veiculo.whatsapp_images?.[0];
 
   // O feed embute a versão na cauda do modelo — sem o corte, o título do
@@ -351,8 +377,10 @@ export function CardVeiculo({
         ) : null}
         {/* O canto de cima é do SELO de perícia, sempre o mesmo canto
             (tarefa 3.4, "ficha de perícia"): grafite com o ponto no cobre do
-            logo, o mesmo selo da ficha. Só com a perícia aprovada — a régua é
-            `formatPericia`, a mesma que acende o selo da ficha e o laudo. A
+            logo, o mesmo desenho do selo da ficha. Só com a perícia aprovada
+            pela régua de `formatPericia` ("PERÍCIA APROVADA", a mesma do
+            laudo publicado) — mais estrita que o selo da ficha, que acende
+            com qualquer valor fora de "análise". A
             etiqueta da vitrine ("BLINDADO", "ÚNICO DONO") vem logo abaixo. */}
         {(periciaAprovada || etiqueta) && (
           <div className="pointer-events-none absolute left-0 top-0 flex flex-col items-start">
@@ -381,12 +409,12 @@ export function CardVeiculo({
         )}
       </div>
 
-      <div className="mt-3 border-t-2 border-mt-regua pt-2.5">
+      <div className={`mt-3 border-t-2 pt-2.5 ${cor.regua}`}>
         {/* Marca em cobre à esquerda, código do veículo à direita: o cliente
             cita o código no WhatsApp e o vendedor acha o carro na hora. */}
         <div className="flex items-baseline justify-between gap-3">
           <div
-            className={`shrink-0 font-semibold uppercase tracking-[.12em] text-mt-cobre ${
+            className={`shrink-0 font-semibold uppercase tracking-[.12em] ${cor.marca} ${
               grande ? "text-xs" : "text-[11px]"
             }`}
           >
@@ -395,7 +423,7 @@ export function CardVeiculo({
           {veiculo.id && (
             <div
               data-linha="codigo"
-              className="min-w-0 truncate text-[11px] tabular-nums tracking-[.02em] text-mt-neutral-600"
+              className={`min-w-0 truncate text-[11px] tabular-nums tracking-[.02em] ${cor.apoio}`}
             >
               cód. {veiculo.id}
             </div>
@@ -415,16 +443,16 @@ export function CardVeiculo({
             só, com reticências: a versão inteira está na ficha, a um clique. */}
         <div
           data-linha="versao"
-          className={`min-h-[1.45em] truncate leading-[1.45] text-mt-neutral-700 ${grande ? "text-[13px]" : "text-xs"}`}
+          className={`min-h-[1.45em] truncate leading-[1.45] ${inverso ? "text-mt-inverso-suave" : "text-mt-neutral-700"} ${grande ? "text-[13px]" : "text-xs"}`}
         >
-          {versaoExibida || " "}
+          {versaoExibida || "\u00a0"}
         </div>
 
         {/* Ano, km e câmbio em três colunas com régua — o vocabulário de laudo
             (tarefa 3.4). Algarismos de largura fixa: os números se alinham de
             um card para o outro. O rótulo diz a unidade, então o km sai sem
             o "km". */}
-        <dl className="m-0 mt-2 grid grid-cols-3 border-t border-mt-regua-fina">
+        <dl className={`m-0 mt-2 grid grid-cols-3 border-t ${cor.fina}`}>
           {[
             { rotulo: "ANO", valor: String(veiculo.ano ?? ""), destaque: false },
             {
@@ -436,14 +464,14 @@ export function CardVeiculo({
           ].map((coluna, i) => (
             <div
               key={coluna.rotulo}
-              className={`min-w-0 pt-2 ${i > 0 ? "border-l border-mt-regua-fina pl-2.5" : ""}`}
+              className={`min-w-0 pt-2 ${i > 0 ? `border-l pl-2.5 ${cor.fina}` : ""}`}
             >
-              <dt className="text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600">
+              <dt className={`text-[9px] font-semibold tracking-[.14em] ${cor.apoio}`}>
                 {coluna.rotulo}
               </dt>
               <dd
                 className={`m-0 mt-1 truncate tabular-nums ${grande ? "text-sm" : "text-[13px]"} ${
-                  coluna.destaque ? "font-semibold text-mt-accent-800" : "font-medium text-mt-ink"
+                  coluna.destaque ? `font-semibold ${cor.kmDestaque}` : `font-medium ${cor.valor}`
                 }`}
               >
                 {coluna.valor}
@@ -452,7 +480,10 @@ export function CardVeiculo({
           ))}
         </dl>
 
-        <div className="mt-3 flex items-end justify-between gap-3 border-t border-mt-regua-fina pt-2.5">
+        {/* `flex-wrap`: na grade de três colunas ao lado dos filtros, entre
+            1024 e ~1120 px, o card fica com ~194 px e preço mais convite não
+            cabem numa linha. O convite desce em vez de passar por cima. */}
+        <div className={`mt-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-1.5 border-t pt-2.5 ${cor.fina}`}>
           <div className="min-w-0">
             <div
               className={`font-extrabold tracking-[-.03em] tabular-nums ${
@@ -463,7 +494,7 @@ export function CardVeiculo({
             </div>
             {parcela && (
               <div
-                className={`mt-0.5 tabular-nums text-mt-neutral-600 ${grande ? "text-xs" : "text-[11px]"}`}
+                className={`mt-0.5 tabular-nums ${cor.apoio} ${grande ? "text-xs" : "text-[11px]"}`}
               >
                 {parcela}
               </div>
@@ -473,7 +504,7 @@ export function CardVeiculo({
               régua de ação — a única ferrugem do card. */}
           <span
             aria-hidden="true"
-            className="mb-1 shrink-0 border-b-2 border-mt-accent pb-1 text-[11px] font-extrabold tracking-[.1em] text-mt-ink group-hover:text-mt-accent"
+            className={`mb-1 shrink-0 border-b-2 border-mt-accent pb-1 text-[11px] font-extrabold tracking-[.1em] ${cor.valor} group-hover:text-mt-accent`}
           >
             VER CARRO →
           </span>

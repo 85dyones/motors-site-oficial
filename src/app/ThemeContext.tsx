@@ -8,7 +8,7 @@ import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 import { PROCEDENCIA_PADRAO, normalizarProcedencia } from "../lib/procedencia";
 import { normalizarCuradoria, type PublicacaoInstagram } from "../lib/instagramCuradoria";
 import { DESTAQUES_PADRAO } from "../lib/destaquesRapidos";
-import { THEME_PRESETS, TEMA_PADRAO, TEMAS_ESCUROS } from "../lib/temas";
+import { THEME_PRESETS, TEMA_PADRAO, TEMAS_ESCUROS, ehTema } from "../lib/temas";
 
 import type {
   ThemeType,
@@ -259,7 +259,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Theme and compare IDs are UI-only preferences — localStorage is fine for these
     const savedTheme = localStorage.getItem("ag_theme") as ThemeType;
-    if (savedTheme && THEME_PRESETS[savedTheme]) {
+    if (ehTema(savedTheme)) {
       setThemeState(savedTheme);
       applyThemeProperties(savedTheme);
     }
@@ -577,7 +577,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setTheme = (type: ThemeType) => {
-    if (!THEME_PRESETS[type]) return;
+    if (!ehTema(type)) return;
 
     setThemeState(type);
     applyThemeProperties(type);

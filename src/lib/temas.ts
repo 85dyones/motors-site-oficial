@@ -13,7 +13,7 @@ import type { ThemeProperties, ThemeType } from "../types";
  * réguas de destaque. A cor de AÇÃO é `--brand-primary`, e só ela vai em botão
  * e link que leva a algum lugar. Nas paletas que não são a do cobre, a
  * identidade cai num tom da própria paleta que passa de 4,5:1 — conferido em
- * `tests/contraste.test.ts`.
+ * `tests/cobre-da-marca.test.ts`.
  */
 export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
   /**
@@ -117,14 +117,27 @@ export const TEMAS_ESCUROS: readonly ThemeType[] = ["stealth-dark", "sport-nardo
  * e cai no padrão.
  */
 export function scriptAntiFlicker(): string {
-  return `(function(){try{
-var p=${JSON.stringify(THEME_PRESETS)};
-var escuros=${JSON.stringify(TEMAS_ESCUROS)};
-var t=localStorage.getItem('ag_theme');
-if(!p[t])t=${JSON.stringify(TEMA_PADRAO)};
+  // `<` escapado: o JSON vai dentro de um <script>, e um valor com "</script>"
+  // fecharia a tag. Hoje são só hexadecimais — é para continuar seguro amanhã.
+  const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
+  // O `try` cerca SÓ a leitura do navegador: com o armazenamento bloqueado,
+  // `localStorage` lança, e a paleta padrão tem que ser aplicada mesmo assim.
+  // `hasOwnProperty`, e não `p[t]`: "__proto__" ou "constructor" salvos no
+  // navegador passavam pelo teste de existência.
+  return `(function(){
+var p=${json(THEME_PRESETS)};
+var escuros=${json(TEMAS_ESCUROS)};
+var t=null;
+try{t=localStorage.getItem('ag_theme');}catch(e){}
+if(!t||!Object.prototype.hasOwnProperty.call(p,t))t=${json(TEMA_PADRAO)};
 var a=p[t],d=document.documentElement;
 for(var k in a)d.style.setProperty(k,a[k]);
 d.setAttribute('data-theme',t);
 if(escuros.indexOf(t)>=0)d.classList.add('dark');
-}catch(e){}})();`;
+})();`;
+}
+
+/** A paleta existe? Sem cair em propriedade herdada ("__proto__"…). */
+export function ehTema(t: unknown): t is ThemeType {
+  return typeof t === "string" && Object.prototype.hasOwnProperty.call(THEME_PRESETS, t);
 }

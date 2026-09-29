@@ -29,9 +29,9 @@ import type { ThemeType, CompanySettings } from "../../types";
  * - **Escala de título** (Compacta / Padrão / Display). A escala tipográfica
  *   é fixa no CSS; o controle só faria sentido depois de tokenizá-la.
  *
- * O que é real e entrou: as paletas vêm de `THEME_PRESETS` (as quatro, não as
- * três que a tela antiga listava à mão — `motors-modernist`, que é a paleta
- * em produção, ficava de fora e não dava para selecionar de volta), e o
+ * O que é real e entrou: as paletas vêm de `THEME_PRESETS` (todas — hoje
+ * cinco, com o `motors-cobre` padrão desde 29/09 —, e não as três que a tela
+ * antiga listava à mão, deixando de fora a que estava em produção), e o
  * contraste é calculado pela fórmula da WCAG em `lib/contraste.ts`.
  */
 

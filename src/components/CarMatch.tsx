@@ -1227,7 +1227,7 @@ export default function CarMatch({
         {gameState === "intro" && (
           <div className="mt-10 flex flex-1 flex-col lg:mt-12">
             <div className="max-w-[640px]">
-              <Rotulo accent className="text-[11px] tracking-[.18em]">
+              <Rotulo accent className="text-[11px] tracking-[.18em] text-mt-cobre-marca">
                 CONSULTORIA
               </Rotulo>
               <h1 className="mt-display m-0 mt-5 text-[38px] text-mt-inverso lg:text-[66px]">
@@ -1683,7 +1683,7 @@ export default function CarMatch({
         {/* ─── Buscando ─── */}
         {gameState === "loading" && (
           <div className="flex flex-1 flex-col justify-center py-16 lg:py-24">
-            <Rotulo accent className="text-[11px] tracking-[.18em]">
+            <Rotulo accent className="text-[11px] tracking-[.18em] text-mt-cobre-marca">
               TRÊS DO PÁTIO
             </Rotulo>
             <p

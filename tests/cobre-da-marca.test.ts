@@ -66,10 +66,44 @@ describe("o script anti-flicker, rodando de verdade", () => {
     expect(TEMAS_ESCUROS).toContain("stealth-dark");
   });
 
-  it("escolha salva que não existe mais cai no padrão", () => {
-    localStorage.setItem("ag_theme", "tema-apagado");
-    rodar();
+  it("escolha salva que não existe mais cai no padrão — inclusive nome herdado", () => {
+    for (const salvo of ["tema-apagado", "__proto__", "constructor"]) {
+      localStorage.setItem("ag_theme", salvo);
+      rodar();
+      expect(document.documentElement.getAttribute("data-theme"), salvo).toBe("motors-cobre");
+    }
+  });
+
+  it("com o armazenamento bloqueado, aplica o padrão mesmo assim", () => {
+    const original = Object.getOwnPropertyDescriptor(window, "localStorage")!;
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get() {
+        throw new Error("SecurityError");
+      },
+    });
+    try {
+      rodar();
+    } finally {
+      Object.defineProperty(window, "localStorage", original);
+    }
     expect(document.documentElement.getAttribute("data-theme")).toBe("motors-cobre");
+    expect(document.documentElement.style.getPropertyValue("--brand-background")).toBe("#F6F4F1");
+  });
+
+  it("o script não pode fechar a própria tag", () => {
+    expect(scriptAntiFlicker()).not.toMatch(/<\//);
+  });
+});
+
+describe("sem JavaScript, o :root já é o cobre", () => {
+  it("o :root de globals.css diz o mesmo que o preset padrão", () => {
+    const css = lerCodigo("src/app/globals.css");
+    const raiz = /:root \{([\s\S]*?)\}/.exec(css)![1];
+    for (const [token, valor] of Object.entries(THEME_PRESETS[TEMA_PADRAO])) {
+      const m = new RegExp(`${token}:\\s*([^;]+);`).exec(raiz);
+      expect(m?.[1].trim().toLowerCase(), token).toBe(valor.toLowerCase());
+    }
   });
 });
 
@@ -218,6 +252,18 @@ describe("3.4 · o card é uma ficha de perícia", () => {
     expect(colunas.map((c) => c.querySelector("dd")!.textContent)).toEqual(["2020", "80.000", "Automático"]);
     expect(colunas[1].className).toContain("border-l");
     expect(colunas[2].className).toContain("border-l");
+  });
+
+  it("no fundo escuro (Profiler), nenhuma cor do claro: tinta e cobre de texto trocam", async () => {
+    const tela = await card(veiculo({}), { inverso: true });
+    const classes = [...tela.querySelectorAll("*")].map((el) => el.getAttribute("class") ?? "").join(" ");
+    expect(classes).not.toMatch(/(^|\s)text-mt-(ink|cobre|neutral-600|neutral-700)(\s|$)/);
+    expect(tela.querySelector("dd")!.className).toContain("text-mt-inverso");
+    const marca = tela.querySelector('[data-linha="codigo"]')!.previousElementSibling!;
+    expect(marca.className).toContain("text-mt-cobre-marca");
+    // E o Profiler, que desenha o card no escuro, pede a variante.
+    const profiler = lerCodigo("src/components/ResultadoDoProfiler.tsx");
+    expect(profiler.match(/<CardVeiculo\b[^>]*\binverso\b/g)).toHaveLength(2);
   });
 
   it("a ferrugem do card é só o convite de ação", async () => {

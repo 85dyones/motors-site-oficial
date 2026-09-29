@@ -283,7 +283,7 @@ export default function HeroHome({
             href={getVeiculoPdpUrl(destaque)}
             className="mt-foco flex w-full flex-col items-start bg-[rgba(20,18,18,.86)] px-[22px] py-[18px] no-underline sm:w-auto sm:min-w-[280px] lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
           >
-            <span className="text-[10px] font-semibold tracking-[.16em] text-mt-cobre-marca">
+            <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent-400">
               EM DESTAQUE
             </span>
             <span className="mt-[7px] text-xl font-extrabold tracking-[-.02em] text-mt-inverso lg:text-[length:clamp(15px,calc(var(--hero-cabe)*0.0238),20px)]">
