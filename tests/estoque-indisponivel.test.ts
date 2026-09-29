@@ -41,7 +41,11 @@ describe("falha de leitura para a página", () => {
     /* Cobrir três e esquecer um deixa exatamente o buraco de antes. A contagem
        é a trava: cada ramo novo que alguém acrescentar tem de escolher
        explicitamente entre falhar e seguir. */
-    const chamadas = supa.split("await estoqueIndisponivel(").length - 1;
+    // Só dentro do `getEstoque`: a ficha (`getVeiculoById`) tem o seu próprio
+    // estouro desde 2026-09-29, travado no teste abaixo.
+    const inicio = supa.indexOf("export async function getEstoque(");
+    const lista = supa.slice(inicio, supa.indexOf("\nexport ", inicio + 10));
+    const chamadas = lista.split("await estoqueIndisponivel(").length - 1;
     expect(chamadas, "um dos caminhos de falha voltou a engolir").toBe(4);
 
     // E os motivos são distintos: log que não diz qual dos quatro foi manda
@@ -54,6 +58,15 @@ describe("falha de leitura para a página", () => {
     ]) {
       expect(supa, `motivo ausente: ${motivo}`).toContain(motivo);
     }
+  });
+
+  it("a ficha recusada pelo banco também estoura — e o catch não a engole", () => {
+    // Desde 2026-09-29 a chave pública lê só a lista de colunas: divergência
+    // entre código e banco derrubaria toda ficha num 404 calado e cacheado.
+    const inicio = supa.indexOf("export async function getVeiculoById(");
+    const ficha = supa.slice(inicio, supa.indexOf("\nexport ", inicio + 10));
+    expect(ficha).toContain("await estoqueIndisponivel(`o banco recusou a ficha");
+    expect(ficha).toContain("if (err instanceof EstoqueIndisponivelError) throw err;");
   });
 
   it("o ramo que era mudo agora diz O QUE viu", () => {

@@ -738,7 +738,7 @@ export function montarRecorteDoNaoEncontrado(
  * ---------------------------------------------------------------------------
  * Por que cache aqui, e só aqui
  * ---------------------------------------------------------------------------
- * `recortesDoEstoque` são duas leituras de `estoque_motors` com `select *`,
+ * `recortesDoEstoque` são duas leituras de `estoque_motors` com a linha pública inteira,
  * ~977 KB por render. Nos hubs o custo é limitado, porque os hubs são finitos.
  * Aqui não: caminho falso é ilimitado, e cada caminho inédito rende uma vez. A
  * decisão do dono em 13/09 foi cache SÓ no não encontrado; o resto do site

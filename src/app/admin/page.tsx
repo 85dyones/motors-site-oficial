@@ -47,7 +47,7 @@ export default async function AdminVisaoGeralPage() {
     // vitrine, não do painel — é AQUI que a pendência aparece. Filtrar nesta
     // chamada esconderia o veículo justamente de quem tem como resolvê-la, e o
     // contador desta tela nasceria mentindo.
-    getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, incluirNaoPublicaveis: true }),
+    getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, cliente: supabase, incluirNaoPublicaveis: true }),
     getCachedSettings(),
     // `null` quando o GA4 não tem credencial de leitura — a tela mostra "—".
     resumoDeVisitas(30),
