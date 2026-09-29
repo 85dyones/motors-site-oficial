@@ -214,7 +214,9 @@ describe("recolher o filtro no mobile não recolhe no desktop", () => {
     // Os três se testam por igualdade — assimetria aqui é onde a próxima
     // variante de grafia entra.
     expect(painelDeFiltro(false).classe).toBe("hidden lg:block");
-    expect(painelDeFiltro(true).classe).toBe("lg:block");
+    // Aberto, no celular é a folha que sobe de baixo (3.5, 29/09); `.mt-folha`
+    // só age abaixo do `lg` — ver tests/folha-de-filtros.test.ts.
+    expect(painelDeFiltro(true).classe).toBe("mt-folha lg:block");
   });
 
   it("o `lg:block` sobrevive nos dois estados — é o par que não separa", () => {

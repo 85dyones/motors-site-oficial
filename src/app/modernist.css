@@ -410,6 +410,41 @@
 .mt-grupo > legend + * {
   clear: both;
 }
+/* — folha de filtros do celular (tarefa 3.5, 29/09) —
+   O painel de filtros, aberto abaixo do `lg`, deixa de empurrar a grade para
+   baixo e vira uma folha presa ao pé da tela: rolagem própria, cabeçalho e
+   botão "VER N VEÍCULOS" fixos (sticky, no Catalogo). Acima do `lg` a classe
+   não faz nada — a coluna da esquerda do desktop não muda.
+   `overscroll-behavior` segura a rolagem dentro da folha: sem ele, chegar ao
+   fim da lista rolava a página por trás. */
+@media (width < 64rem) {
+  .mt-folha {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    max-height: 88svh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--mt-bg);
+    border-top: 2px solid var(--mt-ink);
+    box-shadow: var(--mt-shadow-lg);
+    animation: mt-folha-sobe 0.18s ease-out;
+  }
+}
+@keyframes mt-folha-sobe {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-folha {
+    animation: none;
+  }
+}
+
 .mt-grupo-conta {
   font-size: 11px;
   font-weight: 800;
