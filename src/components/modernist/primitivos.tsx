@@ -260,7 +260,11 @@ export function CardVeiculo({
   const precoAtivo = temDesconto ? veiculo.preco_promocional : veiculo.preco_original;
 
   return (
-    <Link href={href} className="group mt-foco flex flex-col no-underline">
+    // `min-w-0`: com a versão em uma linha só (`truncate`, abaixo), a largura
+    // mínima do card passaria a ser a versão inteira. Nas grades de coluna
+    // `auto` (ficha, Profiler, repasse) uma versão longa alargaria a grade no
+    // celular em vez de cortar com reticências. Apontado pelo qa-guardian.
+    <Link href={href} className="group mt-foco flex min-w-0 flex-col no-underline">
       <div className="relative aspect-[4/3] bg-mt-neutral-300">
         {foto ? (
           /* Foto sem moldura e em cores — exceção deliberada ao P&B do

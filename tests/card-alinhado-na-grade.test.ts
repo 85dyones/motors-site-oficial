@@ -95,6 +95,13 @@ describe("a linha da versão existe mesmo sem versão", () => {
     expect(trecho).toContain("min-h-[1.45em]");
     expect(trecho).toContain("truncate");
   });
+
+  it("o card aceita encolher, para a versão longa cortar em vez de alargar a grade", async () => {
+    const card = await montarCard(
+      veiculo({ id: "4", versao: "2.8 D-4D Turbo Diesel SRX 4x4 Cabine Dupla Automatic Premium" }),
+    );
+    expect(card.querySelector("a")!.className).toContain("min-w-0");
+  });
 });
 
 describe("números do card em algarismos de largura fixa", () => {
