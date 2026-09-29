@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import { EstatisticasRegua, Rotulo, Seta } from "./modernist/primitivos";
@@ -15,7 +16,18 @@ import { GARANTIA_MESES } from "../lib/paginasInstitucionais";
  * `about-cta-contact`) foram mantidos porque podem estar em uso por
  * analytics.
  */
-export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: number }) {
+export default function SobreClientWrapper({
+  totalEstoque,
+  autor,
+}: {
+  totalEstoque?: number;
+  /**
+   * Quem assina os guias, montado no servidor (`app/sobre/page.tsx`). É o
+   * destino do `url` do autor no schema dos guias, e por isso não vem do
+   * painel: o `@id` e o texto precisam andar juntos.
+   */
+  autor?: ReactNode;
+}) {
   const { aboutSettings, companySettings } = useTheme();
 
   /** Ver `lib/textoInstitucional.ts` — a regra é testada lá. */
@@ -226,6 +238,8 @@ export default function SobreClientWrapper({ totalEstoque }: { totalEstoque?: nu
         </div>
         )}
       </section>
+
+      {autor}
 
       {/* ─── Faixa de fechamento ─── */}
       {temFechamento && (

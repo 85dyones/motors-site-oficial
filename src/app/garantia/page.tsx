@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GUIAS_DA_PAGINA } from "../../lib/guiasNoSite";
 import PaginaDeEstoque from "../../components/modernist/PaginaDeEstoque";
 import FaixaProcedencia from "../../components/modernist/FaixaProcedencia";
 import { getCachedSettings } from "../../lib/settings";
@@ -99,6 +100,7 @@ export default async function GarantiaPage() {
               .map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })),
           },
         ]}
+        guias={{ titulo: "Para ler antes de comprar", lista: GUIAS_DA_PAGINA["/garantia"] }}
         faq={PERGUNTAS_DE_GARANTIA}
         caminho={CAMINHO}
       />

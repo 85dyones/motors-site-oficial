@@ -7,6 +7,11 @@ import { blocoJsonLd } from "../../lib/schemaListagem";
 import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { SITE_URL } from "../../lib/site";
+import GuiasRelacionados from "../../components/modernist/GuiasRelacionados";
+import { GUIAS_DA_PAGINA } from "../../lib/guiasNoSite";
+import { NOME_DA_SECAO } from "../../lib/guias";
+import { AUTOR_DOS_GUIAS } from "../../lib/assinaturaDoGuia";
+import { schemaDoAutorDosGuias } from "../../lib/schemaGuia";
 
 export const revalidate = 60;
 
@@ -76,7 +81,30 @@ export default async function SobrePage() {
     breadcrumbSchema,
     schemaDaLoja(companySettings, { disponiveis }),
     schemaDoSite(companySettings),
+    // A pessoa que assina os guias, com o mesmo `@id` que o `Article` de cada
+    // guia cita. O `url` dela aponta para o bloco `#autor` logo abaixo.
+    { "@context": "https://schema.org", ...schemaDoAutorDosGuias() },
   ]);
+
+  const loja = companySettings?.name?.trim() || "Motors Store";
+
+  /* Quem escreve os guias, e a prova da seleção (auditoria de 29/09).
+     Montado aqui, e não no painel, porque é o destino do `url` do autor no
+     schema: texto e dado estruturado precisam dizer a mesma coisa. */
+  const autor = (
+    <section id="autor" className="px-[18px] pt-12 lg:px-10 lg:pt-16">
+      <h2 className="mt-titulo m-0 text-[26px] lg:text-[34px]">Quem escreve os {NOME_DA_SECAO}</h2>
+      <p className="m-0 mt-4 max-w-[680px] text-[15px] leading-relaxed text-mt-neutral-800 lg:text-base">
+        Os {NOME_DA_SECAO} são escritos por {AUTOR_DOS_GUIAS.nome}, fundador da {loja}. Tratam do
+        que a loja faz todo dia: a perícia antes da compra, a avaliação do usado, a troca e a venda.
+      </p>
+      <GuiasRelacionados
+        titulo="A seleção por dentro"
+        guias={GUIAS_DA_PAGINA["/sobre"]}
+        className="mt-8"
+      />
+    </section>
+  );
 
   return (
     <>
@@ -84,7 +112,7 @@ export default async function SobrePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: grafo }}
       />
-      <SobreClientWrapper totalEstoque={totalEstoque} />
+      <SobreClientWrapper totalEstoque={totalEstoque} autor={autor} />
     </>
   );
 }

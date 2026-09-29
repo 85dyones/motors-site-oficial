@@ -10,12 +10,20 @@ import { AUTOR_DOS_GUIAS } from "./assinaturaDoGuia";
 /** O `@id` da pessoa que assina os guias — estável, para outro nó poder citá-la. */
 export const ID_DO_AUTOR_DOS_GUIAS = `${SITE_URL}/#autor-dyones-oliveira`;
 
+/** Onde o site apresenta o autor: o bloco `#autor` de `/sobre`. */
+export const URL_DO_AUTOR_DOS_GUIAS = `${SITE_URL}/sobre#autor`;
+
 /** O autor dos guias como `Person`, trabalhando para a loja. */
 export function schemaDoAutorDosGuias() {
   return {
     "@type": "Person",
     "@id": ID_DO_AUTOR_DOS_GUIAS,
     name: AUTOR_DOS_GUIAS.nome,
+    // Cargo e página desde 29/09/2026 (auditoria de visibilidade em IA): com
+    // só o nome, o nó não dizia por que essa pessoa entende do assunto. A
+    // página é o bloco `#autor` de `/sobre`, que diz a mesma coisa em texto.
+    jobTitle: AUTOR_DOS_GUIAS.cargo,
+    url: URL_DO_AUTOR_DOS_GUIAS,
     worksFor: REFERENCIA_DA_LOJA,
   };
 }

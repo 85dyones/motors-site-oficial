@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { guiasDoModelo } from "../../../../lib/guiasNoSite";
 import { notFound } from "next/navigation";
 import PaginaDeEstoque from "../../../../components/modernist/PaginaDeEstoque";
 import EncomendaDeCarro from "../../../../components/EncomendaDeCarro";
@@ -194,6 +195,10 @@ export default async function HubDeModeloPage({ params }: PageProps) {
   ]);
 
   const irmaos = (marca?.modelos ?? []).filter((m) => m.slug !== hub.slug);
+  const guiasDoMotor = hub.segmento === "carros" ? guiasDoModelo(hub.slugMarca, hub.slug) : [];
+  const temCambio = guiasDoMotor.some((g) => g.slug === "cambio-dupla-embreagem-usado");
+  const temMotor = guiasDoMotor.some((g) => g.slug !== "cambio-dupla-embreagem-usado");
+  const assuntoDosGuias = temCambio && temMotor ? "motor e câmbio" : temCambio ? "o câmbio" : "o motor";
 
   /* A saída do hub sem carro (2026-09-01, relatório dos hubs).
      Quem procurou ESTE modelo e não achou é o lead mais qualificado que chega
@@ -244,6 +249,12 @@ export default async function HubDeModeloPage({ params }: PageProps) {
               ]
             : []
         }
+        /* Os guias de mecânica que o texto dos próprios guias liga a este
+           modelo (auditoria de 29/09: nenhum hub de modelo linkava guia). */
+        guias={{
+          titulo: `Antes de comprar ${um(hub.genero)} ${hub.marca} ${hub.nome}: ${assuntoDosGuias}`,
+          lista: guiasDoMotor,
+        }}
         faq={perguntas}
       />
     </div>

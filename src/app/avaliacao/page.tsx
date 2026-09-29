@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AutoAvaliacao from "../../components/AutoAvaliacao";
+import GuiasRelacionados from "../../components/modernist/GuiasRelacionados";
+import { GUIAS_DA_PAGINA } from "../../lib/guiasNoSite";
 import { getCachedSettings } from "../../lib/settings";
 import { montarCompartilhamento } from "../../lib/compartilhamento";
 import { blocoJsonLd, schemaDeTrilha } from "../../lib/schemaListagem";
@@ -146,6 +148,15 @@ export default async function AvaliacaoPage() {
       </nav>
 
       <AutoAvaliacao />
+
+      {/* Os 10 guias de venda e troca terminam aqui, e até 29/09 esta página
+          não devolvia nenhum. Lista escrita em código, sem ler o banco: ver
+          o docblock de `lib/guiasNoSite.ts` e a nota do `priceRange` acima. */}
+      <GuiasRelacionados
+        titulo="Antes de avaliar"
+        guias={GUIAS_DA_PAGINA["/avaliacao"]}
+        className="px-[18px] lg:px-11"
+      />
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-11">
         <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Depois da avaliação</h2>

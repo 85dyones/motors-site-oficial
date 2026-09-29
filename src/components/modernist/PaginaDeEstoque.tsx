@@ -5,6 +5,8 @@ import { resumirSelecao } from "../../lib/destaquesRapidos";
 import { criarLinkador } from "../../lib/linksNoTexto";
 import GradeDeVeiculos from "./GradeDeVeiculos";
 import BotaoWhatsApp from "./BotaoWhatsApp";
+import GuiasRelacionados from "./GuiasRelacionados";
+import type { GuiaRelacionado } from "../../lib/guiasNoSite";
 import { formatarKm, formatarPreco } from "./primitivos";
 
 /**
@@ -90,6 +92,12 @@ export interface PaginaDeEstoqueProps {
    */
   encomenda?: ReactNode;
   blocos?: BlocoDeLinks[];
+  /**
+   * Os guias que respondem à próxima pergunta de quem está nesta página
+   * (`lib/guiasNoSite.ts`). Entram depois dos blocos de navegação e antes do
+   * FAQ: são leitura, e o FAQ é o fecho de toda página desta família.
+   */
+  guias?: { titulo: string; lista: readonly GuiaRelacionado[] };
   faq?: PerguntaFrequente[];
   /** CTA opcional no cabeçalho — hoje o "como chegar" das páginas de bairro. */
   acao?: ReactNode;
@@ -194,6 +202,7 @@ export default function PaginaDeEstoque({
   avisarHref = "",
   encomenda,
   blocos = [],
+  guias,
   faq = [],
   acao,
   contagem = true,
@@ -223,6 +232,20 @@ export default function PaginaDeEstoque({
         <span key={j}>{parte.texto}</span>
       ),
     );
+
+  // Os guias que o TEXTO desta página já linka não voltam como card: seria
+  // o segundo link para o mesmo destino, e a régua do site é um por página.
+  // Aconteceu em `/garantia` na primeira versão (revisão de 29/09): a
+  // introdução diz "de cada dez avaliados, três entram", que o linkador leva
+  // a "O que reprova…", e a lista de guias da página trazia a mesma peça.
+  // A medição usa um linkador descartável com as MESMAS entradas do render,
+  // porque o do render só termina o FAQ depois de este bloco ser montado.
+  const destinosDoTexto = new Set<string>();
+  const medir = criarLinkador(caminho);
+  for (const texto of [...introducao, ...secoes.flatMap((s) => s.paragrafos), ...faq.map((f) => f.resposta)]) {
+    for (const parte of medir(texto)) if (parte.href) destinosDoTexto.add(parte.href);
+  }
+  const guiasDoBloco = guias?.lista.filter((g) => !destinosDoTexto.has(g.href)) ?? [];
 
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
@@ -467,6 +490,8 @@ export default function PaginaDeEstoque({
             </div>
           </section>
           ))}
+
+        {guias && <GuiasRelacionados titulo={guias.titulo} guias={guiasDoBloco} />}
 
         {faq.length > 0 && (
           <section className="border-t-2 border-mt-regua py-6">

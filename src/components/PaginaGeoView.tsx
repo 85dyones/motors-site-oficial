@@ -1,4 +1,5 @@
 import PaginaDeEstoque from "./modernist/PaginaDeEstoque";
+import { GUIAS_DA_PAGINA } from "../lib/guiasNoSite";
 import ContagemDeEstoque from "./ContagemDeEstoque";
 import LinkComoChegar from "./LinkComoChegar";
 import { getCachedSettings } from "../lib/settings";
@@ -58,6 +59,11 @@ export default async function PaginaGeoView({ pagina }: { pagina: PaginaGeo }) {
           { titulo: "Por carroceria", links: carrocerias.map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })) },
           { titulo: "Por marca", links: marcas.map((m) => ({ rotulo: m.nome, href: `/carros/${m.slug}`, total: m.veiculos.length })) },
         ]}
+        guias={
+          pagina.slug === "seminovos-curitiba"
+            ? { titulo: "Para quem compra ou vende em Curitiba", lista: GUIAS_DA_PAGINA["/seminovos-curitiba"] }
+            : undefined
+        }
         faq={pagina.faq}
         acao={
           <LinkComoChegar

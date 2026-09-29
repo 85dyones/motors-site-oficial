@@ -230,6 +230,15 @@ const nextConfig: NextConfig = {
         destination: "/privacidade",
         permanent: true,
       },
+      // A página institucional do site antigo. Ficou fora da medição de 20/09
+      // porque não estava no sitemap de lá, mas continua indexada: em
+      // 29/09/2026 `motorsstoreoficial.com.br/empresa` ainda aparecia nas
+      // buscas pela loja e chegava aqui como 404. `/sobre` é a mesma página.
+      {
+        source: "/empresa",
+        destination: "/sobre",
+        permanent: true,
+      },
 
       // O canônico, para o caso de o domínio velho passar a ser servido daqui.
       // Sem isto o site inteiro responderia 200 nos dois endereços — o mesmo
