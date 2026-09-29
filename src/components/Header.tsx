@@ -46,8 +46,12 @@ import { trackContactClick } from "../lib/telemetry";
  * arquivo original da marca (.cdr) em 29/09; o `LEIA-ME.txt` de lá lista as
  * versões e as cores.
  *
- * O logo enviado pelo painel (`companySettings.logoUrl`) continua acima de
- * tudo: quem sobe um arquivo lá escolheu esse arquivo.
+ * O logo enviado pelo painel (`companySettings.logoUrl`) NÃO entra aqui.
+ * Medido em produção em 29/09: o painel guarda um arquivo só
+ * (`branding/uploads/logo-…webp`, 800×392), e é a versão para fundo claro — a
+ * mesma do PNG antigo. Um campo só não tem como servir a um cabeçalho que é
+ * sempre escuro. Ele continua valendo onde o fundo é claro: a prévia de
+ * compartilhamento (`app/og/route.tsx`) e a barra do painel.
  */
 const LOGO_DO_CABECALHO = "/marca/motors-store-vertical-negativo.svg";
 
@@ -61,10 +65,8 @@ export default function Header() {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const pathname = usePathname();
 
-  // A logo é derivada do tema e das configurações — não precisa de estado
-  // nem de efeito. Só a falha de carregamento é estado, e ela é resetada
-  // pela `key` do <Image> quando a fonte muda.
-  const logoSrc = companySettings?.logoUrl || LOGO_DO_CABECALHO;
+  // Fixo: ver `LOGO_DO_CABECALHO`. Só a falha de carregamento é estado.
+  const logoSrc = LOGO_DO_CABECALHO;
   const [logoFalhou, setLogoFalhou] = useState(false);
   const usarFallbackTextual = logoFalhou;
 
