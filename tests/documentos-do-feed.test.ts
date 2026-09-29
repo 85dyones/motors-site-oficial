@@ -160,6 +160,9 @@ const PASTA = "supabase/migrations";
 const MIGRACAO = "20260929120000_documentos_do_feed_preenchem_o_vazio.sql";
 /** A emenda do mesmo dia: é ela que define as duas funções vigentes. */
 const EMENDA = "20260929170000_chassi_valido_segue_o_feed.sql";
+/** Desde a 20260929200000 a trava vigente é a da ficha técnica — que conserva
+ *  as regras dos documentos inteiras. `marcar_origem` segue sendo a da emenda. */
+const FICHA = "20260929200000_ficha_tecnica_segue_o_feed.sql";
 
 /** SQL sem as linhas de comentário — a explicação cita o código que proíbe. */
 const executavel = (arquivo: string) =>
@@ -229,8 +232,8 @@ describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () =
     /if current_user = 'service_role'\s+or new\.last_seen_at is distinct from old\.last_seen_at then/,
   );
 
-  it("a versão vigente é a da emenda", () => {
-    expect(arquivo).toBe(EMENDA);
+  it("a versão vigente é a da ficha técnica, que herda a da emenda", () => {
+    expect(arquivo).toBe(FICHA);
   });
 
   it("a allowlist é exatamente esta — uma escrita por coluna, nenhuma a mais", () => {
@@ -239,9 +242,14 @@ describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () =
     const escritas = [...corpo.matchAll(/\bold\.(\w+)\s*:=/g)].map((m) => m[1]).sort();
     expect(escritas).toEqual(
       [
+        "ano",
+        "ano_fabricacao",
+        "cambio",
         "chassi",
         "codigo_fipe",
+        "combustivel",
         "conteudo_atualizado_em",
+        "cor",
         "last_seen_at",
         "motor",
         "opcionais",
@@ -250,6 +258,7 @@ describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () =
         "preco",
         "preco_original",
         "preco_promocional",
+        "quilometragem",
         "valor_fipe",
       ].sort(),
     );
@@ -262,7 +271,7 @@ describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () =
   });
 
   it("toda escrita mora no ramo do sync; fora dele só a origem se protege", () => {
-    expect(contar(sync.entao, /\bold\.\w+\s*:=/)).toBe(12);
+    expect(contar(sync.entao, /\bold\.\w+\s*:=/)).toBe(18);
     expect(sync.depois).not.toMatch(/\bold\.\w+\s*:=/);
     expect(sync.entao).toMatch(/return old;\s*$/);
     expect(sync.depois).toMatch(
@@ -320,10 +329,10 @@ describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () =
     );
   });
 
-  it("o lastmod: um carimbo só, por preço, opcional ou motor — nunca por documento", () => {
+  it("o lastmod: um carimbo só, por preço, opcional, ficha técnica ou motor — nunca por documento", () => {
     expect(contar(corpo, /\bold\.conteudo_atualizado_em\s*:=/)).toBe(1);
     expect(corpo).toMatch(
-      /if preco_mudou or opcionais_mudou or motor_preenchido then\s+old\.conteudo_atualizado_em := now\(\);\s+end if;/,
+      /if preco_mudou or opcionais_mudou or ficha_mudou or motor_preenchido then\s+old\.conteudo_atualizado_em := now\(\);\s+end if;/,
     );
     expect(contar(corpo, /\bmotor_preenchido\s*:=\s*true/)).toBe(1);
   });

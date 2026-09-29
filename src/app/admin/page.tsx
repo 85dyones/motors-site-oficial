@@ -5,6 +5,7 @@ import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { resumoDeVisitas } from "../../lib/analytics";
 import { resumoDeMidia, DIAS_DO_RESUMO } from "../../lib/midiaResumo";
+import { kmDiscrepantes, trocasDeKmRecentes } from "../../lib/kmDiscrepante";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,11 @@ export default async function AdminVisaoGeralPage() {
   const disponiveis = disponiveisDe(estoque);
   const vendidos = estoque.length - disponiveis.length;
 
+  // Km discrepante (decisão do dono, 2026-09-29): o site publica o km que o
+  // RevendaMais mandar, e o painel avisa quando ele não faz sentido. A queda de
+  // km vem do histórico que a trava do sync grava (migração 20260929200000).
+  const comKmDiscrepante = kmDiscrepantes(disponiveis, await trocasDeKmRecentes(supabase));
+
   // Overrides gravados só no JSON: o sintoma do bug corrigido em 2026-08-07.
   // Enquanto houver divergência, o site anuncia carro já vendido.
   const overridesBrutos = (settings.stockOverrides as any)?.overrides ?? {};
@@ -128,11 +134,26 @@ export default async function AdminVisaoGeralPage() {
     });
   }
 
+  if (comKmDiscrepante.length > 0) {
+    alertas.push({
+      titulo: `${comKmDiscrepante.length} veículo(s) com km discrepante no RevendaMais`,
+      detalhe:
+        comKmDiscrepante
+          .slice(0, 3)
+          .map(({ veiculo, motivo }) => `${veiculo.marca} ${veiculo.modelo} · ${motivo}`)
+          .join(" — ") +
+        ". O site publica o km do RevendaMais como está — corrija lá, e o próximo ciclo do sync traz.",
+      acao: "ABRIR ESTOQUE",
+      href: "/admin/estoque",
+      urgente: true,
+    });
+  }
+
   if (semFichaPropria.length > 0) {
     alertas.push({
       titulo: `${semFichaPropria.length} veículo(s) sem ficha própria completa`,
       detalhe:
-        "Placa, motor e garantia são nossos — o feed não os traz, e sem eles a ficha do site fica incompleta.",
+        "Placa e motor vêm do RevendaMais quando ele os tem; a garantia é só do painel. Sem os três, a ficha do site fica incompleta.",
       acao: "PREENCHER FICHA",
       href: "/admin/estoque",
       urgente: false,
