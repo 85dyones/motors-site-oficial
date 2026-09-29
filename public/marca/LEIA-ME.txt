@@ -1,10 +1,10 @@
 MOTORS STORE — LOGOS EM VETOR
 Extraídos de "Motors Store - Peças.cdr" (página 4) em 29/09/2026.
 
-Pastas
+Arquivos
   *.svg  vetor editável (Figma, Illustrator, Inkscape, CorelDRAW, código do site)
-  pdf/   vetor em PDF, um arquivo por versão
-  png/   prévia rasterizada a 4x, fundo transparente
+  As versões em PDF e PNG ficam no pacote entregue ao dono em 29/09, fora do
+  repositório: o site só usa o SVG.
 
 Versões
   horizontal / vertical ............ fundo claro (MOTORS grafite, símbolo e STORE cobre)

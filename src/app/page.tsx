@@ -379,33 +379,33 @@ export default async function Home() {
     venda_troca: (
       <section className="flex flex-col gap-10 border-b-2 border-mt-regua px-[18px] py-12 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
         <div className="lg:flex-[1.15]">
-        <Rotulo accent className="text-[11px] tracking-[.18em]">
-          03 — VENDA OU TROCA
-        </Rotulo>
-        <h2 className="mt-titulo m-0 mt-3.5 text-[28px] lg:text-[40px]">
-          Avaliação Express
-        </h2>
-        <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          Proposta com base na Tabela FIPE e no giro do nosso estoque — um
-          consultor retorna no WhatsApp.
-        </p>
-        <div className="mt-7 flex max-w-[420px] border-t-2 border-mt-regua">
-          <div className="flex-1 border-r border-mt-regua-media pr-4 pt-3.5">
-            <div className="text-[26px] font-extrabold">3 EM 10</div>
-            <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
-              VIRAM ESTOQUE
+          <Rotulo accent className="text-[11px] tracking-[.18em]">
+            03 — VENDA OU TROCA
+          </Rotulo>
+          <h2 className="mt-titulo m-0 mt-3.5 text-[28px] lg:text-[40px]">
+            Avaliação Express
+          </h2>
+          <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
+            Proposta com base na Tabela FIPE e no giro do nosso estoque — um
+            consultor retorna no WhatsApp.
+          </p>
+          <div className="mt-7 flex max-w-[420px] border-t-2 border-mt-regua">
+            <div className="flex-1 border-r border-mt-regua-media pr-4 pt-3.5">
+              <div className="text-[26px] font-extrabold">3 EM 10</div>
+              <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
+                VIRAM ESTOQUE
+              </div>
+            </div>
+            <div className="flex-1 pl-4 pt-3.5">
+              <div className="text-[26px] font-extrabold">FIPE</div>
+              <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
+                DADOS OFICIAIS
+              </div>
             </div>
           </div>
-          <div className="flex-1 pl-4 pt-3.5">
-            <div className="text-[26px] font-extrabold">FIPE</div>
-            <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
-              DADOS OFICIAIS
-            </div>
-          </div>
-        </div>
-        <Link href="/avaliacao" className="mt-btn mt-btn-contorno mt-foco mt-8">
-          AVALIAR MEU CARRO
-        </Link>
+          <Link href="/avaliacao" className="mt-btn mt-btn-contorno mt-foco mt-8">
+            AVALIAR MEU CARRO
+          </Link>
         </div>
 
         {/* A mesma régua de passos do Garagem Profiler, no tema claro. */}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { lerCodigo } from "./fonte";
 
 /**
@@ -70,7 +70,7 @@ describe("o otimizador de imagem não serve SVG sem defesa", () => {
     // curvas, e o site os serve DIRETO do `public/` — `unoptimized`, nunca
     // pelo `/_next/image`. Os dois casos abaixo seguram essas condições.
     const svgs = [...arquivos("public"), ...arquivos("src")].filter(
-      (f) => f.endsWith(".svg") && !f.startsWith(join("public", "marca")),
+      (f) => f.endsWith(".svg") && !f.startsWith(join("public", "marca") + sep),
     );
 
     expect(svgs, `SVGs no repositório: ${svgs.join(", ")}`).toHaveLength(0);
@@ -81,7 +81,11 @@ describe("o otimizador de imagem não serve SVG sem defesa", () => {
     expect(logos.length).toBeGreaterThan(0);
     for (const logo of logos) {
       const conteudo = readFileSync(logo, "utf8");
-      expect(conteudo, logo).not.toMatch(/<script|<foreignObject|\son[a-z]+\s*=|href\s*=|url\(/i);
+      // Lista do que PODE existir, e não do que não pode: qualquer tag fora
+      // dela (style, script, foreignObject, use, image…) reprova.
+      const tags = [...conteudo.matchAll(/<\/?([a-zA-Z][\w:-]*)/g)].map((m) => m[1].toLowerCase());
+      expect(tags.filter((t) => !["svg", "g", "path", "title"].includes(t)), logo).toEqual([]);
+      expect(conteudo, logo).not.toMatch(/<!|\son[a-z]+\s*=|href\s*=|url\(|@import/i);
     }
   });
 
