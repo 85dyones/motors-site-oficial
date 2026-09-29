@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
+import { grafiaDoCarro } from "../../lib/grafiaCanonica";
 import { carroDoWhatsApp } from "../../lib/leadDoRepasse";
 import type { WhatsappDaLoja } from "../../lib/loteDoRepasse";
 import {
@@ -43,6 +44,9 @@ export default function CardDoRepasse({
   if (!estado) return null;
 
   const ficha = `${CAMINHO_DO_REPASSE}/${r.slug}`;
+  // O nome na grafia da casa, como a ficha (29/09): o cadastro em maiúsculas
+  // punha "PALIO" e "1.0 ECONOMY FIRE FLEX 8V 4P" no card.
+  const naGrafia = grafiaDoCarro(r);
   const foto = r.web_full_images[0] ?? r.whatsapp_images[0];
   const defeitos = r.itens_de_estado.filter((item) => item.foto).length;
   const totalDeFotos = r.web_full_images.length + defeitos;
@@ -56,7 +60,7 @@ export default function CardDoRepasse({
         {foto ? (
           <Image
             src={foto}
-            alt={[r.marca, r.modelo, r.versao].filter(Boolean).join(" ")}
+            alt={[naGrafia.marca, naGrafia.modelo, naGrafia.versao].filter(Boolean).join(" ")}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
             priority={prioridade}
@@ -85,8 +89,8 @@ export default function CardDoRepasse({
       <div className="mt-3 border-t-2 border-mt-regua pt-2.5">
         <div className="text-[9px] font-semibold tracking-[.16em] text-mt-accent">{r.marca.toUpperCase()}</div>
         <Link href={ficha} className="mt-foco block text-mt-ink no-underline">
-          <span className="mt-0.5 block text-[19px] font-extrabold leading-tight tracking-[-.02em]">{r.modelo}</span>
-          {r.versao && <span className="block text-xs text-mt-neutral-700">{r.versao}</span>}
+          <span className="mt-0.5 block text-[19px] font-extrabold leading-tight tracking-[-.02em]">{naGrafia.modelo}</span>
+          {naGrafia.versao && <span className="block text-xs text-mt-neutral-700">{naGrafia.versao}</span>}
         </Link>
         <div className="mt-2 flex gap-2 border-t border-mt-regua-fina pt-2 text-[10px] tracking-[.05em] text-mt-neutral-600">
           <span>{anosDoCarro(r)}</span>

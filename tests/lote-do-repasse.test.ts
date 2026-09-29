@@ -111,6 +111,15 @@ describe("o card nos quatro estados", () => {
   const html = (r: Repasse) =>
     renderToStaticMarkup(createElement(CardDoRepasse, { repasse: r, whatsappDaLoja: LOJA })).replace(/\s+/g, " ");
 
+  // O card do lote também mostrava o cadastro em maiúsculas (dono, 29/09).
+  it("o nome na grafia de sempre, não em maiúsculas", () => {
+    const h = html({ ...ABERTO, marca: "FIAT", modelo: "PALIO", versao: "1.0 ECONOMY FIRE FLEX 8V 4P" });
+    expect(h).toContain(">Palio</span>");
+    expect(h).toContain(">1.0 Economy Fire Flex 8V 4P</span>");
+    expect(h).toContain('alt="Fiat Palio 1.0 Economy Fire Flex 8V 4P"');
+    expect(h).not.toContain("PALIO");
+  });
+
   it("aberto: etiqueta, conta, histórico, WhatsApp pelo pré-cadastro e a ficha de estado", () => {
     const h = html(ABERTO);
     expect(h).toContain("REPARO ORÇADO");

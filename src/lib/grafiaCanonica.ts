@@ -156,6 +156,23 @@ export function grafiaDaVersao(bruta: string | null | undefined): string {
     .join("");
 }
 
+/**
+ * Marca, modelo e versão de um cadastro, cada um pela sua função acima, com o
+ * resto do carro intacto. Nenhuma regra nova: é a composição que a rota de
+ * leads passou a fazer no interesse do WhatsApp do repasse (#163, o
+ * "FIAT PALIO 1.0 ECONOMY…" no Kanban), e que a ficha e o card do repasse
+ * fazem no nome desde 29/09 (pedido do dono: o `<h1>` mostrava o cadastro em
+ * maiúsculas). Só a caixa muda, então o slug, que o cadastro já gravou, não.
+ */
+export function grafiaDoCarro<T extends { marca: string; modelo: string; versao: string | null }>(carro: T): T {
+  return {
+    ...carro,
+    marca: grafiaDaMarca(carro.marca),
+    modelo: grafiaDoModelo(carro.modelo),
+    versao: carro.versao === null ? null : grafiaDaVersao(carro.versao),
+  };
+}
+
 function capitalizar(palavra: string): string {
   if (!palavra) return "";
   return palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase();
