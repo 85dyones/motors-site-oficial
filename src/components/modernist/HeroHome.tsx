@@ -178,7 +178,7 @@ export default function HeroHome({
        * junto com a largura), a régua de estatísticas descia por cima do
        * "01 02 03". Uma coluna flex com `mt-auto` no rodapé mantém a mesma
        * composição e torna a colisão impossível. */}
-      <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-4 lg:px-10 lg:pb-[min(40px,calc(var(--hero-cabe)*0.0476))] lg:pt-[min(76px,calc(var(--hero-cabe)*0.0905))]">
+      <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-3 sm:pt-4 lg:px-10 lg:pb-[min(40px,calc(var(--hero-cabe)*0.0476))] lg:pt-[min(76px,calc(var(--hero-cabe)*0.0905))]">
       <div className="pointer-events-none max-w-[700px]">
         {/* O `<h1>` da home diz o que a loja vende e onde — 2026-09-08.
          *
@@ -226,7 +226,7 @@ export default function HeroHome({
           </span>
         </h1>
 
-        <p className="m-0 mt-3.5 max-w-[460px] text-[13px] leading-relaxed text-mt-neutral-300 lg:mt-[min(28px,calc(var(--hero-cabe)*0.0333))] lg:text-[length:clamp(13px,calc(var(--hero-cabe)*0.0202),17px)]">
+        <p className="m-0 mt-2.5 max-w-[460px] sm:mt-3.5 text-[13px] leading-relaxed text-mt-neutral-300 lg:mt-[min(28px,calc(var(--hero-cabe)*0.0333))] lg:text-[length:clamp(13px,calc(var(--hero-cabe)*0.0202),17px)]">
           {totalEstoque} veículos em estoque com procedência auditada, laudo
           cautelar e garantia. Três em cada dez avaliados entram.
         </p>
@@ -258,7 +258,7 @@ export default function HeroHome({
           No mobile a linha não cabe (4 indicadores + placa de 280px > 360px),
           então o rodapé empilha: indicadores em cima, placa embaixo em
           largura total. */}
-      <div className="mt-auto flex flex-col gap-3 pt-5 sm:gap-6 sm:pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
+      <div className="mt-auto flex flex-col gap-2.5 pt-4 sm:gap-6 sm:pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
         {slides.length > 1 ? (
           <div className="flex items-center gap-4 lg:gap-[18px]">
             {slides.map((v, i) => (

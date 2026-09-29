@@ -19,8 +19,9 @@ const APARECE_EM_MS = 700;
  * - a pessoa pediu menos movimento;
  * - o número não está na tela (a régua da capa só existe do `lg` para cima —
  *   no celular seriam dezenas de renders à toa na janela do LCP);
- * - a hidratação chegou depois de o número aparecer: contar a partir dali
- *   seria mostrar o valor final, cair para zero e recontar.
+ * - a hidratação chegou depois de o número aparecer (medido no relógio da
+ *   animação de entrada dele): contar a partir dali seria mostrar o valor
+ *   final, cair para zero e recontar.
  *
  * Um span só, sem `sr-only` duplicado: o texto do DOM é o que o rastreador
  * lê, e "4141" não é um número. A contagem dura menos de um segundo e não
@@ -44,8 +45,15 @@ export default function NumeroQueConta({
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (!alvo.current || alvo.current.getClientRects().length === 0) return;
-    const agora = performance.now();
+    const el = alvo.current;
+    if (!el || el.getClientRects().length === 0) return;
+    // Quanto tempo a animação de entrada do número já correu. O relógio dela
+    // começa quando o número é pintado — também numa navegação interna até a
+    // home, em que `performance.now()` já passou do limite há muito. Sem
+    // `getAnimations` (navegador antigo), cai no relógio da navegação.
+    const animacao = typeof el.getAnimations === "function" ? el.getAnimations()[0] : undefined;
+    const agora =
+      animacao && typeof animacao.currentTime === "number" ? animacao.currentTime : performance.now();
     if (agora > APARECE_EM_MS) return;
 
     let quadro = 0;

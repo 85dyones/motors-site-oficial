@@ -142,7 +142,16 @@ describe("NumeroQueConta", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.useRealTimers();
+    delete (HTMLElement.prototype as { getAnimations?: unknown }).getAnimations;
   });
+
+  /** O jsdom não tem `getAnimations`: aqui ele passa a ter, com o tempo pedido. */
+  function relogioDaAnimacao(ms: number) {
+    Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+      configurable: true,
+      value: () => [{ currentTime: ms }],
+    });
+  }
 
   async function montar({ reduzido = false, agora = 100, naTela = true, valor = 41 } = {}) {
     vi.useFakeTimers();
@@ -186,6 +195,21 @@ describe("NumeroQueConta", () => {
     await act(async () => vi.advanceTimersByTime(1000));
     expect(quadros).toHaveLength(0);
     expect(visivel()).toBe("41");
+  });
+
+  it("o relógio é o da animação de entrada, não o da navegação (navegação interna até a home)", async () => {
+    // Número recém-pintado (animação a 100 ms) numa sessão aberta há minutos.
+    relogioDaAnimacao(100);
+    const cedo = await montar({ agora: 300_000 });
+    expect(cedo.quadros).toHaveLength(1);
+  });
+
+  it("número já visível pelo relógio da animação: não conta, mesmo com a navegação recente", async () => {
+    relogioDaAnimacao(1200);
+    const tarde = await montar({ agora: 100 });
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(tarde.quadros).toHaveLength(0);
+    expect(tarde.visivel()).toBe("41");
   });
 
   it("hidratação cedo: parte do zero, espera o número aparecer, conta e assenta no valor", async () => {
