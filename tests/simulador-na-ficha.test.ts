@@ -63,6 +63,9 @@ describe("o texto legal", () => {
     expect(fora).toContain(AVISO_DA_SIMULACAO);
     expect(fora).toContain("Bancos parceiros:");
     expect(fora).toContain("CET");
+    // A soma com e sem financiamento (CDC art. 54-B §3º).
+    expect(fora).toContain("total a prazo");
+    expect(fora).toContain("à vista");
     const aviso = html.match(/<p class="([^"]*)">Simulação, não é oferta/)?.[1] ?? "";
     expect(pxDe(aviso)).toBe(12);
   });

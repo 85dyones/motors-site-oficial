@@ -19,14 +19,28 @@ import { PARAMETROS_DE_FABRICA } from "../src/lib/finance-calculator";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const tema = vi.hoisted(() => ({ stockOverrides: {} as Record<string, Record<string, unknown>> }));
-const trackVehicleView = vi.hoisted(() => vi.fn(() => "evt-1"));
+const tema = vi.hoisted(() => ({
+  stockOverrides: {} as Record<string, Record<string, unknown>>,
+  configuracoesCarregadas: false,
+}));
+// Registra, a cada disparo, se o Pixel já existia naquele instante.
+const trackVehicleView = vi.hoisted(() =>
+  vi.fn((_v: { id: string; tipo?: string }) => {
+    pixelNoDisparo.push(typeof (window as { fbq?: unknown }).fbq === "function");
+    return "evt-1";
+  }),
+);
+const pixelNoDisparo: boolean[] = vi.hoisted(() => []);
 
 vi.mock("../src/app/ThemeContext", async () => {
   const real = await vi.importActual<typeof import("../src/app/ThemeContext")>("../src/app/ThemeContext");
   return {
     ...real,
-    useTheme: () => ({ companySettings: real.DEFAULT_COMPANY_SETTINGS, stockOverrides: tema.stockOverrides }),
+    useTheme: () => ({
+      companySettings: real.DEFAULT_COMPANY_SETTINGS,
+      stockOverrides: tema.stockOverrides,
+      configuracoesCarregadas: tema.configuracoesCarregadas,
+    }),
   };
 });
 vi.mock("../src/lib/telemetry", async () => {
@@ -73,7 +87,10 @@ let root: Root;
 
 beforeEach(() => {
   tema.stockOverrides = {};
+  tema.configuracoesCarregadas = true;
   trackVehicleView.mockClear();
+  pixelNoDisparo.length = 0;
+  delete (window as { fbq?: unknown }).fbq;
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}"))));
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -94,21 +111,33 @@ async function desenhar(v: Veiculo) {
 }
 
 describe("a visualização da ficha sai uma vez", () => {
-  it("o ajuste do painel chegando depois não repete o evento", async () => {
+  it("chegada do zero: espera as configurações, e sai uma vez, com Pixel e com o ajuste", async () => {
     const v = veiculo("7947766");
+    // Hidratação: `/api/settings` ainda não respondeu, sem ajuste e sem Pixel.
+    tema.configuracoesCarregadas = false;
     await desenhar(v);
-    expect(trackVehicleView).toHaveBeenCalledTimes(1);
+    expect(trackVehicleView).not.toHaveBeenCalled();
 
-    // O ajuste chega: `veiculo` é recriado com a descrição do painel.
-    tema.stockOverrides = { "7947766": { descricao: "Revisada" } };
+    // A resposta chega: o `IntegrationsTracker` cria o `fbq` e o ajuste do
+    // painel corrige a carroceria.
+    (window as { fbq?: unknown }).fbq = () => {};
+    tema.stockOverrides = { "7947766": { tipo: "Picape", descricao: "Revisada" } };
+    tema.configuracoesCarregadas = true;
     await desenhar(v);
     expect(container.textContent).toContain("Revisada");
+    expect(trackVehicleView).toHaveBeenCalledTimes(1);
+    expect(pixelNoDisparo).toEqual([true]);
+    expect(trackVehicleView.mock.calls[0][0].tipo).toBe("Picape");
+
+    // E um ajuste que chegue depois disso não repete o evento.
+    tema.stockOverrides = { "7947766": { tipo: "Picape", descricao: "Revisada de novo" } };
+    await desenhar(v);
     expect(trackVehicleView).toHaveBeenCalledTimes(1);
   });
 
   it("outro carro na mesma montagem anuncia de novo", async () => {
     await desenhar(veiculo("1"));
     await desenhar(veiculo("2"));
-    expect(trackVehicleView.mock.calls.map((c) => (c as unknown as [{ id: string }])[0].id)).toEqual(["1", "2"]);
+    expect(trackVehicleView.mock.calls.map((c) => c[0].id)).toEqual(["1", "2"]);
   });
 });

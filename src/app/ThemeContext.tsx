@@ -269,6 +269,13 @@ interface ThemeContextProps {
   quickTags: QuickTag[];
   updateQuickTags: (tags: QuickTag[]) => Promise<void>;
   stockOverrides: StockOverrides;
+  /**
+   * `/api/settings` já respondeu (ou falhou, ou passou do tempo). Antes disso,
+   * `stockOverrides` está vazio e o `metaPixelId` ainda não chegou — o Pixel
+   * não existe. Quem dispara evento que depende dos dois (a visualização da
+   * ficha) espera por este sinal.
+   */
+  configuracoesCarregadas: boolean;
   carouselVehicleIds: string[];
   updateCarouselVehicleIds: (ids: string[]) => Promise<void>;
   procedencia: ItemProcedencia[];
@@ -290,6 +297,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [popupSettings, setPopupSettings] = useState<PopupSettings>(DEFAULT_POPUP_SETTINGS);
   const [quickTags, setQuickTags] = useState<QuickTag[]>(DEFAULT_QUICK_TAGS);
   const [stockOverrides, setStockOverrides] = useState<StockOverrides>({});
+  const [configuracoesCarregadas, setConfiguracoesCarregadas] = useState(false);
   const [carouselVehicleIds, setCarouselVehicleIds] = useState<string[]>([]);
   const [procedencia, setProcedencia] = useState<ItemProcedencia[]>(PROCEDENCIA_PADRAO);
   // Sem padrão de fábrica: a faixa do Instagram são fotos reais da loja, e não
@@ -377,10 +385,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.warn("[ThemeContext] Failed to load settings from server, using defaults:", err);
+      } finally {
+        setConfiguracoesCarregadas(true);
       }
     };
-    
-    loadSettingsFromServer();
+
+    // Rede de segurança: se `/api/settings` travar sem responder, quem espera
+    // o sinal não fica esperando para sempre — segue com os padrões.
+    const tempoEsgotado = setTimeout(() => setConfiguracoesCarregadas(true), 6000);
+    loadSettingsFromServer().finally(() => clearTimeout(tempoEsgotado));
+    return () => clearTimeout(tempoEsgotado);
   }, []);
 
   /**
@@ -688,6 +702,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         quickTags,
         updateQuickTags,
         stockOverrides,
+        configuracoesCarregadas,
         carouselVehicleIds,
         updateCarouselVehicleIds,
         procedencia,

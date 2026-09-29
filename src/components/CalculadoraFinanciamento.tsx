@@ -298,8 +298,9 @@ Consegue verificar se aprova nessas condições?`;
             <div className="flex-[1.1] py-4 md:py-5 md:pl-6">
               <span className="mt-rotulo mb-2.5 block">PARCELA ESTIMADA</span>
               {/* Em tinta e um degrau abaixo do preço à vista (38 / 48 px na
-                  coluna do preço): até 29/09 a parcela era o número em
-                  destaque da página, na cor de ação, e competia com o preço.
+                  coluna do preço da ficha; em /financiamento não há preço ao
+                  lado e a regra é a mesma): até 29/09 a parcela era o número
+                  em destaque da página, na cor de ação, e competia com o preço.
                   A cor de destaque fica para o botão. */}
               <div
                 data-numero="parcela"
