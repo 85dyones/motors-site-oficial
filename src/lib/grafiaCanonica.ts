@@ -98,6 +98,8 @@ const SIGLAS = new Set([
   "mpi", "msi", "mt", "nxr", "pdk", "rc", "rs", "se", "sel", "srad", "ss", "st",
   "suv", "sv", "sw", "sx", "tb", "tdi", "tfsi", "tsi", "vhc", "xei", "xli",
   "xr", "xre",
+  // Versões da Ford (F-250 XLT no estoque de 29/09, que o site escrevia "Xlt").
+  "xl", "xls", "xlt",
 ]);
 
 /**
