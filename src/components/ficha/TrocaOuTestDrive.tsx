@@ -11,6 +11,9 @@ import SecaoDaFicha from "./SecaoDaFicha";
  * da marca na página. A troca agora é o botão em tinta, e o test-drive o
  * contorno, na mesma hierarquia dos botões da coluna do preço.
  *
+ * Os rótulos dos botões são os de antes, letra por letra: o GTM lê o texto do
+ * clique, e um gatilho preso a ele deixaria de disparar calado.
+ *
  * O subtítulo não promete "supervalorização FIPE": a loja compra abaixo da
  * tabela em qualquer estado (`lib/avaliacaoRecomendacao.ts`), e a frase criava
  * uma expectativa que o consultor tinha que desmontar (trocada em 2026-08-06).
@@ -40,7 +43,7 @@ export default function TrocaOuTestDrive({
           onClick={aoAgendar}
           className="mt-btn mt-btn-contorno mt-btn-bloco mt-foco min-h-11 px-5 text-xs tracking-[.08em]"
         >
-          AGENDAR TEST-DRIVE OU VISITA
+          AGENDAR TEST-DRIVE / VISITA
         </button>
       </div>
     </SecaoDaFicha>

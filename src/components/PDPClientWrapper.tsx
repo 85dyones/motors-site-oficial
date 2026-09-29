@@ -861,7 +861,9 @@ export default function PDPClientWrapper({
                 </div>
               )}
 
-              {/* Fullscreen Trigger Button */}
+              {/* Botão de tela cheia — só com foto: sem ela, a tela cheia
+                  abria sobre `undefined`. */}
+              {displayImages.length > 0 && (
               <button
                 onClick={() => abrirGaleria(activeImageIndex)}
  className="mt-foco absolute right-0 top-0 z-30 flex h-11 w-11 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent"
@@ -872,6 +874,7 @@ export default function PDPClientWrapper({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0-5.25-5.25" />
                 </svg>
               </button>
+              )}
 
               {/* Selo de indisponibilidade — "VENDIDO" ou "INDISPONÍVEL" */}
               {indisponivel && (
@@ -954,8 +957,9 @@ export default function PDPClientWrapper({
             {renderSidebar(true)}
           </div>
 
-          {/* Descrição. Some quando o feed não traz texto: uma seção com
-              título sobre nada é caixa oca, a mesma regra dos opcionais.
+          {/* Descrição. Some quando o feed não traz texto (nem HTML que só
+              embrulha vazio, como `<p></p>`): uma seção com título sobre nada
+              é caixa oca, a mesma regra dos opcionais.
 
               Os títulos da ficha seguem a hierarquia do nome do carro (o `h1`
               da barra mobile, ou o `h2` da barra desktop): as seções — esta,
@@ -965,7 +969,7 @@ export default function PDPClientWrapper({
               `h3`, `h4` e `h5`, e o leitor de tela que navega por títulos
               pulava níveis que não existiam (auditoria axe, `heading-order`).
               O tamanho vem das classes, não da tag. */}
-          {veiculo.descricao?.trim() && (
+          {veiculo.descricao?.replace(/<[^>]*>/g, "").trim() && (
           <div className="px-4 md:px-0 print:px-0">
             <SecaoDaFicha titulo="Descrição do veículo">
               {/<[a-z][\s\S]*>/i.test(veiculo.descricao) ? (

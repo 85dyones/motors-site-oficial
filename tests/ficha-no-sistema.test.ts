@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { execSync } from "node:child_process";
 import { lerCodigo } from "./fonte";
 
 /**
@@ -51,6 +52,31 @@ describe("nada do tema antigo na ficha", () => {
     expect(classe).toContain("font-modernist");
     expect(classe).toContain("bg-mt-bg");
     expect(classe).toContain("text-mt-ink");
+  });
+});
+
+describe("o laudo aprovado só existe dentro da guarda", () => {
+  // "Histórico livre de sinistros e leilão" mora em `LaudoAprovado` desde
+  // 29/09, num componente que não olha o veículo. A guarda de
+  // `coerencia-da-pericia` confere que a condição existe na PDP; esta confere
+  // que o componente só é montado ali, uma vez, logo depois dela.
+  it("montado uma vez, na PDP, depois da condição de laudo publicado e aprovado", () => {
+    const pdp = lerCodigo("src/components/PDPClientWrapper.tsx");
+    const montagens = pdp.split("<LaudoAprovado").length - 1;
+    expect(montagens).toBe(1);
+    const guarda = pdp.indexOf('{veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA" && (');
+    const montagem = pdp.indexOf("<LaudoAprovado");
+    expect(guarda).toBeGreaterThan(-1);
+    expect(montagem).toBeGreaterThan(guarda);
+    // Nada entre a guarda e a montagem fecha o condicional.
+    expect(pdp.slice(guarda, montagem)).not.toMatch(/\)\}/);
+  });
+
+  it("nenhum outro arquivo importa LaudoAprovado", () => {
+    const quem = execSync("grep -rl 'ficha/LaudoAprovado' src || true", { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
+    expect(quem).toEqual(["src/components/PDPClientWrapper.tsx"]);
   });
 });
 
@@ -167,6 +193,18 @@ describe("as fotos da ficha não passam pelo otimizador quando são nossas", () 
     expect(deFora.loader).toBeUndefined();
   });
 
+  it("a galeria pede até 1600 px, a largura da versão `zap` — não o teto de 1280 do card", async () => {
+    const { default: FotoDaFicha } = await import("../src/components/ficha/FotoDaFicha");
+    const { LARGURA_DA_VERSAO_ZAP } = await import("../src/lib/fotosDoVeiculo");
+    const { LADO_DA_VARIANTE } = await import("../src/lib/imageProcessor");
+    expect(LARGURA_DA_VERSAO_ZAP).toBe(LADO_DA_VARIANTE.zap);
+    const zap = NOSSA.replace("-web.webp", "-zap.jpg");
+    await montar(createElement(FotoDaFicha, { src: zap, alt: "z", fill: true }));
+    const carregar = imagens.find((p) => p.src === zap)!.loader as (a: object) => string;
+    expect(carregar({ src: zap, width: 3840 })).toContain("width=1600&");
+    expect(carregar({ src: zap, width: 828 })).toContain("width=828&");
+  });
+
   it("a galeria, as miniaturas e a tela cheia usam FotoDaFicha — nenhum next/image direto", () => {
     expect(lerCodigo("src/components/PDPClientWrapper.tsx")).not.toMatch(/<Image\b|from "next\/image"/);
     expect(lerCodigo("src/components/ficha/GaleriaEmTelaCheia.tsx")).not.toMatch(/<Image\b|from "next\/image"/);
@@ -197,6 +235,39 @@ describe("a tela cheia", () => {
     await act(async () => raiz.unmount());
     root = undefined;
     expect(document.body.style.overflow).toBe("");
+  });
+
+  it("ao fechar, o foco volta para quem abriu", async () => {
+    const { default: GaleriaEmTelaCheia } = await import("../src/components/ficha/GaleriaEmTelaCheia");
+    const gatilho = document.createElement("button");
+    document.body.appendChild(gatilho);
+    gatilho.focus();
+    await montar(
+      createElement(GaleriaEmTelaCheia, { imagens: FOTOS, indice: 0, aoMudar: () => {}, aoFechar: () => {}, nome: "X" }),
+    );
+    expect(document.activeElement).not.toBe(gatilho);
+    const raiz = root!;
+    await act(async () => raiz.unmount());
+    root = undefined;
+    expect(document.activeElement).toBe(gatilho);
+    gatilho.remove();
+  });
+
+  it("o Tab dá a volta dentro do diálogo", async () => {
+    const { default: GaleriaEmTelaCheia } = await import("../src/components/ficha/GaleriaEmTelaCheia");
+    const tela = await montar(
+      createElement(GaleriaEmTelaCheia, { imagens: FOTOS, indice: 0, aoMudar: () => {}, aoFechar: () => {}, nome: "X" }),
+    );
+    const botoes = [...tela.querySelectorAll("button")];
+    botoes[botoes.length - 1].focus();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab" }));
+    });
+    expect(document.activeElement).toBe(botoes[0]);
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true }));
+    });
+    expect(document.activeElement).toBe(botoes[botoes.length - 1]);
   });
 
   it("Esc fecha e as setas do teclado trocam a foto, dando a volta", async () => {

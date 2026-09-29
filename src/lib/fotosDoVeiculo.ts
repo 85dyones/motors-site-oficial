@@ -199,12 +199,25 @@ export function ehFotoPropria(url: string | null | undefined): boolean {
  */
 export const LARGURA_DA_VERSAO_WEB = 1280;
 
-export function urlDaFotoNaLargura(url: string, largura: number, qualidade = 75): string {
+/**
+ * A versão `zap` (`whatsapp_images`) é gravada com 1600 px — a da galeria da
+ * ficha e da tela cheia, onde a foto é ampliada e o pixel a mais aparece
+ * (`LADO_DA_VARIANTE` em `imageProcessor.ts`). Quem desenha a galeria passa
+ * este teto; o card fica no da versão `web`.
+ */
+export const LARGURA_DA_VERSAO_ZAP = 1600;
+
+export function urlDaFotoNaLargura(
+  url: string,
+  largura: number,
+  qualidade = 75,
+  teto = LARGURA_DA_VERSAO_WEB,
+): string {
   const limpo = url.trim();
   if (limpo.indexOf(PREFIXO_PUBLICO) < 0) return url;
   const semQuery = limpo.split("?")[0];
   const renderizada = semQuery.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
-  const w = Math.max(1, Math.min(Math.round(largura), LARGURA_DA_VERSAO_WEB));
+  const w = Math.max(1, Math.min(Math.round(largura), teto));
   // `resize=contain` é obrigatório: só com `width`, o Storage mantém a altura
   // ORIGINAL e corta o centro — a capa de 1280×853 pedida a 640 voltava como
   // um retrato de 640×853 (medido em 29/09). Com `contain`, 640×427.

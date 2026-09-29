@@ -38,17 +38,40 @@ export default function GaleriaEmTelaCheia({
   const total = imagens.length;
   const fechar = useRef<HTMLButtonElement>(null);
 
+  const dialogo = useRef<HTMLDivElement>(null);
+
+  // Ao abrir: prende a rolagem e põe o foco no fechar. Ao fechar: devolve a
+  // rolagem como estava e o foco a quem abriu (a foto, o botão de tela cheia
+  // ou o "ver galeria") — sem isso, quem navega por teclado voltava ao topo.
   useEffect(() => {
     const antes = document.body.style.overflow;
+    const quemAbriu = document.activeElement as HTMLElement | null;
     document.body.style.overflow = "hidden";
     fechar.current?.focus();
     return () => {
       document.body.style.overflow = antes;
+      quemAbriu?.focus?.();
     };
   }, []);
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
+      // O Tab dá a volta dentro do diálogo: `aria-modal` promete que a página
+      // por trás está fora de alcance.
+      if (e.key === "Tab" && dialogo.current) {
+        const botoes = [...dialogo.current.querySelectorAll<HTMLElement>("button")];
+        const primeiro = botoes[0];
+        const ultimo = botoes[botoes.length - 1];
+        const dentro = dialogo.current.contains(document.activeElement);
+        if (e.shiftKey && (document.activeElement === primeiro || !dentro)) {
+          e.preventDefault();
+          ultimo?.focus();
+        } else if (!e.shiftKey && (document.activeElement === ultimo || !dentro)) {
+          e.preventDefault();
+          primeiro?.focus();
+        }
+        return;
+      }
       if (e.key === "Escape") aoFechar();
       else if (e.key === "ArrowRight") aoMudar((indice + 1) % total);
       else if (e.key === "ArrowLeft") aoMudar((indice - 1 + total) % total);
@@ -59,6 +82,7 @@ export default function GaleriaEmTelaCheia({
 
   return (
     <div
+      ref={dialogo}
       role="dialog"
       aria-modal="true"
       aria-label={`Fotos do ${nome}`}
