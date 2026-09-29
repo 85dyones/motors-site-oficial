@@ -17,7 +17,8 @@ import { ler } from "./fonte";
  *   2. a trava do sync (allowlist por construção) descartava documento no carro
  *      já importado — então o conserto do n8n sozinho só valeria para carro novo.
  *
- * A regra é PREENCHER o vazio, nunca TROCAR — ver o cabeçalho da migração
+ * Placa, chassi e motor o feed PREENCHE no vazio, nunca troca; a FIPE segue o
+ * feed quando ele tem valor — ver o cabeçalho da migração
  * `20260929120000_documentos_do_feed_preenchem_o_vazio`.
  */
 
@@ -149,18 +150,60 @@ function vigente(funcao: string): { arquivo: string; corpo: string } {
   return { arquivo, corpo: sql.slice(inicio, fim) };
 }
 
-describe("a trava do sync: preenche o vazio, e só", () => {
+/**
+ * Os ramos de um `if … then … else … end if;` do plpgsql, contando os `if`
+ * aninhados — e não o primeiro `else` ou o primeiro `end if` que aparecer.
+ *
+ * A revisão provou por que isso importa: cortar no primeiro `else` jogava para
+ * o "ramo do feed" tudo que viesse depois do `end if;`, e mover a canonização
+ * para fora do `if` (valendo também para o cadastro nativo) passava verde.
+ */
+function ramosDoIf(corpo: string, abertura: RegExp) {
+  const m = abertura.exec(corpo);
+  expect(m, `não achei ${abertura}`).not.toBeNull();
+  const dentro = m!.index + m![0].length;
+  const token = /\bend\s+if\s*;|\bif\b|\belse\b/g;
+  token.lastIndex = dentro;
+  let profundidade = 1;
+  let senao: { de: number; ate: number } | null = null;
+  for (let t = token.exec(corpo); t; t = token.exec(corpo)) {
+    if (t[0].startsWith("end")) {
+      profundidade -= 1;
+      if (profundidade === 0) {
+        return {
+          antes: corpo.slice(0, m!.index),
+          entao: corpo.slice(dentro, senao ? senao.de : t.index),
+          senao: senao ? corpo.slice(senao.ate, t.index) : "",
+          depois: corpo.slice(t.index + t[0].length),
+        };
+      }
+    } else if (t[0] === "if") {
+      profundidade += 1;
+    } else if (profundidade === 1) {
+      senao = { de: t.index, ate: t.index + t[0].length };
+    }
+  }
+  throw new Error(`o if ${abertura} não fecha`);
+}
+
+const contar = (texto: string, re: RegExp) => (texto.match(new RegExp(re, "g")) ?? []).length;
+
+describe("a trava do sync: a allowlist exata, cada coluna com a sua regra", () => {
   const { arquivo, corpo } = vigente("estoque_motors_trava_do_sync");
+  const sync = ramosDoIf(
+    corpo,
+    /if current_user = 'service_role'\s+or new\.last_seen_at is distinct from old\.last_seen_at then/,
+  );
 
   it("a versão vigente é a desta entrega", () => {
     expect(arquivo).toBe(MIGRACAO);
   });
 
-  it("a allowlist é exatamente esta — nenhuma coluna a mais", () => {
-    // O teste que pega o descuido de amanhã: `vendido`, `estado_cadastro` ou
-    // `descricao` entrando aqui devolveria ao robô o que a loja decidiu.
-    const escritas = [...corpo.matchAll(/\bold\.(\w+)\s*:=/g)].map((m) => m[1]);
-    expect([...new Set(escritas)].sort()).toEqual(
+  it("a allowlist é exatamente esta — uma escrita por coluna, nenhuma a mais", () => {
+    // Lista, e não conjunto: uma segunda `old.placa :=` sem guarda (o feed
+    // voltando a sobrescrever) é justamente a regressão a pegar.
+    const escritas = [...corpo.matchAll(/\bold\.(\w+)\s*:=/g)].map((m) => m[1]).sort();
+    expect(escritas).toEqual(
       [
         "chassi",
         "codigo_fipe",
@@ -178,59 +221,101 @@ describe("a trava do sync: preenche o vazio, e só", () => {
     );
   });
 
-  it("cada documento só é escrito quando o que está lá é vazio", () => {
-    for (const campo of DOCUMENTOS) {
-      const vazio =
-        campo === "valor_fipe"
-          ? /if old\.valor_fipe is null and new\.valor_fipe > 0 then\s+old\.valor_fipe := new\.valor_fipe;/
-          : new RegExp(`if nullif\\(btrim\\(old\\.${campo}\\), ''\\) is null\\s+and[\\s\\S]{0,400}?then\\s+old\\.${campo} :=`);
-      expect(corpo, campo).toMatch(vazio);
+  it("nenhuma atribuição por `=` — o plpgsql aceita, e ela escaparia da contagem", () => {
+    // `old.vendido = new.vendido;` é atribuição válida em plpgsql. A revisão
+    // pôs `vendido` e `estado_cadastro` assim na trava e o teste ficou verde.
+    expect(corpo).not.toMatch(/\bold\.\w+\s*=/);
+  });
+
+  it("toda escrita mora no ramo do sync; fora dele só a origem se protege", () => {
+    expect(contar(sync.entao, /\bold\.\w+\s*:=/)).toBe(12);
+    expect(sync.depois).not.toMatch(/\bold\.\w+\s*:=/);
+    expect(sync.entao).toMatch(/return old;\s*$/);
+    expect(sync.depois).toMatch(
+      /^\s*if new\.origem is distinct from old\.origem then\s+new\.origem := old\.origem;\s+end if;\s+return new;\s+end;\s*$/,
+    );
+  });
+
+  it("placa e chassi: só no vazio, e nunca o documento de outro carro", () => {
+    for (const doc of ["placa", "chassi"]) {
+      expect(contar(corpo, new RegExp(`\\bold\\.${doc}\\s*:=`)), doc).toBe(1);
+      expect(corpo, doc).toMatch(
+        new RegExp(
+          `if nullif\\(btrim\\(old\\.${doc}\\), ''\\) is null\\s+and ${doc}_do_feed is not null\\s+` +
+            `and not exists \\(\\s+select 1 from public\\.estoque_motors o\\s+where o\\.id <> old\\.id\\s+` +
+            `and upper\\(replace\\(replace\\(btrim\\(o\\.${doc}\\), '-', ''\\), ' ', ''\\)\\) = ${doc}_do_feed\\s+` +
+            `\\) then\\s+old\\.${doc} := ${doc}_do_feed;\\s+end if;`,
+        ),
+      );
     }
   });
 
-  it("documento de outro carro não entra — estouraria o índice e mataria o lote", () => {
-    expect(corpo).toMatch(/not exists \([\s\S]{0,200}?o\.id <> old\.id[\s\S]{0,120}?= placa_do_feed/);
-    expect(corpo).toMatch(/not exists \([\s\S]{0,200}?o\.id <> old\.id[\s\S]{0,120}?= chassi_do_feed/);
-  });
-
-  it("documento não move o lastmod — só preço e opcional movem", () => {
-    expect(corpo).toMatch(/if preco_mudou or opcionais_mudou then\s+old\.conteudo_atualizado_em := now\(\);/);
-    expect(corpo).not.toMatch(/(placa|chassi|motor|fipe)\w*_mudou/);
-  });
-
-  it("os dois sinais do sync continuam, e o que não é sync continua passando", () => {
+  it("motor: só no vazio — e preencher move o lastmod, porque sai na página", () => {
+    expect(contar(corpo, /\bold\.motor\s*:=/)).toBe(1);
     expect(corpo).toMatch(
-      /if current_user = 'service_role'\s+or new\.last_seen_at is distinct from old\.last_seen_at then/,
+      /if nullif\(btrim\(old\.motor\), ''\) is null and nullif\(btrim\(new\.motor\), ''\) is not null then\s+old\.motor := btrim\(new\.motor\);\s+motor_preenchido := true;\s+end if;/,
     );
-    expect(corpo).toMatch(/return old;\s+end if;\s+if new\.origem is distinct from old\.origem then/);
+  });
+
+  it("FIPE: segue o feed quando ele tem valor; zero e vazio não apagam", () => {
+    expect(contar(corpo, /\bold\.valor_fipe\s*:=/)).toBe(1);
+    expect(contar(corpo, /\bold\.codigo_fipe\s*:=/)).toBe(1);
+    expect(corpo).toMatch(/if new\.valor_fipe > 0 then\s+old\.valor_fipe := new\.valor_fipe;\s+end if;/);
+    expect(corpo).toMatch(
+      /if nullif\(btrim\(new\.codigo_fipe\), ''\) is not null then\s+old\.codigo_fipe := btrim\(new\.codigo_fipe\);\s+end if;/,
+    );
+  });
+
+  it("o lastmod: um carimbo só, por preço, opcional ou motor — nunca por documento", () => {
+    expect(contar(corpo, /\bold\.conteudo_atualizado_em\s*:=/)).toBe(1);
+    expect(corpo).toMatch(
+      /if preco_mudou or opcionais_mudou or motor_preenchido then\s+old\.conteudo_atualizado_em := now\(\);\s+end if;/,
+    );
+    expect(contar(corpo, /\bmotor_preenchido\s*:=\s*true/)).toBe(1);
   });
 });
 
 describe("o INSERT do feed: forma canônica, e colisão vira vazio", () => {
   const { arquivo, corpo } = vigente("estoque_motors_marcar_origem");
-  const [nativo, feed] = corpo.split(/\n\s*else\n/);
+  // O limiar fica na abertura: trocar 900000001 faz o `if` não ser achado.
+  const faixa = ramosDoIf(corpo, /if new\.id >= 900000001 then/);
 
-  it("a versão vigente é a desta entrega", () => {
+  it("a versão vigente é a desta entrega, e decide pela faixa antes de tudo", () => {
     expect(arquivo).toBe(MIGRACAO);
-    expect(feed, "o ramo do feed sumiu").toBeDefined();
+    expect(faixa.antes).toMatch(/\bbegin\s*$/);
+    expect(faixa.senao, "o ramo do feed sumiu").not.toBe("");
   });
 
   it("o ramo do nativo ficou intacto — lá a duplicidade TEM de estourar", () => {
-    expect(nativo).toContain("new.origem := 'painel';");
-    expect(nativo).toContain("new.last_seen_at := null;");
-    expect(nativo).not.toMatch(/new\.(placa|chassi)\s*:=/);
+    expect(faixa.entao).toMatch(
+      /^\s*new\.origem := 'painel';\s+new\.last_seen_at := null;\s+if new\.first_seen_at is null then\s+new\.first_seen_at := now\(\);\s+end if;\s*$/,
+    );
   });
 
-  it("o ramo do feed zera o documento alheio, sem colidir consigo mesmo", () => {
+  it("placa e chassi só são tocados no ramo do feed", () => {
+    expect(faixa.entao).not.toMatch(/\bnew\.(placa|chassi)\b/);
+    expect(faixa.depois).not.toMatch(/\bnew\.(placa|chassi)\b/);
+    expect(faixa.depois).toMatch(/^\s*new\.estado_cadastro := 'rascunho';\s+return new;\s+end;\s*$/);
+    expect(corpo).not.toMatch(/\bnew\.\w+\s*=/);
+  });
+
+  it("o ramo do feed canoniza e zera o documento alheio, sem colidir consigo mesmo", () => {
     // No upsert do PostgREST este gatilho roda também para o carro que já
     // existe, antes do conflito. Sem `is distinct from new.id`, reimportar o
     // dono da placa apagaria a placa dele.
-    expect(feed).toMatch(/o\.id is distinct from new\.id[\s\S]{0,120}?= new\.placa[\s\S]{0,200}?new\.placa := null;/);
-    expect(feed).toMatch(/o\.id is distinct from new\.id[\s\S]{0,120}?= new\.chassi[\s\S]{0,200}?new\.chassi := null;/);
-  });
-
-  it("todo carro continua nascendo rascunho", () => {
-    expect(corpo).toMatch(/new\.estado_cadastro := 'rascunho';\s+return new;/);
+    for (const doc of ["placa", "chassi"]) {
+      expect(faixa.senao, doc).toMatch(
+        new RegExp(`new\\.${doc}\\s+:= nullif\\(upper\\(replace\\(replace\\(btrim\\(new\\.${doc}\\),\\s+'-', ''\\), ' ', ''\\)\\), ''\\);`),
+      );
+      expect(faixa.senao, doc).toMatch(
+        new RegExp(
+          `if new\\.${doc} is not null and exists \\(\\s+select 1 from public\\.estoque_motors o\\s+` +
+            `where o\\.id is distinct from new\\.id\\s+` +
+            `and upper\\(replace\\(replace\\(btrim\\(o\\.${doc}\\), '-', ''\\), ' ', ''\\)\\) = new\\.${doc}\\s+` +
+            `\\) then[\\s\\S]{0,200}?new\\.${doc} := null;\\s+end if;`,
+        ),
+      );
+    }
   });
 });
 
@@ -240,9 +325,17 @@ describe("a migração se prova antes de gravar", () => {
   it("ensaia o upsert real do PostgREST, e não um UPDATE solto", () => {
     // É o `on conflict … excluded` que põe os dois gatilhos juntos, na ordem em
     // que o banco os roda — o ponto onde a colisão consigo mesmo aparece.
-    expect(sql.match(/on conflict \(id\) do update set/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(contar(sql, /on conflict \(id\) do update set/)).toBeGreaterThanOrEqual(7);
     expect(sql).toMatch(/raise exception 'Autoconferência falhou em % ponto\(s\)\.'/);
     expect(sql).toMatch(/delete from public\.estoque_motors where id in \(id_a, id_b, id_c, id_d\);/);
+  });
+
+  it("o lastmod de ensaio nasce ontem — senão a checagem de carimbo é cega", () => {
+    // `now()` é constante na transação: com o default, "moveu" e "não moveu"
+    // dariam o mesmo valor. A revisão pegou a primeira versão assim.
+    expect(sql).toMatch(/ontem\s+timestamptz := now\(\) - interval '1 day';/);
+    expect(contar(sql, /conteudo_atualizado_em\)\s+values \([^;]*\bontem\);/)).toBe(2);
+    expect(sql).toMatch(/if depois\.conteudo_atualizado_em is not distinct from ontem then/);
   });
 
   it("termina com o rodapé do livro-razão", () => {

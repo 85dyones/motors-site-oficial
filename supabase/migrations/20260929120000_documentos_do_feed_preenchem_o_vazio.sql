@@ -1,5 +1,5 @@
 -- ============================================================================
--- Documentos do feed — placa, chassi, motor e FIPE preenchem o que está vazio
+-- Documentos do feed — placa, chassi, motor e FIPE chegam ao cadastro interno
 -- ============================================================================
 -- Queixa do dono em 2026-09-29:
 --
@@ -31,9 +31,9 @@
 --    `20260908160000` deixou sobre os opcionais.
 --
 -- ---------------------------------------------------------------------------
--- A regra: PREENCHER o vazio, nunca TROCAR
+-- A regra: placa, chassi e motor o feed PREENCHE o vazio, nunca TROCA
 -- ---------------------------------------------------------------------------
--- Opcional e preço o feed sobrescreve (decisões de 02/09 e 08/09). Documento
+-- Opcional e preço o feed sobrescreve (decisões de 02/09 e 08/09). Estes três
 -- não, e por três motivos:
 --
 -- - "sem override" (30/08) continua valendo para o que a loja escreveu.
@@ -44,6 +44,19 @@
 --   mesmo do feed (medido: 0 divergências), ou alguém o corrigiu à mão — e nos
 --   dois casos o certo é ficar como está.
 -- - Vazio é o único estado em que não há decisão de ninguém a proteger.
+--
+-- Efeito conhecido: se o painel APAGAR a placa, o próximo ciclo a traz de volta
+-- do RevendaMais. Vazio, para esta regra, é "o feed pode preencher".
+--
+-- ---------------------------------------------------------------------------
+-- A FIPE é outra coisa: ela SEGUE o feed, sempre que o feed tem valor
+-- ---------------------------------------------------------------------------
+-- `valor_fipe` e `codigo_fipe` não são da loja — o painel não os edita (não
+-- estão em CAMPOS_NOSSOS nem em `camposGravaveis`), e o RevendaMais é a única
+-- fonte. E o valor muda todo mês: preenchido uma vez e congelado, ele viraria a
+-- FIPE de setembro para sempre, e um valor errado só sairia por SQL. Então o
+-- feed atualiza os dois a cada ciclo — mas só quando MANDA valor: o `0` e o
+-- vazio com que o feed diz "não sei" nunca apagam o que já está lá.
 --
 -- ---------------------------------------------------------------------------
 -- A guarda de duplicidade não pode matar o lote
@@ -67,8 +80,12 @@
 -- ---------------------------------------------------------------------------
 -- O que NÃO muda
 -- ---------------------------------------------------------------------------
--- - `conteudo_atualizado_em` (o lastmod): documento é interno, e motor é ficha
---   técnica, como `portas`. Nenhum dos dois muda o que justifica recrawl.
+-- - `conteudo_atualizado_em` (o lastmod) não se move por placa, chassi nem
+--   FIPE: são internos, não saem na página. O MOTOR move — ele está na lista de
+--   conteúdo de `marcar_conteudo_atualizado` (20260817120000) e sai no JSON-LD
+--   público (`vehicleEngine`). É a mesma conta que a `20260908160000` fez para
+--   os opcionais: a página mudou, o recrawl é desejado. Aqui ele é explícito
+--   porque a trava devolve OLD e descartaria o carimbo daquele gatilho.
 -- - `renavam`: o feed não tem a tag. Continua sendo campo do painel.
 -- - O carro nativo (id ≥ 900000001): o ramo dele no INSERT fica como está — lá
 --   a colisão DEVE estourar, porque é a guarda de duplicidade do cadastro.
@@ -88,8 +105,9 @@ as $$
 declare
   preco_mudou     boolean;
   opcionais_mudou boolean;
-  placa_do_feed   text;
-  chassi_do_feed  text;
+  placa_do_feed    text;
+  chassi_do_feed   text;
+  motor_preenchido boolean := false;
 begin
   if current_user = 'service_role'
      or new.last_seen_at is distinct from old.last_seen_at then
@@ -138,23 +156,25 @@ begin
 
     if nullif(btrim(old.motor), '') is null and nullif(btrim(new.motor), '') is not null then
       old.motor := btrim(new.motor);
+      motor_preenchido := true;
     end if;
 
-    -- Zero é como o feed diz "sem FIPE" — o nó do n8n já o converte em nulo,
-    -- e aqui a mesma régua vale para quem escrever direto.
-    if old.valor_fipe is null and new.valor_fipe > 0 then
+    -- A FIPE segue o feed quando ele tem valor. Zero e vazio são como o feed
+    -- diz "não sei" — o nó do n8n já os converte em nulo, e aqui a mesma régua
+    -- vale para quem escrever direto: não apagam o que está lá.
+    if new.valor_fipe > 0 then
       old.valor_fipe := new.valor_fipe;
     end if;
 
-    if nullif(btrim(old.codigo_fipe), '') is null and nullif(btrim(new.codigo_fipe), '') is not null then
+    if nullif(btrim(new.codigo_fipe), '') is not null then
       old.codigo_fipe := btrim(new.codigo_fipe);
     end if;
 
-    -- `last_seen_at`, `portas` e os documentos continuam FORA da conta: passar
-    -- o robô, corrigir ficha técnica e completar documento interno não são
-    -- motivo de pedir recrawl. Preço e opcional são — os dois mudam o que a
-    -- página diz ao comprador.
-    if preco_mudou or opcionais_mudou then
+    -- `last_seen_at`, `portas`, placa, chassi e FIPE continuam FORA da conta:
+    -- passar o robô, corrigir ficha técnica e completar dado interno não são
+    -- motivo de pedir recrawl. Preço, opcional e motor são — os três mudam o
+    -- que a página diz ao comprador.
+    if preco_mudou or opcionais_mudou or motor_preenchido then
       old.conteudo_atualizado_em := now();
     end if;
 
@@ -170,7 +190,7 @@ end;
 $$;
 
 comment on function public.estoque_motors_trava_do_sync() is
-  'O sync do RevendaMais manda em SEIS colunas — preco, preco_original, preco_promocional, last_seen_at, portas e opcionais — e PREENCHE, só quando estão vazias, outras cinco: placa, chassi, motor, valor_fipe e codigo_fipe (nunca troca valor existente, nunca grava documento que já é de outro carro). Nenhuma outra. Reconhece o sync pela identidade service_role ou pela assinatura last_seen_at; descarta o resto em silêncio para não matar o lote do feed. Allowlist por construção. Move conteudo_atualizado_em (o lastmod) quando muda PREÇO ou OPCIONAIS — nunca por last_seen_at, portas ou documento.';
+  'O sync do RevendaMais manda em SEIS colunas — preco, preco_original, preco_promocional, last_seen_at, portas e opcionais —, atualiza valor_fipe e codigo_fipe quando manda valor (zero e vazio não apagam), e PREENCHE placa, chassi e motor só quando estão vazios (nunca troca valor existente, nunca grava documento que já é de outro carro). Nenhuma outra. Reconhece o sync pela identidade service_role ou pela assinatura last_seen_at; descarta o resto em silêncio para não matar o lote do feed. Allowlist por construção. Move conteudo_atualizado_em (o lastmod) quando muda PREÇO ou OPCIONAIS ou quando preenche o MOTOR — nunca por last_seen_at, portas, placa, chassi ou FIPE.';
 
 
 -- ----------------------------------------------------------
@@ -207,7 +227,7 @@ begin
        where o.id is distinct from new.id
          and upper(replace(replace(btrim(o.placa), '-', ''), ' ', '')) = new.placa
     ) then
-      raise notice 'Importação %: a placa do feed já pertence a outro carro — entra sem placa.', new.id;
+      raise notice 'Carro % do feed: a placa pertence a outro carro — não gravada.', new.id;
       new.placa := null;
     end if;
 
@@ -216,7 +236,7 @@ begin
        where o.id is distinct from new.id
          and upper(replace(replace(btrim(o.chassi), '-', ''), ' ', '')) = new.chassi
     ) then
-      raise notice 'Importação %: o chassi do feed já pertence a outro carro — entra sem chassi.', new.id;
+      raise notice 'Carro % do feed: o chassi pertence a outro carro — não gravado.', new.id;
       new.chassi := null;
     end if;
   end if;
@@ -239,12 +259,19 @@ $$;
 -- col = excluded.col`), que é o que o n8n dispara: os dois gatilhos juntos,
 -- na ordem em que o banco os roda. Linhas de ensaio na faixa do feed, fora do
 -- estoque real, apagadas no fim.
+--
+-- ⚠️ O lastmod de ensaio nasce ONTEM, e não no default. `now()` é o instante da
+-- transação: com o default, o carimbo da linha e o de qualquer movimento seriam
+-- o MESMO valor, e a checagem de "não moveu" passaria sempre. A primeira versão
+-- desta autoconferência tinha exatamente esse ponto cego — a revisão provou
+-- que um mutante que movia o lastmod por placa passava por ela.
 do $$
 declare
   id_a     integer := 7000021;  -- carro do feed já no banco, documentos em branco
   id_b     integer := 7000022;  -- outro carro, dono dos documentos que colidem
   id_c     integer := 7000023;  -- importação nova que chega com documento alheio
   id_d     integer := 7000024;  -- carro em branco que tenta herdar documento alheio
+  ontem    timestamptz := now() - interval '1 day';
   antes    public.estoque_motors%rowtype;
   depois   public.estoque_motors%rowtype;
   falhas   int := 0;
@@ -260,19 +287,24 @@ begin
     raise exception 'AUTOCONFERÊNCIA: documentos de ensaio já existem no estoque — escolha outros';
   end if;
 
-  -- O carro antigo do feed: importado quando o upsert ainda não mandava documento.
-  insert into public.estoque_motors (id, marca, modelo, preco, ano, descricao, last_seen_at)
-  values (id_a, 'AceiteDoc', 'Antigo', 50000, 2022, 'descrição da loja', now());
+  -- O carro antigo do feed: importado quando o upsert ainda não mandava
+  -- documento. O motor a loja já tinha digitado no painel.
+  insert into public.estoque_motors (id, marca, modelo, preco, ano, motor, descricao, last_seen_at, conteudo_atualizado_em)
+  values (id_a, 'AceiteDoc', 'Antigo', 50000, 2022, '1.6', 'descrição da loja', now(), ontem);
   -- O dono dos documentos da colisão.
   insert into public.estoque_motors (id, marca, modelo, preco, ano, placa, chassi, last_seen_at)
   values (id_b, 'AceiteDoc', 'Dono', 60000, 2021, 'ZZB9Z92', '9ZZZZZZZZZZ000092', now());
-  insert into public.estoque_motors (id, marca, modelo, preco, ano, last_seen_at)
-  values (id_d, 'AceiteDoc', 'Vazio', 40000, 2020, now());
+  insert into public.estoque_motors (id, marca, modelo, preco, ano, last_seen_at, conteudo_atualizado_em)
+  values (id_d, 'AceiteDoc', 'Vazio', 40000, 2020, now(), ontem);
 
   select * into antes from public.estoque_motors where id = id_a;
+  if antes.conteudo_atualizado_em is distinct from ontem then
+    raise exception 'AUTOCONFERÊNCIA: o lastmod de ensaio não nasceu ontem — as checagens de carimbo ficariam cegas';
+  end if;
 
-  -- 1. O upsert do feed PREENCHE o vazio, na forma canônica.
-  --    `clock_timestamp()`: `now()` repetiria o carimbo do insert acima.
+  -- 1. O upsert do feed PREENCHE o vazio, na forma canônica, e não troca o
+  --    motor que a loja digitou. `clock_timestamp()`: `now()` repetiria o
+  --    carimbo do insert acima e o gatilho não reconheceria o sync.
   insert into public.estoque_motors
     (id, marca, modelo, preco, ano, placa, chassi, motor, valor_fipe, codigo_fipe, descricao, last_seen_at)
   values
@@ -292,22 +324,24 @@ begin
     falhas := falhas + 1;
     raise warning 'FALHA: chassi não preenchido na forma canônica (valor: %)', depois.chassi;
   end if;
-  if depois.motor is distinct from '1.0'
-     or depois.valor_fipe is distinct from 55000::numeric
-     or depois.codigo_fipe is distinct from '005340-6' then
+  if depois.motor is distinct from '1.6' then
     falhas := falhas + 1;
-    raise warning 'FALHA: motor/FIPE não preenchidos (% / % / %)', depois.motor, depois.valor_fipe, depois.codigo_fipe;
+    raise warning 'FALHA: o feed trocou o motor que a loja digitou (valor: %)', depois.motor;
+  end if;
+  if depois.valor_fipe is distinct from 55000::numeric or depois.codigo_fipe is distinct from '005340-6' then
+    falhas := falhas + 1;
+    raise warning 'FALHA: FIPE não preenchida (% / %)', depois.valor_fipe, depois.codigo_fipe;
   end if;
   if depois.descricao is distinct from antes.descricao then
     falhas := falhas + 1;
     raise warning 'FALHA: `descricao` passou pela trava e não deveria';
   end if;
-  if depois.conteudo_atualizado_em is distinct from antes.conteudo_atualizado_em then
+  if depois.conteudo_atualizado_em is distinct from ontem then
     falhas := falhas + 1;
-    raise warning 'FALHA: completar documento moveu o carimbo de conteúdo (lastmod)';
+    raise warning 'FALHA: placa, chassi ou FIPE moveram o carimbo de conteúdo (lastmod)';
   end if;
 
-  -- 2. O feed NÃO TROCA o que já existe.
+  -- 2. Placa, chassi e motor o feed NÃO TROCA; a FIPE ele atualiza.
   insert into public.estoque_motors
     (id, marca, modelo, preco, ano, placa, chassi, motor, valor_fipe, codigo_fipe, last_seen_at)
   values
@@ -319,11 +353,30 @@ begin
 
   select * into depois from public.estoque_motors where id = id_a;
   if depois.placa is distinct from 'ZZA9Z91' or depois.chassi is distinct from '9ZZZZZZZZZZ000091'
-     or depois.motor is distinct from '1.0' or depois.valor_fipe is distinct from 55000::numeric
-     or depois.codigo_fipe is distinct from '005340-6' then
+     or depois.motor is distinct from '1.6' then
     falhas := falhas + 1;
     raise warning 'FALHA: o feed sobrescreveu documento existente (placa=%, chassi=%, motor=%)',
       depois.placa, depois.chassi, depois.motor;
+  end if;
+  if depois.valor_fipe is distinct from 99000::numeric or depois.codigo_fipe is distinct from '999999-9' then
+    falhas := falhas + 1;
+    raise warning 'FALHA: a FIPE não seguiu o feed (% / %)', depois.valor_fipe, depois.codigo_fipe;
+  end if;
+  if depois.conteudo_atualizado_em is distinct from ontem then
+    falhas := falhas + 1;
+    raise warning 'FALHA: atualizar a FIPE moveu o lastmod';
+  end if;
+
+  -- 2b. O "não sei" do feed (zero, vazio) não apaga a FIPE.
+  insert into public.estoque_motors (id, marca, modelo, preco, ano, valor_fipe, codigo_fipe, last_seen_at)
+  values (id_a, 'AceiteDoc', 'Antigo', 50000, 2022, 0, '', clock_timestamp())
+  on conflict (id) do update set
+    valor_fipe = excluded.valor_fipe, codigo_fipe = excluded.codigo_fipe, last_seen_at = excluded.last_seen_at;
+
+  select * into depois from public.estoque_motors where id = id_a;
+  if depois.valor_fipe is distinct from 99000::numeric or depois.codigo_fipe is distinct from '999999-9' then
+    falhas := falhas + 1;
+    raise warning 'FALHA: o zero/vazio do feed apagou a FIPE (% / %)', depois.valor_fipe, depois.codigo_fipe;
   end if;
 
   -- 3. O painel continua editando a placa (sem carimbo, sem service_role).
@@ -344,6 +397,22 @@ begin
   if depois.placa is not null or depois.chassi is not null then
     falhas := falhas + 1;
     raise warning 'FALHA: carro herdou documento de outro (placa=%, chassi=%)', depois.placa, depois.chassi;
+  end if;
+
+  -- 4b. Motor preenchido muda a página (JSON-LD): o lastmod SE MOVE.
+  insert into public.estoque_motors (id, marca, modelo, preco, ano, motor, last_seen_at)
+  values (id_d, 'AceiteDoc', 'Vazio', 40000, 2020, '1.0', clock_timestamp())
+  on conflict (id) do update set
+    motor = excluded.motor, last_seen_at = excluded.last_seen_at;
+
+  select * into depois from public.estoque_motors where id = id_d;
+  if depois.motor is distinct from '1.0' then
+    falhas := falhas + 1;
+    raise warning 'FALHA: motor vazio não foi preenchido (valor: %)', depois.motor;
+  end if;
+  if depois.conteudo_atualizado_em is not distinct from ontem then
+    falhas := falhas + 1;
+    raise warning 'FALHA: preencher o motor não moveu o lastmod';
   end if;
 
   -- 5. Importação NOVA com documento de outro carro: entra, sem ele, e não estoura.
@@ -378,7 +447,7 @@ begin
   delete from public.estoque_motors where id in (id_a, id_b, id_c, id_d);
 
   if falhas = 0 then
-    raise notice 'Autoconferência OK: o feed preenche o vazio na forma canônica, não troca o que existe, não herda documento alheio, não estoura o lote e não move o lastmod.';
+    raise notice 'Autoconferência OK: placa, chassi e motor preenchem o vazio sem trocar o que existe; a FIPE segue o feed sem ser apagada pelo "não sei"; documento alheio não entra nem estoura o lote; o lastmod só se move pelo motor.';
   else
     raise exception 'Autoconferência falhou em % ponto(s).', falhas;
   end if;

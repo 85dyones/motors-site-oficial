@@ -141,8 +141,9 @@ revenda, sempre, nos campos de preço e no de promoção"* — ver
 > no repo). Os dois parágrafos abaixo descrevem o defeito. Eram DOIS lugares, e
 > não um: além do corpo do upsert, a trava descartava documento no carro já
 > importado — as "cinco chaves no upsert" sozinhas só valeriam para carro novo.
-> Agora o upsert manda `placa`, `chassi`, `motor`, `valor_fipe` e `codigo_fipe`,
-> e o banco **preenche o que está vazio, sem nunca trocar o que existe**. Ver
+> Agora o upsert manda `placa`, `chassi`, `motor`, `valor_fipe` e `codigo_fipe`;
+> o banco **preenche placa, chassi e motor quando estão vazios, sem nunca trocar
+> o que existe**, e a FIPE segue o feed quando ele manda valor. Ver
 > `docs/PROPRIEDADE_DOS_CAMPOS.md`. ⚠️ O n8n vivo só muda quando o workflow
 > corrigido for importado lá.
 
@@ -173,9 +174,9 @@ novo nasceria com os dois preenchidos em vez de em branco, sem risco de desfazer
 edição. Quem mexer nisso confirme que segue sendo verdade.
 
 > **Deixou de ser verdade em 2026-09-29, de propósito:** a trava passou a
-> aceitar os cinco campos no UPDATE do sync, mas **só quando a coluna está
-> vazia**. Edição do painel continua sem risco — valor preenchido o feed não
-> troca.
+> aceitar `placa` e `motor` (e `chassi`) no UPDATE do sync, mas **só quando a
+> coluna está vazia**. Edição do painel continua sem risco — valor preenchido o
+> feed não troca.
 
 **Fotos: fechado em 31/08.** Os ativos saíram do `s3.carro57.com.br` para o
 bucket `veiculos` do nosso Storage — 37 dos 38 publicados à venda (o 38º,
