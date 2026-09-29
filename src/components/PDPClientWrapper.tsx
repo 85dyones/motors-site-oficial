@@ -191,7 +191,7 @@ export default function PDPClientWrapper({
    */
   const visualizacaoAnunciada = useRef<string | null>(null);
 
-  // Fetch tracking ID from LocalStorage on mount
+  // A visualização da ficha: dataLayer, GA4, Pixel e CAPI (ver a nota acima).
   useEffect(() => {
     if (!configuracoesCarregadas) return;
     if (visualizacaoAnunciada.current === veiculo.id) return;
