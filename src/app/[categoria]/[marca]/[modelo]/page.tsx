@@ -195,6 +195,7 @@ export default async function HubDeModeloPage({ params }: PageProps) {
   ]);
 
   const irmaos = (marca?.modelos ?? []).filter((m) => m.slug !== hub.slug);
+  const guiasDoMotor = hub.segmento === "carros" ? guiasDoModelo(hub.slugMarca, hub.slug) : [];
 
   /* A saída do hub sem carro (2026-09-01, relatório dos hubs).
      Quem procurou ESTE modelo e não achou é o lead mais qualificado que chega
@@ -248,8 +249,8 @@ export default async function HubDeModeloPage({ params }: PageProps) {
         /* Os guias de mecânica que o texto dos próprios guias liga a este
            modelo (auditoria de 29/09: nenhum hub de modelo linkava guia). */
         guias={{
-          titulo: `Antes de comprar ${um(hub.genero)} ${hub.marca} ${hub.nome}: motor e câmbio`,
-          lista: hub.segmento === "carros" ? guiasDoModelo(hub.slugMarca, hub.slug) : [],
+          titulo: `Antes de comprar ${um(hub.genero)} ${hub.marca} ${hub.nome}: ${guiasDoMotor.some((g) => g.slug === "cambio-dupla-embreagem-usado") ? "motor e câmbio" : "o motor"}`,
+          lista: guiasDoMotor,
         }}
         faq={perguntas}
       />

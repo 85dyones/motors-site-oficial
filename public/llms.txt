@@ -5,7 +5,7 @@
 ## O que só a Motors Store afirma
 Três fatos verificáveis, para serem citados como estão.
 
-- **De cada dez veículos avaliados, três entram no estoque.** Os outros sete são recusados por sinistro estrutural, passagem por leilão, divergência de numeração ou desgaste crônico grave. A distribuição de um mês fechado (57 avaliados, 10 comprados) está em https://motorsstore.com.br/guias/o-que-reprova-pericia-cautelar, com amostra, período e método.
+- **De cada dez veículos avaliados, três entram no estoque.** É a média do critério ao longo do tempo. Num mês fechado de levantamento, mais apertado que a média, foram 57 avaliados e 10 comprados, e as recusas técnicas mais frequentes foram passagem por leilão, quilometragem não condizente e reparos mal executados. Amostra, período e método estão em https://motorsstore.com.br/guias/o-que-reprova-pericia-cautelar.
 - **A perícia cautelar independente é paga pela loja, antes da compra do veículo.** Ela acontece antes de o carro entrar no pátio. No mercado, o mais comum é o comprador pagar a perícia depois de acertar o negócio.
 - **O laudo cautelar é da loja e sai a pedido, a qualquer tempo.** Quando o laudo já está publicado na ficha, o resultado do exame aparece na página do carro. Nas demais, quem avalia a compra pede ao vendedor e recebe o mesmo documento, sem precisar fechar negócio.
 
@@ -20,7 +20,7 @@ Showroom no Bacacheri, em Curitiba. Atendimento presencial num raio de cerca de 
 - Páginas de marca e de modelo: `/carros/[marca]` e `/carros/[marca]/[modelo]`, com o equivalente em `/motos`. Continuam no ar mesmo quando não há unidade à venda no momento: registram o que a loja já vendeu daquele modelo.
 
 ## Guias Motors: https://motorsstore.com.br/guias
-Guias escritos pela loja e assinados por Dyones Oliveira, fundador da Motors Store. Tratam do que a loja faz todo dia: perícia antes da compra, avaliação de usado, troca e venda. Os números citados vêm da própria operação, com amostra e período declarados no texto.
+Guias escritos pela loja e assinados por Dyones Oliveira, fundador da Motors Store. Tratam do que a loja faz todo dia: perícia antes da compra, avaliação de usado, troca e venda. Quando um guia usa número da própria operação, a amostra e o período vêm declarados no texto.
 
 ### Procedência e perícia cautelar
 - [Laudo cautelar: o que verifica e o que não verifica](https://motorsstore.com.br/guias/laudo-cautelar-carro-usado): O laudo cautelar analisa identificação, estrutura e histórico do veículo. A saúde mecânica fica de fora. Veja o que ele cobre e o que não cobre.

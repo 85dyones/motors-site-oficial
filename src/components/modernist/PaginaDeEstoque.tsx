@@ -233,6 +233,20 @@ export default function PaginaDeEstoque({
       ),
     );
 
+  // Os guias que o TEXTO desta página já linka não voltam como card: seria
+  // o segundo link para o mesmo destino, e a régua do site é um por página.
+  // Aconteceu em `/garantia` na primeira versão (revisão de 29/09): a
+  // introdução diz "de cada dez avaliados, três entram", que o linkador leva
+  // a "O que reprova…", e a lista de guias da página trazia a mesma peça.
+  // A medição usa um linkador descartável com as MESMAS entradas do render,
+  // porque o do render só termina o FAQ depois de este bloco ser montado.
+  const destinosDoTexto = new Set<string>();
+  const medir = criarLinkador(caminho);
+  for (const texto of [...introducao, ...secoes.flatMap((s) => s.paragrafos), ...faq.map((f) => f.resposta)]) {
+    for (const parte of medir(texto)) if (parte.href) destinosDoTexto.add(parte.href);
+  }
+  const guiasDoBloco = guias?.lista.filter((g) => !destinosDoTexto.has(g.href)) ?? [];
+
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
   ) : null;
@@ -477,7 +491,7 @@ export default function PaginaDeEstoque({
           </section>
           ))}
 
-        {guias && <GuiasRelacionados titulo={guias.titulo} guias={guias.lista} />}
+        {guias && <GuiasRelacionados titulo={guias.titulo} guias={guiasDoBloco} />}
 
         {faq.length > 0 && (
           <section className="border-t-2 border-mt-regua py-6">

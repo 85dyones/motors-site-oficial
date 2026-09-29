@@ -10,6 +10,9 @@ import {
   agruparGuias,
 } from "../src/lib/guiasNoSite";
 import { segmentarComLinks } from "../src/lib/linksNoTexto";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import PaginaDeEstoque from "../src/components/modernist/PaginaDeEstoque";
 
 /**
  * O registro de `lib/guiasNoSite.ts` copia título e slug dos guias, que vivem
@@ -78,6 +81,55 @@ describe("o registro de guias do site", () => {
         expect(padrao.test(textoDo(g.slug)), `${chave} -> ${g.slug}`).toBe(true);
       }
     }
+  });
+});
+
+describe("o que o guia desmente não entra", () => {
+  // O teste de cima só pede que o modelo seja citado; estes são os casos em
+  // que o guia cita o modelo para dizer que ele NÃO tem a tecnologia.
+  const slugsDe = (chave: string) => (GUIAS_POR_MODELO[chave] ?? []).map((g) => g.slug);
+
+  it("Ka, EcoSport e Kwid não levam ao guia de turbo: nunca tiveram motor turbo", () => {
+    for (const chave of ["ford/ka", "ford/ecosport", "renault/kwid"]) {
+      expect(slugsDe(chave), chave).not.toContain("motores-turbo-usados-o-que-checar");
+    }
+    expect(textoDo("motores-turbo-usados-o-que-checar")).toMatch(/Ka e EcoSport brasileiros nunca tiveram motor turbo/);
+  });
+
+  it("os 250 TSI não levam ao guia de dupla embreagem: usam automático de conversor", () => {
+    for (const chave of ["volkswagen/polo", "volkswagen/virtus", "volkswagen/t-cross", "volkswagen/t-cross-highline-250-tsi-aut", "volkswagen/nivus", "volkswagen/taos"]) {
+      expect(slugsDe(chave), chave).not.toContain("cambio-dupla-embreagem-usado");
+    }
+  });
+
+  it("todo número de uma linha de apoio está no texto do guia", () => {
+    const todos = [...Object.values(GUIAS_DA_PAGINA).flat(), ...Object.values(GUIAS_POR_MODELO).flat()];
+    for (const g of todos) {
+      for (const numero of g.apoio.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+        expect(textoDo(g.slug), `"${numero}" em ${g.slug}: ${g.apoio}`).toContain(numero);
+      }
+    }
+  });
+});
+
+describe("o bloco de guias não repete o link do texto", () => {
+  it("guia que a introdução já linka não volta como card", () => {
+    const html = renderToStaticMarkup(
+      createElement(PaginaDeEstoque, {
+        trilha: [{ rotulo: "Home", href: "/" }],
+        titulo: "Garantia do seminovo",
+        introducao: ["Todo carro passa por perícia antes da vitrine, e de cada dez avaliados, três entram."],
+        veiculos: [],
+        caminho: "/garantia",
+        guias: {
+          titulo: "Para ler antes de comprar",
+          lista: [...GUIAS_DA_PAGINA["/garantia"], ...GUIAS_DA_PAGINA["/sobre"]],
+        },
+      }),
+    );
+    const vezes = (href: string) => html.split(`href="${href}"`).length - 1;
+    expect(vezes("/guias/o-que-reprova-pericia-cautelar")).toBe(1);
+    expect(vezes("/guias/garantia-carro-usado-loja")).toBe(1);
   });
 });
 

@@ -154,7 +154,7 @@ export const GUIAS_DA_PAGINA = {
     guia("quanto-vale-meu-carro-usado", "Cada fator que entra no número, e o que fazer antes de avaliar."),
     guia("carro-na-troca", "Como o seu carro vira entrada no próximo."),
     guia("vender-carro-financiado", "A loja quita o banco, e o saldo vira entrada ou dinheiro."),
-    guia("o-que-a-loja-assume-na-compra", "Transferência, débitos e comunicação de venda: o que fica com a loja."),
+    guia("o-que-a-loja-assume-na-compra", "O que a loja resolve e o que sai do valor."),
     guia("documentos-para-vender-carro", "O que o vendedor precisa, na ordem, no Paraná."),
   ],
   "/financiamento": [
@@ -164,7 +164,6 @@ export const GUIAS_DA_PAGINA = {
   "/garantia": [
     guia("garantia-carro-usado-loja", "O que a garantia de uma loja cobre e o que fica de fora."),
     guia("garantia-estendida-vale-a-pena", "Quando o plano opcional compensa, e o que perguntar antes."),
-    guia("o-que-reprova-pericia-cautelar", "Os motivos de recusa de um mês fechado: 57 avaliados, 10 comprados."),
   ],
   "/seminovos-curitiba": [
     guia("pericia-cautelar-curitiba", "Onde fazer, quanto demora e o que levar."),
@@ -195,21 +194,21 @@ const CARBONIZACAO = "carbonizacao-valvulas-injecao-direta";
 const DUPLA = "cambio-dupla-embreagem-usado";
 
 const TSI = [
-  guia(TURBO, "Versões 1.0 e 1.4 TSI."),
-  guia(CARBONIZACAO, "O TSI tem injeção direta."),
+  guia(TURBO, "Nas versões TSI."),
+  guia(CARBONIZACAO, "Nas versões TSI, que têm injeção direta."),
 ];
 const CHEVROLET_TRES_CILINDROS = [
   guia(CORREIA, "Os três-cilindros da Chevrolet usam essa correia desde o fim de 2019."),
-  guia(TURBO, "Versões turbo."),
-  guia(CARBONIZACAO, "Só nos turbo da linha 2025 em diante; os anteriores são de injeção indireta."),
+  guia(TURBO, "Nas versões turbo."),
+  guia(CARBONIZACAO, "Nos turbo da linha 2025 em diante; os turbo anteriores são de injeção indireta."),
 ];
 const FIREFLY_TURBO = [
-  guia(TURBO, "Versões T200 e T270."),
-  guia(CARBONIZACAO, "O T200 e o T270 têm injeção direta."),
+  guia(TURBO, "Nas versões com motor T200 ou T270."),
+  guia(CARBONIZACAO, "Nas versões com motor T200 ou T270, que têm injeção direta."),
 ];
 const TCE = (motor: string) => [
-  guia(TURBO, `Versões ${motor}.`),
-  guia(CARBONIZACAO, `O ${motor} tem injeção direta.`),
+  guia(TURBO, `Nas versões ${motor}.`),
+  guia(CARBONIZACAO, `Nas versões ${motor}, que têm injeção direta.`),
 ];
 
 export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
@@ -218,10 +217,10 @@ export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
   "chevrolet/tracker": CHEVROLET_TRES_CILINDROS,
   "chevrolet/montana": CHEVROLET_TRES_CILINDROS,
 
-  "ford/ka": [guia(CORREIA, "Só no 1.5 Dragon de três cilindros, de 2017 em diante.")],
+  "ford/ka": [guia(CORREIA, "No 1.5 Dragon de três cilindros, de 2017 em diante.")],
   "ford/ecosport": [
-    guia(CORREIA, "Só no 1.5 Dragon de três cilindros, de 2017 em diante."),
-    guia(DUPLA, "Só no 2.0 com câmbio PowerShift."),
+    guia(CORREIA, "No 1.5 Dragon de três cilindros, de 2017 em diante."),
+    guia(DUPLA, "No 2.0 com câmbio PowerShift."),
   ],
   "ford/fiesta": [
     guia(CORREIA, "No 1.0 EcoBoost do New Fiesta."),
@@ -236,8 +235,8 @@ export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
   ],
   "peugeot/2008": [
     guia(CORREIA, "No 1.2 PureTech."),
-    guia(TURBO, "No 1.6 THP e nas versões T200 e T270."),
-    guia(CARBONIZACAO, "O 1.6 THP, o T200 e o T270 têm injeção direta."),
+    guia(TURBO, "Nas versões com 1.6 THP, T200 ou T270."),
+    guia(CARBONIZACAO, "Nas versões com 1.6 THP, T200 ou T270, que têm injeção direta."),
   ],
   "citroen/c3": [
     guia(CORREIA, "No 1.2 PureTech."),
@@ -256,7 +255,7 @@ export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
     ...TSI,
     guia(DUPLA, "No Golf 1.4 TSI com câmbio DSG."),
   ],
-  "volkswagen/jetta": [guia(CARBONIZACAO, "O TSI tem injeção direta.")],
+  "volkswagen/jetta": [guia(CARBONIZACAO, "Nas versões TSI, que têm injeção direta.")],
   "volkswagen/tiguan": [guia(DUPLA, "No Tiguan Allspace, com DSG banhado em óleo.")],
 
   "fiat/pulse": FIREFLY_TURBO,
@@ -268,16 +267,16 @@ export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
   "jeep/commander": FIREFLY_TURBO,
 
   "hyundai/hb20": [
-    guia(TURBO, "Versões 1.0 TGDI."),
-    guia(CARBONIZACAO, "O 1.0 TGDI tem injeção direta."),
+    guia(TURBO, "Nas versões 1.0 TGDI."),
+    guia(CARBONIZACAO, "Nas versões 1.0 TGDI, que têm injeção direta."),
   ],
   "hyundai/hb20s": [
-    guia(TURBO, "Versões 1.0 TGDI."),
-    guia(CARBONIZACAO, "O 1.0 TGDI tem injeção direta."),
+    guia(TURBO, "Nas versões 1.0 TGDI."),
+    guia(CARBONIZACAO, "Nas versões 1.0 TGDI, que têm injeção direta."),
   ],
   "hyundai/creta": [
-    guia(TURBO, "Versões 1.0 TGDI."),
-    guia(CARBONIZACAO, "O 1.0 TGDI tem injeção direta."),
+    guia(TURBO, "Nas versões 1.0 TGDI."),
+    guia(CARBONIZACAO, "Nas versões 1.0 TGDI, que têm injeção direta."),
     guia(DUPLA, "Na geração nova, com o 1.6 turbo."),
   ],
   "hyundai/tucson": [guia(DUPLA, "No 1.6 turbo.")],
@@ -292,7 +291,7 @@ export const GUIAS_POR_MODELO: Record<string, GuiaRelacionado[]> = {
 
   "honda/hr-v": [
     guia(TURBO, "Só nas versões Advance e Touring; EX e EXL são aspiradas."),
-    guia(CARBONIZACAO, "Só nas versões Advance e Touring."),
+    guia(CARBONIZACAO, "No 1.5 turbo das versões Advance e Touring."),
   ],
   "honda/civic": [
     guia(TURBO, "No 1.5 turbo da geração passada."),
