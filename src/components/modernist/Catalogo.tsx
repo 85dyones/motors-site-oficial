@@ -179,6 +179,10 @@ export default function Catalogo({
    * renderização e saem do DOM levando o foco de quem os acionou para o
    * `<body>` (WCAG 2.4.3).
    *
+   * Desde a 3.5 (29/09), o `LIMPAR (N)` passa antes por `limparDoPainel`: com
+   * a folha do celular aberta, a grade fica coberta e o foco vai para o "VER N
+   * VEÍCULOS", dentro da folha. Fora dela, cai aqui como os outros dois.
+   *
    * `botaoDoFiltro` não servia de destino, que foi o motivo de o conserto ter
    * sido adiado. Ele é o "FILTROS", que tem `SO_NO_CELULAR`: no desktop é
    * `display:none`, e `.focus()` em elemento escondido não faz nada e não
@@ -291,8 +295,9 @@ export default function Catalogo({
     // agora `lg:hidden` — vai para a grade, que existe nas duas larguras.
     const aoMudarLargura = (e: MediaQueryListEvent) => {
       if (e.matches) return;
+      const focoNaFolha = painel.current?.contains(document.activeElement) ?? false;
       setFiltroAberto(false);
-      regiaoDeResultados.current?.focus();
+      if (focoNaFolha) regiaoDeResultados.current?.focus();
     };
     document.addEventListener("keydown", aoTeclar);
     celular.addEventListener("change", aoMudarLargura);
