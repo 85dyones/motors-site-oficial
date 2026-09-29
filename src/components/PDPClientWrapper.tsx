@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import type { QrDaFicha } from "../lib/qrDaFicha";
 import FichaImpressa from "./modernist/FichaImpressa";
-import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Veiculo, truncateString, getVeiculoPdpUrl } from "../lib/supabase";
@@ -18,7 +17,6 @@ import {
   mensagemDeInteresse,
   mensagemDeTestDrive,
   mensagemDeTroca,
-  textoDeCompartilhamento,
 } from "../lib/mensagensDoVeiculo";
 import { pushFichaTecnica, pushGaleria, pushInicioDeFormulario } from "../lib/dataLayer";
 import { ACOES } from "../lib/turnstile";
@@ -28,6 +26,12 @@ import type { ParametrosDoFinanciamento } from "../lib/finance-calculator";
 import BlocoLaudoPendente from "./BlocoLaudoPendente";
 import PonteDoGuiaDoLaudo from "./PonteDoGuiaDoLaudo";
 import RelogioDaChegada from "./RelogioDaChegada";
+import SecaoDaFicha from "./ficha/SecaoDaFicha";
+import LaudoAprovado from "./ficha/LaudoAprovado";
+import TrocaOuTestDrive from "./ficha/TrocaOuTestDrive";
+import CompartilharFicha from "./ficha/CompartilharFicha";
+import GaleriaEmTelaCheia from "./ficha/GaleriaEmTelaCheia";
+import FotoDaFicha from "./ficha/FotoDaFicha";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -157,51 +161,14 @@ export default function PDPClientWrapper({
   // Simulação de financiamento anexada ao lead: preenchida quando o lead
   // nasce do simulador, zerada nos demais fluxos de contato.
   const [activeSimulacao, setActiveSimulacao] = useState<Record<string, unknown> | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const handleCopyLink = () => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-  
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const displayImages = veiculo.whatsapp_images && veiculo.whatsapp_images.length > 0
     ? veiculo.whatsapp_images
     : veiculo.web_full_images;
 
-  // Handle body scroll locking when lightbox is active
-  useEffect(() => {
-    if (isLightboxOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isLightboxOpen]);
-
-  // Handle lightbox keyboard navigation (Escape to close, Arrows to navigate)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isLightboxOpen) return;
-      if (e.key === "Escape") {
-        setIsLightboxOpen(false);
-      } else if (e.key === "ArrowRight") {
-        setLightboxImageIndex((prev) => (prev + 1) % displayImages.length);
-      } else if (e.key === "ArrowLeft") {
-        setLightboxImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isLightboxOpen, displayImages.length]);
+  // A trava de rolagem e o teclado da tela cheia moram em
+  // `ficha/GaleriaEmTelaCheia`, que só existe montada enquanto está aberta.
 
   // Fetch tracking ID from LocalStorage on mount
   useEffect(() => {
@@ -519,55 +486,19 @@ export default function PDPClientWrapper({
   // vier vazia. Afirmar tração errada sobre um veículo é afirmação falsa sobre
   // o produto — CDC art. 37, o mesmo motivo do commit fdd9785.
 
-  // Specs array with premium custom inline SVGs
+  // A régua da ficha: a ÚNICA lista de especificações da página desde a
+  // revisão de UI de 29/09 (tarefa 2.3). Até ali havia uma segunda, a
+  // "MATRIZ DE ESPECIFICAÇÕES", na coluna da direita, que repetia estas cinco
+  // linhas mais marca, modelo e ano. Marca e modelo já estão no título; o ano
+  // entrou aqui. Os ícones, que nunca eram desenhados, saíram junto.
   const quickSpecs = [
-    { 
-      label: "CÂMBIO", 
-      value: veiculo.cambio, 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
-        </svg>
-      ) 
-    },
-    { 
-      label: "QUILOMETRAGEM", 
-      value: formatKm(veiculo.quilometragem), 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-        </svg>
-      ) 
-    },
-    { 
-      label: "COMBUSTÍVEL", 
-      value: veiculo.combustivel, 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.105-7.5 11.25-7.5 11.25S4.5 17.605 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-        </svg>
-      ) 
-    },
-    {
-      label: "COR EXTERNA",
-      value: veiculo.cor, 
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122A3 3 0 0 0 10.5 15h3a3 3 0 0 0 .97-2.122M2.25 12a9.75 9.75 0 1 1 19.5 0 9.75 9.75 0 0 1-19.5 0Z" />
-        </svg>
-      ) 
-    },
-    {
-      label: "CATEGORIA",
-      value: veiculo.tipo,
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4 text-brand-primary">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
-        </svg>
-      )
-    }
-    // Célula sem dado real sai da régua — mesma regra da matriz de
-    // especificações, mais abaixo, e da vitrine da TV. Desde 2026-08-06 o
+    { label: "ANO", value: veiculo.ano ? String(veiculo.ano) : "" },
+    { label: "QUILOMETRAGEM", value: formatKm(veiculo.quilometragem) },
+    { label: "CÂMBIO", value: veiculo.cambio },
+    { label: "COMBUSTÍVEL", value: veiculo.combustivel },
+    { label: "COR EXTERNA", value: veiculo.cor },
+    { label: "CARROCERIA", value: veiculo.tipo },
+    // Célula sem dado real sai da régua — mesma regra da vitrine da TV. Desde 2026-08-06 o
     // mapper não inventa mais default: `cambio`, `combustivel`, `cor` e `tipo`
     // chegam vazios quando o feed do RevendaMais não traz o campo
     // (`combustivel` está ausente em 19 dos 88 veículos em produção). Sem este
@@ -788,78 +719,13 @@ export default function PDPClientWrapper({
           </div>
         </div>
 
-        {/* Social Share & Print Row */}
-        <div className="flex items-center justify-between border-t border-brand-border/40 pt-4 mt-1 select-none">
-          <button
-            onClick={() => window.print()}
- className="flex items-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-brand-text/80 hover:text-brand-primary border border-brand-border/80 hover:border-brand-primary/50 hover:bg-brand-primary/5 px-3 py-2  transition-all duration-300 select-none cursor-pointer"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18.75 9H5.25" />
-            </svg>
-            Imprimir Ficha
-          </button>
-          
-          <div className="flex items-center gap-2.5">
-            {/* WHATSAPP */}
-            <button
-              onClick={() => {
-                const text = textoDeCompartilhamento(veiculo, {
-                  precoTexto: formatPrice(hasDiscount ? veiculo.preco_promocional : veiculo.preco_original),
-                  url: typeof window !== 'undefined' ? window.location.href : '',
-                });
-                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-              }}
- className="flex items-center justify-center h-9 w-9  border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-emerald-600 hover:border-emerald-600 transition-all duration-300 cursor-pointer"
-              aria-label="Compartilhar ficha do veículo no WhatsApp"
-              title="Compartilhar no WhatsApp"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="h-4 w-4">
-                <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z" />
-              </svg>
-            </button>
-
-            {/* INSTAGRAM SHARE / COPY LINK */}
-            <div className="relative flex items-center">
-              <button
-                onClick={handleCopyLink}
- className="flex items-center justify-center h-9 w-9  border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-gradient-to-tr hover:from-amber-500 hover:via-pink-500 hover:to-purple-600 hover:border-transparent transition-all duration-300 cursor-pointer"
-                aria-label="Compartilhar ficha do veículo no Instagram"
-                title="Copiar link para Instagram"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" fill="currentColor" className="h-4.5 w-4.5">
-                  <path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9s-58-34.5-93.9-36.2c-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.5 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2s34.5-58 36.2-93.9c2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"/>
-                </svg>
-              </button>
-              {copied && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-950 text-white text-[9px] font-bold   whitespace-nowrap animate-bounce border border-brand-border/40 uppercase tracking-widest">
-                  Link copiado!
-                </div>
-              )}
-            </div>
-
-            {/* FACEBOOK */}
-            <button
-              onClick={() => {
-                const url = typeof window !== 'undefined' ? window.location.href : '';
-                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=600,height=400');
-              }}
- className="flex items-center justify-center h-9 w-9  border border-brand-border/80 text-brand-text/75 hover:text-white hover:bg-blue-600 hover:border-blue-600 transition-all duration-300 cursor-pointer"
-              aria-label="Compartilhar ficha do veículo no Facebook"
-              title="Compartilhar no Facebook"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor" className="h-4 w-4">
-                <path d="M80 299.3V512H196V299.3h86.5l18-97.8H196V166.9c0-51.7 20.3-71.5 72.7-71.5c16.8 0 29.4.2 47.6 2.5L324.8 2C297.1 .4 268 0 245.6 0 147.9 0 99.5 41.6 99.5 145.5v56H16v97.8H80z" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <CompartilharFicha veiculo={veiculo} precoTexto={formatPrice(finalPrice)} />
       </aside>
     );
   };
 
   return (
-    <div id="pdp-vehicle-root" data-vehicle-id={veiculo.id} data-price={finalPrice} className="w-full pb-24 bg-brand-bg text-brand-text transition-colors duration-300 flex flex-col print:pb-0">
+    <div id="pdp-vehicle-root" data-vehicle-id={veiculo.id} data-price={finalPrice} className="flex w-full flex-col bg-mt-bg pb-24 font-modernist text-mt-ink print:pb-0">
       
       {/* A folha A4 — o desenho `Ficha Impressa.dc.html` portado.
           É a única coisa que vai ao papel: o `@media print` esconde o
@@ -917,15 +783,14 @@ export default function PDPClientWrapper({
         </nav>
       )}
 
-      {/* SINGLE MAIN GRID CONTAINER FOR LAYOUT (Gallery, Sidebar, Description, Accordions, Matriz) */}
+      {/* A grade da ficha: galeria e seções à esquerda, preço à direita. */}
       <div className="w-full mx-auto max-w-[1600px] px-0 md:px-8 mt-0 md:mt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start print:grid-cols-1 print:gap-6 print:px-0 print:mt-0">
         
         {/* Left Column: Gallery, Mobile Sidebar, Description, and Accordions (spans 8 cols on lg) */}
-        <div className="w-full lg:col-span-7 xl:col-span-8 flex flex-col gap-6 max-sm:gap-4 print:col-span-12 print:gap-6">
+        <div className="flex w-full flex-col gap-10 max-sm:gap-8 lg:col-span-7 xl:col-span-8 print:col-span-12">
           
           {/* Gallery block */}
           <section className="w-full flex flex-col gap-3 max-sm:gap-1.5 print:hidden">
-            {/* Images container fitted to generous, gorgeous full-bleed responsive heights and styled with bg-zinc-950 */}
             <div className="relative w-full aspect-video landscape:max-h-[75vh] bg-mt-inverso-fundo group border-none p-0 m-0 overflow-hidden">
               {/* Horizontal scroll snap container */}
               <div
@@ -940,7 +805,7 @@ export default function PDPClientWrapper({
                     onClick={() => abrirGaleria(index)}
  className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
                   >
-                    <Image
+                    <FotoDaFicha
                       src={imgUrl}
                       alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ${index + 1}`}
                       fill
@@ -1010,12 +875,10 @@ export default function PDPClientWrapper({
 
               {/* Selo de indisponibilidade — "VENDIDO" ou "INDISPONÍVEL" */}
               {indisponivel && (
-                <div className="absolute inset-0 bg-zinc-950/45 flex items-center justify-center z-20 backdrop-blur-[0.5px] pointer-events-none">
-                  <div className="bg-black/80 backdrop-blur-md border border-red-500/30 px-6 py-3   flex items-center gap-2">
-                    <span className="h-2 w-2  bg-red-500 animate-pulse" />
-                    <span className="text-[11px] font-black tracking-[0.25em] text-white uppercase">
-                      {rotuloIndisponivel}
-                    </span>
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[rgba(20,18,18,.45)]">
+                  <div className="mt-etiqueta gap-2.5 px-5 py-3 text-[11px] tracking-[.22em]">
+                    <span className="h-2 w-2 bg-mt-accent" aria-hidden="true" />
+                    {rotuloIndisponivel}
                   </div>
                 </div>
               )}
@@ -1041,7 +904,7 @@ export default function PDPClientWrapper({
  className={`mt-foco relative aspect-[4/3] flex-1 cursor-pointer overflow-hidden bg-mt-neutral-300 ${i === 2 ? "hidden sm:block" : ""}`}
                       aria-label={`Visualizar foto ${index + 1}`}
                     >
-                      <Image
+                      <FotoDaFicha
                         src={imgUrl}
                         alt={`${veiculo.marca} ${veiculo.modelo} — miniatura ${index + 1}`}
                         fill
@@ -1091,36 +954,33 @@ export default function PDPClientWrapper({
             {renderSidebar(true)}
           </div>
 
-          {/* Description Section
+          {/* Descrição. Some quando o feed não traz texto: uma seção com
+              título sobre nada é caixa oca, a mesma regra dos opcionais.
 
               Os títulos da ficha seguem a hierarquia do nome do carro (o `h1`
               da barra mobile, ou o `h2` da barra desktop): as seções — esta,
-              a matriz de especificações e o quadro da troca — são `h2`, e o
-              "laudo aprovado", dentro da perícia, é `h3`. Até 2026-09-25 eram
+              os opcionais, o laudo e a troca — são `h2` (em `SecaoDaFicha`),
+              e o "laudo aprovado", dentro do laudo, é `h3` (em
+              `LaudoAprovado`). Até 2026-09-25 eram
               `h3`, `h4` e `h5`, e o leitor de tela que navega por títulos
               pulava níveis que não existiam (auditoria axe, `heading-order`).
               O tamanho vem das classes, não da tag. */}
+          {veiculo.descricao?.trim() && (
           <div className="px-4 md:px-0 print:px-0">
-            <section className="bg-brand-card border border-brand-border/40 p-6 md:p-8 max-sm:p-4   print-avoid-break">
-              <h2 className="text-xs font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-3 mb-4 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5A3.375 3.375 0 0 0 10.125 2.25H3.75A1.125 1.125 0 0 0 2.625 3.375v17.25c0 .621.504 1.125 1.125 1.125h16.5a1.125 1.125 0 0 0 1.125-1.125V14.25z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 16.5h16.5M3.75 12h16.5M3.75 7.5h7.5" />
-                </svg>
-                DESCRIÇÃO DO VEÍCULO
-              </h2>
-              {veiculo.descricao && /<[a-z][\s\S]*>/i.test(veiculo.descricao) ? (
-                <div 
- className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl rich-text-content"
+            <SecaoDaFicha titulo="Descrição do veículo">
+              {/<[a-z][\s\S]*>/i.test(veiculo.descricao) ? (
+                <div
+                  className="rich-text-content max-w-[68ch] text-[15px] leading-relaxed text-mt-neutral-800"
                   dangerouslySetInnerHTML={{ __html: veiculo.descricao }}
                 />
               ) : (
-                <p className="text-base text-brand-text/75 leading-relaxed font-normal max-w-4xl whitespace-pre-line">
+                <p className="m-0 max-w-[68ch] whitespace-pre-line text-[15px] leading-relaxed text-mt-neutral-800">
                   {veiculo.descricao}
                 </p>
               )}
-            </section>
+            </SecaoDaFicha>
           </div>
+          )}
 
           {/* Accordion: Opcionais e Acessórios.
               Some quando o feed não traz opcionais — o que hoje é o caso de 87
@@ -1129,45 +989,29 @@ export default function PDPClientWrapper({
               manter a seção vazia só trocaria a mentira por uma caixa oca. */}
           {featuresList.length > 0 && (
           <div className="px-4 md:px-0 print:px-0">
-            <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
-              <button
-                onClick={() => {
+            <SecaoDaFicha
+              titulo="Opcionais e acessórios"
+              recolhivel={{
+                aberto: opcionaisOpen,
+                idDoCorpo: "ficha-opcionais",
+                aoAlternar: () => {
                   if (!opcionaisOpen) pushFichaTecnica(veiculo.id);
                   setOpcionaisOpen(!opcionaisOpen);
-                }}
- className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
-                aria-expanded={opcionaisOpen}
-              >
-                <span className="uppercase tracking-widest text-sm max-sm:text-xs">OPCIONAIS E ACESSÓRIOS DE SÉRIE</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2.5"
-                  stroke="currentColor"
-                  className={`w-4 h-4 text-brand-primary transition-transform duration-300 print:hidden ${
-                    opcionaisOpen ? "rotate-180" : ""
-                  }`}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
-              </button>
-              
-              <div
-                className={`transition-all duration-300 overflow-hidden print:max-h-none print:p-6 print:border-t print:block ${
-                  opcionaisOpen ? "max-h-[1000px] border-t border-brand-border p-6 max-sm:p-4" : "max-h-0"
-                }`}
-              >
-                <ul className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-3 text-xs text-brand-text/70">
-                  {featuresList.map((item, idx) => (
-                    <li key={idx} className="flex items-center gap-2">
-                      <span className="text-brand-primary font-black text-sm">✓</span>
-                      <span className="font-medium">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+                },
+              }}
+            >
+              <ul className="m-0 grid list-none grid-cols-1 gap-x-8 p-0 sm:grid-cols-2">
+                {featuresList.map((item, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-center gap-2.5 border-b border-mt-regua-fina py-2.5 text-sm text-mt-neutral-800"
+                  >
+                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 bg-mt-accent" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </SecaoDaFicha>
           </div>
           )}
 
@@ -1180,58 +1024,25 @@ export default function PDPClientWrapper({
               o tipo de declaração que gera passivo direto de CDC. */}
           {veiculo.laudo_pericia && veiculo.pericia === "PERÍCIA APROVADA" && (
           <div className="px-4 md:px-0 print:px-0">
-            <div className="bg-brand-card border border-brand-card-border   overflow-hidden transition-all duration-300 print-avoid-break">
-              <button
-                onClick={() => {
+            <SecaoDaFicha
+              titulo="Laudo cautelar"
+              recolhivel={{
+                aberto: periciaOpen,
+                idDoCorpo: "ficha-laudo",
+                aoAlternar: () => {
                   if (!periciaOpen) pushFichaTecnica(veiculo.id);
                   setPericiaOpen(!periciaOpen);
-                }}
- className="w-full flex items-center justify-between p-5 max-sm:p-4 text-left font-black text-base text-brand-text"
-                aria-expanded={periciaOpen}
-              >
-                <span className="uppercase tracking-widest text-sm max-sm:text-xs">LAUDO DE PERÍCIA CAUTELAR CERTIFICADO</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2.5"
-                  stroke="currentColor"
-                  className={`w-4 h-4 text-brand-primary transition-transform duration-300 print:hidden ${
-                    periciaOpen ? "rotate-180" : ""
-                  }`}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
-              </button>
-              
-              <div
-                className={`transition-all duration-300 overflow-hidden print:max-h-none print:p-6 print:border-t print:block ${
-                  periciaOpen ? "max-h-[500px] border-t border-brand-border p-6 max-sm:p-4" : "max-h-0"
-                }`}
-              >
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-emerald-500/10 text-emerald-600 p-2.5 ">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-                        <path fillRule="evenodd" d="M12.516 2.17a.75.75 0 0 0-1.032 0 11.209 11.209 0 0 1-7.877 3.08.75.75 0 0 0-.722.515A12.74 12.74 0 0 0 2.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 0 0 .374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 0 0-.722-.516l-.143.001c-2.996 0-5.717-1.17-7.734-3.08ZM12 8.25a.75.75 0 0 1 .75.75v3.25a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 6a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-extrabold text-emerald-600 uppercase tracking-wide">LAUDO TÉCNICO APROVADO</h3>
-                      <p className="text-[10px] text-brand-text/75 font-extrabold uppercase tracking-wider">Histórico livre de sinistros e leilão</p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-brand-text/70 leading-relaxed italic bg-brand-bg p-4  border border-brand-border font-medium">
-                    &ldquo;{veiculo.laudo_pericia}&rdquo;
-                  </p>
-                  {/* A mesma ponte do bloco pendente: o laudo aprovado diz o
-                      RESULTADO, e o guia diz o que o exame cobre. As 33 fichas
-                      com laudo publicado (medido em 17/09) ficavam sem nenhum
-                      link para a Onda 1. */}
-                  <PonteDoGuiaDoLaudo className="text-xs text-brand-text/70 leading-relaxed" />
-                </div>
-              </div>
-            </div>
+                },
+              }}
+            >
+              <LaudoAprovado laudo={veiculo.laudo_pericia}>
+                {/* A mesma ponte do bloco pendente: o laudo aprovado diz o
+                    RESULTADO, e o guia diz o que o exame cobre. As 33 fichas
+                    com laudo publicado (medido em 17/09) ficavam sem nenhum
+                    link para a Onda 1. */}
+                <PonteDoGuiaDoLaudo className="m-0 text-sm leading-relaxed text-mt-neutral-700" />
+              </LaudoAprovado>
+            </SecaoDaFicha>
           </div>
           )}
 
@@ -1279,124 +1090,17 @@ export default function PDPClientWrapper({
 
         </div>
 
-        {/* Right Column: Desktop Sidebar and Matriz de Especificações (spans 5 cols on lg) */}
-        <div className="w-full lg:col-span-5 xl:col-span-4 flex flex-col gap-6 max-sm:gap-4 px-4 lg:px-0 print:col-span-12 print:px-0 print:gap-6">
-          
-          {/* Desktop Sidebar (only blocks on lg desktop, hidden on mobile) */}
-          <div className="hidden lg:block print:hidden">
+        {/* Coluna da direita: a barra do preço (só no desktop) e, embaixo,
+            troca e test-drive. A "MATRIZ DE ESPECIFICAÇÕES" que ficava aqui
+            saiu em 29/09 (tarefa 2.3): repetia a régua da barra, logo acima,
+            linha por linha. A folha impressa não dependia dela — só
+            `#ficha-impressa` vai ao papel. */}
+        <div className="flex w-full flex-col gap-10 px-4 max-sm:gap-8 lg:col-span-5 lg:px-0 xl:col-span-4 print:hidden">
+          <div className="hidden lg:block">
             {renderSidebar(false)}
           </div>
 
-          {/* Specification Matrix Table */}
-          <aside className="bg-brand-card border border-brand-border/40 p-6 max-sm:p-4   w-full print-avoid-break">
-            <h2 className="text-sm font-black uppercase tracking-widest text-brand-primary border-b border-brand-border pb-4 mb-4">
-              MATRIZ DE ESPECIFICAÇÕES
-            </h2>
-
-            {/* Matrix detailed table */}
-            <div className="flex flex-col divide-y divide-brand-border/40 print:grid print:grid-cols-2 print:gap-x-8 print:gap-y-0 print:divide-y-0">
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">MARCA</span>
-                <span className="text-brand-text font-extrabold">{veiculo.marca}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">MODELO</span>
-                <span className="text-brand-text font-extrabold">{veiculo.modelo}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">ANO / MODELO</span>
-                <span className="text-brand-text font-extrabold">{veiculo.ano}</span>
-              </div>
-              <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                <span className="text-brand-gold font-bold uppercase">QUILOMETRAGEM</span>
-                <span className="text-brand-text font-extrabold">{formatKm(veiculo.quilometragem)}</span>
-              </div>
-              {/* Linha sem dado real é OCULTADA, não exibida vazia nem com
-                  default. `combustivel` está ausente em 19 dos 88 veículos e
-                  vinha preenchido com "Flex" — inclusive em elétricos e diesel. */}
-              {veiculo.cambio && (
-                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                  <span className="text-brand-gold font-bold uppercase">TRANSMISSÃO</span>
-                  <span className="text-brand-text font-extrabold">{veiculo.cambio}</span>
-                </div>
-              )}
-              {veiculo.combustivel && (
-                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                  <span className="text-brand-gold font-bold uppercase">COMBUSTÍVEL</span>
-                  <span className="text-brand-text font-extrabold">{veiculo.combustivel}</span>
-                </div>
-              )}
-              {/* DIREÇÃO não entra nesta matriz: o valor era adivinhado a
-                  partir do nome do modelo e do texto livre da descrição —
-                  chute apresentado ao lado de km e ano, que são dados reais
-                  do feed. A função que fazia esse palpite foi removida em
-                  2026-08-06; se a direção voltar, tem que vir do feed. */}
-              {veiculo.cor && (
-                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                  <span className="text-brand-gold font-bold uppercase">COR EXTERNA</span>
-                  <span className="text-brand-text font-extrabold">{veiculo.cor}</span>
-                </div>
-              )}
-              {/* ID interno e FIPE ficam FORA da matriz, por decisão do dono
-                  (2026-08-06): o ID é dado operacional da loja, e `fipe` nem
-                  existe no banco — todo carro exibia o default "Consulta Fipe",
-                  um dado inventado apresentado ao cliente como fato. O ID
-                  segue disponível no cabeçalho de impressão da ficha. */}
-              {veiculo.tipo && (
-                <div className="flex justify-between py-2 text-[11px] max-sm:py-1.5 print:border-b print:border-zinc-200 print:py-1">
-                  <span className="text-brand-gold font-bold uppercase">CARROCERIA</span>
-                  <span className="text-brand-text font-extrabold">{veiculo.tipo}</span>
-                </div>
-              )}
-
-            </div>
-
-          {/* Direct contact CTA box in side desk bar — Re-structured for High Conversion Trade-In & Showroom Visit */}
-          <div className="mt-6 pt-6 border-t border-brand-border/40 flex flex-col gap-4 print:hidden">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10  bg-brand-primary/10 border border-brand-primary flex items-center justify-center flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-5 w-5 text-brand-primary">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-xs font-black text-brand-text uppercase leading-none">Seu Usado na Troca ou Test-Drive</h2>
-                  {/* "Supervalorização FIPE" prometia pagar acima da tabela.
-                      A loja compra abaixo da FIPE em qualquer estado de
-                      conservação (regra em `lib/avaliacaoRecomendacao.ts`),
-                      então a frase criava uma expectativa que o consultor
-                      teria que desmontar no atendimento. Trocada em
-                      2026-08-06. */}
-                  <p className="text-[10px] text-brand-text/75 font-semibold tracking-wide uppercase mt-1">Avaliação com base na FIPE + Visita no Showroom</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2.5">
-                <button
-                  onClick={handleTradeInClick}
- className="w-full h-12 bg-green-700 hover:bg-green-800 text-white font-extrabold text-[11px] uppercase tracking-widest  flex items-center justify-center gap-2 active:scale-95  hover: transition-all duration-300 cursor-pointer"
-                  style={{ minHeight: "48px" }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 .999.999 0 0 0-.987 1.106v7.635m12-6.677h-12" />
-                  </svg>
-                  <span>Avaliar Meu Carro na Troca</span>
-                </button>
-
-                <button
-                  onClick={handleTestDriveClick}
- className="w-full h-11 bg-brand-card hover:bg-brand-primary/10 text-brand-primary font-extrabold text-[10px] uppercase tracking-widest  flex items-center justify-center gap-2 border border-brand-primary/40 hover:border-brand-primary transition-all duration-300 cursor-pointer active:scale-95"
-                  style={{ minHeight: "44px" }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                  </svg>
-                  <span>Agendar Test-Drive / Visita</span>
-                </button>
-              </div>
-            </div>
-          </aside>
-
+          <TrocaOuTestDrive aoAvaliar={handleTradeInClick} aoAgendar={handleTestDriveClick} />
         </div>
 
       </div>
@@ -1445,77 +1149,15 @@ export default function PDPClientWrapper({
         </button>
       </div>
 
-      {/* 6. LIGHTBOX MODAL (Fullscreen View - Full 100vw x 100vh Landscape Optimized) */}
+      {/* 6. As fotos em tela cheia. */}
       {isLightboxOpen && (
-        <div className="fixed inset-0 bg-black/98 z-[9999] backdrop-blur-xl flex flex-col justify-between p-0 transition-all duration-300 select-none print:hidden overflow-hidden">
-          {/* Top Bar with Floating Controls & Counter */}
-          <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between w-full p-3 sm:p-5 bg-gradient-to-b from-black/85 via-black/50 to-transparent pointer-events-auto">
-            <div className="flex items-center gap-3">
-              <span className="text-white text-xs sm:text-sm font-black uppercase tracking-widest drop- truncate max-w-[200px] sm:max-w-md">
-                {veiculo.marca} {veiculo.modelo}
-              </span>
-              <span className="text-white/80 text-[10px] sm:text-xs font-bold tracking-widest uppercase bg-white/10 px-2.5 py-0.5  border border-white/15 backdrop-blur-md">
-                {lightboxImageIndex + 1} / {displayImages.length}
-              </span>
-            </div>
-
-            <button
-              onClick={() => setIsLightboxOpen(false)}
- className="h-10 w-10 sm:h-11 sm:w-11  bg-black/60 hover:bg-white hover:text-black text-white flex items-center justify-center transition-all duration-300 border border-white/20 active:scale-95 cursor-pointer  backdrop-blur-md"
-              title="Fechar tela cheia"
-              aria-label="Fechar visualização em tela cheia"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Main Fullscreen Image area: Takes 100% of viewport width and height */}
-          <div className="relative w-full h-full flex items-center justify-center overflow-hidden p-0 m-0">
-            {/* Left navigation arrow.
-                Sempre `displayImages`, nunca `web_full_images` direto: a
-                galeria e as miniaturas indexam `displayImages` (whatsapp com
-                fallback), e o lightbox lendo o outro array abria a foto errada
-                — ou estourava — quando os dois divergiam. */}
-            {displayImages.length > 1 && (
-              <button
-                onClick={() => setLightboxImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length)}
- className="absolute left-3 sm:left-6 z-50 h-11 w-11 sm:h-14 sm:w-14  bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer "
-                aria-label="Imagem anterior"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                </svg>
-              </button>
-            )}
-
-            {/* Edge-to-Edge Image rendering */}
-            <div className="relative w-full h-full max-w-full max-h-full flex items-center justify-center p-0">
-              <Image
-                src={displayImages[lightboxImageIndex]}
-                alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ampliada ${lightboxImageIndex + 1}`}
-                fill
- className="object-contain w-full h-full p-2 sm:p-4"
-                sizes="100vw"
-                priority
-              />
-            </div>
-
-            {/* Right navigation arrow */}
-            {displayImages.length > 1 && (
-              <button
-                onClick={() => setLightboxImageIndex((prev) => (prev + 1) % displayImages.length)}
- className="absolute right-3 sm:right-6 z-50 h-11 w-11 sm:h-14 sm:w-14  bg-black/50 hover:bg-brand-primary text-white flex items-center justify-center border border-white/20 backdrop-blur-md transition-all duration-300 active:scale-95 cursor-pointer "
-                aria-label="Próxima imagem"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="w-5 h-5 sm:w-6 sm:h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
+        <GaleriaEmTelaCheia
+          imagens={displayImages}
+          indice={lightboxImageIndex}
+          aoMudar={setLightboxImageIndex}
+          aoFechar={() => setIsLightboxOpen(false)}
+          nome={`${veiculo.marca} ${modeloExibido}`}
+        />
       )}
 
       {/* ─── Simulador — "Monte sua parcela" ───

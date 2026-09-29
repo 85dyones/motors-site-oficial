@@ -216,10 +216,13 @@ describe("a ficha usa estas funções — e não monta o nome por conta própria
       "mensagemDeDuvidas",
       "mensagemDeTroca",
       "mensagemDeTestDrive",
-      "textoDeCompartilhamento",
     ]) {
       expect(fonte, `${fn} não é chamada na ficha`).toContain(`${fn}(`);
     }
+    // O compartilhamento saiu para `ficha/CompartilharFicha` na revisão de UI
+    // de 29/09 — o quinto texto é chamado lá, e a ficha monta o componente.
+    expect(fonte).toContain("<CompartilharFicha");
+    expect(lerCodigo("src/components/ficha/CompartilharFicha.tsx")).toContain("textoDeCompartilhamento(");
   });
 
   it("o `ref` continua sendo lido no instante do clique", async () => {

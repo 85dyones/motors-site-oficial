@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { lerCodigo } from "./fonte";
 
 /**
  * Guardas dos blocos de especificação da ficha do veículo.
@@ -28,8 +29,9 @@ import { join } from "node:path";
  *      ausente em 19 dos 88 veículos em produção.
  *
  * As duas são a mesma decisão vista de dois lados: o site não afirma o que não
- * sabe. Três blocos exibem esses campos hoje — a matriz de especificações e a
- * régua rápida, ambas na ficha, e a régua da vitrine da TV.
+ * sabe. Dois blocos exibem esses campos hoje — a régua da ficha e a régua da
+ * vitrine da TV. A matriz de especificações, que era o terceiro, saiu da ficha
+ * em 29/09.
  *
  * Alcance, sem exagero: isto varre código-fonte, não renderiza React. O runner
  * roda em `environment: "node"` sem jsdom (vitest.config.ts), e os blocos vivem
@@ -194,15 +196,20 @@ describe("blocos de especificação não exibem rótulo sem valor", () => {
     expect(pdp.match(/const quickSpecs\b/g)).toHaveLength(1);
   });
 
-  it("a matriz de especificações continua ocultando a linha sem dado", () => {
-    // A matriz resolve o mesmo problema por outro mecanismo: guarda no JSX,
-    // uma por linha. Foi o que fdd9785 acertou; travar aqui impede a volta.
-    for (const campo of CAMPOS_SEM_DEFAULT) {
-      expect(
-        pdp,
-        `A linha de \`${campo}\` na matriz precisa da guarda \`{veiculo.${campo} && (\`.`
-      ).toContain(`{veiculo.${campo} && (`);
+  it("a régua é a única lista de especificações da ficha — a matriz saiu", () => {
+    // Até 29/09 a ficha tinha DUAS listas: esta régua e a "MATRIZ DE
+    // ESPECIFICAÇÕES" na coluna da direita, que repetia as mesmas linhas com
+    // guardas próprias no JSX (`{veiculo.cambio && (`…). A matriz saiu
+    // (tarefa 2.3 da revisão de UI); tudo o que só ela mostrava — o ano —
+    // entrou na régua, e marca e modelo já estão no título. Agora a guarda de
+    // valor vazio é UMA, o filtro acima.
+    // `lerCodigo` e não `pdpSemComentarios`: a nota da remoção, em comentário
+    // JSX de várias linhas, cita o nome da matriz.
+    expect(lerCodigo("src/components/PDPClientWrapper.tsx")).not.toMatch(/MATRIZ DE ESPECIFICA/);
+    for (const campo of [...CAMPOS_SEM_DEFAULT, "tipo"]) {
+      expect(regua.corpo, `\`veiculo.${campo}\` saiu da régua`).toContain(`veiculo.${campo}`);
     }
+    expect(regua.corpo).toContain('label: "ANO"');
   });
 
   it("a régua da vitrine da TV continua filtrando coluna vazia", () => {

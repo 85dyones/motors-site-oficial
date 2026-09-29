@@ -1,5 +1,6 @@
 import { TEXTO_LAUDO_PENDENTE } from "../lib/textoDoLaudo";
 import PonteDoGuiaDoLaudo from "./PonteDoGuiaDoLaudo";
+import SecaoDaFicha from "./ficha/SecaoDaFicha";
 
 /**
  * O bloco que a ficha mostra quando o laudo NÃO está publicado nela.
@@ -24,17 +25,17 @@ import PonteDoGuiaDoLaudo from "./PonteDoGuiaDoLaudo";
 export default function BlocoLaudoPendente() {
   return (
     <div className="px-4 md:px-0 print:px-0">
-      <div className="bg-brand-card border border-brand-card-border p-5 max-sm:p-4 print-avoid-break">
-        <p className="uppercase tracking-widest text-sm max-sm:text-xs font-black text-brand-text">
-          Laudo cautelar
-        </p>
-        <p className="mt-2 text-sm text-brand-text/70">{TEXTO_LAUDO_PENDENTE}</p>
+      {/* A mesma seção do laudo aprovado, com o mesmo título: o visitante
+          acha o assunto no mesmo lugar, publicado ou não (revisão de UI de
+          29/09 — até ali era uma caixa `bg-brand-card` à parte). */}
+      <SecaoDaFicha titulo="Laudo cautelar">
+        <p className="m-0 text-[15px] leading-relaxed text-mt-neutral-800">{TEXTO_LAUDO_PENDENTE}</p>
         {/* A ponte para o guia. Ela entra DEPOIS do pedido ao vendedor de
             propósito: a saída comercial do bloco continua sendo o pedido, e o
             guia é o que responde "o que esse exame cobre?" para quem ainda
             está decidindo. */}
-        <PonteDoGuiaDoLaudo className="mt-2 text-sm text-brand-text/70" />
-      </div>
+        <PonteDoGuiaDoLaudo className="m-0 mt-2 text-sm leading-relaxed text-mt-neutral-700" />
+      </SecaoDaFicha>
     </div>
   );
 }
