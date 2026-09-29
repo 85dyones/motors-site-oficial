@@ -49,10 +49,8 @@ export default function FaixaComCaixas({
   const mudar = (proxima: Faixa) => onChange(ajustarFaixa(proxima, limites));
 
   return (
-    <fieldset className="border-b border-mt-regua-fina pb-5 pt-5">
-      <legend className="mb-3.5 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
-        {titulo}
-      </legend>
+    <fieldset className="mt-grupo">
+      <legend>{titulo}</legend>
 
       <div className="mt-range-duplo">
         {/* O trecho escolhido, na cor de destaque. O centro do pegador anda

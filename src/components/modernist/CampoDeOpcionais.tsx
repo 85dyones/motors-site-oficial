@@ -52,9 +52,14 @@ export default function CampoDeOpcionais({
   };
 
   return (
-    <fieldset className="border-b border-mt-regua-fina pb-4 pt-5">
-      <legend className="mb-3 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
-        OPCIONAIS
+    <fieldset className="mt-grupo">
+      <legend>
+        <span>OPCIONAIS</span>
+        {escolhidos.length > 0 && (
+          <span aria-hidden="true" className="mt-grupo-conta">
+            {escolhidos.length}
+          </span>
+        )}
       </legend>
 
       <div className="relative">
