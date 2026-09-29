@@ -40,12 +40,13 @@ export async function GET() {
 
     // `incluirPlaca`: a rota é autenticada e a busca por placa da tela de
     // margens depende dela. O mapper não a devolve por padrão — ver a nota em
-    // `mapVeiculoDbToVeiculo`.
+    // `mapVeiculoDbToVeiculo`. E ela vem pela sessão (`cliente`): a chave
+    // pública não lê placa desde 20260929220000 (`lib/colunasDoEstoque.ts`).
     //
     // `incluirNaoPublicaveis`: esta rota alimenta as telas internas de estoque
     // e margem, que precisam do pátio INTEIRO. Um carro fora da vitrine
     // continua custando pátio e capital.
-    const veiculos = await getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, incluirNaoPublicaveis: true });
+    const veiculos = await getEstoque({ incluirForaDoFeed: true, incluirPlaca: true, cliente: supabase, incluirNaoPublicaveis: true });
 
     // Só o que os seletores precisam. `getEstoque` já não expõe
     // `preco_compra` (ver o "SECURITY FIX" no mapper), e devolver a linha

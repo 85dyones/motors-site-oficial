@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { SELECT_PUBLICO_DO_ESTOQUE } from "./colunasDoEstoque";
 import { registrarFalha } from "./observabilidade";
 import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
@@ -962,10 +963,20 @@ async function estoqueIndisponivel(motivo: string): Promise<Veiculo[]> {
   throw new EstoqueIndisponivelError(motivo);
 }
 
+/**
+ * Quem pede a placa traz o PRÓPRIO cliente, autenticado — nunca a chave pública.
+ *
+ * Desde 20260929220000 o papel `anon` não lê `placa` (nem chassi, renavam,
+ * custo e FIPE): pedir a placa pelo cliente público derrubaria a consulta
+ * inteira. O tipo obriga o par: `incluirPlaca: true` só existe com `cliente`.
+ */
+type PlacaNaLeitura =
+  | { incluirPlaca?: false; cliente?: SupabaseClient }
+  | { incluirPlaca: true; cliente: SupabaseClient };
+
 export async function getEstoque(
-  opts: {
+  opts: PlacaNaLeitura & {
     incluirForaDoFeed?: boolean;
-    incluirPlaca?: boolean;
     /**
      * Traz também o que está bloqueado para publicação — hoje, quem tem menos
      * de 8 fotos. Ver `bloqueiosDePublicacao`, que lista as pendências e diz
@@ -991,12 +1002,21 @@ export async function getEstoque(
     return opts.incluirPlaca ? { ...v, placa: linha.placa || "" } : v;
   };
 
+  // Nunca `select("*")`: a chave pública não lê as colunas internas, e o
+  // PostgREST recusa a consulta INTEIRA quando falta privilégio em uma delas.
+  // Ver `lib/colunasDoEstoque.ts`.
+  const fonte = opts.cliente ?? supabase;
+  const colunas = opts.incluirPlaca ? `${SELECT_PUBLICO_DO_ESTOQUE},placa` : SELECT_PUBLICO_DO_ESTOQUE;
+
   let list: Veiculo[] = [];
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && fonte) {
     try {
-      const { data, error } = await supabase
+      // `as "*"`: a lista vem de uma constante, e o supabase-js só tipa select
+      // literal. Sem tipos gerados do banco, a linha de `*` é a mesma linha crua
+      // de sempre — o cast só diz isso ao compilador.
+      const { data, error } = await fonte
         .from("estoque_motors")
-        .select("*")
+        .select(colunas as "*")
         .order("preco", { ascending: false });
 
       if (error) {
@@ -1111,7 +1131,7 @@ export async function getVeiculoById(id: string): Promise<Veiculo | null> {
       // First try to match string ID directly
       let { data, error } = await supabase
         .from("estoque_motors")
-        .select("*")
+        .select(SELECT_PUBLICO_DO_ESTOQUE)
         .eq("id", id)
         .maybeSingle();
 
@@ -1120,7 +1140,7 @@ export async function getVeiculoById(id: string): Promise<Veiculo | null> {
         const numericId = parseInt(id, 10);
         const { data: numData } = await supabase
           .from("estoque_motors")
-          .select("*")
+          .select(SELECT_PUBLICO_DO_ESTOQUE)
           .eq("id", numericId)
           .maybeSingle();
         data = numData;
