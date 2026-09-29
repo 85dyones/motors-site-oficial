@@ -26,17 +26,22 @@
 }
 
 :root {
-  --brand-background: #fafafc;
-  --brand-foreground: #1a1a23;
+  /* A paleta padrão (`motors-cobre`, lib/temas.ts) repetida aqui para quem
+     não roda o script anti-flicker: sem JavaScript, ou com o armazenamento
+     do navegador bloqueado. `tests/cobre-da-marca.test.ts` confere que os
+     dois lugares dizem a mesma coisa. */
+  --brand-background: #F6F4F1;
+  --brand-foreground: #1C1A19;
   --brand-primary: #C83F00;
   --brand-primary-hover: #9E3100;
-  --brand-gold: #9E3100;
-  --brand-card: #ffffff;
-  --brand-card-border: #f3f4f6;
-  --brand-border: #f1f3f5;
-  --brand-shadow: rgba(0, 0, 0, 0.03);
-  --brand-glass-bg: rgba(255, 255, 255, 0.8);
-  --brand-footer-bg: #f1f3f5;
+  --brand-gold: #8A6647;
+  --brand-cobre: #8A6647;
+  --brand-card: #FCFBF9;
+  --brand-card-border: #E3DED8;
+  --brand-border: #E3DED8;
+  --brand-shadow: rgba(28, 26, 25, 0.16);
+  --brand-glass-bg: rgba(246, 244, 241, 0.86);
+  --brand-footer-bg: #1C1A19;
   
   --background: var(--brand-background);
   --foreground: var(--brand-foreground);
@@ -67,6 +72,8 @@
   --color-mt-accent-400: var(--mt-accent-400);
   --color-mt-accent-800: var(--mt-accent-800);
   --color-mt-accent-inverso: var(--mt-accent-inverso);
+  --color-mt-cobre: var(--mt-cobre);
+  --color-mt-cobre-marca: var(--mt-cobre-marca);
   --color-mt-regua: var(--mt-regua);
   --color-mt-regua-fina: var(--mt-regua-fina);
   --color-mt-regua-media: var(--mt-regua-media);

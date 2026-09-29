@@ -190,8 +190,12 @@ export function EstatisticasRegua({
         <div key={item.rotulo} className="min-w-0 flex-1">
           <div
             className={`text-[length:var(--regua-valor,clamp(19px,5.2vw,34px))] font-extrabold leading-none ${
+              // O número em destaque é identidade, não ação: cobre (29/09). No
+              // fundo escuro, o cobre do logo; no claro, o de texto.
               item.accent
-                ? "text-mt-accent"
+                ? inverso
+                  ? "text-mt-cobre-marca"
+                  : "text-mt-cobre"
                 : inverso
                   ? "text-mt-inverso"
                   : "text-mt-ink"
@@ -231,6 +235,7 @@ export function CardVeiculo({
   contagemFotos,
   kmEmDestaque = false,
   prioridade = false,
+  inverso = false,
 }: {
   veiculo: Veiculo;
   href: string;
@@ -244,8 +249,33 @@ export function CardVeiculo({
   /** Pinta a quilometragem de vermelho — usado na landing de baixa km */
   kmEmDestaque?: boolean;
   prioridade?: boolean;
+  /**
+   * Sobre fundo escuro (o resultado do Profiler, em /carro-perfeito). O card
+   * fixa cores de texto desde a 3.4 — tinta nos valores, cobre na marca —, e
+   * no escuro elas somem: a tinta ficava a 1,04:1. Aqui cada uma troca pela
+   * versão do fundo escuro, como em `EstatisticasRegua`.
+   */
+  inverso?: boolean;
 }) {
   const grande = densidade === "destaque";
+  // As cores que mudam no fundo escuro, num lugar só.
+  const cor = inverso
+    ? {
+        marca: "text-mt-cobre-marca",
+        apoio: "text-mt-inverso-suave",
+        valor: "text-mt-inverso",
+        regua: "border-mt-inverso-regua",
+        fina: "border-mt-inverso-regua-fina",
+        kmDestaque: "text-mt-accent-inverso",
+      }
+    : {
+        marca: "text-mt-cobre",
+        apoio: "text-mt-neutral-600",
+        valor: "text-mt-ink",
+        regua: "border-mt-regua",
+        fina: "border-mt-regua-fina",
+        kmDestaque: "text-mt-accent-800",
+      };
   const foto = veiculo.web_full_images?.[0] ?? veiculo.whatsapp_images?.[0];
 
   // O feed embute a versão na cauda do modelo — sem o corte, o título do
@@ -259,13 +289,17 @@ export function CardVeiculo({
     veiculo.preco_promocional > 0 &&
     veiculo.preco_promocional < veiculo.preco_original;
   const precoAtivo = temDesconto ? veiculo.preco_promocional : veiculo.preco_original;
+  const periciaAprovada = veiculo.pericia === "PERÍCIA APROVADA";
 
   return (
     // `min-w-0`: com a versão em uma linha só (`truncate`, abaixo), a largura
     // mínima do card passaria a ser a versão inteira. Nas grades de coluna
     // `auto` (ficha, Profiler, repasse) uma versão longa alargaria a grade no
     // celular em vez de cortar com reticências. Apontado pelo qa-guardian.
-    <Link href={href} className="group mt-foco flex min-w-0 flex-col no-underline">
+    <Link
+      href={href}
+      className={`group mt-foco flex min-w-0 flex-col no-underline ${inverso ? "text-mt-inverso" : ""}`}
+    >
       <div className="relative aspect-[4/3] bg-mt-neutral-300">
         {foto ? (
           /* Foto sem moldura e em cores — exceção deliberada ao P&B do
@@ -344,10 +378,26 @@ export function CardVeiculo({
             />
           )
         ) : null}
-        {etiqueta && (
-          <Etiqueta className="pointer-events-none absolute left-0 top-0 text-[9px]">
-            {etiqueta}
-          </Etiqueta>
+        {/* O canto de cima é do SELO de perícia, sempre o mesmo canto
+            (tarefa 3.4, "ficha de perícia"): grafite com o ponto no cobre do
+            logo, o mesmo desenho do selo da ficha. Só com a perícia aprovada
+            pela régua de `formatPericia` ("PERÍCIA APROVADA", a mesma do
+            laudo publicado) — mais estrita que o selo da ficha, que acende
+            com qualquer valor fora de "análise". A
+            etiqueta da vitrine ("BLINDADO", "ÚNICO DONO") vem logo abaixo. */}
+        {(periciaAprovada || etiqueta) && (
+          <div className="pointer-events-none absolute left-0 top-0 flex flex-col items-start">
+            {periciaAprovada && (
+              <span
+                data-selo="pericia"
+                className="flex items-center gap-1.5 bg-mt-inverso-fundo px-2 py-1.5 text-[9px] font-extrabold tracking-[.12em] text-mt-inverso"
+              >
+                <span className="h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
+                PERÍCIA APROVADA
+              </span>
+            )}
+            {etiqueta && <Etiqueta className="text-[9px]">{etiqueta}</Etiqueta>}
+          </div>
         )}
         {/* Carro em preparação: canto de baixo, à esquerda — o de cima é da
             etiqueta e o da direita é da contagem de fotos. */}
@@ -362,13 +412,25 @@ export function CardVeiculo({
         )}
       </div>
 
-      <div className="mt-3 border-t-2 border-mt-regua pt-2.5">
-        <div
-          className={`font-semibold tracking-[.12em] text-mt-accent ${
-            grande ? "text-xs" : "text-[11px]"
-          }`}
-        >
-          {veiculo.marca}
+      <div className={`mt-3 border-t-2 pt-2.5 ${cor.regua}`}>
+        {/* Marca em cobre à esquerda, código do veículo à direita: o cliente
+            cita o código no WhatsApp e o vendedor acha o carro na hora. */}
+        <div className="flex items-baseline justify-between gap-3">
+          <div
+            className={`shrink-0 font-semibold uppercase tracking-[.12em] ${cor.marca} ${
+              grande ? "text-xs" : "text-[11px]"
+            }`}
+          >
+            {veiculo.marca}
+          </div>
+          {veiculo.id && (
+            <div
+              data-linha="codigo"
+              className={`min-w-0 truncate text-[11px] tabular-nums tracking-[.02em] ${cor.apoio}`}
+            >
+              cód. {veiculo.id}
+            </div>
+          )}
         </div>
         <div
           className={`mt-0.5 font-extrabold leading-tight tracking-[-.02em] ${
@@ -384,40 +446,71 @@ export function CardVeiculo({
             só, com reticências: a versão inteira está na ficha, a um clique. */}
         <div
           data-linha="versao"
-          className={`min-h-[1.45em] truncate leading-[1.45] text-mt-neutral-700 ${grande ? "text-[13px]" : "text-xs"}`}
+          className={`min-h-[1.45em] truncate leading-[1.45] ${inverso ? "text-mt-inverso-suave" : "text-mt-neutral-700"} ${grande ? "text-[13px]" : "text-xs"}`}
         >
           {versaoExibida || "\u00a0"}
         </div>
 
-        <div
-          className={`mt-2 flex gap-2 border-t border-mt-regua-fina pt-2 tracking-[.04em] tabular-nums text-mt-neutral-600 ${
-            grande ? "text-xs" : "text-[11px]"
-          }`}
-        >
-          <span>{veiculo.ano}</span>
-          <span aria-hidden="true">·</span>
-          <span className={kmEmDestaque ? "font-semibold text-mt-accent-800" : ""}>
-            {formatarKm(veiculo.quilometragem)}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span>{veiculo.cambio}</span>
-        </div>
-
-        <div className="mt-2 flex items-end justify-between gap-3">
-          <div
-            className={`font-extrabold tracking-[-.03em] tabular-nums ${
-              grande ? "text-[28px]" : "text-[23px]"
-            }`}
-          >
-            {formatarPreco(precoAtivo)}
-          </div>
-          {parcela && (
+        {/* Ano, km e câmbio em três colunas com régua — o vocabulário de laudo
+            (tarefa 3.4). Algarismos de largura fixa: os números se alinham de
+            um card para o outro. O rótulo diz a unidade, então o km sai sem
+            o "km". */}
+        <dl className={`m-0 mt-2 grid grid-cols-3 border-t ${cor.fina}`}>
+          {[
+            { rotulo: "ANO", valor: String(veiculo.ano ?? ""), destaque: false },
+            {
+              rotulo: "KM",
+              valor: veiculo.quilometragem.toLocaleString("pt-BR"),
+              destaque: kmEmDestaque,
+            },
+            { rotulo: "CÂMBIO", valor: veiculo.cambio || "—", destaque: false },
+          ].map((coluna, i) => (
             <div
-              className={`tabular-nums text-mt-neutral-600 ${grande ? "text-xs" : "text-[11px]"}`}
+              key={coluna.rotulo}
+              className={`min-w-0 pt-2 ${i > 0 ? `border-l pl-2.5 ${cor.fina}` : ""}`}
             >
-              {parcela}
+              <dt className={`text-[9px] font-semibold tracking-[.14em] ${cor.apoio}`}>
+                {coluna.rotulo}
+              </dt>
+              <dd
+                className={`m-0 mt-1 truncate tabular-nums ${grande ? "text-sm" : "text-[13px]"} ${
+                  coluna.destaque ? `font-semibold ${cor.kmDestaque}` : `font-medium ${cor.valor}`
+                }`}
+              >
+                {coluna.valor}
+              </dd>
             </div>
-          )}
+          ))}
+        </dl>
+
+        {/* `flex-wrap`: na grade de três colunas ao lado dos filtros, entre
+            1024 e ~1120 px, o card fica com ~194 px e preço mais convite não
+            cabem numa linha. O convite desce em vez de passar por cima. */}
+        <div className={`mt-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-1.5 border-t pt-2.5 ${cor.fina}`}>
+          <div className="min-w-0">
+            <div
+              className={`font-extrabold tracking-[-.03em] tabular-nums ${
+                grande ? "text-[28px]" : "text-[23px]"
+              }`}
+            >
+              {formatarPreco(precoAtivo)}
+            </div>
+            {parcela && (
+              <div
+                className={`mt-0.5 tabular-nums ${cor.apoio} ${grande ? "text-xs" : "text-[11px]"}`}
+              >
+                {parcela}
+              </div>
+            )}
+          </div>
+          {/* O card inteiro já é o link; isto é só o convite visível, com a
+              régua de ação — a única ferrugem do card. */}
+          <span
+            aria-hidden="true"
+            className={`mb-1 shrink-0 border-b-2 border-mt-accent pb-1 text-[11px] font-extrabold tracking-[.1em] ${cor.valor} group-hover:text-mt-accent`}
+          >
+            VER CARRO →
+          </span>
         </div>
       </div>
     </Link>

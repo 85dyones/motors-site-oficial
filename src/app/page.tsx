@@ -248,7 +248,7 @@ export default async function Home() {
                 className="mt-foco flex shrink-0 items-baseline gap-1.5 whitespace-nowrap border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline md:border-0 md:border-r md:border-mt-regua-fina md:px-5 md:py-3.5 md:text-xs md:tracking-[.08em]"
               >
                 {d.tag.name}
-                <span className="text-[10px] font-semibold text-mt-accent">{d.total}</span>
+                <span className="text-[10px] font-semibold text-mt-cobre">{d.total}</span>
               </Link>
             ))}
           </div>
@@ -335,7 +335,7 @@ export default async function Home() {
     consultoria: (
       <section className="mt-faixa-cheia mt-16 flex flex-col gap-10 bg-mt-inverso-fundo px-[18px] py-12 text-mt-inverso lg:mt-20 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
         <div className="lg:flex-[1.15]">
-          <div className="mb-3.5 text-[10px] font-semibold tracking-[.18em] text-mt-accent-400 lg:text-[11px]">
+          <div className="mb-3.5 text-[10px] font-semibold tracking-[.18em] text-mt-cobre-marca lg:text-[11px]">
             02 — CONSULTORIA
           </div>
           <h2 className="mt-titulo m-0 text-[34px] lg:text-[54px] lg:leading-[.95]">
@@ -359,7 +359,7 @@ export default async function Home() {
               key={passo.n}
               className="flex gap-5 border-b border-mt-inverso-regua-fina py-5"
             >
-              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-accent-inverso">
+              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-cobre-marca">
                 {passo.n}
               </span>
               <div>
@@ -412,7 +412,7 @@ export default async function Home() {
         <ol className="m-0 flex list-none flex-col border-t-2 border-mt-regua p-0 lg:flex-1">
           {PASSOS_DA_AVALIACAO.map((passo) => (
             <li key={passo.n} className="flex gap-5 border-b border-mt-regua-fina py-5">
-              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-accent">
+              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-cobre">
                 {passo.n}
               </span>
               <div>

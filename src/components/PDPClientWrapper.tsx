@@ -613,7 +613,7 @@ export default function PDPClientWrapper({
             saiu do rótulo para não aparecer duas vezes. */}
         <div className="flex flex-col">
           {veiculo.id && (
-            <span className="text-[11px] font-semibold uppercase tracking-[.18em] text-mt-accent">
+            <span className="text-[11px] font-semibold uppercase tracking-[.18em] text-mt-cobre">
               {`COD. ${veiculo.id}`}
             </span>
           )}
@@ -648,7 +648,7 @@ export default function PDPClientWrapper({
             !veiculo.pericia.toLowerCase().includes("análise") &&
             !veiculo.pericia.toLowerCase().includes("analise") && (
               <span className="mt-3 flex w-fit items-center gap-2 bg-mt-inverso-fundo px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.12em] text-mt-inverso">
-                <span className="mt-pulso h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
+                <span className="mt-pulso h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
                 {veiculo.pericia}
               </span>
             )}
@@ -1034,7 +1034,7 @@ export default function PDPClientWrapper({
                     key={idx}
                     className="flex items-center gap-2.5 border-b border-mt-regua-fina py-2.5 text-sm text-mt-neutral-800"
                   >
-                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 bg-mt-accent" />
+                    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 bg-mt-cobre" />
                     {item}
                   </li>
                 ))}

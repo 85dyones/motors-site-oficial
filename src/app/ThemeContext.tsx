@@ -8,6 +8,7 @@ import { createBrowserSupabaseClient } from "../lib/supabase-browser";
 import { PROCEDENCIA_PADRAO, normalizarProcedencia } from "../lib/procedencia";
 import { normalizarCuradoria, type PublicacaoInstagram } from "../lib/instagramCuradoria";
 import { DESTAQUES_PADRAO } from "../lib/destaquesRapidos";
+import { THEME_PRESETS, TEMA_PADRAO, TEMAS_ESCUROS, ehTema } from "../lib/temas";
 
 import type {
   ThemeType,
@@ -39,62 +40,13 @@ export type {
 /** Texto padrão da faixa de procedência da PDP. Definição em `lib/procedencia.ts`. */
 export const DEFAULT_PROCEDENCIA = PROCEDENCIA_PADRAO;
 
-export const THEME_PRESETS: Record<ThemeType, ThemeProperties> = {
-  // Paleta do redesign 2026 (design doc "Motors site modernista redesign").
-  // Os tokens --mt-* de modernist.css derivam destes valores.
-  "motors-modernist": {
-    "--brand-background": "#f3f2f2",
-    "--brand-foreground": "#201e1d",
-    "--brand-primary": "#ec3013",
-    "--brand-primary-hover": "#ae1800",
-    "--brand-gold": "#ec3013",
-    "--brand-card": "#eae9e9",
-    "--brand-card-border": "#d7d3d3",
-    "--brand-border": "#d7d3d3",
-    "--brand-shadow": "rgba(45, 43, 43, 0.22)",
-    "--brand-glass-bg": "rgba(243, 242, 242, 0.86)",
-    "--brand-footer-bg": "#201e1d",
-  },
-  "luxury-light": {
-    "--brand-background": "#fafafc",
-    "--brand-foreground": "#1a1a23",
-    "--brand-primary": "#C83F00",
-    "--brand-primary-hover": "#9E3100",
-    "--brand-gold": "#9E3100",
-    "--brand-card": "#ffffff",
-    "--brand-card-border": "#f3f4f6",
-    "--brand-border": "#f1f3f5",
-    "--brand-shadow": "rgba(0, 0, 0, 0.03)",
-    "--brand-glass-bg": "rgba(255, 255, 255, 0.8)",
-    "--brand-footer-bg": "#f1f3f5",
-  },
-  "stealth-dark": {
-    "--brand-background": "#09090B",
-    "--brand-foreground": "#F4F4F7",
-    "--brand-primary": "#D4AF37",
-    "--brand-primary-hover": "#bfa030",
-    "--brand-gold": "#D4AF37",
-    "--brand-card": "#14141B",
-    "--brand-card-border": "#24242b",
-    "--brand-border": "#1e1e24",
-    "--brand-shadow": "rgba(0, 0, 0, 0.5)",
-    "--brand-glass-bg": "rgba(20, 20, 27, 0.85)",
-    "--brand-footer-bg": "#09090B",
-  },
-  "sport-nardo": {
-    "--brand-background": "#1A1D20",
-    "--brand-foreground": "#FFFFFF",
-    "--brand-primary": "#E30613",
-    "--brand-primary-hover": "#c50510",
-    "--brand-gold": "#E30613",
-    "--brand-card": "#272B30",
-    "--brand-card-border": "#363b42",
-    "--brand-border": "#363b42",
-    "--brand-shadow": "rgba(227, 6, 19, 0.08)",
-    "--brand-glass-bg": "rgba(39, 43, 48, 0.85)",
-    "--brand-footer-bg": "#1A1D20",
-  },
-};
+/**
+ * As paletas moram em `lib/temas.ts` desde 29/09: o script anti-flicker do
+ * `layout.tsx` (componente de servidor) precisa delas, e constante exportada
+ * de arquivo "use client" não chega ao servidor como valor. Eram duas cópias
+ * escritas à mão — esta e a do script — que já tinham divergido uma vez.
+ */
+export { THEME_PRESETS, TEMA_PADRAO } from "../lib/temas";
 
 // Types imported from ../types
 
@@ -287,7 +239,7 @@ interface ThemeContextProps {
 const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeType>("luxury-light");
+  const [theme, setThemeState] = useState<ThemeType>(TEMA_PADRAO);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [companySettings, setCompanySettings] = useState<CompanySettings>(DEFAULT_COMPANY_SETTINGS);
   const [aboutSettings, setAboutSettings] = useState<AboutSettings>(DEFAULT_ABOUT_SETTINGS);
@@ -305,20 +257,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [instagramCuradoria, setInstagramCuradoria] = useState<PublicacaoInstagram[]>([]);
 
   useEffect(() => {
-    // Theme and compare IDs are UI-only preferences — localStorage is fine for these
-    const savedTheme = localStorage.getItem("ag_theme") as ThemeType;
-    if (savedTheme && THEME_PRESETS[savedTheme]) {
-      setThemeState(savedTheme);
-      applyThemeProperties(savedTheme);
-    }
-
-    const savedCompare = localStorage.getItem("ag_compare_ids");
-    if (savedCompare) {
-      try {
-        setCompareIds(JSON.parse(savedCompare));
-      } catch (e) {
-        console.error("Failed to parse compare IDs from localStorage", e);
+    // Tema e comparação são preferências de interface — o localStorage serve.
+    // O `try` é porque o navegador com armazenamento bloqueado LANÇA no
+    // acesso: sem ele, o efeito parava aqui e `/api/settings` (telefone,
+    // ajustes do painel, Pixel) nunca era carregado.
+    try {
+      const savedTheme = localStorage.getItem("ag_theme");
+      if (ehTema(savedTheme)) {
+        setThemeState(savedTheme);
+        applyThemeProperties(savedTheme);
       }
+
+      const savedCompare = localStorage.getItem("ag_compare_ids");
+      if (savedCompare) {
+        try {
+          setCompareIds(JSON.parse(savedCompare));
+        } catch (e) {
+          console.error("Failed to parse compare IDs from localStorage", e);
+        }
+      }
+    } catch (e) {
+      console.warn("[ThemeContext] Armazenamento do navegador indisponível:", e);
     }
 
     // Settings loaded EXCLUSIVELY from Supabase via /api/settings
@@ -617,7 +576,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
 
     root.setAttribute("data-theme", type);
-    if (type === "stealth-dark" || type === "sport-nardo") {
+    if (TEMAS_ESCUROS.includes(type)) {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
@@ -625,7 +584,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setTheme = (type: ThemeType) => {
-    if (!THEME_PRESETS[type]) return;
+    if (!ehTema(type)) return;
 
     setThemeState(type);
     applyThemeProperties(type);

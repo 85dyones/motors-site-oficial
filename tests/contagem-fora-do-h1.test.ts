@@ -44,11 +44,11 @@ describe("o <h1> é só o assunto", () => {
 
   it("\"N à venda\" no tamanho do <h1>, acima da linha do preço", () => {
     const html = pagina({});
-    const contagem = html.indexOf('<span class="text-mt-accent">2</span> à venda');
+    const contagem = html.indexOf('<span class="text-mt-cobre">2</span> à venda');
     expect(contagem).toBeGreaterThan(html.indexOf("</h1>"));
     expect(contagem).toBeLessThan(html.indexOf("NESTA SELEÇÃO"));
     // O mesmo tamanho e o mesmo peso do título.
-    expect(html).toMatch(/<p class="mt-titulo m-0 mb-4 text-\[34px\] lg:text-\[56px\] lg:leading-\[\.95\]"><span class="text-mt-accent">2<\/span> à venda<\/p>/);
+    expect(html).toMatch(/<p class="mt-titulo m-0 mb-4 text-\[34px\] lg:text-\[56px\] lg:leading-\[\.95\]"><span class="text-mt-cobre">2<\/span> à venda<\/p>/);
     // Parágrafo, não título: o <h1> continua sendo um só.
     expect(html.match(/<h1/g)).toHaveLength(1);
   });

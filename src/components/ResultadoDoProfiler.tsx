@@ -119,7 +119,7 @@ export default function ResultadoDoProfiler({
   return (
     <div className="mt-9 flex flex-1 flex-col lg:mt-11">
       <div className="border-b-2 border-mt-inverso-regua pb-4">
-        <Rotulo accent className="text-[11px] tracking-[.18em]">
+        <Rotulo accent className="text-[11px] tracking-[.18em] text-mt-cobre-marca">
           TRÊS DO PÁTIO
         </Rotulo>
         <h2 className="mt-titulo m-0 mt-2.5 text-3xl text-mt-inverso lg:text-[46px]">
@@ -165,7 +165,7 @@ export default function ResultadoDoProfiler({
                   {cartao.rotuloDoLugar}
                 </span>
                 <div className="text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
-                  <CardVeiculo veiculo={v} href={getVeiculoPdpUrl(v)} />
+                  <CardVeiculo veiculo={v} href={getVeiculoPdpUrl(v)} inverso />
                 </div>
                 {cartao.parcela && <LinhaDaParcela parcela={cartao.parcela} />}
 
@@ -396,7 +396,7 @@ function CartaJaPensouNeste({
       className="mt-12 border-2 border-mt-inverso-regua p-5 lg:grid lg:grid-cols-[minmax(0,300px)_1fr] lg:gap-8 lg:p-7"
     >
       <div>
-        <Rotulo accent className="text-[11px] tracking-[.18em]">
+        <Rotulo accent className="text-[11px] tracking-[.18em] text-mt-cobre-marca">
           JÁ PENSOU NESTE?
         </Rotulo>
         {/* "Cabe no que você pediu" só quando cabe na faixa: quase sempre a
@@ -412,7 +412,7 @@ function CartaJaPensouNeste({
           {coringa.vantagens.length === 2 ? "dois pontos" : `${coringa.vantagens.length} pontos`}.
         </p>
         <div className="mt-4 text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
-          <CardVeiculo veiculo={v} href={getVeiculoPdpUrl(v)} />
+          <CardVeiculo veiculo={v} href={getVeiculoPdpUrl(v)} inverso />
         </div>
         {coringa.parcela && <LinhaDaParcela parcela={coringa.parcela} />}
       </div>

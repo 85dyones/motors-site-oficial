@@ -29,9 +29,9 @@ import type { ThemeType, CompanySettings } from "../../types";
  * - **Escala de título** (Compacta / Padrão / Display). A escala tipográfica
  *   é fixa no CSS; o controle só faria sentido depois de tokenizá-la.
  *
- * O que é real e entrou: as paletas vêm de `THEME_PRESETS` (as quatro, não as
- * três que a tela antiga listava à mão — `motors-modernist`, que é a paleta
- * em produção, ficava de fora e não dava para selecionar de volta), e o
+ * O que é real e entrou: as paletas vêm de `THEME_PRESETS` (todas — hoje
+ * cinco, com o `motors-cobre` padrão desde 29/09 —, e não as três que a tela
+ * antiga listava à mão, deixando de fora a que estava em produção), e o
  * contraste é calculado pela fórmula da WCAG em `lib/contraste.ts`.
  */
 
@@ -44,6 +44,10 @@ interface AparenciaCoresProps {
 
 /** Nome e descrição de cada preset. O `id` é a chave de `THEME_PRESETS`. */
 const DESCRICAO_DAS_PALETAS: Record<ThemeType, { nome: string; descricao: string }> = {
+  "motors-cobre": {
+    nome: "Cobre Motors",
+    descricao: "O cobre do logo como identidade e a ferrugem só na ação. Padrão do site desde 29/09.",
+  },
   "motors-modernist": {
     nome: "Modernist",
     descricao: "Vermelho sobre papel claro. É a paleta do redesign 2026.",
@@ -87,11 +91,18 @@ const PAPEIS: PapelDeCor[] = [
     uso: "Texto corrido, títulos e réguas",
   },
   {
-    papel: "Acento",
+    papel: "Ação",
     token: "--brand-primary",
     contra: "--brand-background",
     contraRotulo: "sobre o fundo",
-    uso: "Botão primário, régua de destaque e preço",
+    uso: "Botão primário e link que leva a algum lugar",
+  },
+  {
+    papel: "Identidade",
+    token: "--brand-cobre",
+    contra: "--brand-background",
+    contraRotulo: "sobre o fundo",
+    uso: "Marca no card, código, numeração, selo e régua de destaque",
   },
   {
     papel: "Acento pressionado",

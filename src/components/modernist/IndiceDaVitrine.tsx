@@ -34,7 +34,7 @@ export default function IndiceDaVitrine({ disponiveis }: { disponiveis: Veiculo[
     // deixa o título embaixo dele. Mesma régua que `/privacidade` já usa.
     <section id="todos-os-veiculos" className="mb-8 scroll-mt-24">
       <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
-        Todos os veículos à venda <span className="text-mt-accent">{fichas.length}</span>
+        Todos os veículos à venda <span className="text-mt-cobre">{fichas.length}</span>
       </h2>
       <ul className="m-0 mt-4 list-none columns-1 gap-x-8 p-0 sm:columns-2 lg:columns-3">
         {fichas.map((ficha) => (

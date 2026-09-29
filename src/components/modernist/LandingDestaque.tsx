@@ -79,7 +79,7 @@ export default function LandingDestaque({
         <div className="flex flex-col gap-8 border-b-2 border-mt-regua pb-6 pt-4 lg:flex-row lg:items-end lg:gap-11">
           <div className="flex-1">
             <h1 className="mt-titulo m-0 text-[38px] lg:text-[64px] lg:leading-[.95]">
-              {titulo} <span className="text-mt-accent">{total}</span>
+              {titulo} <span className="text-mt-cobre">{total}</span>
             </h1>
             {introducao && (
               <p className="m-0 mt-4 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
@@ -130,7 +130,7 @@ export default function LandingDestaque({
                 )}
               </dl>
               <div className="mt-3 flex items-center gap-2">
-                <span className="h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
+                <span className="h-1.5 w-1.5 bg-mt-cobre" aria-hidden="true" />
                 {/* "Passam pela" e não "têm laudo": todo carro vai para a
                     perícia, mas parte do estoque está sempre com o laudo em
                     análise. É a mesma redação da régua da home — processo,
@@ -180,7 +180,7 @@ export default function LandingDestaque({
                 className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline lg:border-0 lg:border-r lg:border-mt-regua-fina lg:px-5 lg:py-2 lg:text-xs lg:tracking-[.08em]"
               >
                 {d.tag.name}
-                <span className="text-[10px] font-semibold text-mt-accent">{d.total}</span>
+                <span className="text-[10px] font-semibold text-mt-cobre">{d.total}</span>
               </Link>
             ))}
           </div>
@@ -190,7 +190,7 @@ export default function LandingDestaque({
       {textoEditorial && (
         <div className="flex flex-col gap-8 border-t-2 border-mt-regua bg-mt-surface px-[18px] py-11 lg:flex-row lg:gap-14 lg:px-10">
           <div className="shrink-0 lg:w-[300px]">
-            <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[.16em] text-mt-accent">
+            <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-[.16em] text-mt-cobre">
               POR QUE {tag.name}
             </div>
             <h2 className="mt-titulo m-0 text-[26px] leading-tight">

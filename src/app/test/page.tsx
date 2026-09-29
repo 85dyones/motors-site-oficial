@@ -92,7 +92,7 @@ export default function TestPage() {
       description: "Validates theme switching DOM persistence, audits WCAG AA color contrast compliance, and checks compile-time 1-hour ISR static configurations.",
       status: "idle",
       steps: [
-        { name: "Assert luxury-light is the default theme on document root (#fafafc)", status: "idle" },
+        { name: "Assert motors-cobre is the default theme on document root (#F6F4F1)", status: "idle" },
         { name: "Backup current ag_theme from LocalStorage", status: "idle" },
         { name: "Apply stealth-dark preset programmatically", status: "idle" },
         { name: "Assert --brand-background changed to #09090B on document root", status: "idle" },
@@ -512,19 +512,19 @@ export default function TestPage() {
       prev.map((s, idx) => (idx === 4 ? { ...s, status: "running" } : s))
     );
 
-    // Step 1: Assert luxury-light is the default theme on document root (#fafafc)
+    // Step 1: Assert motors-cobre is the default theme on document root (#F6F4F1)
     updateStepStatus("scenario-5", 0, "running");
     const initialBg = getComputedStyle(document.documentElement).getPropertyValue("--brand-background").trim();
     const initialPrimary = getComputedStyle(document.documentElement).getPropertyValue("--brand-primary").trim();
-    const isBgMatch = initialBg === "#fafafc" || initialBg === "rgb(250, 250, 252)";
+    const isBgMatch = initialBg === "#F6F4F1" || initialBg === "rgb(246, 244, 241)";
     const isPrimaryMatch = initialPrimary === "#C83F00" || initialPrimary === "rgb(200, 63, 0)";
 
     if (isBgMatch && isPrimaryMatch) {
-      addLog(`✅ Default luxury-light verified: --brand-background is "${initialBg}" and --brand-primary is "${initialPrimary}"`);
-      updateStepStatus("scenario-5", 0, "passed", "Verified #fafafc / #C83F00");
+      addLog(`✅ Default motors-cobre verified: --brand-background is "${initialBg}" and --brand-primary is "${initialPrimary}"`);
+      updateStepStatus("scenario-5", 0, "passed", "Verified #F6F4F1 / #C83F00");
     } else {
       addLog(`⚠️ Default theme check: background is "${initialBg}", primary is "${initialPrimary}". Proceeding with E2E switching.`);
-      updateStepStatus("scenario-5", 0, "passed", `Background: ${initialBg || "#fafafc"}`);
+      updateStepStatus("scenario-5", 0, "passed", `Background: ${initialBg || "#F6F4F1"}`);
     }
     await new Promise((resolve) => setTimeout(resolve, 400));
 
@@ -663,8 +663,12 @@ export default function TestPage() {
 
     // Step 10: Restore original theme and clean up
     updateStepStatus("scenario-5", 9, "running");
-    const restoreTheme = originalTheme ?? "luxury-light";
-    localStorage.setItem("ag_theme", restoreTheme);
+    // Sem tema salvo antes do cenário, o certo é NÃO deixar um salvo: gravar
+    // uma paleta aqui prenderia o navegador nela e esconderia o padrão do
+    // site (`motors-cobre` desde 29/09).
+    const restoreTheme = originalTheme ?? "padrão do site";
+    if (originalTheme) localStorage.setItem("ag_theme", originalTheme);
+    else localStorage.removeItem("ag_theme");
     // Remove the inline style overrides so restored theme or stylesheet takes effect
     for (const prop of Object.keys(stealthDarkVars)) {
       document.documentElement.style.removeProperty(prop);

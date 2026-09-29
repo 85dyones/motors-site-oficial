@@ -83,7 +83,7 @@ export default function VitrineBalcao({
       {/* ─── Barra superior ─── */}
       <div className="flex h-[76px] flex-none items-center gap-5 bg-mt-inverso-fundo px-7 text-mt-inverso">
         <div className="mr-auto flex items-center gap-2.5">
-          <span className="h-[30px] w-2 bg-mt-accent" aria-hidden="true" />
+          <span className="h-[30px] w-2 bg-mt-cobre-marca" aria-hidden="true" />
           <span className="text-xl font-extrabold tracking-[.02em]">{nomeLoja}</span>
         </div>
         <span className="text-xs font-semibold tracking-[.16em] text-mt-inverso-suave">
@@ -188,7 +188,7 @@ export default function VitrineBalcao({
                 />
               </div>
               <div className="flex min-w-0 flex-1 flex-col px-5 py-[18px]">
-                <div className="text-[10px] font-semibold tracking-[.16em] text-mt-accent">
+                <div className="text-[10px] font-semibold tracking-[.16em] text-mt-cobre">
                   {v.marca}
                 </div>
                 <div className="mt-1.5 truncate text-[22px] font-extrabold leading-tight tracking-[-.02em]">

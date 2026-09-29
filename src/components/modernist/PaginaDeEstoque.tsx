@@ -329,7 +329,7 @@ export default function PaginaDeEstoque({
                 // sendo um só. No celular a coluna desce para baixo do texto e o
                 // número fica logo acima da linha do preço.
                 <p className="mt-titulo m-0 mb-4 text-[34px] lg:text-[56px] lg:leading-[.95]">
-                  <span className="text-mt-accent">{veiculos.length}</span> à venda
+                  <span className="text-mt-cobre">{veiculos.length}</span> à venda
                 </p>
               )}
               <div className="border-t-2 border-mt-regua pt-3.5">
@@ -373,7 +373,7 @@ export default function PaginaDeEstoque({
                   )}
                 </dl>
                 <div className="mt-3 flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
+                  <span className="h-1.5 w-1.5 bg-mt-cobre" aria-hidden="true" />
                   <span className="text-[10px] font-semibold tracking-[.1em] text-mt-neutral-600">
                     TODOS PASSAM PELA PERÍCIA CAUTELAR
                   </span>
@@ -483,7 +483,7 @@ export default function PaginaDeEstoque({
                 >
                   {link.rotulo}
                   {typeof link.total === "number" && (
-                    <span className="text-[10px] font-semibold text-mt-accent">{link.total}</span>
+                    <span className="text-[10px] font-semibold text-mt-cobre">{link.total}</span>
                   )}
                 </Link>
               ))}

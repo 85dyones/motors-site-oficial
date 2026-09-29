@@ -105,7 +105,7 @@ describe("a linha da versão existe mesmo sem versão", () => {
 });
 
 describe("números do card em algarismos de largura fixa", () => {
-  it("preço e a linha de ano · km · câmbio usam tabular-nums", async () => {
+  it("preço e as colunas de ano, km e câmbio usam tabular-nums", async () => {
     const card = await montarCard(veiculo({ id: "3" }));
     // O elemento mais interno com o preço: o contêiner em volta tem o mesmo
     // texto quando o card não tem parcela.
@@ -113,8 +113,10 @@ describe("números do card em algarismos de largura fixa", () => {
       (d) => d.textContent?.trim() === "R$ 158.900" && d.querySelector("div") === null,
     );
     expect(preco?.className).toContain("tabular-nums");
-    const km = [...card.querySelectorAll("span")].find((s) => s.textContent?.includes("269.766 km"));
-    expect(km?.parentElement?.className).toContain("tabular-nums");
+    // Desde a 3.4 ano, km e câmbio são três colunas (`<dl>`), e o km sai sem
+    // o "km" — o rótulo da coluna diz a unidade.
+    const km = [...card.querySelectorAll("dd")].find((d) => d.textContent === "269.766");
+    expect(km?.className).toContain("tabular-nums");
   });
 });
 
