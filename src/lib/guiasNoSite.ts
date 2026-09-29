@@ -144,10 +144,13 @@ function guia(slug: string, apoio: string): GuiaRelacionado {
  * uma fica escrito para ninguém tirar achando que foi descuido:
  *
  *  · "Tabela FIPE não é preço de venda" em `/avaliacao`. A regra da página é
- *    que a FIPE é a única cifra e que "abaixo da FIPE" e "desconto" não
- *    aparecem. O card não traz cifra nem essas palavras, o guia também não
- *    usa nenhuma das duas, e "Quanto vale meu carro usado", que já estava na
- *    lista, explica a mesma conta (a avaliação parte da FIPE e tira da média).
+ *    que a FIPE é a única cifra: o cliente não vê valor de compra antes da
+ *    vistoria, e a proposta é do consultor. Que a compra fica abaixo da FIPE
+ *    o próprio formulário diz ("A compra da loja fica abaixo da FIPE…", em
+ *    `AutoAvaliacao.tsx`), e o dono confirmou em 29/09/2026 que a frase fica:
+ *    é a verdade do negócio e já orienta quem vai avaliar. O guia da FIPE diz
+ *    o mesmo por outro caminho, como "Quanto vale meu carro usado", que já
+ *    estava na lista (a avaliação parte da FIPE e tira da média).
  *  · "Vício oculto" em `/garantia`. A regra do material comercial é não
  *    explicar a garantia legal nem enumerar o escopo dela. O guia segue a
  *    regra: diz que vício oculto é conceito jurídico, manda a dúvida de

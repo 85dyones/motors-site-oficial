@@ -59,15 +59,13 @@ describe("o registro de guias do site", () => {
   });
 
   it("as duas ligações decididas pelo dono em 29/09 respeitam as regras das páginas", () => {
-    // /avaliacao: a FIPE é a única cifra, e "abaixo da FIPE" e "desconto" não
-    // aparecem, nem no card nem no guia para onde ele leva.
+    // /avaliacao: a FIPE é a única cifra da página, e o card não traz valor
+    // nem fala em desconto. "Abaixo da FIPE" NÃO é proibido: o formulário diz
+    // que a compra fica abaixo da FIPE, e o dono manteve a frase em 29/09/2026.
     const fipe = GUIAS_DA_PAGINA["/avaliacao"].find((g) => g.slug === "tabela-fipe-nao-e-preco-de-venda");
     expect(fipe).toBeDefined();
-    for (const texto of [fipe!.titulo, fipe!.apoio, textoDo(fipe!.slug)]) {
-      expect(texto).not.toMatch(/abaixo da FIPE|desconto/i);
-    }
     for (const g of GUIAS_DA_PAGINA["/avaliacao"]) {
-      expect(`${g.titulo} ${g.apoio}`, g.slug).not.toMatch(/R\$|\d+\s*mil\b|abaixo da FIPE|desconto/i);
+      expect(`${g.titulo} ${g.apoio}`, g.slug).not.toMatch(/R\$|\d+\s*mil\b|desconto/i);
     }
 
     // /garantia: o guia de vício oculto não explica a garantia legal nem
