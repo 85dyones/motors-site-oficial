@@ -22,9 +22,15 @@ import {
  * como faz o painel antigo (`AUDITORIA.md §3.4`).
  */
 
-/** Campos que o painel controla. O sync do RevendaMais não conhece nenhum
- *  deles — é o contrato da migração 20260807160000. */
+/** Campos que o painel controla — o que ele escreve, fica. Contrato da migração
+ *  20260807160000: o sync do RevendaMais não reescreve nenhum deles. Desde a
+ *  20260929120000 ele PREENCHE `placa` e `motor` quando estão vazios (ver o
+ *  comentário deles abaixo); valor preenchido, o feed não troca. */
 export const CAMPOS_NOSSOS = [
+  // Migração 20260929120000. Continuam do painel — o que ele escreve fica —,
+  // mas o sync os PREENCHE enquanto estão vazios: o RevendaMais tem placa e
+  // motor de todo carro, e eles chegavam em branco ao cadastro. O sync nunca
+  // troca valor existente; é a trava do banco que garante.
   "placa",
   "motor",
   "cor_interna",

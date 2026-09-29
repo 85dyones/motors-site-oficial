@@ -16,10 +16,50 @@ correção desfeita no sync seguinte, em silêncio.
 | Origem | O que acontece | Campos |
 |---|---|---|
 | **Feed, só na importação** | O sincronizador traz quando o carro nasce. **Desde 30/08 ele não reescreve** estas colunas — ver abaixo. | `marca`, `modelo`, `versao`, `ano`, `quilometragem`, `cambio`, `combustivel`, `cor` |
-| **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at` |
-| **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `placa`, `motor`, `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `opcionais`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro`, `em_preparacao`, `previsao_chegada_em` |
+| **Feed, SEMPRE** | O sincronizador escreve na importação **e em todo ciclo depois**. O painel não edita em carro do feed. É a allowlist da trava desde 02/09 (portas 04/09, opcionais 08/09). A FIPE e o chassi desde 29/09, e só quando o feed manda valor — zero e vazio não apagam, e chassi com I, O ou Q (que não é VIN) nunca entra. | `preco`, `preco_original`, `preco_promocional`, `last_seen_at`, `portas`, `opcionais`, `valor_fipe`, `codigo_fipe`, `chassi` |
+| **Nosso, o feed preenche o vazio** | Desde 29/09. Enquanto a coluna está vazia, o sincronizador a preenche com o valor do RevendaMais — na importação e em todo ciclo. **Nunca troca valor existente** e nunca grava documento que já é de outro carro. O painel edita os dois, e o que ele escreve fica. | `placa`, `motor` |
+| **Nosso** | O sync não conhece a coluna. O que o painel escreve fica. | `cor_interna`, `donos_anteriores`, `garantia_fabrica`, `preco_compra`, `descricao`, `descricao_seo`, `laudo_pericia`, `status_tag`, `status_tag_color`, `vendido`, `tipo`, `perfis_uso`, `estado_cadastro`, `em_preparacao`, `previsao_chegada_em` |
 | **Override** | Coluna paralela à do feed. Preenchida, vence; vazia, vale o feed. | `modelo_override`, `versao_override` |
 | **Do feed, mas nosso para editar** | Coluna que o feed preenche no nascimento e o painel sobrescreve para valer, em veículo de qualquer origem. | `whatsapp_images`, `web_full_images`, `url_imagem` |
+
+### Os documentos do feed preenchem o vazio desde 2026-09-29
+
+Queixa do dono, literal: *"o sistema não está trazendo informações da ficha do
+veículo para o cadastro interno, dados que constam no revenda como placa,
+chassis e outros campos do veículo chegam em branco."*
+
+Medido no mesmo dia: dos 44 carros do feed no banco, 23 sem placa e 23 sem
+chassi — com os dois no RevendaMais (o XML traz `PLATE` em 45/45, `CHASSI` em
+42/45). O dado morria em dois lugares: o corpo do upsert do n8n não nomeava os
+campos, e a trava descartava documento no carro já importado.
+
+A regra (migração `20260929120000`):
+
+- **Placa e motor: preencher o vazio, nunca trocar.** Coluna vazia recebe o
+  valor do feed, em todo ciclo, até ser preenchida; preenchida, não muda — nem
+  pelo feed. O painel edita os dois, e quem corrigiu à mão não pode ver a
+  correção desfeita. (Se o painel apagar a placa, o próximo ciclo a traz de
+  volta.) Motor `0.0` é como o feed diz "não sei", e não entra.
+- **Chassi: o válido segue o feed** (emenda `20260929170000`, achado da
+  revisão). O painel não edita chassi de carro do feed, então congelado no
+  primeiro valor um erro do RevendaMais só sairia por SQL — e a correção feita
+  lá nunca chegaria. Chassi com I, O ou Q nunca entra: o padrão VIN (ISO 3779)
+  não usa essas letras, e nelas é erro de digitação. Caso real de 29/09: a Spin
+  `8446229` e o Logan `8506571` estão com O no lugar de zero no RevendaMais —
+  corrigindo lá, o próximo ciclo traz.
+- **FIPE: segue o feed.** `valor_fipe` e `codigo_fipe` o painel não edita, e o
+  valor muda todo mês — congelado no primeiro, viraria dado velho. O feed
+  atualiza a cada ciclo, mas só quando manda valor: o `0` e o vazio com que ele
+  diz "não sei" não apagam o que está lá.
+- Documento que já pertence a outro carro não é gravado (nem na importação):
+  estouraria o índice único e pararia o lote inteiro do n8n.
+- Placa e chassi entram na forma canônica — caixa alta, sem hífen nem espaço.
+- O lastmod (`conteudo_atualizado_em`) se move quando o motor é preenchido — ele
+  sai no JSON-LD da ficha — e não por placa, chassi ou FIPE, que são internos.
+- `renavam` segue só do painel: o feed não tem a tag.
+
+`tests/documentos-do-feed.test.ts` trava o corpo do upsert, a allowlist exata
+da trava e o ramo do feed no INSERT.
 
 ### 🔴 A disponibilidade espelha o RevendaMais desde 2026-09-16 — `vendido` tem dois autores
 

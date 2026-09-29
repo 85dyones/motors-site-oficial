@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ler, lerCodigo } from "./fonte";
 import {
@@ -275,9 +275,21 @@ describe("o upsert do sync continua sem `vendido`", () => {
   });
 
   it("nenhuma migração põe `vendido` na allowlist da trava", () => {
-    const trava = sqlExecutavel("20260908160000_opcionais_vem_do_feed.sql");
+    // A definição VIGENTE — a última migração que recria a função —, e não um
+    // arquivo fixo: presa à 20260908160000, esta trava deixou de ler a trava de
+    // verdade quando a 20260929120000 a redefiniu.
+    const vigente = readdirSync(DIR_MIGRACOES)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .filter((f) =>
+        /create\s+or\s+replace\s+function\s+public\.estoque_motors_trava_do_sync/i.test(sqlExecutavel(f)),
+      )
+      .pop();
+    expect(vigente, "nenhuma migração define a trava do sync").toBeDefined();
+    const trava = sqlExecutavel(vigente!);
     expect(trava).toContain("old.opcionais         := new.opcionais;");
     expect(trava).not.toMatch(/old\.vendido\s*:=/);
+    expect(trava).not.toMatch(/old\.vendido\s*=/);
     expect(ESPELHO).not.toMatch(/old\.vendido\s*:=/);
     expect(ESPELHO).not.toMatch(/create or replace function public\.estoque_motors_trava_do_sync/);
   });
