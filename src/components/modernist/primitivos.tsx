@@ -157,11 +157,19 @@ export function LinkRegua({
 export function EstatisticasRegua({
   itens,
   inverso = false,
+  desenhar = false,
   className = "",
 }: {
-  itens: { valor: string; rotulo: string; accent?: boolean }[];
+  /** `valor` aceita nó: a capa passa um número que conta (`NumeroQueConta`). */
+  itens: { valor: ReactNode; rotulo: string; accent?: boolean }[];
   /** Sobre fundo escuro */
   inverso?: boolean;
+  /**
+   * A régua de cima se desenha da esquerda para a direita ao carregar — só a
+   * da capa da home (tarefa 3.7, "o único movimento do site"). Com movimento
+   * reduzido ela já aparece inteira (`.mt-regua-desenha`, modernist.css).
+   */
+  desenhar?: boolean;
   className?: string;
 }) {
   /* `--regua-pt` e `--regua-valor` são pontos de ajuste opcionais: quem monta
@@ -182,10 +190,18 @@ export function EstatisticasRegua({
      réguas com regra vertical, aqui sem a regra para disfarçar. */
   return (
     <div
-      className={`flex gap-x-4 border-t-2 pt-[var(--regua-pt,16px)] ${
-        inverso ? "border-mt-inverso-regua" : "border-mt-regua"
+      className={`relative flex gap-x-4 border-t-2 pt-[var(--regua-pt,16px)] ${
+        desenhar ? "border-transparent" : inverso ? "border-mt-inverso-regua" : "border-mt-regua"
       } ${className}`}
     >
+      {desenhar && (
+        <span
+          aria-hidden="true"
+          className={`mt-regua-desenha absolute inset-x-0 -top-0.5 h-0.5 ${
+            inverso ? "bg-mt-inverso-regua" : "bg-mt-regua"
+          }`}
+        />
+      )}
       {itens.map((item) => (
         <div key={item.rotulo} className="min-w-0 flex-1">
           <div

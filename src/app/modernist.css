@@ -414,6 +414,36 @@
 .mt-grupo > legend + * {
   clear: both;
 }
+/* — o único movimento do site (tarefa 3.7, 29/09) —
+   Na capa da home, a régua de 2px sob o título se desenha da esquerda para a
+   direita e os números surgem para contar até o valor (NumeroQueConta). Nada
+   mais se mexe. Com movimento reduzido, tudo já aparece pronto. */
+.mt-regua-desenha {
+  transform-origin: left center;
+  animation: mt-regua-desenha 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
+}
+@keyframes mt-regua-desenha {
+  from {
+    transform: scaleX(0);
+  }
+}
+/* O número do servidor já é o final; ele surge em vez de piscar o valor
+   final antes de a contagem começar no cliente. */
+.mt-numeros-surgem {
+  animation: mt-numeros-surgem 0.3s ease-out 0.2s both;
+}
+@keyframes mt-numeros-surgem {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-regua-desenha,
+  .mt-numeros-surgem {
+    animation: none;
+  }
+}
+
 /* — folha de filtros do celular (tarefa 3.5, 29/09) —
    O painel de filtros, aberto abaixo do `lg`, deixa de empurrar a grade para
    baixo e vira uma folha presa ao pé da tela: rolagem própria, cabeçalho e

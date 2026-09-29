@@ -5,6 +5,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import type { Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import { EstatisticasRegua, formatarKm, formatarPreco } from "./primitivos";
+import NumeroQueConta from "./NumeroQueConta";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 
 /**
@@ -105,7 +106,7 @@ export default function HeroHome({
      * As duas primeiras vars alimentam a EstatisticasRegua, cujos tamanhos
      * moram no primitivo e por isso chegam lá por herança de CSS. */
     <section
-      className="relative flex flex-col bg-mt-inverso-fundo min-h-[520px] lg:min-h-[min(43vw,var(--hero-cabe))]"
+      className="relative flex flex-col bg-mt-inverso-fundo lg:min-h-[min(43vw,var(--hero-cabe))]"
       style={
         {
           "--hero-cabe": "min(840px, calc(100svh - 68px))",
@@ -114,6 +115,15 @@ export default function HeroHome({
         } as CSSProperties
       }
     >
+      {/* A foto no celular: faixa própria, na proporção da foto (3:2), em
+          cima do texto — e não fundo de tela inteira atrás dele.
+
+          Até 29/09 a foto cobria o hero todo em qualquer largura. No celular
+          o hero tem ~390 × 530 px (retrato) e a foto é paisagem: o
+          `object-cover` mostrava um terço da largura e o carro saía cortado
+          ao meio, ainda coberto pelo título e pelo degradê. Em 3:2 a foto
+          entra inteira. Do `lg` para cima volta a ser o fundo, como antes. */}
+      <div className="relative aspect-[3/2] w-full overflow-hidden lg:absolute lg:inset-0 lg:aspect-auto">
       {slides.map((v, i) => {
         const foto = v.web_full_images?.[0] ?? v.whatsapp_images?.[0];
         if (!foto) return null;
@@ -141,10 +151,19 @@ export default function HeroHome({
           </div>
         );
       })}
+        {/* No celular, só a borda de baixo da foto funde com o fundo do
+            texto: o carro fica limpo, sem véu por cima. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-[linear-gradient(180deg,rgba(28,26,25,0),var(--mt-inverso-fundo))] lg:hidden"
+        />
+      </div>
 
+      {/* O véu grafite da esquerda, só onde o texto fica SOBRE a foto (lg+).
+          É ele que garante a leitura do título com carro branco ou preto. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(20,18,18,.25),rgba(20,18,18,.92))] lg:bg-[linear-gradient(90deg,rgba(20,18,18,.92)_0%,rgba(20,18,18,.55)_46%,rgba(20,18,18,0)_78%)]"
+        className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(28,26,25,.92)_0%,rgba(28,26,25,.6)_46%,rgba(28,26,25,0)_78%)] lg:block"
       />
 
       {/* Conteúdo do hero.
@@ -155,7 +174,7 @@ export default function HeroHome({
        * junto com a largura), a régua de estatísticas descia por cima do
        * "01 02 03". Uma coluna flex com `mt-auto` no rodapé mantém a mesma
        * composição e torna a colisão impossível. */}
-      <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-16 lg:px-10 lg:pb-[min(40px,calc(var(--hero-cabe)*0.0476))] lg:pt-[min(76px,calc(var(--hero-cabe)*0.0905))]">
+      <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-4 lg:px-10 lg:pb-[min(40px,calc(var(--hero-cabe)*0.0476))] lg:pt-[min(76px,calc(var(--hero-cabe)*0.0905))]">
       <div className="pointer-events-none max-w-[700px]">
         {/* O `<h1>` da home diz o que a loja vende e onde — 2026-09-08.
          *
@@ -206,7 +225,7 @@ export default function HeroHome({
 
         <p className="m-0 mt-3.5 max-w-[460px] text-[13px] leading-relaxed text-mt-neutral-300 lg:mt-[min(28px,calc(var(--hero-cabe)*0.0333))] lg:text-[length:clamp(13px,calc(var(--hero-cabe)*0.0202),17px)]">
           {totalEstoque} veículos em estoque com procedência auditada, laudo
-          cautelar e garantia. Curadoria, não vitrine.
+          cautelar e garantia. Três em cada dez avaliados entram.
         </p>
 
         {/* Régua de indicadores: os três números precisam sair do estoque
@@ -215,16 +234,21 @@ export default function HeroHome({
             distintas, que se conta do mesmo estoque que já está em memória. */}
         <EstatisticasRegua
           inverso
+          desenhar
           className="mt-[min(32px,calc(var(--hero-cabe)*0.0381))] hidden w-[460px] lg:flex"
           itens={[
-            { valor: String(totalEstoque), rotulo: "EM ESTOQUE" },
-            { valor: String(totalMarcas), rotulo: "MARCAS" },
+            { valor: <NumeroQueConta valor={totalEstoque} />, rotulo: "EM ESTOQUE" },
+            { valor: <NumeroQueConta valor={totalMarcas} />, rotulo: "MARCAS" },
             // "100% LAUDO CAUTELAR" era lido como "100% aprovado", e no feed
             // de 2026-08-06 só 35 dos 88 estavam aprovados — 53 seguiam em
             // análise. O compromisso real da loja, confirmado pelo dono, é de
             // processo: todo carro é enviado para a perícia. O rótulo agora
             // diz isso, e não o resultado.
-            { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
+            {
+              valor: <NumeroQueConta valor={100} sufixo="%" />,
+              rotulo: "PASSAM PELA CAUTELAR",
+              accent: true,
+            },
           ]}
         />
       </div>
@@ -241,11 +265,6 @@ export default function HeroHome({
                 key={v.id}
                 type="button"
                 onClick={() => setAtual(i)}
-                // O nome começa pelo que está escrito no botão ("01"). Era só
-                // "Ver Renault Kwid…", e quem usa comando de voz dizia "01" e
-                // nada acontecia — o nome não continha o texto visível (WCAG
-                // 2.5.3, auditoria axe `label-content-name-mismatch`, 25/09).
-                aria-label={`${String(i + 1).padStart(2, "0")} — ver ${v.marca} ${v.modelo}`}
                 aria-current={i === atual}
                 /* 64px abaixo de `sm` porque a régua é de largura FIXA: com
                    quatro slides, 4x76 + 3x16 = 352px estoura os 343px úteis de
@@ -259,12 +278,23 @@ export default function HeroHome({
                     style={{ width: i === atual ? "100%" : "0%" }}
                   />
                 </span>
+                {/* Número e o modelo do slide ("01 Kwid"): a paginação vira
+                    navegação de verdade (revisão de 29/09, pino 5). Sem
+                    `aria-label`: o nome acessível é o que está escrito, mais a
+                    marca só para o leitor de tela — quem usa comando de voz
+                    diz o que vê (WCAG 2.5.3). */}
                 <span
-                  className={`text-[11px] font-extrabold tracking-[.12em] ${
+                  className={`flex min-w-0 flex-col items-start gap-1 text-left ${
                     i === atual ? "text-mt-inverso" : "text-mt-inverso-suave"
                   }`}
                 >
-                  {String(i + 1).padStart(2, "0")}
+                  <span className="text-[11px] font-extrabold tracking-[.12em]">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>{" "}
+                  <span className="block w-full truncate text-[10px] font-semibold tracking-[.04em]">
+                    {modeloEVersaoParaExibir(v.modelo, v.versao).modelo}
+                  </span>
+                  <span className="sr-only">{` — ver ${v.marca} ${v.modelo}`}</span>
                 </span>
               </button>
             ))}
