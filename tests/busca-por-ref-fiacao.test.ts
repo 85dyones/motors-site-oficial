@@ -30,6 +30,8 @@ import { AVISO_DE_REF_INVALIDA, SEM_DONO } from "../src/lib/leadsKanban";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("next/link", () => ({
+  // O card desenha `SinalDeAbertura`, que lê o estado do link.
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) =>
     createElement("a", { href, ...resto } as never, children as never),
 }));

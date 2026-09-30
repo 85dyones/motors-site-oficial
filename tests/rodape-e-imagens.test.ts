@@ -110,7 +110,13 @@ describe("as fotos dos cards passam pelo otimizador", () => {
   const fonte = ler("src/components/modernist/primitivos.tsx");
 
   it("`CardVeiculo` usa `next/image`", () => {
-    expect(fonte).toMatch(/import Image from "next\/image"/);
+    // Pelas duas irmãs cliente (30/09, esmaecimento da foto): a do carro57
+    // pelo otimizador, a nossa pelo redimensionamento do Storage.
+    expect(fonte).toContain("<FotoOtimizadaDoCard");
+    expect(fonte).toContain("<FotoPropriaDoCard");
+    for (const irma of ["FotoOtimizadaDoCard", "FotoPropriaDoCard"]) {
+      expect(ler(`src/components/modernist/${irma}.tsx`)).toMatch(/import Image, \{[^}]*\} from "next\/image"/);
+    }
     expect(lerCodigo("src/components/modernist/primitivos.tsx")).not.toMatch(
       /@next\/next\/no-img-element/,
     );

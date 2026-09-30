@@ -910,7 +910,10 @@ describe("o site continua servindo as fotos", () => {
     expect(componente).toContain("urlDaFotoNaLargura");
     // O `next/image` e o `sizes` continuam — é o que faz a foto do carro57
     // valer a pena otimizar (`tests/rodape-e-imagens.test.ts` também cobra).
-    expect(card).toMatch(/import Image from "next\/image"/);
+    // Desde 30/09 o `<Image>` do carro57 mora em `FotoOtimizadaDoCard`, um
+    // arquivo cliente, por causa do esmaecimento da foto.
+    expect(card).toContain("<FotoOtimizadaDoCard");
+    expect(ler("src", "components", "modernist", "FotoOtimizadaDoCard.tsx")).toMatch(/import Image, \{[^}]*\} from "next\/image"/);
     expect(card).toMatch(/sizes="\(max-width: 640px\) 100vw/);
     // O motivo escrito: a cota da Vercel já respondeu 402 em produção.
     expect(card).toContain("402");

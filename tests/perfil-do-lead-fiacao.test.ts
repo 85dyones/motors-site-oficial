@@ -25,6 +25,8 @@ import { lerCodigo } from "./fonte";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("next/link", () => ({
+  // O card desenha `SinalDeAbertura`, que lê o estado do link.
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) =>
     createElement("a", { href, ...resto } as never, children as never),
 }));

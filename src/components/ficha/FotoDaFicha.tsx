@@ -2,6 +2,7 @@
 
 import Image, { type ImageLoader, type ImageProps } from "next/image";
 import { ehFotoPropria, urlDaFotoNaLargura, LARGURA_DA_VERSAO_ZAP } from "../../lib/fotosDoVeiculo";
+import { useSurgimento } from "../modernist/useSurgimento";
 
 /**
  * Uma foto da galeria da ficha: a foto NOSSA pelo redimensionamento do
@@ -21,7 +22,15 @@ const carregador: ImageLoader = ({ src, width, quality }) =>
   urlDaFotoNaLargura(src, width, quality ?? 75, LARGURA_DA_VERSAO_ZAP);
 
 export default function FotoDaFicha(props: Omit<ImageProps, "loader" | "unoptimized"> & { src: string }) {
+  // A foto esmaece ao chegar, menos a prioritária: a capa da galeria e a da
+  // tela cheia (ver `useSurgimento`).
+  const surgimento = useSurgimento({ imediata: Boolean(props.priority), onLoad: props.onLoad, onError: props.onError });
   // `alt` vem nas props; o lint não enxerga através do spread.
-  // eslint-disable-next-line jsx-a11y/alt-text
-  return ehFotoPropria(props.src) ? <Image {...props} loader={carregador} /> : <Image {...props} />;
+  return ehFotoPropria(props.src) ? (
+    // eslint-disable-next-line jsx-a11y/alt-text
+    <Image {...props} {...surgimento} loader={carregador} />
+  ) : (
+    // eslint-disable-next-line jsx-a11y/alt-text
+    <Image {...props} {...surgimento} />
+  );
 }
