@@ -312,6 +312,91 @@ export function previaDaFotoDoVeiculo(foto?: string | null): {
   };
 }
 
+/**
+ * A prévia da ficha, montada (30/09/2026): a foto do carro à esquerda e, ao
+ * lado, marca, modelo, versão, ano, quilometragem, o selo de perícia quando
+ * houver e o logo da loja. Quem manda o link de um carro no WhatsApp passa a
+ * mandar uma peça da loja, e não uma foto solta.
+ *
+ * ---------------------------------------------------------------------------
+ * Sem preço, de propósito
+ * ---------------------------------------------------------------------------
+ * O WhatsApp guarda a prévia por dias. Quem recebeu o link continua vendo a
+ * imagem de quando ele foi mandado, e uma promoção que acabou continuaria
+ * anunciada na conversa. Na imagem entra só o que não muda depois de
+ * publicado. O que muda raramente (a quilometragem corrigida, a foto trocada,
+ * a perícia aprovada) entra na `v` da URL: mudou, a URL é outra, e a próxima
+ * pessoa a colar o link recebe a imagem nova.
+ *
+ * ---------------------------------------------------------------------------
+ * A rota não aceita texto de fora
+ * ---------------------------------------------------------------------------
+ * `/og/ficha/[id]` lê o carro do banco pelo id e desenha o que está lá. Se
+ * aceitasse nome e quilometragem pela URL, qualquer um montaria uma "peça da
+ * Motors Store" com o texto que quisesse. A `v` que não confere com o carro
+ * leva a um redirecionamento para a certa, então variar a `v` também não
+ * força a rota a desenhar de novo.
+ */
+export interface VeiculoDaPrevia {
+  id: string | number;
+  marca: string;
+  modelo: string;
+  versao?: string | null;
+  ano?: number | string | null;
+  quilometragem?: number | null;
+  pericia?: string | null;
+  whatsapp_images?: string[] | null;
+  web_full_images?: string[] | null;
+}
+
+/** A capa do carro: a mesma escolha que a ficha sempre fez para a prévia. */
+export function fotoDaPreviaDoVeiculo(veiculo: VeiculoDaPrevia): string {
+  return limpar(veiculo.whatsapp_images?.[0] || veiculo.web_full_images?.[0] || "");
+}
+
+/** A mesma régua do selo do card (`CardVeiculo`): só com a perícia aprovada. */
+export function periciaAprovadaNaPrevia(veiculo: VeiculoDaPrevia): boolean {
+  return veiculo.pericia === "PERÍCIA APROVADA";
+}
+
+/**
+ * Impressão curta do que a imagem mostra. FNV-1a de 32 bits em base 36: não é
+ * segurança, é só um nome de versão, e roda igual no servidor e no navegador
+ * (este módulo também é lido pelo painel).
+ */
+export function versaoDaPreviaDaFicha(veiculo: VeiculoDaPrevia): string {
+  const texto = [
+    fotoDaPreviaDoVeiculo(veiculo),
+    veiculo.marca,
+    veiculo.modelo,
+    veiculo.versao ?? "",
+    veiculo.ano ?? "",
+    veiculo.quilometragem ?? "",
+    periciaAprovadaNaPrevia(veiculo) ? "pericia" : "",
+  ].join("|");
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < texto.length; i++) {
+    hash ^= texto.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+/**
+ * A imagem da prévia da ficha. Foto do nosso recorte vira a peça montada em
+ * `/og/ficha/[id]`, com 1200×630 declarado; foto de fora dele segue como
+ * `previaDaFotoDoVeiculo` já tratava.
+ */
+export function previaDaFicha(veiculo: VeiculoDaPrevia): { url: string; semDimensao: boolean } {
+  const foto = fotoDaPreviaDoVeiculo(veiculo);
+  const id = String(veiculo.id ?? "").trim();
+  if (!fotoPodeVirarPrevia(foto) || !/^\d+$/.test(id)) return previaDaFotoDoVeiculo(foto);
+  return {
+    url: `/og/ficha/${id}?v=${versaoDaPreviaDaFicha(veiculo)}`,
+    semDimensao: false,
+  };
+}
+
 interface EntradaCompartilhamento {
   empresa: CompanySettings | null | undefined;
   pagina: ContextoCompartilhamento;

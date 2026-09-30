@@ -9,7 +9,7 @@ import { getCachedSettings } from "../../../../../lib/settings";
 import { parametrosDoFinanciamento } from "../../../../../lib/parametrosDoFinanciamento-servidor";
 import {
   montarCompartilhamento,
-  previaDaFotoDoVeiculo,
+  previaDaFicha,
 } from "../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../lib/similares";
@@ -175,8 +175,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       "financiamento. Motors Store, Bacacheri, Curitiba.";
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
-  const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
-  const previa = previaDaFotoDoVeiculo(imageUrl);
+  // Desde 30/09 a prévia é a peça montada (foto, modelo, ano, km, selo e
+  // logo, sem preço), em `/og/ficha/[id]`. Ver `previaDaFicha`.
+  const previa = previaDaFicha(veiculo);
   const [{ companySettings }, publicacao] = await Promise.all([
     getCachedSettings(),
     publicacaoDoVeiculo(veiculo),
@@ -213,7 +214,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // scraper confia no que é declarado, e foto em 4:3 anunciada como se fosse
   // outra coisa é o mesmo defeito que esticava o logo da home. Desde 23/09 a
   // foto passa por `/og/foto`, que a entrega em 1200×630 exatos — e aí a
-  // dimensão volta a ser declarada. Ver `previaDaFotoDoVeiculo`.
+  // dimensão volta a ser declarada. Ver `previaDaFotoDoVeiculo` e, desde 30/09,
+  // `previaDaFicha`.
   return {
     title: textos.titulo,
     description: textos.descricao,
