@@ -213,7 +213,7 @@ export default function ListaDoRepasse({ contexto, cabecalho = true }: { context
     }`;
 
   return (
-    <section id={ANCORA_DA_LISTA} className="scroll-mt-24">
+    <section id={ANCORA_DA_LISTA}>
       <span id={ANCORA_DA_LISTA_LOJISTA} aria-hidden="true" />
       {cabecalho && (
         <>

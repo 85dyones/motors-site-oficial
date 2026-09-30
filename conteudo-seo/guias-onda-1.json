@@ -1,5 +1,5 @@
 {
-  "_leia": "As 8 peças da Onda 1 (conteudo-seo/pacote/guias/01..08-*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs` — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-1-mudancas.md`, arquivo por arquivo, frase por frase. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
+  "_leia": "As 8 peças da Onda 1 (conteudo-seo/pacote/guias/01..08-*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs` — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-1-mudancas.md`, arquivo por arquivo, frase por frase. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como texto, com duas marcas só (30/09/2026, `src/lib/blocosDoGuia.ts`): linha que começa com \"- \" vira item de lista, e parágrafo que começa com \"### \" vira subtítulo. O resto do markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
   "guias": [
     {
       "slug": "laudo-cautelar-carro-usado",
@@ -19,11 +19,15 @@
         {
           "titulo": "Os três eixos que a perícia examina",
           "paragrafos": [
+            "### Identificação",
             "O primeiro eixo é a identificação: verificar se o carro é mesmo o carro. A perícia confere a numeração do chassi, do motor e do câmbio, as etiquetas de identificação distribuídas pela carroceria, a gravação nos vidros e as placas, e cruza tudo isso com o que está registrado no documento.",
             "É esse eixo que pega clonagem, remarcação irregular e troca de conjuntos sem registro. Numeração que não bate, ou que apresenta sinal de adulteração, é impedimento, e a negociação para ali.",
+            "### Estrutura",
             "O segundo eixo, a estrutura, verifica se o carro já foi seriamente danificado e reparado. O perito examina longarinas, colunas, assoalho, torres de suspensão e pontos de solda. São as partes que dão rigidez ao veículo e que, uma vez comprometidas, mudam o comportamento dele numa nova colisão.",
-            "Aqui entra o teste de espessura da pintura. A camada original de fábrica tem espessura previsível e uniforme, então uma variação fora do padrão num painel indica repintura, e repintura em painel estrutural indica reparo. Nem toda repintura é sinal de sinistro grave: um retoque de porta por batida de estacionamento não tem nada a ver com uma longarina refeita. O laudo distingue os dois, e é por isso que ler o documento inteiro importa mais do que olhar o resultado final.",
-            "O terceiro eixo, o histórico, verifica o passado documental do carro: passagem por leilão, registro de sinistro, ocorrência de roubo ou furto, gravame ativo, restrições administrativas e judiciais e débitos em aberto.",
+            "Aqui entra o teste de espessura da pintura. A camada original de fábrica tem espessura previsível e uniforme, então uma variação fora do padrão num painel indica repintura, e repintura em painel estrutural indica reparo.",
+            "Nem toda repintura é sinal de sinistro grave: um retoque de porta por batida de estacionamento não tem nada a ver com uma longarina refeita. O laudo distingue os dois, e é por isso que ler o documento inteiro importa mais do que olhar o resultado final.",
+            "### Histórico",
+            "O terceiro eixo, o histórico, verifica o passado documental do carro:\n- passagem por leilão\n- registro de sinistro\n- ocorrência de roubo ou furto\n- gravame ativo\n- restrições administrativas e judiciais\n- débitos em aberto.",
             "É o eixo mais rápido de checar e o que mais surpreende o comprador. Um carro impecável na estrutura e na identificação ainda pode carregar um histórico que muda completamente o valor de revenda dele."
           ]
         },
@@ -33,8 +37,8 @@
             "O laudo cautelar não avalia a saúde mecânica do veículo, e essa é a parte que costuma ficar de fora da conversa, principalmente quando o exame é usado como argumento de venda. As próprias empresas de vistoria dizem isso: a Super Visão registra no site que o laudo não substitui avaliação específica de parte mecânica ou elétrica, e recomenda procurar um profissional especializado para isso. Avaliação mecânica é vendida como serviço separado, por outro preço.",
             "O laudo cautelar não mede compressão dos cilindros nem avalia a bomba de alta pressão de um motor de injeção direta. Também não verifica carbonização de válvulas de admissão, não testa embreagem, atuador ou mecatrônica de câmbio automatizado e não identifica desgaste interno de câmbio automático. Não confere se as revisões foram feitas ou se o óleo usado era o especificado, e não diz quanto tempo qualquer componente ainda vai durar.",
             "Um carro pode passar com folga na perícia cautelar e apresentar falha de motor no mês seguinte sem que o exame tenha falhado: ele fez exatamente aquilo para que existe, e mecânica fica fora disso.",
-            "O laudo cautelar responde: este carro é quem diz ser? A estrutura já foi comprometida? Passou por leilão ou sinistro? Existe restrição ou débito? Houve repintura, e onde?",
-            "O laudo cautelar não responde: este motor está saudável? O câmbio vai durar? A manutenção foi feita direito? Qual o próximo gasto que vou ter? Quanto tempo a embreagem aguenta?"
+            "O laudo cautelar responde:\n- este carro é quem diz ser?\n- a estrutura já foi comprometida?\n- passou por leilão ou sinistro?\n- existe restrição ou débito?\n- houve repintura, e onde?",
+            "O laudo cautelar não responde:\n- este motor está saudável?\n- o câmbio vai durar?\n- a manutenção foi feita direito?\n- qual o próximo gasto que vou ter?\n- quanto tempo a embreagem aguenta?"
           ]
         },
         {
@@ -121,7 +125,7 @@
         {
           "titulo": "Com apontamento",
           "paragrafos": [
-            "É aqui que está a maior parte do mercado e também a maior confusão, porque \"com apontamento\" abrange coisas que não têm nada em comum entre si. Na mesma categoria cabem repintura numa porta, por batida de estacionamento; substituição de para-choque ou paralama; registro de sinistro de média monta; passagem por leilão; e pequena divergência de etiqueta por troca de peça com registro.",
+            "É aqui que está a maior parte do mercado e também a maior confusão, porque \"com apontamento\" abrange coisas que não têm nada em comum entre si.\nNa mesma categoria cabem:\n- repintura numa porta, por batida de estacionamento\n- substituição de para-choque ou paralama\n- registro de sinistro de média monta\n- passagem por leilão\n- pequena divergência de etiqueta por troca de peça com registro.",
             "Os dois primeiros são irrelevantes para a segurança e quase irrelevantes para o valor. O terceiro e o quarto mudam o carro de patamar.",
             "Nos casos de sinistro, o que define o peso é a monta. Quando um carro sofre acidente, o agente de trânsito classifica o dano no boletim de ocorrência, e a Resolução CONTRAN nº 810/2020 define três níveis, com consequências bem diferentes.",
             "Na pequena monta, os danos não afetam estrutura nem sistemas de segurança. Não exigem certificado adicional nem geram observação no documento, e o carro volta a circular normalmente.",
@@ -134,7 +138,7 @@
         {
           "titulo": "Reprovado",
           "paragrafos": [
-            "Reprovação vem, quase sempre, do eixo de identificação ou de estrutura grave: numeração de chassi, motor ou câmbio com sinal de adulteração; divergência entre a numeração encontrada e o registro; comprometimento estrutural em longarina, coluna, assoalho ou torre de suspensão; indício de montagem com partes de dois veículos.",
+            "Reprovação vem, quase sempre, do eixo de identificação ou de estrutura grave:\n- numeração de chassi, motor ou câmbio com sinal de adulteração\n- divergência entre a numeração encontrada e o registro\n- comprometimento estrutural em longarina, coluna, assoalho ou torre de suspensão\n- indício de montagem com partes de dois veículos.",
             "Reprovação é impedimento, sem margem de negociação. Carro reprovado por identificação pode configurar ilícito, e a conversa deixa de ser comercial.",
             "Se foi o seu carro que reprovou, a situação é outra e tem saída, explicada no guia \"Meu carro reprovou no laudo cautelar. E agora?\"."
           ]
@@ -142,9 +146,9 @@
         {
           "titulo": "Os três resultados, lado a lado",
           "paragrafos": [
-            "Sem apontamento: a identificação confere; a estrutura não tem reparo relevante; o histórico está limpo; o carro circula normalmente; é financiável; o seguro não impõe restrição; a revenda é normal; e a margem de negociação é pequena.",
-            "Com apontamento: a identificação pode ter divergência menor com o registro; na estrutura cabe de repintura a sinistro de média monta; o histórico pode ter leilão ou sinistro registrado; o carro circula normalmente; em geral é financiável; o seguro pode ter restrição ou prêmio maior; a revenda é mais lenta e mais barata; e é aqui que a margem de negociação existe.",
-            "Reprovado: a identificação tem divergência ou adulteração; a estrutura tem comprometimento; circular depende do motivo; financiar é improvável; segurar é difícil; a revenda é muito restrita; e margem de negociação não se aplica."
+            "Sem apontamento:\n- a identificação confere\n- a estrutura não tem reparo relevante\n- o histórico está limpo\n- o carro circula normalmente\n- é financiável\n- o seguro não impõe restrição\n- a revenda é normal\n- a margem de negociação é pequena.",
+            "Com apontamento:\n- a identificação pode ter divergência menor com o registro\n- na estrutura cabe de repintura a sinistro de média monta\n- o histórico pode ter leilão ou sinistro registrado\n- o carro circula normalmente\n- em geral é financiável\n- o seguro pode ter restrição ou prêmio maior\n- a revenda é mais lenta e mais barata\n- é aqui que a margem de negociação existe.",
+            "Reprovado:\n- a identificação tem divergência ou adulteração\n- a estrutura tem comprometimento\n- circular depende do motivo\n- financiar é improvável\n- segurar é difícil\n- a revenda é muito restrita\n- margem de negociação não se aplica."
           ]
         },
         {
@@ -207,19 +211,20 @@
             "Em Curitiba, uma perícia cautelar custa entre R$ 150 e R$ 750 para um carro de passeio, e leva de trinta minutos a algumas horas. O que faz o preço variar é o valor do veículo, o nível do laudo e se o perito vai até você.",
             "Este guia não vende vistoria. Somos uma revenda que paga esse exame em todo carro que compra, e o que segue é o que aprendemos contratando o serviço.",
             "Os valores praticados no Brasil ficam, em geral, na faixa de R$ 150 a R$ 750. Quatro variáveis movem o número dentro dessa faixa.",
+            "### Valor do veículo",
             "A primeira é o valor venal do veículo. A maior parte das empresas tabela o preço para carros até determinado teto de FIPE, e R$ 100 mil é um corte comum. Acima disso, o orçamento é sob consulta. Utilitários, blindados e importados também saem da tabela padrão.",
+            "### Nível do laudo",
             "O nível do laudo também pesa. Existe a cautelar básica e existem os protocolos ampliados, que sobem de cerca de 120 para mais de 210 itens verificados e acrescentam vídeo do veículo e pesquisa de histórico. Custam mais e entregam mais.",
+            "### Módulo de histórico",
             "Depois vem o módulo de histórico. Em algumas empresas, a pesquisa de leilão e sinistro é um adicional, fora do pacote básico. Vale confirmar antes, porque é justamente o eixo que mais surpreende comprador.",
+            "### Atendimento a domicílio",
             "Por fim, conta se o perito vai até o carro. O atendimento a domicílio costuma ter custo maior e, em compensação, resolve o caso em que o vendedor não quer levar o veículo a lugar nenhum."
           ]
         },
         {
           "titulo": "Onde fazer em Curitiba",
           "paragrafos": [
-            "Algumas empresas que operam perícia cautelar na cidade e região:",
-            "BM Vistorias (Perícia Automotiva). Atende Curitiba e também a região metropolitana, com laudo que traz registro fotográfico e vídeo.",
-            "Super Visão. Tem unidade na região da Marechal e trabalha com dois níveis, a cautelar padrão e um protocolo ampliado com mais itens verificados.",
-            "DEKRA. Rede nacional, com protocolo padronizado, laudo fotográfico e vídeo acessível por QR Code no documento.",
+            "Algumas empresas que operam perícia cautelar na cidade e região:\n- BM Vistorias (Perícia Automotiva). Atende Curitiba e também a região metropolitana, com laudo que traz registro fotográfico e vídeo.\n- Super Visão. Tem unidade na região da Marechal e trabalha com dois níveis, a cautelar padrão e um protocolo ampliado com mais itens verificados.\n- DEKRA. Rede nacional, com protocolo padronizado, laudo fotográfico e vídeo acessível por QR Code no documento.",
             "A lista é um ponto de partida e não está em ordem de preferência. Peça orçamento em pelo menos duas e compare o que está incluído além do preço, porque dois laudos com o mesmo valor podem ter escopos bem diferentes."
           ]
         },
@@ -234,7 +239,7 @@
           "titulo": "O que levar e o que pedir",
           "paragrafos": [
             "Leve o documento do veículo (CRLV), a chave reserva, se existir, e o manual, se houver.",
-            "Na hora de contratar, pergunte se a pesquisa de histórico (leilão, sinistro, restrição) está incluída ou é adicional; quantos itens o laudo cobre; se o documento vem com fotos por ponto verificado; em quanto tempo o laudo é entregue; e se a empresa atende no endereço do veículo.",
+            "Na hora de contratar, pergunte:\n- se a pesquisa de histórico (leilão, sinistro, restrição) está incluída ou é adicional\n- quantos itens o laudo cobre\n- se o documento vem com fotos por ponto verificado\n- em quanto tempo o laudo é entregue\n- se a empresa atende no endereço do veículo.",
             "Com o laudo em mãos, leia o corpo do documento, que é onde estão os apontamentos. Um apontamento estético e um apontamento estrutural aparecem no mesmo laudo e não têm nada em comum, e a diferença entre eles está no guia \"Laudo cautelar: aprovado, com apontamento ou reprovado\"."
           ]
         },
@@ -305,19 +310,14 @@
           "paragrafos": [
             "Passagem por leilão não fica registrada no documento do veículo: não aparece no CRLV nem na consulta gratuita do Detran, e o proprietário atual pode legitimamente não saber que o carro passou por lá. Para descobrir, é preciso cruzar consulta de histórico em base privada com inspeção física do veículo, porque nenhuma das duas resolve sozinha.",
             "O Código de Trânsito Brasileiro define, no artigo 22, as competências dos órgãos executivos estaduais de trânsito, e entre elas não está pesquisar e registrar histórico de leilão. Como o Detran não tem essa atribuição, não coleta nem anota essa informação. Leilão não vem escrito no documento, e quem consulta só a base oficial não vai encontrá-lo.",
-            "A base oficial registra outras coisas, e vale consultá-la de qualquer forma: sinistro de média monta, com a observação \"Sinistro/Recuperado\", permanente; baixa por grande monta, em que o veículo não pode circular nem ser transferido; restrições administrativas e judiciais; gravame de financiamento ativo; e roubo e furto.",
+            "A base oficial registra outras coisas, e vale consultá-la de qualquer forma:\n- sinistro de média monta, com a observação \"Sinistro/Recuperado\", permanente\n- baixa por grande monta, em que o veículo não pode circular nem ser transferido\n- restrições administrativas e judiciais\n- gravame de financiamento ativo\n- roubo e furto.",
             "Nenhum desses itens é \"leilão\". Mesmo assim, leilão e sinistro costumam ser tratados como sinônimos, e é daí que vem a maior parte da confusão."
           ]
         },
         {
           "titulo": "Leilão não é sinônimo de sinistro",
           "paragrafos": [
-            "Carros vão a leilão por motivos muito diferentes, e o motivo muda o que a passagem significa.",
-            "No leilão de seguradora, o carro sofreu sinistro e a seguradora considerou o reparo inviável ou pagou a indenização. É a origem mais preocupante, porque vem quase sempre acompanhada de dano estrutural relevante. Se o dano foi classificado como grande monta, o veículo deveria ter sido baixado e não pode voltar a circular.",
-            "No leilão de financeira ou banco, o carro foi retomado por inadimplência, sem acidente e sem dano. A questão é de contrato, e um carro dessa origem pode estar impecável.",
-            "Na desmobilização de frota, locadoras e empresas renovam a frota em ciclos definidos. São veículos com manutenção registrada, revisão em dia e histórico rastreável, em muitos casos mais bem documentados que um carro particular.",
-            "O leilão judicial vem de penhora, partilha ou execução e não tem nada a ver com o estado mecânico.",
-            "No pátio de Detran vão a leilão veículos apreendidos ou abandonados. Com eles, o problema costuma ser deterioração por meses ou anos parados ao relento, mais do que dano de colisão.",
+            "Carros vão a leilão por motivos muito diferentes, e o motivo muda o que a passagem significa.\n- No leilão de seguradora, o carro sofreu sinistro e a seguradora considerou o reparo inviável ou pagou a indenização. É a origem mais preocupante, porque vem quase sempre acompanhada de dano estrutural relevante. Se o dano foi classificado como grande monta, o veículo deveria ter sido baixado e não pode voltar a circular.\n- No leilão de financeira ou banco, o carro foi retomado por inadimplência, sem acidente e sem dano. A questão é de contrato, e um carro dessa origem pode estar impecável.\n- Na desmobilização de frota, locadoras e empresas renovam a frota em ciclos definidos. São veículos com manutenção registrada, revisão em dia e histórico rastreável, em muitos casos mais bem documentados que um carro particular.\n- O leilão judicial vem de penhora, partilha ou execução e não tem nada a ver com o estado mecânico.\n- No pátio de Detran vão a leilão veículos apreendidos ou abandonados. Com eles, o problema costuma ser deterioração por meses ou anos parados ao relento, mais do que dano de colisão.",
             "Tratar todas essas origens como a mesma coisa é o erro mais comum de quem está comprando e também de quem está vendendo, e leva a descartar bons negócios e a aceitar maus."
           ]
         },
@@ -410,14 +410,14 @@
           "paragrafos": [
             "Remarcação de chassi é legal quando é feita por empresa credenciada, autorizada pelo Detran e anotada no documento do veículo. Adulteração é crime, tipificado no artigo 311 do Código Penal.",
             "A diferença entre as duas está numa expressão do próprio texto da lei: \"sem autorização do órgão competente\".",
-            "Um carro tem vários números de identificação, espalhados de propósito: a gravação no monobloco ou chassi, que é a numeração principal, estampada na estrutura; as etiquetas de identificação, distribuídas por painéis da carroceria, com destruição programada se removidas; a gravação nos vidros; a numeração de motor e de câmbio; e a plaqueta de identificação, junto das placas.",
+            "Um carro tem vários números de identificação, espalhados de propósito:\n- a gravação no monobloco ou chassi, que é a numeração principal, estampada na estrutura\n- as etiquetas de identificação, distribuídas por painéis da carroceria, com destruição programada se removidas\n- a gravação nos vidros\n- a numeração de motor e de câmbio\n- a plaqueta de identificação, junto das placas.",
             "A redundância existe justamente para dificultar fraude. Adulterar um ponto é possível; adulterar todos, de forma consistente, é muito mais difícil. É por isso que a perícia confere vários pontos e cruza com o registro, e é a divergência entre eles que acende o alerta."
           ]
         },
         {
           "titulo": "A remarcação legal existe",
           "paragrafos": [
-            "Um chassi pode precisar ser regravado por razões inteiramente legítimas: corrosão que tornou a numeração ilegível; reparo estrutural que exigiu substituição da parte onde a gravação estava; desgaste ou dano acidental na área da estampagem; e recuperação de veículo furtado ou roubado em que a numeração foi violada pelo criminoso.",
+            "Um chassi pode precisar ser regravado por razões inteiramente legítimas:\n- corrosão que tornou a numeração ilegível\n- reparo estrutural que exigiu substituição da parte onde a gravação estava\n- desgaste ou dano acidental na área da estampagem\n- recuperação de veículo furtado ou roubado em que a numeração foi violada pelo criminoso.",
             "Nesses casos existe um procedimento. A regravação segue as exigências técnicas da Resolução CONTRAN nº 968/2022 e só pode ser executada por empresa credenciada ao Detran, mediante laudo técnico e autorização prévia. Concluído o processo, o Detran emite novo documento com a numeração regularizada.",
             "A diferença prática mais útil deste guia é que a remarcação regular fica registrada: o documento passa a trazer a observação de chassi remarcado.",
             "Com a passagem por leilão acontece o contrário: ela não consta em documento nenhum. A remarcação é anotada por definição, e o leilão nunca é.",
@@ -438,8 +438,8 @@
         {
           "titulo": "Como diferenciar na prática",
           "paragrafos": [
-            "Remarcação regular: a autorização é prévia, do Detran; quem executa é empresa credenciada; o laudo técnico é exigido; o documento traz a observação de remarcado; a numeração bate em todos os pontos; o acabamento segue padrão técnico definido; e a consequência é um carro regular, com desvalorização.",
-            "Adulteração: autorização, nenhuma; executa qualquer um; laudo técnico, inexistente; no documento nada consta (é esse o objetivo); a numeração diverge entre pontos, ou com o registro; o acabamento é irregular, com profundidade e alinhamento inconsistentes; e a consequência é crime, com o veículo sujeito a apreensão.",
+            "Remarcação regular:\n- a autorização é prévia, do Detran\n- quem executa é empresa credenciada\n- o laudo técnico é exigido\n- o documento traz a observação de remarcado\n- a numeração bate em todos os pontos\n- o acabamento segue padrão técnico definido\n- a consequência é um carro regular, com desvalorização.",
+            "Adulteração:\n- autorização, nenhuma\n- executa qualquer um\n- laudo técnico, inexistente\n- no documento nada consta (é esse o objetivo)\n- a numeração diverge entre pontos, ou com o registro\n- o acabamento é irregular, com profundidade e alinhamento inconsistentes\n- a consequência é crime, com o veículo sujeito a apreensão.",
             "O teste de três perguntas, antes de qualquer coisa:",
             "1. O documento traz observação de remarcação? Se sim, peça o processo: laudo, autorização e a empresa que executou.",
             "2. Se o documento não traz observação e a gravação aparenta ter sido refeita, isso é contradição. Pare.",
@@ -512,8 +512,8 @@
           "paragrafos": [
             "A vistoria de transferência é obrigatória, feita para o Detran, e confere identificação do veículo, legitimidade da propriedade e equipamentos de segurança. O laudo cautelar é voluntário, feito para você, e avalia procedência: estrutura, histórico e origem.",
             "Muita gente acredita que, tendo passado na vistoria do Detran, o carro está atestado. Não está. Os dois exames têm escopos diferentes, mas o que mais pesa é o momento em que cada um acontece.",
-            "A vistoria de transferência é obrigatória para transferir; é feita para o órgão de trânsito, pelo Detran ou por ECV credenciada; confere identificação e equipamentos obrigatórios; não avalia integridade estrutural, não mede espessura de pintura, não pesquisa histórico de leilão e não avalia o registro de sinistro; acontece depois de você comprar; e o resultado é liberar ou não o processo.",
-            "O laudo cautelar é voluntário e feito para você, por empresa privada especializada; confere identificação, mas não os equipamentos obrigatórios; avalia integridade estrutural, espessura de pintura, histórico de leilão pelo módulo de pesquisa e registro de sinistro; acontece antes de você decidir; e o resultado é um documento com o que foi encontrado."
+            "A vistoria de transferência:\n- é obrigatória para transferir\n- é feita para o órgão de trânsito, pelo Detran ou por ECV credenciada\n- confere identificação e equipamentos obrigatórios\n- não avalia integridade estrutural, não mede espessura de pintura, não pesquisa histórico de leilão e não avalia o registro de sinistro\n- acontece depois de você comprar\n- o resultado é liberar ou não o processo.",
+            "O laudo cautelar:\n- é voluntário e feito para você, por empresa privada especializada\n- confere identificação, mas não os equipamentos obrigatórios\n- avalia integridade estrutural, espessura de pintura, histórico de leilão pelo módulo de pesquisa e registro de sinistro\n- acontece antes de você decidir\n- o resultado é um documento com o que foi encontrado."
           ]
         },
         {
@@ -527,7 +527,7 @@
         {
           "titulo": "O que ela não verifica",
           "paragrafos": [
-            "Ficam fora do escopo a integridade estrutural (longarinas, colunas, assoalho, torres de suspensão), o teste de espessura de pintura para identificar reparo, o histórico de passagem por leilão, a avaliação do registro de sinistro e da gravidade do dano e o estado mecânico.",
+            "Ficam fora do escopo:\n- a integridade estrutural (longarinas, colunas, assoalho, torres de suspensão)\n- o teste de espessura de pintura para identificar reparo\n- o histórico de passagem por leilão\n- a avaliação do registro de sinistro e da gravidade do dano\n- o estado mecânico.",
             "Um carro pode ter sofrido sinistro estrutural grave, ter sido reparado e ter passado por leilão de seguradora e ainda assim ser aprovado na vistoria de transferência, porque a vistoria não pergunta nada disso.",
             "A vistoria responde \"este veículo pode ser transferido e circular?\". Ela não responde \"vale a pena comprar este veículo?\"."
           ]
@@ -610,11 +610,15 @@
             "Um carro reprovado no laudo cautelar sai de um mercado e entra em outro, mais estreito e com preço diferente, o que não quer dizer que ele não vale nada ou que ninguém compra. O que define o caminho é o motivo da reprovação.",
             "Há reprovações que reduzem o valor e reprovações que impedem a venda, e tratar as duas como a mesma coisa é o erro que faz gente boa perder dinheiro ou se meter em problema.",
             "Antes de qualquer decisão, identifique em qual dos casos você está.",
+            "### Numeração divergente",
             "Divergência ou adulteração de numeração é o caso mais grave, e a questão deixa de ser comercial. Se chassi, motor ou etiquetas não batem entre si ou com o registro, pare tudo e procure um advogado antes de tomar qualquer iniciativa, inclusive antes de tentar vender.",
             "Vender adiante um veículo com sinal identificador adulterado é uma das condutas alcançadas pelo artigo 311 do Código Penal, na redação que a Lei nº 14.562 de 2023 trouxe. O guia \"Chassi remarcado: quando é legal e quando é crime\" separa o que é remarcação regular do que é adulteração.",
             "Pode ser que a remarcação seja legítima e falte apenas regularização documental, e pode ser o oposto. Quem separa as duas hipóteses é um advogado.",
+            "### Sinistro estrutural",
             "No sinistro estrutural, o dano está em longarina, coluna, assoalho ou torre de suspensão. O carro pode estar regular e circulando, mas a estrutura foi comprometida e reparada. Para esse caso o mercado existe, o preço muda bastante, e o dever de informar quem comprar é inegociável.",
+            "### Passagem por leilão",
             "Passagem por leilão muda muito conforme a origem. Retomada de financiamento e perda total de seguradora são situações completamente diferentes, ainda que ambas apareçam como \"leilão\" na pesquisa. A diferença entre os tipos está no guia \"Como saber se um carro passou por leilão\".",
+            "### Apontamento não estrutural",
             "Apontamento grave não estrutural (repintura extensa, peças trocadas em volume, desgaste incompatível com a idade) reduz o valor sem fechar portas."
           ]
         },
@@ -630,7 +634,9 @@
         {
           "titulo": "O que você é obrigado a informar",
           "paragrafos": [
-            "Se você sabe de um defeito, informe. É isso que decide se a venda vai ser um alívio ou um processo. Vício oculto é o defeito que já existia na venda e que o comprador não tinha como perceber, e ele abre caminho para rescisão do negócio mesmo quando o vendedor não sabia; quem sabia e omitiu responde também pela reparação. Vale tanto na venda entre particulares quanto quando quem vende é loja, e nesse caso com responsabilidade ainda mais direta. O conceito, e até onde a perícia alcança, está em \"Vício oculto em carro usado: o que é e o que não é\".",
+            "Se você sabe de um defeito, informe. É isso que decide se a venda vai ser um alívio ou um processo.",
+            "Vício oculto é o defeito que já existia na venda e que o comprador não tinha como perceber, e ele abre caminho para rescisão do negócio mesmo quando o vendedor não sabia; quem sabia e omitiu responde também pela reparação.",
+            "Vale tanto na venda entre particulares quanto quando quem vende é loja, e nesse caso com responsabilidade ainda mais direta. O conceito, e até onde a perícia alcança, está em \"Vício oculto em carro usado: o que é e o que não é\".",
             "Entregue o laudo. Se você já pagou por uma perícia, o documento vai junto na negociação. Além de ser a forma correta, é a sua proteção: comprador informado por escrito não alega desconhecimento depois.",
             "Não conte com a sorte. A informação está em bases de histórico veicular, e o comprador que não conferir hoje vai conferir na hora de revender. Aí o seu nome é o que aparece na história.",
             "Não estamos dando parecer jurídico. Em caso de dúvida sobre o seu caso específico, consulte um advogado ou o Procon."
@@ -717,7 +723,7 @@
             "A amostra é de 57 veículos avaliados para entrada em estoque num período fechado de 30 dias, registro da própria operação. Desses, 10 foram comprados e 47 recusados.",
             "Ficaram de fora as recusas comerciais, de carro que não entrou por preço, por giro ou por não se encaixar no perfil do estoque. Aqui só entra reprovação técnica: o que foi encontrado no veículo ou no histórico dele.",
             "Quando um carro apresentou mais de um problema, contamos apenas o motivo determinante, o que sozinho já impediria a compra. Por isso a soma fecha exatamente com o total avaliado.",
-            "Nos 57 avaliados: passagem por leilão, 16 veículos, 28%; quilometragem não condizente, 13 veículos, 23%; reparos mal executados, 10 veículos, 18%; outros motivos técnicos, 8 veículos, 14%; e comprados, 10 veículos, 18%.",
+            "Nos 57 avaliados:\n- passagem por leilão, 16 veículos, 28%\n- quilometragem não condizente, 13 veículos, 23%\n- reparos mal executados, 10 veículos, 18%\n- outros motivos técnicos, 8 veículos, 14%\n- comprados, 10 veículos, 18%.",
             "É uma amostra de um mês, e não uma média histórica: a proporção varia bastante conforme o que chega e conforme o momento do estoque. Ao longo do tempo, o critério que a gente pratica aprova em torno de três a cada dez avaliados, e neste mês ficou mais apertado.",
             "A perícia é feita por empresa independente, antes de o veículo entrar na vitrine. O guia \"Laudo cautelar: o que verifica e o que não verifica\" mostra o que esse exame cobre e o que não cobre."
           ]
@@ -737,7 +743,7 @@
             "A quilometragem pode ser alta demais. A referência comum de mercado gira em torno de 10 a 15 mil km por ano, e um carro de cinco anos com 150 mil km rodou o de dez.",
             "Sozinha, ela não reprova. Reprova quando vem junto com o que a quilometragem alta produziu: suspensão no fim, embreagem no limite, câmbio com folga e, principalmente, manutenção que não acompanhou o uso. Carro muito rodado com revisão documentada é um negócio; muito rodado sem histórico é outro.",
             "A quilometragem também pode ser baixa demais, e essa é a parte que quase ninguém espera. É o motivo de reprovação que mais rende discussão na nossa mesa.",
-            "Carro parado se deteriora com o tempo, mesmo sem uso. Num veículo que rodou muito pouco para a idade, a gente encontra com frequência borrachas, mangueiras e retentores ressecados; correias com microfissuras, mesmo sem quilometragem; pneus velhos (a borracha envelhece parada, e pneu de cinco anos é pneu de cinco anos com 10 mil ou 100 mil km); fluido de freio saturado de umidade; ar-condicionado com vazamento por falta de circulação; combustível velho no tanque, com bico e bomba comprometidos; e óleo degradado por tempo, mesmo dentro do intervalo de quilometragem.",
+            "Carro parado se deteriora com o tempo, mesmo sem uso.\nNum veículo que rodou muito pouco para a idade, a gente encontra com frequência:\n- borrachas, mangueiras e retentores ressecados\n- correias com microfissuras, mesmo sem quilometragem\n- pneus velhos (a borracha envelhece parada, e pneu de cinco anos é pneu de cinco anos com 10 mil ou 100 mil km)\n- fluido de freio saturado de umidade\n- ar-condicionado com vazamento por falta de circulação\n- combustível velho no tanque, com bico e bomba comprometidos\n- óleo degradado por tempo, mesmo dentro do intervalo de quilometragem.",
             "Sempre vem junto a pergunta: por que rodou tão pouco? Pode ser uso genuinamente leve, pode ser um carro que ficou parado por avaria, por litígio ou porque o dono desistiu dele, e às vezes o hodômetro simplesmente não conta a verdade.",
             "\"Carro de garagem, pouco rodado\" é um dos argumentos de venda mais usados do mercado, e é um dos que mais pedem inspeção."
           ]
@@ -746,14 +752,14 @@
           "titulo": "3. Reparos mal executados: 10 veículos",
           "paragrafos": [
             "É o terceiro mais frequente, e o mais fácil de esconder numa foto de anúncio.",
-            "Carro usado tem reparo, e isso é normal. O que reprova é a execução: repintura com variação de espessura fora do padrão de fábrica; excesso de massa disfarçando amassado em vez de repuxo; peça de reposição mal encaixada, com folga ou desalinhamento de frisos; solda fora de padrão, principalmente em painel estrutural; parafuso com marca de ferramenta em ponto que não deveria ter sido aberto; e acabamento que não acompanha a idade do resto do carro.",
+            "Carro usado tem reparo, e isso é normal.\nO que reprova é a execução:\n- repintura com variação de espessura fora do padrão de fábrica\n- excesso de massa disfarçando amassado em vez de repuxo\n- peça de reposição mal encaixada, com folga ou desalinhamento de frisos\n- solda fora de padrão, principalmente em painel estrutural\n- parafuso com marca de ferramenta em ponto que não deveria ter sido aberto\n- acabamento que não acompanha a idade do resto do carro.",
             "Reparo mal feito importa por dois motivos. Ele indica que alguém economizou onde não devia, e quem economiza no acabamento visível raramente caprichou no que não se vê. E, quando atinge painel estrutural, compromete o comportamento do carro numa nova colisão."
           ]
         },
         {
           "titulo": "Os demais: 8 veículos",
           "paragrafos": [
-            "Menos frequentes, mas quando aparecem costumam ser definitivos: divergência ou adulteração de numeração, que é reprovação imediata e com implicação que vai além do comercial; sinistro estrutural com dano em longarina, coluna, assoalho ou torre; pendência documental, como restrição, débito ou gravame não baixado; e desgaste mecânico crônico com custo de reparo acima do que o carro comporta."
+            "Menos frequentes, mas quando aparecem costumam ser definitivos:\n- divergência ou adulteração de numeração, que é reprovação imediata e com implicação que vai além do comercial\n- sinistro estrutural com dano em longarina, coluna, assoalho ou torre\n- pendência documental, como restrição, débito ou gravame não baixado\n- desgaste mecânico crônico com custo de reparo acima do que o carro comporta."
           ]
         },
         {

@@ -171,7 +171,7 @@ export default async function PaginaDoRepasse() {
 
       {vazio ? (
         <>
-          <section id={ANCORA_DO_LOTE} className={`scroll-mt-24 py-12 ${MARGEM}`}>
+          <section id={ANCORA_DO_LOTE} className={`py-12 ${MARGEM}`}>
             <Rotulo accent>{LOTE_DO_REPASSE.rotulo}</Rotulo>
             <h2 className="mt-titulo m-0 mt-2 text-3xl md:text-[46px]">{VAZIO_DO_REPASSE.titulo}</h2>
             <p className="m-0 mt-3 max-w-[620px] text-[15px] leading-relaxed text-mt-neutral-800">
@@ -187,7 +187,7 @@ export default async function PaginaDoRepasse() {
           </section>
           {jaSairam}
           {disponiveis.length > 0 && (
-            <section id={ANCORA_DO_ESTOQUE} className={`scroll-mt-24 border-t-2 border-mt-regua py-12 ${MARGEM}`}>
+            <section id={ANCORA_DO_ESTOQUE} className={`border-t-2 border-mt-regua py-12 ${MARGEM}`}>
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <Rotulo accent>{VAZIO_DO_REPASSE.estoqueRotulo}</Rotulo>
@@ -207,7 +207,7 @@ export default async function PaginaDoRepasse() {
         </>
       ) : (
         <>
-          <section id={ANCORA_DO_LOTE} className={`scroll-mt-24 py-12 ${MARGEM}`}>
+          <section id={ANCORA_DO_LOTE} className={`py-12 ${MARGEM}`}>
             <Rotulo accent>{LOTE_DO_REPASSE.rotulo}</Rotulo>
             <h2 className="mt-titulo m-0 mt-2 text-3xl md:text-[46px]">{tituloDoLote(resumo.lote.length)}</h2>
             <LoteDoRepasse lote={resumo.lote} whatsappDaLoja={whatsappDaLoja} />

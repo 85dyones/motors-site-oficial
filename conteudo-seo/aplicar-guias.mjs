@@ -267,6 +267,20 @@ const PADROES_DE_MARKDOWN = [
 
 const SAIDAS_COMERCIAIS = ["/estoque", "/avaliacao", "/financiamento", "/garantia"];
 
+/**
+ * As marcas que a página renderiza no corpo (30/09/2026,
+ * `src/lib/blocosDoGuia.ts`): "- " no começo de linha é item de lista, o
+ * parágrafo inteiro "### Título" é subtítulo e o parágrafo "---" fecha o
+ * último subtítulo. Saem antes da régua de markdown,
+ * que continua reprovando o resto (asterisco, "+", "#", "##", tabela...).
+ */
+function semMarcasDoCorpo(paragrafo) {
+  const p = String(paragrafo ?? "");
+  if (/^-{3,}$/.test(p.trim())) return "";
+  if (/^### [^\n]+$/.test(p.trim())) return p.trim().slice(4);
+  return p.replace(/(^|\n)- /g, "$1");
+}
+
 function blocosDeTexto(guia) {
   return [
     { onde: "titulo", texto: guia.titulo ?? "" },
@@ -276,7 +290,7 @@ function blocosDeTexto(guia) {
     { onde: "descricao", texto: guia.descricao ?? "" },
     ...(guia.corpo ?? []).flatMap((s, i) => [
       { onde: `corpo[${i}].titulo`, texto: s?.titulo ?? "" },
-      ...(s?.paragrafos ?? []).map((p, j) => ({ onde: `corpo[${i}].paragrafos[${j}]`, texto: p })),
+      ...(s?.paragrafos ?? []).map((p, j) => ({ onde: `corpo[${i}].paragrafos[${j}]`, texto: semMarcasDoCorpo(p) })),
     ]),
     ...(guia.faq ?? []).flatMap((f, i) => [
       { onde: `faq[${i}].pergunta`, texto: f?.pergunta ?? "" },

@@ -15,6 +15,7 @@ import {
   iniciaisDoAutor,
   mesmoDiaEmCuritiba,
 } from "../../../lib/assinaturaDoGuia";
+import { ancorasDasSecoes, blocosDaSecao } from "../../../lib/blocosDoGuia";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -135,6 +136,7 @@ export default async function GuiaPage({ params }: PageProps) {
   // corpo. Sem isto, o guia linkaria para ele mesmo — âncora que não leva a
   // lugar nenhum e sinal interno falso para o rastreador.
   const linkar = criarLinkador(`/guias/${slug}`);
+  const ancoras = ancorasDasSecoes(guia.corpo.map((secao) => secao.titulo));
 
   const comLinks = (texto: string, chave: string) =>
     linkar(texto).map((parte, i) =>
@@ -235,21 +237,107 @@ export default async function GuiaPage({ params }: PageProps) {
         </div>
       </div>
 
-      <article className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-        {guia.corpo.map((secao) => (
-          <section key={secao.titulo} className="max-w-[680px] pb-8 last:pb-0">
-            <h2 className="mt-titulo m-0 text-[20px] lg:text-[26px]">{secao.titulo}</h2>
-            {secao.paragrafos.map((paragrafo, i) => (
-              <p
-                key={i}
-                className="m-0 mt-4 text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]"
-              >
-                {comLinks(paragrafo, `${secao.titulo}-${i}`)}
-              </p>
-            ))}
-          </section>
-        ))}
-      </article>
+      {/*
+        Leitura escaneável (30/09/2026). O texto é o mesmo que o rastreador
+        lia; muda a forma de chegar nele:
+          · "Neste guia": as seções, com âncora. No computador fica fixo ao
+            lado, na coluna que era vazia; no celular, recolhido antes do texto.
+          · O primeiro parágrafo, que responde à pergunta do título, em corpo
+            maior.
+          · Lista e subtítulo quando o texto marca (`lib/blocosDoGuia.ts`).
+          · Corpo de 16/17px, e não 14/15px.
+      */}
+      <div className="border-t-2 border-mt-regua px-[18px] py-8 lg:grid lg:grid-cols-[minmax(0,680px)_minmax(200px,260px)] lg:gap-x-16 lg:px-10">
+        <details className="mb-8 border border-mt-regua-fina lg:hidden">
+          <summary className="cursor-pointer px-4 py-3 text-[11px] font-extrabold uppercase tracking-[.16em] text-mt-ink">
+            Neste guia · {guia.corpo.length} partes
+          </summary>
+          <nav aria-label="Neste guia">
+            <ol role="list" className="m-0 list-none border-t border-mt-regua-fina px-4 py-2">
+              {guia.corpo.map((secao, i) => (
+                <li key={ancoras[i]} className="py-1.5">
+                  <a
+                    href={`#${ancoras[i]}`}
+                    className="mt-foco text-[14px] leading-snug text-mt-neutral-800 no-underline hover:text-mt-accent"
+                  >
+                    {secao.titulo}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </details>
+
+        <article className="min-w-0 lg:col-start-1 lg:row-start-1">
+          {guia.corpo.map((secao, s) => (
+            <section key={ancoras[s]} className="pb-10 last:pb-0">
+              <h2 id={ancoras[s]} className="mt-titulo m-0 text-[22px] lg:text-[28px]">
+                {secao.titulo}
+              </h2>
+              {blocosDaSecao(secao.paragrafos).map((bloco, b) => {
+                const chave = `${ancoras[s]}-${b}`;
+                if (bloco.tipo === "separador") {
+                  return <hr key={chave} className="m-0 mt-7 w-16 border-0 border-t-2 border-mt-regua" />;
+                }
+                if (bloco.tipo === "subtitulo") {
+                  return (
+                    <h3 key={chave} className="m-0 mt-7 text-[17px] font-extrabold leading-snug text-mt-ink lg:text-[19px]">
+                      {bloco.texto}
+                    </h3>
+                  );
+                }
+                if (bloco.tipo === "lista") {
+                  return (
+                    // `role="list"`: com `list-none`, o VoiceOver do Safari
+                    // deixa de anunciar a lista como lista.
+                    <ul key={chave} role="list" className="m-0 mt-4 list-none p-0">
+                      {bloco.itens.map((item, i) => (
+                        <li
+                          key={`${chave}-${i}`}
+                          className="relative mt-2.5 pl-5 text-[16px] leading-[1.7] text-mt-neutral-800 before:absolute before:left-0 before:top-[.72em] before:h-[6px] before:w-[6px] before:bg-mt-accent before:content-[''] lg:text-[17px]"
+                        >
+                          {comLinks(item, `${chave}-${i}`)}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                }
+                const abertura = s === 0 && b === 0;
+                return (
+                  <p
+                    key={chave}
+                    className={
+                      abertura
+                        ? "m-0 mt-4 text-[18px] leading-[1.6] text-mt-ink lg:text-[20px]"
+                        : "m-0 mt-4 text-[16px] leading-[1.7] text-mt-neutral-800 lg:text-[17px]"
+                    }
+                  >
+                    {comLinks(bloco.texto, chave)}
+                  </p>
+                );
+              })}
+            </section>
+          ))}
+        </article>
+
+        <div className="hidden lg:col-start-2 lg:row-start-1 lg:block">
+          <nav aria-label="Neste guia" className="sticky top-24 border-l-2 border-mt-regua pl-5">
+            <p className="m-0 text-[11px] font-extrabold uppercase tracking-[.16em] text-mt-ink">Neste guia</p>
+            <ol role="list" className="m-0 mt-3 list-none p-0">
+              {guia.corpo.map((secao, i) => (
+                <li key={ancoras[i]} className="py-1.5">
+                  <a
+                    href={`#${ancoras[i]}`}
+                    className="mt-foco text-[13px] leading-snug text-mt-neutral-700 no-underline hover:text-mt-accent"
+                  >
+                    {secao.titulo}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </div>
+      </div>
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
         <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Perguntas frequentes</h2>

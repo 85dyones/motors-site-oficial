@@ -495,7 +495,7 @@ function Acoes({
   else rotulo = "FALAR COM UM CONSULTOR";
 
   return (
-    <div className="sticky bottom-0 z-10 -mx-[18px] mt-10 flex flex-wrap gap-0.5 bg-mt-inverso-fundo px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 lg:static lg:mx-0 lg:mt-12 lg:px-0 lg:pb-0 lg:pt-0">
+    <div data-barra-inferior className="sticky bottom-0 z-10 -mx-[18px] mt-10 flex flex-wrap gap-0.5 bg-mt-inverso-fundo px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 lg:static lg:mx-0 lg:mt-12 lg:px-0 lg:pb-0 lg:pt-0">
       <button type="button" onClick={onFalar} className="mt-btn mt-btn-primario mt-foco">
         {rotulo}
         <Seta size={15} />
