@@ -362,7 +362,7 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
       // enumerações eram os blocos mais longos da página. As marcas são as de
       // `lib/blocosDoGuia.ts` ("- " vira item), que `PaginaDeEstoque` desenha.
       "Coberto: a falha interna, dentro do prazo, destas partes:\n" +
-        "- componente de motor, incluído o turbocompressor, quando é o original de fábrica;\n" +
+        "- componente de motor (incluído o turbocompressor, quando é o original de fábrica);\n" +
         "- câmbio;\n" +
         "- diferencial.",
       "Fora da cobertura, por serem manutenção ou desgaste de uso:\n" +
@@ -409,7 +409,8 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   {
     titulo: "O que fazer se algo falhar",
     paragrafos: [
-      "- Avise antes de mexer. Reparo feito por conta própria, sem falar com a gente antes, " +
+      "Nesta ordem:\n" +
+        "- Avise antes de mexer. Reparo feito por conta própria, sem falar com a gente antes, " +
         "dificulta a análise e pode agravar o problema.\n" +
         "- A gente avalia e conserta na oficina parceira da especialidade, dentro do prazo e do " +
         "escopo do termo, sem franquia e com a mão de obra inclusa.\n" +

@@ -218,7 +218,9 @@ describe("garantia afirma o prazo sem vendê-lo como vantagem", () => {
        como "cobre turbo" por quem trocou o dele. O que o plano estendido cobre
        não entra aqui: desde 18/09 a página não reproduz o manual dele. */
     const coberto = SECOES_DE_GARANTIA.flatMap((s) => s.paragrafos).find((p) => p.startsWith("Coberto:"));
-    expect(coberto).toMatch(/turbocompressor, quando é o original de fábrica/);
+    // Entre parênteses: sem eles, "quando é o original de fábrica" passa a
+    // valer para qualquer componente de motor (revisão do qa-guardian, 30/09).
+    expect(coberto).toMatch(/\(incluído o turbocompressor, quando é o original de fábrica\)/);
     expect(TEXTO_DA_GARANTIA).toMatch(/turbo que não é o original de fábrica entra aqui/);
   });
 
