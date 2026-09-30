@@ -18,6 +18,7 @@ import {
   SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
   TEXTO_DE_GARANTIA,
+  RESUMO_DA_GARANTIA,
 } from "../src/lib/paginasInstitucionais";
 import { TEXTO_LAUDO_PENDENTE, TEXTO_PONTE_DO_GUIA } from "../src/lib/textoDoLaudo";
 import { PERFIS_DE_USO } from "../src/lib/perfisDeUso";
@@ -143,12 +144,13 @@ describe("páginas geográficas, /financiamento, /garantia e o texto do laudo", 
   });
 
   it("/financiamento", () => {
-    semMarcas([...TEXTO_DE_FINANCIAMENTO, ...PERGUNTAS_DE_FINANCIAMENTO.flatMap((f) => [f.pergunta, f.resposta])].join("\n"), "/financiamento");
+    semMarcas(["Depois da simulação", ...TEXTO_DE_FINANCIAMENTO, ...PERGUNTAS_DE_FINANCIAMENTO.flatMap((f) => [f.pergunta, f.resposta])].join("\n"), "/financiamento");
   });
 
   it("/garantia", () => {
     semMarcas(
       [
+        ...RESUMO_DA_GARANTIA.flatMap((r) => [r.rotulo, r.texto]),
         ...TEXTO_DE_GARANTIA,
         ...SECOES_DE_GARANTIA.flatMap((s) => [s.titulo, ...s.paragrafos]),
         ...PERGUNTAS_DE_GARANTIA.flatMap((f) => [f.pergunta, f.resposta]),

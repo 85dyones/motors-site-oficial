@@ -114,7 +114,13 @@ export default async function FinanciamentoPage() {
       <PaginaDeEstoque
         trilha={[{ rotulo: "Home", href: "/" }]}
         titulo="Financiamento de seminovo em Curitiba"
-        introducao={TEXTO_DE_FINANCIAMENTO}
+        /* Tarefa 4.7 da revisão de UI de 30/09: a abertura é só o primeiro
+           parágrafo, que apresenta o simulador; os outros três descem para
+           depois dele, numa seção com `<h2>`. Mesmo texto, mesma ordem, e a
+           ferramenta na primeira dobra. */
+        introducao={TEXTO_DE_FINANCIAMENTO.slice(0, 1)}
+        secoes={[{ titulo: "Depois da simulação", paragrafos: TEXTO_DE_FINANCIAMENTO.slice(1) }]}
+        secoesDepoisDoConteudo
         contagem={false}
         veiculos={paraGrade}
         textoSemEstoque={`Sem veículos nesta faixa agora — o simulador acima funciona com qualquer carro do estoque de ${parametros.anoMaisAntigo} em diante.`}
