@@ -10,7 +10,10 @@
  *
  *   · linhas que começam com "- " viram lista (`<ul>`); as linhas antes da
  *     primeira viram a frase que abre a lista;
- *   · um parágrafo que começa com "### " vira subtítulo (`<h3>`).
+ *   · um parágrafo que começa com "### " vira subtítulo (`<h3>`); se o texto
+ *     seguir na linha de baixo, sem linha em branco, ele vira parágrafo;
+ *   · um parágrafo "---" fecha o último subtítulo: o que vem depois volta a
+ *     ser da seção inteira (a conclusão não fica pendurada no último h3).
  *
  * Nada além disso: sem negrito, sem link escrito à mão. O link continua
  * saindo do linkador, sobre o texto de cada bloco.
@@ -22,20 +25,31 @@
 export type BlocoDoGuia =
   | { tipo: "paragrafo"; texto: string }
   | { tipo: "lista"; itens: string[] }
-  | { tipo: "subtitulo"; texto: string };
+  | { tipo: "subtitulo"; texto: string }
+  | { tipo: "separador" };
 
 const ITEM = /^\s*-\s+/;
 const SUBTITULO = /^###\s+/;
+const SEPARADOR = /^-{3,}$/;
 
 export function blocosDoParagrafo(paragrafo: string): BlocoDoGuia[] {
   const bruto = (paragrafo ?? "").trim();
   if (!bruto) return [];
 
-  if (SUBTITULO.test(bruto) && !bruto.includes("\n")) {
-    return [{ tipo: "subtitulo", texto: bruto.replace(SUBTITULO, "").trim() }];
-  }
+  if (SEPARADOR.test(bruto)) return [{ tipo: "separador" }];
 
   const blocos: BlocoDoGuia[] = [];
+  let resto = bruto;
+  if (SUBTITULO.test(bruto)) {
+    // Quem escreve pelo painel pode colar o texto logo abaixo do subtítulo,
+    // sem a linha em branco. A primeira linha é o subtítulo; o resto segue.
+    const quebra = bruto.indexOf("\n");
+    const primeira = quebra === -1 ? bruto : bruto.slice(0, quebra);
+    blocos.push({ tipo: "subtitulo", texto: primeira.replace(SUBTITULO, "").trim() });
+    if (quebra === -1) return blocos;
+    resto = bruto.slice(quebra + 1);
+  }
+
   let corrido: string[] = [];
   let itens: string[] = [];
 
@@ -48,7 +62,7 @@ export function blocosDoParagrafo(paragrafo: string): BlocoDoGuia[] {
     itens = [];
   };
 
-  for (const linha of bruto.split("\n")) {
+  for (const linha of resto.split("\n")) {
     const limpa = linha.trim();
     if (!limpa) continue;
     if (ITEM.test(linha)) {
@@ -64,10 +78,25 @@ export function blocosDoParagrafo(paragrafo: string): BlocoDoGuia[] {
   return blocos;
 }
 
+/**
+ * Os blocos de uma seção inteira. Duas listas vizinhas viram uma: quem separa
+ * os itens com linha em branco no painel ganharia uma lista por item.
+ */
+export function blocosDaSecao(paragrafos: string[]): BlocoDoGuia[] {
+  const saida: BlocoDoGuia[] = [];
+  for (const bloco of paragrafos.flatMap(blocosDoParagrafo)) {
+    const anterior = saida.at(-1);
+    if (bloco.tipo === "lista" && anterior?.tipo === "lista") anterior.itens.push(...bloco.itens);
+    else saida.push(bloco.tipo === "lista" ? { tipo: "lista", itens: [...bloco.itens] } : bloco);
+  }
+  return saida;
+}
+
 /** O texto do parágrafo sem as marcas: o que se lê, para testes e contagens. */
 export function textoSemMarcas(paragrafo: string): string {
   return blocosDoParagrafo(paragrafo)
-    .map((b) => (b.tipo === "lista" ? b.itens.join(" ") : b.texto))
+    .map((b) => (b.tipo === "lista" ? b.itens.join(" ") : b.tipo === "separador" ? "" : b.texto))
+    .filter(Boolean)
     .join(" ");
 }
 

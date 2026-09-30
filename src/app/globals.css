@@ -135,6 +135,12 @@ html, body {
   overflow-x: clip;
 }
 
+/* Com o header grudado, âncora e foco por Tab não podem parar embaixo dele
+   (WCAG 2.4.11). 6rem cobre os 68px do header no desktop, com folga. */
+html {
+  scroll-padding-top: 6rem;
+}
+
 /* WCAG 2.1 AA Guaranteed High-Contrast Secondary Text Classes */
 .text-brand-muted {
   color: var(--brand-foreground);

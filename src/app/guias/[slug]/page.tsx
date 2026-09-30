@@ -9,7 +9,7 @@ import { grafoDoGuia } from "../../../lib/schemaGuia";
 import { criarLinkador } from "../../../lib/linksNoTexto";
 import { NOME_DA_SECAO } from "../../../lib/guias";
 import { assinaturaDoAutor, dataPorExtenso, mesmoDiaEmCuritiba } from "../../../lib/assinaturaDoGuia";
-import { ancorasDasSecoes, blocosDoParagrafo } from "../../../lib/blocosDoGuia";
+import { ancorasDasSecoes, blocosDaSecao } from "../../../lib/blocosDoGuia";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -214,18 +214,20 @@ export default async function GuiaPage({ params }: PageProps) {
           <summary className="cursor-pointer px-4 py-3 text-[11px] font-extrabold uppercase tracking-[.16em] text-mt-ink">
             Neste guia · {guia.corpo.length} partes
           </summary>
-          <ol className="m-0 list-none border-t border-mt-regua-fina px-4 py-2">
-            {guia.corpo.map((secao, i) => (
-              <li key={ancoras[i]} className="py-1.5">
-                <a
-                  href={`#${ancoras[i]}`}
-                  className="mt-foco text-[14px] leading-snug text-mt-neutral-800 no-underline hover:text-mt-accent"
-                >
-                  {secao.titulo}
-                </a>
-              </li>
-            ))}
-          </ol>
+          <nav aria-label="Neste guia">
+            <ol role="list" className="m-0 list-none border-t border-mt-regua-fina px-4 py-2">
+              {guia.corpo.map((secao, i) => (
+                <li key={ancoras[i]} className="py-1.5">
+                  <a
+                    href={`#${ancoras[i]}`}
+                    className="mt-foco text-[14px] leading-snug text-mt-neutral-800 no-underline hover:text-mt-accent"
+                  >
+                    {secao.titulo}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
         </details>
 
         <article className="min-w-0 lg:col-start-1 lg:row-start-1">
@@ -234,53 +236,56 @@ export default async function GuiaPage({ params }: PageProps) {
               <h2 id={ancoras[s]} className="mt-titulo m-0 scroll-mt-24 text-[22px] lg:text-[28px]">
                 {secao.titulo}
               </h2>
-              {secao.paragrafos.flatMap((paragrafo, p) =>
-                blocosDoParagrafo(paragrafo).map((bloco, b) => {
-                  const chave = `${ancoras[s]}-${p}-${b}`;
-                  if (bloco.tipo === "subtitulo") {
-                    return (
-                      <h3 key={chave} className="m-0 mt-7 text-[17px] font-extrabold leading-snug text-mt-ink lg:text-[19px]">
-                        {bloco.texto}
-                      </h3>
-                    );
-                  }
-                  if (bloco.tipo === "lista") {
-                    return (
-                      <ul key={chave} className="m-0 mt-4 list-none p-0">
-                        {bloco.itens.map((item, i) => (
-                          <li
-                            key={`${chave}-${i}`}
-                            className="relative mt-2.5 pl-5 text-[16px] leading-[1.7] text-mt-neutral-800 before:absolute before:left-0 before:top-[.72em] before:h-[6px] before:w-[6px] before:bg-mt-accent before:content-[''] lg:text-[17px]"
-                          >
-                            {comLinks(item, `${chave}-${i}`)}
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  }
-                  const abertura = s === 0 && p === 0 && b === 0;
+              {blocosDaSecao(secao.paragrafos).map((bloco, b) => {
+                const chave = `${ancoras[s]}-${b}`;
+                if (bloco.tipo === "separador") {
+                  return <hr key={chave} className="m-0 mt-7 w-16 border-0 border-t-2 border-mt-regua" />;
+                }
+                if (bloco.tipo === "subtitulo") {
                   return (
-                    <p
-                      key={chave}
-                      className={
-                        abertura
-                          ? "m-0 mt-4 text-[18px] leading-[1.6] text-mt-ink lg:text-[20px]"
-                          : "m-0 mt-4 text-[16px] leading-[1.7] text-mt-neutral-800 lg:text-[17px]"
-                      }
-                    >
-                      {comLinks(bloco.texto, chave)}
-                    </p>
+                    <h3 key={chave} className="m-0 mt-7 text-[17px] font-extrabold leading-snug text-mt-ink lg:text-[19px]">
+                      {bloco.texto}
+                    </h3>
                   );
-                }),
-              )}
+                }
+                if (bloco.tipo === "lista") {
+                  return (
+                    // `role="list"`: com `list-none`, o VoiceOver do Safari
+                    // deixa de anunciar a lista como lista.
+                    <ul key={chave} role="list" className="m-0 mt-4 list-none p-0">
+                      {bloco.itens.map((item, i) => (
+                        <li
+                          key={`${chave}-${i}`}
+                          className="relative mt-2.5 pl-5 text-[16px] leading-[1.7] text-mt-neutral-800 before:absolute before:left-0 before:top-[.72em] before:h-[6px] before:w-[6px] before:bg-mt-accent before:content-[''] lg:text-[17px]"
+                        >
+                          {comLinks(item, `${chave}-${i}`)}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                }
+                const abertura = s === 0 && b === 0;
+                return (
+                  <p
+                    key={chave}
+                    className={
+                      abertura
+                        ? "m-0 mt-4 text-[18px] leading-[1.6] text-mt-ink lg:text-[20px]"
+                        : "m-0 mt-4 text-[16px] leading-[1.7] text-mt-neutral-800 lg:text-[17px]"
+                    }
+                  >
+                    {comLinks(bloco.texto, chave)}
+                  </p>
+                );
+              })}
             </section>
           ))}
         </article>
 
-        <aside className="hidden lg:col-start-2 lg:row-start-1 lg:block">
+        <div className="hidden lg:col-start-2 lg:row-start-1 lg:block">
           <nav aria-label="Neste guia" className="sticky top-24 border-l-2 border-mt-regua pl-5">
             <p className="m-0 text-[11px] font-extrabold uppercase tracking-[.16em] text-mt-ink">Neste guia</p>
-            <ol className="m-0 mt-3 list-none p-0">
+            <ol role="list" className="m-0 mt-3 list-none p-0">
               {guia.corpo.map((secao, i) => (
                 <li key={ancoras[i]} className="py-1.5">
                   <a
@@ -293,7 +298,7 @@ export default async function GuiaPage({ params }: PageProps) {
               ))}
             </ol>
           </nav>
-        </aside>
+        </div>
       </div>
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">

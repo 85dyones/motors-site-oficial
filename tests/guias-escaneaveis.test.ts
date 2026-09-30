@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CompanySettings } from "../src/types";
 import type { Guia, SecaoDoGuia } from "../src/lib/guias";
-import { ancorasDasSecoes, blocosDoParagrafo, textoSemMarcas } from "../src/lib/blocosDoGuia";
+import { ancorasDasSecoes, blocosDaSecao, blocosDoParagrafo, textoSemMarcas } from "../src/lib/blocosDoGuia";
 import { marcasFortes } from "./marcasDeIA";
 import { conferir } from "../conteudo-seo/aplicar-guias.mjs";
 
@@ -53,10 +53,27 @@ describe("a convenção do parágrafo", () => {
     ]);
   });
 
-  it("'### ' vira subtítulo só quando é o parágrafo inteiro", () => {
+  it("'### ' vira subtítulo, e o texto colado embaixo dele vira parágrafo", () => {
     expect(blocosDoParagrafo("### Ventilação do cárter")).toEqual([{ tipo: "subtitulo", texto: "Ventilação do cárter" }]);
-    // No meio do texto, é texto: ninguém perde uma frase por um "###" solto.
-    expect(blocosDoParagrafo("### A\ncontinua")[0].tipo).toBe("paragrafo");
+    // Quem escreve pelo painel pode esquecer a linha em branco.
+    expect(blocosDoParagrafo("### A\ncontinua")).toEqual([
+      { tipo: "subtitulo", texto: "A" },
+      { tipo: "paragrafo", texto: "continua" },
+    ]);
+    // "###" no meio da frase não é marca.
+    expect(blocosDoParagrafo("texto ### solto")[0].tipo).toBe("paragrafo");
+  });
+
+  it("'---' sozinho fecha o último subtítulo", () => {
+    expect(blocosDoParagrafo("---")).toEqual([{ tipo: "separador" }]);
+    expect(blocosDoParagrafo("--- e texto")[0].tipo).toBe("paragrafo");
+  });
+
+  it("listas vizinhas na mesma seção viram uma só", () => {
+    expect(blocosDaSecao(["Abre:", "- um", "- dois"])).toEqual([
+      { tipo: "paragrafo", texto: "Abre:" },
+      { tipo: "lista", itens: ["um", "dois"] },
+    ]);
   });
 
   it("hífen de palavra composta e travessão no meio da linha não viram lista", () => {
@@ -87,9 +104,22 @@ describe("os 26 guias depois da reforma", () => {
   it("subtítulo nunca fecha a seção e nunca repete o título dela", () => {
     for (const g of publicados) {
       for (const s of g.corpo) {
-        const blocos = s.paragrafos.flatMap(blocosDoParagrafo);
+        const blocos = blocosDaSecao(s.paragrafos);
         expect(blocos.at(-1)?.tipo, `${g.slug} · ${s.titulo}`).not.toBe("subtitulo");
         for (const b of blocos) if (b.tipo === "subtitulo") expect(b.texto).not.toBe(s.titulo);
+      }
+    }
+  });
+
+  it("o separador só aparece depois de um subtítulo, e nunca fecha a seção", () => {
+    for (const g of publicados) {
+      for (const s of g.corpo) {
+        const blocos = blocosDaSecao(s.paragrafos);
+        blocos.forEach((b, i) => {
+          if (b.tipo !== "separador") return;
+          expect(blocos.slice(0, i).some((x) => x.tipo === "subtitulo"), `${g.slug} · ${s.titulo}`).toBe(true);
+          expect(i, `${g.slug} · ${s.titulo}`).toBeLessThan(blocos.length - 1);
+        });
       }
     }
   });
@@ -134,15 +164,34 @@ describe("o aplicador aceita as duas marcas, e só elas", () => {
     return conferir(lote).erros as string[];
   };
 
-  it("'- ' e '### ' passam", () => {
+  it("'- ', '### ' e '---' passam", () => {
     expect(comParagrafo("Abre:\n- um item\n- outro item")).toEqual([]);
     expect(comParagrafo("### Subtítulo curto")).toEqual([]);
+    expect(comParagrafo("---")).toEqual([]);
   });
 
   it("o resto do markdown continua reprovando", () => {
     for (const p of ["Abre:\n* um item\n* outro", "## Título grande", "### Dois\nlinhas", "Um **negrito** aqui"]) {
       expect(comParagrafo(p).length, p).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("o sticky voltou a grudar", () => {
+  const ler = (f: string) => readFileSync(join(RAIZ, f), "utf8");
+
+  it("html e body cortam o vazamento lateral com clip, e não com hidden", () => {
+    // `hidden` fazia do body um contêiner de rolagem que nunca rola, e nenhum
+    // `sticky` do site grudava (o header incluso).
+    const css = ler("src/app/globals.css");
+    const regra = css.slice(css.indexOf("html, body {"), css.indexOf("}", css.indexOf("html, body {")));
+    expect(regra).toContain("overflow-x: clip");
+    expect(regra).not.toContain("overflow-x: hidden");
+  });
+
+  it("o voltar-ao-topo sai de cena quando a página tem barra fixa no pé", () => {
+    expect(ler("src/components/Header.tsx")).toContain('document.querySelector("[data-barra-inferior]")');
+    expect(ler("src/components/ResultadoDoProfiler.tsx")).toMatch(/data-barra-inferior className="sticky bottom-0/);
   });
 });
 
@@ -178,6 +227,8 @@ const GUIA: Guia = {
         "São defeito:\n- trepidação na saída\n- solavanco entre primeira e segunda\n- mensagem de superaquecimento do câmbio",
         "### Carro frio",
         "Faça o test-drive frio. A garantia cobre o câmbio.",
+        "---",
+        "Conclusão da seção inteira.",
       ],
     },
   ],
@@ -214,7 +265,9 @@ describe("a página do guia", () => {
     expect(h).toMatch(/<ul[^>]*>[\s\S]*trepidação na saída[\s\S]*<\/ul>/);
     expect(h.match(/<li\b/g)?.length).toBeGreaterThanOrEqual(3);
     expect(h).toMatch(/<h3[^>]*>Carro frio<\/h3>/);
-    expect(h).not.toMatch(/###|>- /);
+    expect(h).toMatch(/<hr[^>]*\/?>[\s\S]*Conclusão da seção inteira/);
+    expect(h).toMatch(/<ul role="list"/);
+    expect(h).not.toMatch(/###|>- |>---/);
   });
 
   it("a abertura sai em corpo maior, e só ela", async () => {

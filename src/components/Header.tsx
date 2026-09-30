@@ -73,7 +73,11 @@ export default function Header() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const handleScroll = () => setShowBackToTop(window.scrollY > 400);
+    // Some quando a página tem barra fixa no pé (`data-barra-inferior`): desde
+    // que o `sticky` voltou a grudar (30/09/2026, `overflow-x: clip`), a barra
+    // do resultado do /carro-perfeito fica no pé, e o botão cairia em cima do CTA.
+    const handleScroll = () =>
+      setShowBackToTop(window.scrollY > 400 && !document.querySelector("[data-barra-inferior]"));
     window.addEventListener("scroll", handleScroll);
 
     return () => {
@@ -259,7 +263,7 @@ export default function Header() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="absolute left-0 right-0 top-full flex flex-col bg-mt-inverso-fundo px-[18px] pb-5 lg:hidden">
+        <div className="absolute left-0 right-0 top-full flex max-h-[calc(100dvh-58px)] flex-col overflow-y-auto bg-mt-inverso-fundo px-[18px] pb-5 lg:hidden">
           {NAV.map((item) => (
             <Link
               key={item.href}
