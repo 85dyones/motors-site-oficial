@@ -80,6 +80,31 @@ Para desfazer:
 update public.guias g set corpo = b.corpo from backup.guias_20260930 b where b.slug = g.slug;
 ```
 
+## Forma escaneável, gravada em 30/09/2026 à tarde
+
+O dono pediu para atacar os blocos imensos de texto: escaneáveis por buscador
+e por IA, maçantes para quem lê. O PR #189 mudou a página (índice "Neste
+guia", abertura em corpo maior, corpo 16/17px) e a FORMA dos 26 guias, sem
+trocar palavra: listas, subtítulos e parágrafos partidos entre frases. As
+marcas estão em `src/lib/blocosDoGuia.ts` ("- " vira item, "### " vira
+subtítulo, "---" fecha o último subtítulo).
+
+Gravado em produção pelo SQL do Supabase, do mesmo jeito da manhã:
+
+- backup em `backup.guias_20260930b` (as 26 linhas inteiras, já com o texto
+  da manhã);
+- o md5 de cada `corpo` no banco conferido contra o dos JSON anteriores ao
+  #189, para não sobrescrever edição feita pelo painel;
+- só as seções que mudaram foram trocadas (`jsonb_set` por índice), cada
+  `update` exigindo o md5 da base e conferindo o do resultado.
+
+Os quatro lotes passaram, e os 26 `corpo` no banco batem com os
+`guias-onda-*.json` do #189. Para desfazer só esta etapa:
+
+```sql
+update public.guias g set corpo = b.corpo from backup.guias_20260930b b where b.slug = g.slug;
+```
+
 ## Os 26 últimos `<h2>`
 
 | Guia | Último `<h2>` |
