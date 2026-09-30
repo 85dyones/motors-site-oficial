@@ -118,7 +118,7 @@ export function montarTextosDaFicha(entrada: {
      duas não divergirem. */
   const anoNoTraco = nomeTemOAno(nome, ano) ? "" : String(ano);
 
-  const tracos = [anoNoTraco, cor, kmTexto]
+  const tracos = [anoNoTraco, cor?.trim(), kmTexto]
     .filter(Boolean)
     .join(", ");
 

@@ -3,9 +3,9 @@ import path from "path";
 import { imagemServivelComoPrevia } from "../../lib/compartilhamento";
 
 /**
- * O que o card gerado de `/og` usa: a paleta fixa, a fonte e o logo. Saiu de
- * `route.tsx` em 30/09, para ser reaproveitado por outras rotas de imagem; um
- * arquivo de rota do Next só pode exportar os handlers.
+ * O que o card gerado de `/og` usa: a paleta fixa, a fonte e o logo. Mora
+ * fora de `route.tsx` porque um arquivo de rota do Next só pode exportar os
+ * handlers.
  */
 
 export const TINTA = "#201e1d";
