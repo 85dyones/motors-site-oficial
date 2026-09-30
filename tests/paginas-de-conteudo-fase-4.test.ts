@@ -56,6 +56,20 @@ describe("4.7 · /financiamento abre pelo simulador", () => {
   });
 });
 
+describe("o link vai para o primeiro lugar em que o leitor encontra o termo", () => {
+  it.each([false, true])("introdução antes das seções (secoesDepoisDoConteudo=%s)", (depois) => {
+    const html = desenhar({
+      introducao: ["INTRO a Avaliação Express"],
+      secoes: [{ titulo: "S", paragrafos: ["SECAO a Avaliação Express"] }],
+      secoesDepoisDoConteudo: depois,
+    });
+    const link = html.indexOf('href="/avaliacao"');
+    expect(link).toBeGreaterThan(html.indexOf("INTRO"));
+    expect(link).toBeLessThan(html.indexOf("SECAO"));
+    expect(html.match(/href="\/avaliacao"/g)).toHaveLength(1);
+  });
+});
+
 describe("4.8 · /garantia com resumo no topo", () => {
   it("o resumo entra logo abaixo do h1, antes da introdução", () => {
     const html = desenhar({
@@ -69,17 +83,25 @@ describe("4.8 · /garantia com resumo no topo", () => {
     expect(html.indexOf("RESUMO")).toBeLessThan(html.indexOf("INTRODUCAO"));
   });
 
-  it("prazo, o que cobre e o que não cobre, com o prazo da constante", () => {
-    expect(RESUMO_DA_GARANTIA.map((r) => r.rotulo)).toEqual(["Prazo", "Cobre", "Não cobre"]);
+  it("prazo, o que cobre, o que não cobre e a perícia, com o prazo da constante", () => {
+    expect(RESUMO_DA_GARANTIA.map((r) => r.rotulo)).toEqual(["Prazo", "Cobre", "Não cobre", "Antes da garantia"]);
     expect(RESUMO_DA_GARANTIA[0].texto.toLowerCase()).toContain(PRAZO_DA_GARANTIA);
     expect(RESUMO_DA_GARANTIA[0].texto).toMatch(/sem carência e sem franquia/i);
   });
 
   it("nenhuma afirmação nova: cada item do resumo está detalhado nas seções", () => {
     const secoes = SECOES_DE_GARANTIA.flatMap((s) => s.paragrafos).join(" ").toLowerCase();
-    for (const termo of ["turbo", "diferencial", "mão de obra", "óleo", "filtros", "pneu", "bateria", "embreagem", "fora de especificação", "colisão", "enchente"]) {
+    for (const termo of ["turbo", "diferencial", "mão de obra", "óleo", "filtros", "pastilha", "disco", "pneu", "bateria", "embreagem em uso normal", "fora de especificação", "colisão", "enchente", "guincho", "transporte"]) {
       expect(secoes, termo).toContain(termo);
     }
+    // "freios" é mais amplo que "pastilha e disco" (pinça, flexível, ABS): o
+    // termo não classifica o resto do freio, e o resumo não pode.
+    expect(RESUMO_DA_GARANTIA.map((r) => r.texto).join(" ")).not.toMatch(/\bfreios\b/i);
+  });
+
+  it("\"Não cobre\" traz a ressalva do dano que atinge motor ou câmbio", () => {
+    const naoCobre = RESUMO_DA_GARANTIA.find((r) => r.rotulo === "Não cobre")!.texto;
+    expect(naoCobre).toMatch(/dano atingir o motor ou o câmbio, esse dano entra/);
   });
 
   it("a página passa o resumo", () => {

@@ -12,6 +12,7 @@ import {
   SECOES_DE_GARANTIA,
   TEXTO_DE_FINANCIAMENTO,
   TEXTO_DE_GARANTIA,
+  RESUMO_DA_GARANTIA,
 } from "../src/lib/paginasInstitucionais";
 import { PROCEDENCIA_PADRAO } from "../src/lib/procedencia";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -60,6 +61,9 @@ function arquivosPublicos(): { caminho: string; codigo: string }[] {
  * exatamente onde a régua não mede.
  */
 const TEXTO_DA_GARANTIA = [
+  // O resumo do topo (tarefa 4.8, 30/09) é o texto mais visível da página:
+  // fica sob a mesma régua.
+  ...RESUMO_DA_GARANTIA.flatMap((r) => [r.rotulo, r.texto]),
   ...TEXTO_DE_GARANTIA,
   ...SECOES_DE_GARANTIA.flatMap((s) => [s.titulo, ...s.paragrafos]),
 ].join(" ");

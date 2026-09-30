@@ -146,7 +146,7 @@ export interface PaginaDeEstoqueProps {
    */
   caminho?: string;
   /**
-   * Seções com `<h2>` depois do cabeçalho — hoje só a `/garantia`.
+   * Seções com `<h2>` depois do cabeçalho — `/garantia` e `/financiamento`.
    *
    * Entraram em 2026-09-13, quando a `/garantia` foi alinhada à proposta do
    * pacote de conteúdo, que organiza a página em H2. A introdução continua
@@ -268,7 +268,12 @@ export default function PaginaDeEstoque({
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
   ) : null;
-  const blocoDeSecoes =
+  // Função, e não elemento pronto: o `linkar` é um só e marca cada destino
+  // no primeiro texto que ele LÊ. Montar as seções aqui em cima faria o
+  // linkador passar por elas antes da introdução, e o link desceria para a
+  // seção (revisão do qa-guardian, 30/09). Chamada no ponto do JSX, a ordem
+  // de leitura volta a ser a da página: introdução, seções, FAQ.
+  const desenharSecoes = () =>
     secoes.length > 0 ? (
       <div className="border-b-2 border-mt-regua py-8">
         {secoes.map((secao) => (
@@ -421,11 +426,11 @@ export default function PaginaDeEstoque({
             cabeçalho e antes de qualquer bloco, ou logo depois do `conteudo`
             quando `secoesDepoisDoConteudo`; lista vazia não desenha nada, e
             as outras páginas saem idênticas. */}
-        {!secoesDepoisDoConteudo && blocoDeSecoes}
+        {!secoesDepoisDoConteudo && desenharSecoes()}
 
         {posicaoDoConteudo === "antes-da-grade" && blocoLivre}
 
-        {secoesDepoisDoConteudo && blocoDeSecoes}
+        {secoesDepoisDoConteudo && desenharSecoes()}
 
         {veiculos.length > 0 ? (
           <div className="py-8">

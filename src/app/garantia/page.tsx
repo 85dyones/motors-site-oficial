@@ -111,18 +111,20 @@ export default async function GarantiaPage() {
 }
 
 /**
- * Prazo, o que cobre e o que não cobre, logo abaixo do título (tarefa 4.8 da
+
+ * Prazo, o que cobre, o que não cobre e a perícia que vem antes, logo abaixo
+ * do título, em duas colunas de dois (tarefa 4.8 da
  * revisão de UI de 30/09). Antes, quem chegava perguntando "está coberto?"
  * lia três parágrafos e duas seções até a lista de exclusões. Uma `dl`: é
  * rótulo e resposta, e o leitor de tela anuncia assim.
  */
 function ResumoDaGarantia() {
   return (
-    <dl className="m-0 grid grid-cols-1 border-t-2 border-mt-regua lg:grid-cols-3">
+    <dl className="m-0 grid grid-cols-1 border-t-2 border-mt-regua md:grid-cols-2 md:gap-x-10">
       {RESUMO_DA_GARANTIA.map((item) => (
         <div
           key={item.rotulo}
-          className="border-b border-mt-regua-fina py-4 lg:border-b-0 lg:border-r lg:border-mt-regua-media lg:px-6 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"
+          className="max-w-[560px] border-b border-mt-regua-fina py-4"
         >
           <dt className="mt-rotulo mt-rotulo-accent">{item.rotulo}</dt>
           <dd className="m-0 mt-2 text-[15px] leading-relaxed text-mt-ink">{item.texto}</dd>
