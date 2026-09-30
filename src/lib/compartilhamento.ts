@@ -335,8 +335,10 @@ export function previaDaFotoDoVeiculo(foto?: string | null): {
  * aceitasse nome e quilometragem pela URL, qualquer um montaria uma "peça da
  * Motors Store" com o texto que quisesse. E ela só desenha para o endereço
  * canônico, exato: `v` errada, parâmetro a mais ou id escrito de outro jeito
- * levam a um redirecionamento, que não é guardado em cache. Assim ninguém
- * força a rota a desenhar a mesma peça de novo variando a URL.
+ * levam a um redirecionamento, que não é guardado em cache. Isso fecha a
+ * variação comum da URL. Não fecha tudo: o Next normaliza alguns parâmetros
+ * internos antes de a rota ver o pedido. A proteção completa para as rotas
+ * `/og` é limite de taxa no `proxy.ts`, ainda por fazer.
  *
  * Carro arquivado (vendido há mais de 90 dias, que a ficha já redireciona)
  * não ganha peça: cai no card genérico.
