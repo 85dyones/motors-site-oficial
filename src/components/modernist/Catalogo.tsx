@@ -656,7 +656,10 @@ export default function Catalogo({
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold tracking-[.1em]">
+          {/* `gap-y-6`: quando a ordenação quebra em duas linhas (celular de
+              360 px), as camadas de toque de 44 px (`.mt-alvo`) de uma linha
+              e da outra não se encostam. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-6 text-xs font-semibold tracking-[.1em]">
             <span className="text-mt-neutral-600">ORDENAR:</span>
             {ORDENACOES.map((o) => (
               <button

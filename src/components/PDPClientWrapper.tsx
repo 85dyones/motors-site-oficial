@@ -773,7 +773,7 @@ export default function PDPClientWrapper({
       {caminhoDaMarca && (
         <nav
           aria-label="Trilha"
-          className="mx-auto w-full max-w-[1600px] px-4 pt-4 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 md:px-8 print:hidden"
+          className="mt-trilha mx-auto w-full max-w-[1600px] px-4 pt-4 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 md:px-8 print:hidden"
         >
           <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
             HOME
@@ -822,11 +822,14 @@ export default function PDPClientWrapper({
                 onScroll={handleCarouselScroll}
                 // Rolável pelo teclado (tarefa 4.5, axe
                 // `scrollable-region-focusable`): com o foco aqui, as setas
-                // passam as fotos, como no dedo.
+                // passam as fotos, como no dedo. O contorno de foco não mora
+                // nele: as fotos são posicionadas e o Chrome e o Safari as
+                // pintam por cima do contorno do pai. Quem desenha o foco é a
+                // moldura irmã logo abaixo (`peer-focus-visible`).
                 tabIndex={0}
                 role="region"
-                aria-label={`Fotos do ${veiculo.marca} ${veiculo.modelo}`}
-                className="mt-foco focus-visible:[outline-offset:-3px] flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0"
+                aria-label={`Fotos do ${veiculo.marca} ${modeloExibido}`}
+                className="peer flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0 focus-visible:outline-none"
                 style={{ scrollBehavior: "smooth" }}
               >
                 {displayImages.map((imgUrl, index) => (
@@ -847,6 +850,10 @@ export default function PDPClientWrapper({
                   </div>
                 ))}
               </div>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-20 hidden border-2 border-mt-accent peer-focus-visible:block"
+              />
 
               {/* Setas de navegação. No mobile a galeria tem ~210px de altura
                   e 48px de seta cobriam o carro; 36px porque ali a seta é

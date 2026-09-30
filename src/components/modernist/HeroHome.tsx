@@ -207,7 +207,7 @@ export default function HeroHome({
         <h1 className="mt-display m-0 text-[44px] text-mt-inverso sm:text-[52px] lg:text-[length:clamp(52px,calc(var(--hero-cabe)*0.1333),112px)] lg:leading-[.88]">
           <span className="mb-3 flex items-center gap-3 leading-[1.5] sm:mb-6 lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
             <span className="h-0.5 w-5 bg-mt-cobre-marca lg:w-7" aria-hidden="true" />
-            <span className="text-[11px] font-semibold uppercase tracking-[.2em] text-mt-cobre-marca lg:text-[11px]">
+            <span className="text-[11px] font-semibold uppercase tracking-[.14em] text-mt-cobre-marca sm:tracking-[.2em]">
               Seminovos selecionados em Curitiba
             </span>
           </span>

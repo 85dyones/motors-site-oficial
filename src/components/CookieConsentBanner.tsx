@@ -53,15 +53,18 @@ export default function CookieConsentBanner() {
       {/* Header */}
       <span className="mt-rotulo mt-rotulo-accent hidden md:block">Privacidade &amp; Cookies</span>
 
-      {/* Celular: a mesma informação em uma frase, com o caminho para ajustar. */}
+      {/* Celular: a mesma informação em uma frase — quem mede (Google e Meta)
+          e o quê. A base legal e o resto ficam a um toque, na política. O
+          link de ajuste tem o mesmo peso do "Ajustar detalhes" do desktop:
+          normal, cinza, sublinhado simples (decisão do dono em 31/08). */}
       <p className="m-0 flex-1 text-[12px] leading-snug text-mt-neutral-800 md:hidden">
-        Usamos cookies para medir o site e os anúncios.{" "}
+        Usamos cookies do Google e da Meta para medir visitas e anúncios.{" "}
         <Link
           href="/privacidade"
           onClick={() => setIsVisible(false)}
-          className="font-semibold text-mt-ink underline decoration-mt-accent decoration-2 underline-offset-2"
+          className="mt-foco font-normal text-mt-neutral-700 underline underline-offset-2 hover:text-mt-ink"
         >
-          Ver ou ajustar
+          Ajustar detalhes
         </Link>
       </p>
       <button

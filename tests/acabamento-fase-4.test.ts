@@ -25,7 +25,23 @@ describe("4.1 · o aviso de cookies no celular é uma barra no pé da tela", () 
 
   it("no celular, o botão tem 44 px de altura e o texto é uma frase só", () => {
     expect(aviso).toMatch(/className="mt-btn mt-btn-primario mt-foco min-h-11[^"]*md:hidden"/);
-    expect(aviso).toContain("Usamos cookies para medir o site e os anúncios.");
+    expect(aviso).toContain("Usamos cookies do Google e da Meta para medir visitas e anúncios.");
+  });
+
+  it("o caminho para ajustar existe nas duas larguras, e em tom baixo nas duas", () => {
+    // O dono pediu (31/08) o link de ajuste em peso normal: negrito com
+    // sublinhado de destaque era convite à recusa.
+    // O `className` mais próximo antes de cada "Ajustar detalhes" é o do link.
+    const links = aviso
+      .split("Ajustar detalhes")
+      .slice(0, -1)
+      .map((antes) => [...antes.matchAll(/className="([^"]*)"/g)].at(-1)?.[1] ?? "");
+    expect(links).toHaveLength(2);
+    for (const c of links) {
+      expect(c).toContain("font-normal");
+      expect(c).toContain("text-mt-neutral-700");
+      expect(c).not.toContain("font-semibold");
+    }
   });
 
   it("enquanto a barra existe, o foco não para atrás dela", () => {
@@ -39,8 +55,19 @@ describe("4.2 · alvos de toque", () => {
     expect(css).toMatch(/inset-inline:\s*min\(0px, calc\(\(100% - 44px\) \/ 2\)\)/);
   });
 
-  it("vale para a migalha de todas as páginas, pela regra do CSS", () => {
-    expect(css).toMatch(/nav\[aria-label="Trilha"\] a::after/);
+  it("a migalha cresce de verdade (28 px), sem camada que invada a linha de cima quando quebra", () => {
+    expect(css).toMatch(/\.mt-trilha a \{\s*display: inline-block;\s*padding-block: 6px;/);
+    expect(css).not.toMatch(/Trilha"\] a::after/);
+    const comTrilha = execSync("grep -rl 'aria-label=\"Trilha\"' src --include=*.tsx || true", { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean)
+      .filter((f) => !f.startsWith("src/components/admin/"));
+    for (const f of comTrilha) {
+      // `/avaliacao` fica como está: nenhuma tarefa do plano toca o funil.
+      if (f === "src/app/avaliacao/page.tsx") continue;
+      expect(lerCodigo(f), f).toMatch(/aria-label="Trilha"\s+className=\{?["`]mt-trilha /);
+    }
+    expect(lerCodigo("src/app/avaliacao/page.tsx")).not.toContain("mt-trilha");
   });
 
   it.each([
@@ -76,7 +103,7 @@ describe("4.3 · nenhum texto abaixo de 11 px no site público", () => {
 
   it("nas classes do Tailwind", () => {
     const achados = execSync(
-      "grep -rlE 'text-\\[(9|10|9\\.5|10\\.5)px\\]' src --include=*.tsx || true",
+      "grep -rlE 'text-\\[([5-9]|10)(\\.5)?px\\]' src --include=*.tsx || true",
       { encoding: "utf8" },
     )
       .split("\n")
@@ -85,8 +112,9 @@ describe("4.3 · nenhum texto abaixo de 11 px no site público", () => {
     expect(achados).toEqual([]);
   });
 
-  it("nas classes do sistema", () => {
-    expect(css).not.toMatch(/font-size:\s*(9|10)(\.5)?px/);
+  it("nas classes do sistema (a `.mt-tabela` é só do painel e fica como está)", () => {
+    const semTabela = css.replace(/\.mt-tabela th \{[^}]*\}/, "");
+    expect(semTabela).not.toMatch(/font-size:\s*([5-9]|10)(\.5)?px/);
   });
 });
 
@@ -102,6 +130,12 @@ describe("4.4 · contraste", () => {
 });
 
 describe("4.5 · o que rola de lado também rola pelo teclado", () => {
+  it("o foco do carrossel da ficha aparece: moldura irmã, por cima das fotos", () => {
+    const pdp = lerCodigo("src/components/PDPClientWrapper.tsx");
+    expect(pdp).toMatch(/className="peer flex w-full h-full overflow-x-auto[^"]*focus-visible:outline-none"/);
+    expect(pdp).toMatch(/className="pointer-events-none absolute inset-0 z-20 hidden border-2 border-mt-accent peer-focus-visible:block"/);
+  });
+
   it.each([
     "src/components/PDPClientWrapper.tsx",
     "src/components/repasse/SecoesDoRepasse.tsx",

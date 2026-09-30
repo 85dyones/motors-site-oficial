@@ -76,7 +76,7 @@ export default function SobreClientWrapper({
       <section className="px-[18px] pt-9 lg:px-10 lg:pt-16">
         <nav
           aria-label="Trilha"
-          className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
+          className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
         >
           <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
             HOME

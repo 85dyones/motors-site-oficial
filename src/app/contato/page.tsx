@@ -78,7 +78,7 @@ export default async function ContatoPage() {
           >
             HOME
           </a>
-          <span className="text-brand-text/20 text-[8px]">/</span>
+          <span aria-hidden="true" className="text-brand-text/20 text-[11px]">/</span>
           <span className="text-[11px] font-bold uppercase tracking-wider text-brand-gold">
             CONTATO
           </span>

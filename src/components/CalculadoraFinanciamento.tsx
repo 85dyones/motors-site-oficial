@@ -175,7 +175,7 @@ Consegue verificar se aprova nessas condições?`;
               <span className="hidden group-open:inline">−</span>
             </span>
           </summary>
-          <p className="m-0 mt-2.5 text-[12px] leading-relaxed text-mt-neutral-800">
+          <p className="m-0 mt-4 text-[12px] leading-relaxed text-mt-neutral-800">
             Esta simulação usa taxas que podem variar dependendo de análises das
             instituições bancárias referente ao crédito disponível e
             &ldquo;score&rdquo; de cada pessoa. Valores incluem IOF. Taxas

@@ -152,7 +152,7 @@ export default async function GuiaPage({ params }: PageProps) {
       <div className="px-[18px] pt-8 lg:px-10 lg:pt-11">
         <nav
           aria-label="Trilha"
-          className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
+          className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
         >
           <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
             HOME

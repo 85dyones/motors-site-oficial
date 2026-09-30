@@ -261,7 +261,7 @@ export default function PaginaDeEstoque({
       <div className="px-[18px] pt-8 lg:px-10 lg:pt-11">
         <nav
           aria-label="Trilha"
-          className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
+          className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
         >
           {trilha.map((passo) => (
             <span key={`${passo.rotulo}-${passo.href ?? ""}`}>

@@ -518,18 +518,26 @@
    falta: um controle que já tem 44 px não ganha nada. Tarefa 4.2 da revisão
    de UI de 30/09. Não usar em itens empilhados a menos de 44 px um do outro:
    as camadas se sobreporiam. */
-.mt-alvo,
-nav[aria-label="Trilha"] a {
+.mt-alvo {
   position: relative;
 }
-/* A migalha (`<nav aria-label="Trilha">`) aparece em nove páginas, cada uma
-   com o seu markup: a regra mora aqui, e não em nove `className`. */
-.mt-alvo::after,
-nav[aria-label="Trilha"] a::after {
+.mt-alvo::after {
   content: "";
   position: absolute;
   inset-block: min(0px, calc((100% - 44px) / 2));
   inset-inline: min(0px, calc((100% - 44px) / 2));
+}
+
+/* A migalha (`.mt-trilha`) NÃO usa `.mt-alvo`: ela quebra em duas linhas num
+   celular de 360 px ("LAND ROVER / RANGE ROVER EVOQUE"), e as linhas ficam a
+   16 px uma da outra — a camada de 44 px da linha de baixo cobriria o link da
+   de cima e roubaria o toque (revisão do qa-guardian, 30/09). Aqui o link
+   cresce de verdade: bloco em linha com 6 px acima e abaixo, 28 px de alvo,
+   e a linha cresce junto, então duas linhas nunca se sobrepõem. Como bloco
+   em linha, um nome comprido desce inteiro, sem se partir no meio. */
+.mt-trilha a {
+  display: inline-block;
+  padding-block: 6px;
 }
 
 /* ─── Painel interno ───────────────────────────────────────────────────────
@@ -555,7 +563,7 @@ nav[aria-label="Trilha"] a::after {
 .mt-tabela th {
   padding: 0 14px 8px 0;
   border-bottom: 2px solid var(--mt-regua);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-align: left;

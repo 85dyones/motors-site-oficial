@@ -335,7 +335,7 @@ export default async function Home() {
     consultoria: (
       <section className="mt-faixa-cheia mt-16 flex flex-col gap-10 bg-mt-inverso-fundo px-[18px] py-12 text-mt-inverso lg:mt-20 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
         <div className="lg:flex-[1.15]">
-          <div className="mb-3.5 text-[11px] font-semibold tracking-[.18em] text-mt-cobre-marca lg:text-[11px]">
+          <div className="mb-3.5 text-[11px] font-semibold tracking-[.18em] text-mt-cobre-marca">
             02 — CONSULTORIA
           </div>
           <h2 className="mt-titulo m-0 text-[34px] lg:text-[54px] lg:leading-[.95]">

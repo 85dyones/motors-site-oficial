@@ -220,7 +220,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
     <div className="font-modernist pb-24 lg:pb-0">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: blocoJsonLd(grafo) }} />
 
-      <nav aria-label="Trilha" className={`pt-8 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 lg:pt-11 ${MARGEM}`}>
+      <nav aria-label="Trilha" className={`mt-trilha pt-8 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 lg:pt-11 ${MARGEM}`}>
         <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
           {TRILHA_DO_REPASSE.inicio.toUpperCase()}
         </Link>

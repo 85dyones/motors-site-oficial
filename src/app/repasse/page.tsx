@@ -132,7 +132,7 @@ export default async function PaginaDoRepasse() {
       <section className="bg-mt-inverso-fundo text-mt-inverso">
         <div className={`grid gap-10 py-10 lg:grid-cols-[1.4fr_1fr] lg:py-14 ${MARGEM}`}>
           <div>
-            <nav aria-label="Trilha" className="text-[11px] font-semibold tracking-[.16em] text-mt-inverso-suave">
+            <nav aria-label="Trilha" className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-inverso-suave">
               <Link href="/" className="mt-foco text-mt-inverso-suave no-underline hover:text-mt-inverso">
                 {TRILHA_DO_REPASSE.inicio.toUpperCase()}
               </Link>
