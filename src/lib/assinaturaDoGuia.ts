@@ -22,7 +22,17 @@
  * No dia em que outra pessoa escrever, isto vira coluna na linha do guia — o
  * lugar é `guias` no banco, não uma segunda constante aqui.
  */
-export const AUTOR_DOS_GUIAS = { nome: "Dyones Oliveira", cargo: "Fundador" } as const;
+/**
+ * `apresentacao` é o que o dono pediu em 30/09: ele NÃO é o fundador da loja
+ * (o site dizia isso desde 29/09, errado). É profissional com mais de dez anos
+ * de mercado. A mesma frase vai para o `/sobre` e para o `description` do nó
+ * `Person` no schema: texto e dado estruturado dizem a mesma coisa. Não pôr
+ * cargo aqui sem ele dizer qual.
+ */
+export const AUTOR_DOS_GUIAS = {
+  nome: "Dyones Oliveira",
+  apresentacao: "profissional com mais de dez anos de mercado",
+} as const;
 
 /** "Dyones Oliveira, Motors Store" — a loja pelo nome que o `#dealer` publica. */
 export function assinaturaDoAutor(nomeDaLoja: string | null | undefined): string {

@@ -19,10 +19,11 @@ export function schemaDoAutorDosGuias() {
     "@type": "Person",
     "@id": ID_DO_AUTOR_DOS_GUIAS,
     name: AUTOR_DOS_GUIAS.nome,
-    // Cargo e página desde 29/09/2026 (auditoria de visibilidade em IA): com
-    // só o nome, o nó não dizia por que essa pessoa entende do assunto. A
-    // página é o bloco `#autor` de `/sobre`, que diz a mesma coisa em texto.
-    jobTitle: AUTOR_DOS_GUIAS.cargo,
+    // Apresentação e página desde 29/09/2026 (auditoria de visibilidade em
+    // IA): com só o nome, o nó não dizia por que essa pessoa entende do
+    // assunto. A página é o bloco `#autor` de `/sobre`, que diz a mesma coisa
+    // em texto. Sem `jobTitle`: até 30/09 dizia "Fundador", e ele não é.
+    description: `${AUTOR_DOS_GUIAS.nome}, ${AUTOR_DOS_GUIAS.apresentacao}.`,
     url: URL_DO_AUTOR_DOS_GUIAS,
     worksFor: REFERENCIA_DA_LOJA,
   };

@@ -95,8 +95,9 @@ export default async function SobrePage() {
     <section id="autor" className="px-[18px] pt-12 lg:px-10 lg:pt-16">
       <h2 className="mt-titulo m-0 text-[26px] lg:text-[34px]">Quem escreve os {NOME_DA_SECAO}</h2>
       <p className="m-0 mt-4 max-w-[680px] text-[15px] leading-relaxed text-mt-neutral-800 lg:text-base">
-        Os {NOME_DA_SECAO} são escritos por {AUTOR_DOS_GUIAS.nome}, fundador da {loja}. Tratam do
-        que a loja faz todo dia: a perícia antes da compra, a avaliação do usado, a troca e a venda.
+        Os {NOME_DA_SECAO} são escritos por {AUTOR_DOS_GUIAS.nome}, {AUTOR_DOS_GUIAS.apresentacao}.
+        Tratam do que a {loja} faz todo dia: a perícia antes da compra, a avaliação do usado, a troca e
+        a venda.
       </p>
       <GuiasRelacionados
         titulo="A seleção por dentro"
