@@ -111,10 +111,8 @@ export default async function GarantiaPage() {
 }
 
 /**
-
  * Prazo, o que cobre, o que não cobre e a perícia que vem antes, logo abaixo
- * do título, em duas colunas de dois (tarefa 4.8 da
- * revisão de UI de 30/09). Antes, quem chegava perguntando "está coberto?"
+ * do título, em duas colunas de dois (tarefa 4.8 da revisão de UI de 30/09). Antes, quem chegava perguntando "está coberto?"
  * lia três parágrafos e duas seções até a lista de exclusões. Uma `dl`: é
  * rótulo e resposta, e o leitor de tela anuncia assim.
  */
