@@ -76,7 +76,7 @@ export default function SobreClientWrapper({
       <section className="px-[18px] pt-9 lg:px-10 lg:pt-16">
         <nav
           aria-label="Trilha"
-          className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
+          className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
         >
           <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
             HOME
@@ -213,7 +213,7 @@ export default function SobreClientWrapper({
         <div className="mt-8 flex flex-col gap-6 border-t-2 border-mt-regua pt-6 lg:flex-row lg:gap-14">
           {companySettings.address && (
             <div className="flex-1">
-              <Rotulo className="text-[10px]">SHOWROOM</Rotulo>
+              <Rotulo className="text-[11px]">SHOWROOM</Rotulo>
               <div className="mt-2 text-[18px] font-extrabold leading-snug">
                 {companySettings.address}
               </div>
@@ -221,7 +221,7 @@ export default function SobreClientWrapper({
           )}
           {companySettings.hours && (
             <div className="flex-1">
-              <Rotulo className="text-[10px]">HORÁRIOS</Rotulo>
+              <Rotulo className="text-[11px]">HORÁRIOS</Rotulo>
               <div className="mt-2 whitespace-pre-line text-[18px] font-extrabold leading-snug">
                 {companySettings.hours}
               </div>
@@ -229,7 +229,7 @@ export default function SobreClientWrapper({
           )}
           {companySettings.phone && (
             <div className="flex-1">
-              <Rotulo className="text-[10px]">ATENDIMENTO</Rotulo>
+              <Rotulo className="text-[11px]">ATENDIMENTO</Rotulo>
               <div className="mt-2 text-[18px] font-extrabold leading-snug">
                 {companySettings.phone}
               </div>

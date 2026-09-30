@@ -43,7 +43,7 @@ export default function CardDaFaixa({ repasse: r }: { repasse: Repasse }) {
             className="object-cover"
           />
         ) : null}
-        <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[9px]">
+        <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[11px]">
           {etiqueta}
         </Etiqueta>
       </span>

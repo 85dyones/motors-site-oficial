@@ -124,7 +124,7 @@ export default async function PrivacidadePage() {
 
           {/* Índice */}
           <nav aria-label="Índice desta página" className="flex flex-col gap-2">
-            <Rotulo className="text-[10px] tracking-[.16em]">NESTA PÁGINA</Rotulo>
+            <Rotulo className="text-[11px] tracking-[.16em]">NESTA PÁGINA</Rotulo>
             <ol className="mt-1.5 flex flex-col text-sm text-mt-neutral-800">
               {[
                 ["quem-somos", "Quem é o controlador dos seus dados"],

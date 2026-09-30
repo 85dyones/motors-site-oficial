@@ -76,10 +76,10 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
 
           {colunas.map((coluna) => (
             <div key={coluna.titulo} className="flex-1">
-              <div className="mb-3.5 text-[10px] font-extrabold tracking-[.16em] text-mt-inverso">
+              <div className="mb-1 text-[11px] font-extrabold md:mb-3.5 tracking-[.16em] text-mt-inverso">
                 {coluna.titulo}
               </div>
-              <div className="flex flex-col gap-2 text-[13px] leading-snug">
+              <div className="flex flex-col text-[13px] leading-snug md:gap-2">
                 {coluna.itens
                   .filter((item) => item.rotulo)
                   .map((item) =>
@@ -112,7 +112,7 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
                                 )
                             : undefined
                         }
-                        className="mt-foco whitespace-pre-line text-mt-inverso-suave no-underline hover:text-mt-inverso"
+                        className="mt-foco whitespace-pre-line py-2.5 text-mt-inverso-suave no-underline hover:text-mt-inverso md:py-0"
                       >
                         {item.rotulo}
                       </Link>
@@ -141,15 +141,15 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
           <div className="flex flex-col gap-5 border-b border-mt-inverso-regua-fina py-7">
             {marcas.length > 0 && (
               <div className="flex flex-col gap-2">
-                <h2 className="text-[10px] font-extrabold tracking-[.16em] text-mt-inverso">
+                <h2 className="text-[11px] font-extrabold tracking-[.16em] text-mt-inverso">
                   MARCAS DISPONÍVEIS
                 </h2>
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+                <div className="flex flex-wrap items-center gap-x-5 text-xs md:gap-y-2">
                   {marcas.map((marca) => (
                     <Link
                       key={marca.href}
                       href={marca.href}
-                      className="mt-foco font-medium uppercase tracking-wider no-underline hover:text-mt-accent-400"
+                      className="mt-foco py-2 font-medium uppercase tracking-wider no-underline hover:text-mt-accent-400 md:py-0"
                     >
                       {marca.rotulo}
                     </Link>
@@ -160,15 +160,15 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
 
             {modelos.length > 0 && (
               <div className="flex flex-col gap-2">
-                <h2 className="text-[10px] font-extrabold tracking-[.16em] text-mt-inverso">
+                <h2 className="text-[11px] font-extrabold tracking-[.16em] text-mt-inverso">
                   MODELOS EM DESTAQUE
                 </h2>
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+                <div className="flex flex-wrap items-center gap-x-5 text-xs md:gap-y-2">
                   {modelos.map((modelo) => (
                     <Link
                       key={modelo.href}
                       href={modelo.href}
-                      className="mt-foco font-medium uppercase tracking-wider no-underline hover:text-mt-accent-400"
+                      className="mt-foco py-2 font-medium uppercase tracking-wider no-underline hover:text-mt-accent-400 md:py-0"
                     >
                       {modelo.rotulo}
                     </Link>

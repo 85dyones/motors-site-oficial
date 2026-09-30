@@ -298,7 +298,10 @@ export default function FichaImpressa({
           >
             {veiculo.marca}
           </span>
-          <h1
+          {/* `p`, e não `h1` (tarefa 4.6, 30/09): a ficha impressa mora no HTML
+              da página, escondida, e o buscador lia dois títulos principais —
+              este e o da ficha. No papel o desenho é o mesmo. */}
+          <p
             style={{
               margin: 0,
               fontSize: "4.923cqw",
@@ -309,7 +312,7 @@ export default function FichaImpressa({
             }}
           >
             {modeloExibido}
-          </h1>
+          </p>
           <span
             style={{
               fontSize: "1.846cqw",

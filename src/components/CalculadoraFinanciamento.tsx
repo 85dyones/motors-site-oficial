@@ -168,14 +168,14 @@ Consegue verificar se aprova nessas condições?`;
             o aviso de que não é oferta e os bancos — NÃO entra aqui: fica
             sempre à mostra, ao lado da parcela. */}
         <details className="group mt-4 border-t border-mt-regua-fina pt-3">
-          <summary className="mt-foco flex cursor-pointer list-none items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 [&::-webkit-details-marker]:hidden">
+          <summary className="mt-foco mt-alvo flex cursor-pointer list-none items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700 [&::-webkit-details-marker]:hidden">
             Como a simulação é feita
             <span aria-hidden="true" className="text-base font-normal leading-none text-mt-accent">
               <span className="group-open:hidden">+</span>
               <span className="hidden group-open:inline">−</span>
             </span>
           </summary>
-          <p className="m-0 mt-2.5 text-[12px] leading-relaxed text-mt-neutral-800">
+          <p className="m-0 mt-4 text-[12px] leading-relaxed text-mt-neutral-800">
             Esta simulação usa taxas que podem variar dependendo de análises das
             instituições bancárias referente ao crédito disponível e
             &ldquo;score&rdquo; de cada pessoa. Valores incluem IOF. Taxas

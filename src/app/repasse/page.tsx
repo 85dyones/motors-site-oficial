@@ -132,14 +132,14 @@ export default async function PaginaDoRepasse() {
       <section className="bg-mt-inverso-fundo text-mt-inverso">
         <div className={`grid gap-10 py-10 lg:grid-cols-[1.4fr_1fr] lg:py-14 ${MARGEM}`}>
           <div>
-            <nav aria-label="Trilha" className="text-[11px] font-semibold tracking-[.16em] text-mt-inverso-suave">
+            <nav aria-label="Trilha" className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-inverso-suave">
               <Link href="/" className="mt-foco text-mt-inverso-suave no-underline hover:text-mt-inverso">
                 {TRILHA_DO_REPASSE.inicio.toUpperCase()}
               </Link>
               {" / "}
               <span className="text-mt-inverso">{TRILHA_DO_REPASSE.repasse.toUpperCase()}</span>
             </nav>
-            <p className="m-0 mt-6 text-[11px] font-extrabold tracking-[.14em] text-mt-accent">{HEROI_DO_REPASSE.rotulo}</p>
+            <p className="m-0 mt-6 text-[11px] font-extrabold tracking-[.14em] text-mt-cobre-marca">{HEROI_DO_REPASSE.rotulo}</p>
             <h1 className="mt-titulo m-0 mt-3 text-[38px] lg:text-[64px]">{HEROI_DO_REPASSE.titulo}</h1>
             <p className="m-0 mt-4 max-w-[560px] text-[15px] leading-relaxed text-mt-inverso-suave">{HEROI_DO_REPASSE.texto}</p>
             {!vazio && <TrilhaDoHeroi totalNoLote={resumo.lote.length} />}

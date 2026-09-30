@@ -40,7 +40,7 @@ export default function GaleriaDoRepasse({ fotos, etiqueta }: { fotos: FotoDaGal
             className="object-cover"
           />
         )}
-        <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[10px]">
+        <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[11px]">
           {etiqueta}
         </Etiqueta>
         {fotos.length > 0 && (
@@ -64,7 +64,7 @@ export default function GaleriaDoRepasse({ fotos, etiqueta }: { fotos: FotoDaGal
               >
                 <Image src={f.src} alt="" fill sizes="80px" unoptimized={ehFotoPropria(f.src)} className="object-cover" />
                 {f.defeito !== null && (
-                  <span className="absolute inset-x-0 bottom-0 bg-mt-accent px-1 text-[8px] font-extrabold tracking-[.08em] text-mt-inverso">
+                  <span className="absolute inset-x-0 bottom-0 whitespace-nowrap bg-mt-accent px-0.5 text-center text-[11px] font-bold leading-tight text-mt-inverso">
                     {rotuloDoDefeito(f.defeito)}
                   </span>
                 )}

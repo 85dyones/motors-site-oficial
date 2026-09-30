@@ -178,17 +178,17 @@ export default function VitrineBalcao({
                   />
                 )}
                 {v.status_tag && (
-                  <span className="mt-etiqueta pointer-events-none absolute left-0 top-0 text-[9px]">
+                  <span className="mt-etiqueta pointer-events-none absolute left-0 top-0 text-[11px]">
                     {v.status_tag.toUpperCase()}
                   </span>
                 )}
                 <FaixaEmPreparacao
                   veiculo={v}
-                  className="absolute bottom-0 left-0 px-2 py-1 text-[9px]"
+                  className="absolute bottom-0 left-0 px-2 py-1 text-[11px]"
                 />
               </div>
               <div className="flex min-w-0 flex-1 flex-col px-5 py-[18px]">
-                <div className="text-[10px] font-semibold tracking-[.16em] text-mt-cobre">
+                <div className="text-[11px] font-semibold tracking-[.16em] text-mt-cobre">
                   {v.marca}
                 </div>
                 <div className="mt-1.5 truncate text-[22px] font-extrabold leading-tight tracking-[-.02em]">

@@ -153,7 +153,7 @@ export default function ContatoClientWrapper() {
   /* Campo em régua: rótulo em versalete, linha de 1px, sem caixa nem raio. */
   const campo = "border-b border-mt-regua-fina py-3.5";
   const rotulo =
-    "block text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600 mb-1.5";
+    "block text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600 mb-1.5";
 
   return (
     <div className="w-full font-modernist">
@@ -161,7 +161,7 @@ export default function ContatoClientWrapper() {
         <div className="border-t-2 border-mt-regua py-10">
           <div className="mb-4 flex items-center gap-3">
             <span className="h-2 w-2 bg-mt-accent" aria-hidden="true" />
-            <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent">
+            <span className="text-[11px] font-semibold tracking-[.16em] text-mt-accent">
               MENSAGEM RECEBIDA
             </span>
           </div>

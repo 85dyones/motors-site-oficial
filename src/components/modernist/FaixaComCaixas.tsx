@@ -130,7 +130,7 @@ export function PontaDaFaixa({ children }: { children: string }) {
   return (
     <span
       aria-hidden="true"
-      className="mb-1 block text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600"
+      className="mb-1 block text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600"
     >
       {children}
     </span>

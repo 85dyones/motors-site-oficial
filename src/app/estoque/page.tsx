@@ -153,7 +153,7 @@ export default async function EstoquePage() {
       <div className="px-[18px] pt-8 lg:px-10 lg:pt-11">
         <nav
           aria-label="Trilha"
-          className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
+          className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
         >
           <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
             HOME
@@ -345,7 +345,7 @@ export default async function EstoquePage() {
                   className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
                 >
                   {m.nome}
-                  <span className="text-[10px] font-semibold text-mt-accent">
+                  <span className="text-[11px] font-semibold text-mt-accent">
                     {m.veiculos.length}
                   </span>
                 </Link>
@@ -376,7 +376,7 @@ export default async function EstoquePage() {
                   className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
                 >
                   {c.nome}
-                  <span className="text-[10px] font-semibold text-mt-accent">
+                  <span className="text-[11px] font-semibold text-mt-accent">
                     {c.veiculos.length}
                   </span>
                 </Link>

@@ -131,13 +131,13 @@ export default function BuscaRegua({
       {campos.map((campo) => (
         <div
           key={campo.label}
-          className={`flex-1 border-b border-mt-regua-fina px-[18px] py-4 last:border-b-0 md:border-b-0 md:border-r md:border-mt-regua-media md:px-4 lg:px-5 ${
+          className={`flex-1 border-b border-mt-regua-fina px-[18px] py-2 last:border-b-0 md:border-b-0 md:border-r md:border-mt-regua-media md:px-4 lg:px-5 ${
             "soDesktop" in campo && campo.soDesktop ? "hidden desktop:block" : ""
           }`}
         >
           <label
             htmlFor={`busca-${campo.label}`}
-            className="mb-2 block text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600"
+            className="mb-1 block text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600"
           >
             {campo.label}
           </label>
@@ -146,7 +146,7 @@ export default function BuscaRegua({
               id={`busca-${campo.label}`}
               value={campo.value}
               onChange={(e) => campo.set(e.target.value)}
-              className="mt-campo mt-foco w-full appearance-none pr-6"
+              className="mt-campo mt-foco min-h-11 w-full appearance-none pr-6"
             >
               <option value="">Todos</option>
               {campo.opcoes.map((opcao, i) => (

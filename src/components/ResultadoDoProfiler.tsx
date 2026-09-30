@@ -161,7 +161,7 @@ export default function ResultadoDoProfiler({
             const escolhido = escolhidos.includes(v.id);
             return (
               <li key={v.id} className="flex flex-col">
-                <span className="mb-2.5 text-[10.5px] font-extrabold tracking-[.14em] text-mt-accent">
+                <span className="mb-2.5 text-[11px] font-extrabold tracking-[.14em] text-mt-accent">
                   {cartao.rotuloDoLugar}
                 </span>
                 <div className="text-mt-inverso [&_.border-mt-regua]:border-mt-inverso-regua [&_.border-mt-regua-fina]:border-mt-inverso-regua-fina">
@@ -173,7 +173,7 @@ export default function ResultadoDoProfiler({
 
                 {cartao.pedidos.length > 0 && (
                   <div className="mt-3">
-                    <span className="text-[10.5px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
+                    <span className="text-[11px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
                       ATENDE {cartao.atende} DE {cartao.pedidos.length} DO QUE VOCÊ PEDIU
                     </span>
                     <ul className="m-0 mt-1.5 list-none space-y-1 p-0">
@@ -194,7 +194,7 @@ export default function ResultadoDoProfiler({
 
                 {cartao.pesaContra && (
                   <p className="m-0 mt-3 text-[13px] leading-snug text-mt-inverso-suave">
-                    <span className="mr-1.5 text-[10.5px] font-extrabold tracking-[.12em] text-mt-inverso">
+                    <span className="mr-1.5 text-[11px] font-extrabold tracking-[.12em] text-mt-inverso">
                       PESA CONTRA
                     </span>
                     {cartao.pesaContra}
@@ -343,7 +343,7 @@ function EscolhaDoPrazo({
   if (opcoes.length === 0) return null;
   return (
     <div className="mt-10 max-w-[720px]">
-      <span className="text-[10.5px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
+      <span className="text-[11px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
         QUANDO VOCÊ PRETENDE FECHAR? · OPCIONAL
       </span>
       <div className="mt-2.5 flex flex-wrap gap-2">
@@ -418,7 +418,7 @@ function CartaJaPensouNeste({
       </div>
 
       <div className="mt-6 flex flex-col lg:mt-0">
-        <span className="text-[10.5px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
+        <span className="text-[11px] font-extrabold tracking-[.12em] text-mt-inverso-suave">
           CONTRA O {coringa.comparadoCom.toUpperCase()}
         </span>
         <ul className="m-0 mt-1.5 list-none space-y-1 p-0">
@@ -432,7 +432,7 @@ function CartaJaPensouNeste({
           ))}
         </ul>
 
-        <span className="mt-5 text-[10.5px] font-extrabold tracking-[.12em] text-mt-inverso">O QUE MUDA</span>
+        <span className="mt-5 text-[11px] font-extrabold tracking-[.12em] text-mt-inverso">O QUE MUDA</span>
         {coringa.oQueMuda.length > 0 ? (
           <ul className="m-0 mt-1.5 list-none space-y-1 p-0">
             {coringa.oQueMuda.map((muda) => (

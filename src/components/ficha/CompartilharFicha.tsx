@@ -74,7 +74,7 @@ export default function CompartilharFicha({ veiculo, precoTexto }: { veiculo: Ve
           </button>
           <span
             role="status"
-            className={`pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap bg-mt-inverso-fundo px-2 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-mt-inverso ${
+            className={`pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap bg-mt-inverso-fundo px-2 py-1 text-[11px] font-bold uppercase tracking-[.12em] text-mt-inverso ${
               copiado ? "" : "sr-only"
             }`}
           >

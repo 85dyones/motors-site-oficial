@@ -1217,7 +1217,7 @@ export default function CarMatch({
           </span>
           <Link
             href="/"
-            className="mt-foco ml-auto text-[11px] tracking-[.1em] text-mt-inverso-suave no-underline transition-colors hover:text-mt-inverso lg:text-xs"
+            className="mt-foco mt-alvo ml-auto text-[11px] tracking-[.1em] text-mt-inverso-suave no-underline transition-colors hover:text-mt-inverso lg:text-xs"
           >
             SAIR
           </Link>
@@ -1250,7 +1250,7 @@ export default function CarMatch({
                   <div className="text-[28px] font-extrabold leading-none lg:text-[34px]">
                     {item.valor}
                   </div>
-                  <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-inverso-suave">
+                  <div className="mt-1 text-[11px] font-semibold tracking-[.14em] text-mt-inverso-suave">
                     {item.rotulo}
                   </div>
                 </div>
@@ -1333,7 +1333,7 @@ export default function CarMatch({
 
                 {budgetTab === "custom" && (
                   <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
-                    <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                    <Rotulo className="text-[11px] tracking-[.16em] text-mt-inverso-suave">
                       LIMITE DE INVESTIMENTO
                     </Rotulo>
                     <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
@@ -1373,7 +1373,7 @@ export default function CarMatch({
                   const n = semContagem ? null : sobramCom({ ...answers, budgetMin: 0, budgetMax: 0, porMes: r });
                   return (
                     <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
-                      <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                      <Rotulo className="text-[11px] tracking-[.16em] text-mt-inverso-suave">
                         PARCELA QUE CABE NO MÊS
                       </Rotulo>
                       <div className="mt-2 text-[38px] font-extrabold tracking-[-.04em] lg:text-[46px]">
@@ -1391,7 +1391,7 @@ export default function CarMatch({
                         className="mt-range mt-foco mt-4 [--mt-range-trilho:var(--mt-inverso-regua)]"
                       />
 
-                      <Rotulo className="mt-7 block text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                      <Rotulo className="mt-7 block text-[11px] tracking-[.16em] text-mt-inverso-suave">
                         ENTRADA
                       </Rotulo>
                       <div className="mt-1.5 text-2xl font-extrabold tracking-[-.03em]">
@@ -1427,7 +1427,7 @@ export default function CarMatch({
                         </p>
                       )}
 
-                      <Rotulo className="mt-7 block text-[10px] tracking-[.16em] text-mt-inverso-suave">PRAZO</Rotulo>
+                      <Rotulo className="mt-7 block text-[11px] tracking-[.16em] text-mt-inverso-suave">PRAZO</Rotulo>
                       <div className="mt-2.5 flex w-max border-2 border-mt-inverso-regua">
                         {PRAZOS_DO_POR_MES.map((prazo, i) => (
                           <button
@@ -1445,7 +1445,7 @@ export default function CarMatch({
                       </div>
 
                       <label className="mt-7 block">
-                        <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                        <Rotulo className="text-[11px] tracking-[.16em] text-mt-inverso-suave">
                           OCUPAÇÃO · MUDA A TAXA ESTIMADA
                         </Rotulo>
                         <select
@@ -1483,7 +1483,7 @@ export default function CarMatch({
 
                 {budgetTab === "ai" && (
                   <div className="mt-6 max-w-[560px] border-2 border-mt-inverso-regua-fina p-6 lg:p-8">
-                    <Rotulo className="text-[10px] tracking-[.16em] text-mt-inverso-suave">
+                    <Rotulo className="text-[11px] tracking-[.16em] text-mt-inverso-suave">
                       DESCREVA O QUE VOCÊ PROCURA
                     </Rotulo>
                     <textarea
@@ -1750,7 +1750,7 @@ export default function CarMatch({
                 </span>
                 <span
                   className={`ml-auto text-right text-sm font-extrabold ${
-                    r.valor ? "text-mt-accent" : "text-mt-neutral-500"
+                    r.valor ? "text-mt-accent" : "text-mt-neutral-600"
                   }`}
                 >
                   {r.valor || "a responder"}

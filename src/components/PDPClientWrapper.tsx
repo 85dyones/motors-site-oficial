@@ -647,7 +647,7 @@ export default function PDPClientWrapper({
           {veiculo.pericia &&
             !veiculo.pericia.toLowerCase().includes("análise") &&
             !veiculo.pericia.toLowerCase().includes("analise") && (
-              <span className="mt-3 flex w-fit items-center gap-2 bg-mt-inverso-fundo px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.12em] text-mt-inverso">
+              <span className="mt-3 flex w-fit items-center gap-2 bg-mt-inverso-fundo px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.12em] text-mt-inverso">
                 <span className="mt-pulso h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
                 {veiculo.pericia}
               </span>
@@ -658,7 +658,7 @@ export default function PDPClientWrapper({
         <div className="grid grid-cols-2 border-t-2 border-mt-regua">
           {quickSpecs.map((spec) => (
             <div key={spec.label} className="border-b border-mt-regua-fina py-3">
-              <div className="text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600">
+              <div className="text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
                 {spec.label}
               </div>
               <div className="mt-1 truncate text-base font-extrabold text-mt-ink">
@@ -677,7 +677,7 @@ export default function PDPClientWrapper({
 
         {/* Preço */}
         <div>
-          <div className="text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
+          <div className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600">
             {hasDiscount ? "PREÇO PROMOCIONAL" : "À VISTA"}
           </div>
           <div className="mt-1.5 text-[38px] font-extrabold leading-none tracking-[-.04em] lg:text-[48px]">
@@ -773,7 +773,7 @@ export default function PDPClientWrapper({
       {caminhoDaMarca && (
         <nav
           aria-label="Trilha"
-          className="mx-auto w-full max-w-[1600px] px-4 pt-4 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 md:px-8 print:hidden"
+          className="mt-trilha mx-auto w-full max-w-[1600px] px-4 pt-4 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 md:px-8 print:hidden"
         >
           <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
             HOME
@@ -820,7 +820,16 @@ export default function PDPClientWrapper({
               <div
                 ref={carouselRef}
                 onScroll={handleCarouselScroll}
- className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0"
+                // Rolável pelo teclado (tarefa 4.5, axe
+                // `scrollable-region-focusable`): com o foco aqui, as setas
+                // passam as fotos, como no dedo. O contorno de foco não mora
+                // nele: as fotos são posicionadas e o Chrome e o Safari as
+                // pintam por cima do contorno do pai. Quem desenha o foco é a
+                // moldura irmã logo abaixo (`peer-focus-visible`).
+                tabIndex={0}
+                role="region"
+                aria-label={`Fotos do ${veiculo.marca} ${modeloExibido}`}
+                className="peer flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0 focus-visible:outline-none"
                 style={{ scrollBehavior: "smooth" }}
               >
                 {displayImages.map((imgUrl, index) => (
@@ -841,6 +850,10 @@ export default function PDPClientWrapper({
                   </div>
                 ))}
               </div>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 z-20 hidden border-2 border-mt-accent peer-focus-visible:block"
+              />
 
               {/* Setas de navegação. No mobile a galeria tem ~210px de altura
                   e 48px de seta cobriam o carro; 36px porque ali a seta é
@@ -872,7 +885,7 @@ export default function PDPClientWrapper({
               {/* Etiqueta de estado, colada no canto — o sistema não flutua
                   selo com sombra e raio, encosta na quina da célula. */}
               {veiculo.status_tag && (
-                <div className="mt-etiqueta mt-etiqueta-accent absolute left-0 top-0 z-30 gap-2 text-[10px]">
+                <div className="mt-etiqueta mt-etiqueta-accent absolute left-0 top-0 z-30 gap-2 text-[11px]">
                   <span className="mt-pulso h-1.5 w-1.5 bg-mt-inverso" aria-hidden="true" />
                   {veiculo.status_tag.toUpperCase()}
                 </div>
@@ -964,7 +977,7 @@ export default function PDPClientWrapper({
                         +{displayImages.length - 4}
                       </span>
                     )}
-                    <span className="mt-1.5 block text-[10px] font-semibold tracking-[.14em] text-mt-inverso-suave">
+                    <span className="mt-1.5 block text-[11px] font-semibold tracking-[.14em] text-mt-inverso-suave">
                       VER GALERIA
                     </span>
                     <span className="sr-only">

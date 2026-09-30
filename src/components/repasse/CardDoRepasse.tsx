@@ -69,12 +69,12 @@ export default function CardDoRepasse({
           />
         ) : null}
         {estado === "aberto" && (
-          <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[9px]">
+          <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[11px]">
             {etiqueta}
           </Etiqueta>
         )}
         {totalDeFotos > 0 && (
-          <span className="pointer-events-none absolute bottom-0 right-0 bg-[rgba(20,18,18,.82)] px-2 py-1 text-[10px] font-semibold text-mt-inverso">
+          <span className="pointer-events-none absolute bottom-0 right-0 bg-[rgba(20,18,18,.82)] px-2 py-1 text-[11px] font-semibold text-mt-inverso">
             {contagemDeFotos(totalDeFotos, defeitos)}
           </span>
         )}
@@ -87,12 +87,12 @@ export default function CardDoRepasse({
       </Link>
 
       <div className="mt-3 border-t-2 border-mt-regua pt-2.5">
-        <div className="text-[9px] font-semibold tracking-[.16em] text-mt-accent">{r.marca.toUpperCase()}</div>
+        <div className="text-[11px] font-semibold tracking-[.16em] text-mt-accent">{r.marca.toUpperCase()}</div>
         <Link href={ficha} className="mt-foco block text-mt-ink no-underline">
           <span className="mt-0.5 block text-[19px] font-extrabold leading-tight tracking-[-.02em]">{naGrafia.modelo}</span>
           {naGrafia.versao && <span className="block text-xs text-mt-neutral-700">{naGrafia.versao}</span>}
         </Link>
-        <div className="mt-2 flex gap-2 border-t border-mt-regua-fina pt-2 text-[10px] tracking-[.05em] text-mt-neutral-600">
+        <div className="mt-2 flex gap-2 border-t border-mt-regua-fina pt-2 text-[11px] tracking-[.05em] text-mt-neutral-600">
           <span>{anosDoCarro(r)}</span>
           <span aria-hidden="true">·</span>
           <span>{formatarKm(r.quilometragem)}</span>

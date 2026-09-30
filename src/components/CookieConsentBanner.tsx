@@ -35,15 +35,44 @@ export default function CookieConsentBanner() {
   // de captura: as três peças da moldura eram as últimas na casca antiga.
   // Fica acima do pop-up de propósito (z-9999 vs z-999): consentimento vem
   // antes de campanha.
+  //
+  // No celular é uma barra no pé da tela (tarefa 4.1 da revisão de UI de
+  // 30/09): o cartão de antes flutuava no meio de toda página, em cima do
+  // carro, e era a primeira coisa que o cliente via. A barra ocupa uma faixa
+  // de até 88 px, colada à borda, com o texto curto e o botão ao lado. Do `md`
+  // para cima continua o cartão no canto, que ali não cobre nada.
+  // `.mt-aviso-cookies` também afasta o foco da barra (`scroll-padding-bottom`
+  // em `modernist.css`): o Tab não para num link escondido atrás dela.
   return (
     <div
-      className="fixed bottom-4 left-4 right-4 z-[9999] flex flex-col gap-3.5 border-t-4 border-mt-accent bg-mt-bg p-5 shadow-[var(--mt-shadow-lg)] animate-fadeIn md:left-auto md:right-4 md:max-w-md"
+      className="mt-aviso-cookies fixed inset-x-0 bottom-0 z-[9999] flex items-center gap-4 border-t-4 border-mt-accent bg-mt-bg px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[var(--mt-shadow-lg)] animate-fadeIn md:inset-x-auto md:bottom-4 md:right-4 md:max-w-md md:flex-col md:items-stretch md:gap-3.5 md:p-5"
       role="dialog"
       aria-live="polite"
       aria-label="Aviso de Privacidade e Cookies"
     >
       {/* Header */}
-      <span className="mt-rotulo mt-rotulo-accent">Privacidade &amp; Cookies</span>
+      <span className="mt-rotulo mt-rotulo-accent hidden md:block">Privacidade &amp; Cookies</span>
+
+      {/* Celular: a mesma informação em uma frase — quem mede (Google e Meta)
+          e o quê. A base legal e o resto ficam a um toque, na política. O
+          link de ajuste tem o mesmo peso do "Ajustar detalhes" do desktop:
+          normal, cinza, sublinhado simples (decisão do dono em 31/08). */}
+      <p className="m-0 flex-1 text-[12px] leading-snug text-mt-neutral-800 md:hidden">
+        Usamos cookies do Google e da Meta para medir visitas e anúncios.{" "}
+        <Link
+          href="/privacidade"
+          onClick={() => setIsVisible(false)}
+          className="mt-foco font-normal text-mt-neutral-700 underline underline-offset-2 hover:text-mt-ink"
+        >
+          Ajustar detalhes
+        </Link>
+      </p>
+      <button
+        onClick={handleAccept}
+        className="mt-btn mt-btn-primario mt-foco min-h-11 shrink-0 cursor-pointer px-5 text-[11px] uppercase md:hidden"
+      >
+        Entendi
+      </button>
 
       {/*
         Reescrito duas vezes em 2026-08-31, e a segunda foi por um print.
@@ -59,7 +88,7 @@ export default function CookieConsentBanner() {
         quiser desligar encontra o controle em `/privacidade` — existe, funciona,
         e não fica gritando na frente de quem só quer ver carro.
       */}
-      <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-800">
+      <p className="m-0 hidden text-[12px] leading-relaxed text-mt-neutral-800 md:block">
         A Motors Store usa cookies para entender como o site é usado e medir o desempenho dos
         nossos anúncios (Google e Meta), com base no legítimo interesse previsto na LGPD. Você
         pode ajustar isso quando quiser na{" "}
@@ -77,17 +106,17 @@ export default function CookieConsentBanner() {
           mostrar o que está decidindo. Peso normal e sem caixa alta de propósito
           — o dono pediu fonte mais suave, e o contraste de antes era parte do
           convite à recusa. */}
-      <div className="flex items-center justify-end gap-4 border-t border-mt-regua-fina pt-3">
+      <div className="hidden items-center justify-end gap-4 border-t border-mt-regua-fina pt-3 md:flex">
         <Link
           href="/privacidade"
           onClick={() => setIsVisible(false)}
-          className="mt-foco text-[11px] font-normal text-mt-neutral-700 underline underline-offset-2 hover:text-mt-ink"
+          className="mt-foco py-1 text-[12px] font-normal text-mt-neutral-700 underline underline-offset-2 hover:text-mt-ink"
         >
           Ajustar detalhes
         </Link>
         <button
           onClick={handleAccept}
-          className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[10px] uppercase"
+          className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[11px] uppercase"
         >
           Entendi
         </button>
