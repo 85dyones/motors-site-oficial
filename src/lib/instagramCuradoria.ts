@@ -1,5 +1,12 @@
 /**
- * Faixa do Instagram — curadoria, não espelho da API.
+ * Faixa do Instagram — curadoria do painel.
+ *
+ * Desde 30/09/2026 é a RESERVA: a faixa lê o perfil pela Graph API
+ * (`lib/instagramAoVivo.ts`, pedido do dono) e só cai nesta lista quando a API
+ * não está configurada ou falha. O raciocínio abaixo é o da época em que a
+ * curadoria era a única fonte; a objeção do token que vence em 60 dias não vale
+ * para o token de usuário do sistema, que é o que a versão automática usa.
+ *
  *
  * A alternativa era a Instagram Graph API: token de longa duração que expira em
  * 60 dias, `media_url` de CDN assinada que expira sozinha, e um cron só para

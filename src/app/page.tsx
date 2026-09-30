@@ -22,6 +22,7 @@ import { getCachedSettings } from "../lib/settings";
 import { montarCompartilhamento } from "../lib/compartilhamento";
 import { getReputacaoGoogle } from "../lib/avaliacoesGoogle";
 import { normalizarCuradoria } from "../lib/instagramCuradoria";
+import { getInstagramAoVivo } from "../lib/instagramAoVivo";
 import {
   DESTAQUES_PADRAO,
   normalizarQuickTags,
@@ -139,7 +140,7 @@ const PASSOS_DA_AVALIACAO = [
 
 export default async function Home() {
   const agora = new Date();
-  const [estoque, settings, reputacao, repasses] = await Promise.all([
+  const [estoque, settings, reputacao, repasses, instagramAoVivo] = await Promise.all([
     getEstoque(),
     getCachedSettings(),
     // Em paralelo com o estoque: são queries independentes, e encadeá-las
@@ -149,11 +150,15 @@ export default async function Home() {
     // aqui vira lista vazia e a faixa sai sem carros. Nunca
     // `lerRepassesPublicos` direto.
     lerRepassesDasPortas(agora, "/"),
+    // As publicações recentes do Instagram (30/09/2026). `null` quando a API
+    // não está configurada ou falhou: aí vale a curadoria do painel.
+    getInstagramAoVivo(),
   ]);
   const faixaDoRepasse = faixaNaHome(repasses, agora);
   const empresa = settings.companySettings ?? DEFAULT_COMPANY_SETTINGS;
 
-  const publicacoesInstagram = normalizarCuradoria(settings.instagramCuradoria);
+  const instagramAutomatico = instagramAoVivo !== null;
+  const publicacoesInstagram = instagramAoVivo ?? normalizarCuradoria(settings.instagramCuradoria);
   const configDasAreas = normalizarAreas(settings.areasHome);
 
   const disponiveis = disponiveisDe(estoque);
@@ -438,8 +443,9 @@ export default async function Home() {
     ),
 
     /* ─── Instagram ───
-       Mesma regra da reputação: sem publicação curada no painel, não há
-       faixa. O cabeçalho com o @ da loja só aparece se houver o que mostrar
+       Automático desde 30/09/2026 (`lib/instagramAoVivo.ts`), com a
+       curadoria do painel como reserva. Mesma regra da reputação: sem
+       publicação, não há faixa. O cabeçalho com o @ da loja só aparece se houver o que mostrar
        embaixo dele. */
     instagram: publicacoesInstagram.length > 0 && (
       <section className="px-[18px] py-12 lg:px-10 lg:py-16">
@@ -448,7 +454,7 @@ export default async function Home() {
             {empresa.instagramUsername || "@motorsstore.oficial"}
           </h3>
           <span className="mr-auto text-xs text-mt-neutral-600">
-            Chegadas e entregas da semana
+            {instagramAutomatico ? "Publicações mais recentes" : "Chegadas e entregas da semana"}
           </span>
           {empresa.instagram && (
             <a
