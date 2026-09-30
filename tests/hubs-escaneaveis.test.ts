@@ -14,6 +14,7 @@ import {
   textoDePerfil,
 } from "../src/lib/textoDosHubs";
 import { PERFIS_DE_USO } from "../src/lib/perfisDeUso";
+import { SECOES_DE_GARANTIA } from "../src/lib/paginasInstitucionais";
 import { marcasFortes } from "./marcasDeIA";
 
 /**
@@ -130,5 +131,27 @@ describe("o texto gerado também abre a leitura", () => {
       expect(i).toBeGreaterThanOrEqual(1);
       expect(p.slice(i + 1).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("as seções da /garantia também leem as marcas (30/09/2026)", () => {
+  const html = renderToStaticMarkup(
+    createElement(PaginaDeEstoque, {
+      trilha: [{ rotulo: "Home", href: "/" }],
+      titulo: "Garantia",
+      veiculos: [],
+      secoes: SECOES_DE_GARANTIA,
+    }),
+  );
+
+  it("as enumerações viram lista, e nenhum hífen de marca vaza", () => {
+    expect(html).toMatch(/<ul[^>]*role="list"[\s\S]*embreagem em uso normal/);
+    expect(html).toMatch(/<li[^>]*>(<span>)?Avise antes de mexer/);
+    expect(html).not.toMatch(/>\s*- /);
+    expect(html).not.toContain("###");
+  });
+
+  it("cada seção continua com o seu h2", () => {
+    for (const secao of SECOES_DE_GARANTIA) expect(html).toContain(`>${secao.titulo}</h2>`);
   });
 });

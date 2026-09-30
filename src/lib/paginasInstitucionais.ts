@@ -358,22 +358,31 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
       // Turbo: resposta do dono em 18/09/2026 — "se for de fábrica, sim". O
       // turbo original é componente do motor; o que não é original cai na
       // exclusão de peça fora de especificação, logo abaixo.
-      "Coberto: falha interna de componente de motor (incluído o turbocompressor, quando é o " +
-        "original de fábrica), de câmbio e de diferencial, dentro do prazo.",
-      "Fora da cobertura, por serem manutenção ou desgaste de uso: óleo, filtros, velas e " +
-        "correias no intervalo; pastilha, disco, pneu, palheta e bateria; embreagem em uso " +
-        "normal; bombas, fluidos e óleos em geral.",
+      // Em lista desde 30/09/2026: o dono pediu texto escaneável, e as duas
+      // enumerações eram os blocos mais longos da página. As marcas são as de
+      // `lib/blocosDoGuia.ts` ("- " vira item), que `PaginaDeEstoque` desenha.
+      "Coberto: a falha interna, dentro do prazo, destas partes:\n" +
+        "- componente de motor, incluído o turbocompressor, quando é o original de fábrica;\n" +
+        "- câmbio;\n" +
+        "- diferencial.",
+      "Fora da cobertura, por serem manutenção ou desgaste de uso:\n" +
+        "- óleo, filtros, velas e correias no intervalo;\n" +
+        "- pastilha, disco, pneu, palheta e bateria;\n" +
+        "- embreagem em uso normal;\n" +
+        "- bombas, fluidos e óleos em geral.",
       // Resposta do dono em 18/09/2026 à pergunta que a peça da correia banhada
       // deixou aberta: "entra, se estiver no prazo e tiver ligação com o centro
       // maior, motor e caixa".
       "Com uma ressalva: quando um item de manutenção falha dentro do prazo e o dano atinge o " +
         "motor ou o câmbio (uma correia que se rompe e leva junto os internos do motor, por " +
         "exemplo), o conserto desse dano entra na cobertura.",
-      "Também ficam fora: peça fora de especificação (um turbo que não é o original de fábrica " +
-        "entra aqui), remap e alteração de característica do veículo; e evento externo, como " +
-        "colisão, enchente, granizo e vandalismo, que é assunto de seguro, não de garantia.",
-      "Os custos que não são do conserto em si também não entram: transporte, guincho, " +
-        "alimentação e hospedagem.",
+      "Também ficam fora:\n" +
+        "- peça fora de especificação (um turbo que não é o original de fábrica entra aqui), " +
+        "remap e alteração de característica do veículo;\n" +
+        "- evento externo, como colisão, enchente, granizo e vandalismo, que é assunto de " +
+        "seguro, não de garantia;\n" +
+        "- os custos que não são do conserto em si: transporte, guincho, alimentação e " +
+        "hospedagem.",
     ],
   },
   {
@@ -400,11 +409,12 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   {
     titulo: "O que fazer se algo falhar",
     paragrafos: [
-      "Avise antes de mexer. Reparo feito por conta própria, sem falar com a gente antes, " +
-        "dificulta a análise e pode agravar o problema.",
-      "A gente avalia e conserta na oficina parceira da especialidade, dentro do prazo e do " +
-        "escopo do termo, sem franquia e com a mão de obra inclusa.",
-      "Guarde tudo: nota, contrato, laudo da perícia, ordem de serviço e a conversa por escrito.",
+      "- Avise antes de mexer. Reparo feito por conta própria, sem falar com a gente antes, " +
+        "dificulta a análise e pode agravar o problema.\n" +
+        "- A gente avalia e conserta na oficina parceira da especialidade, dentro do prazo e do " +
+        "escopo do termo, sem franquia e com a mão de obra inclusa.\n" +
+        "- Guarde tudo: nota, contrato, laudo da perícia, ordem de serviço e a conversa por " +
+        "escrito.",
       "Se você contratou o plano estendido, o acionamento segue as regras da administradora, " +
         "descritas no manual, e começa antes de qualquer reparo. A gente acompanha o processo " +
         "com você.",
@@ -417,8 +427,12 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
       "Todo veículo do estoque passa pela perícia antes de entrar na vitrine: identificação, estrutura e " +
         "histórico auditados por empresa independente, credenciada junto ao Detran, num crivo " +
         "de mais de 120 pontos. O laudo está disponível para consulta, e é só pedir ao " +
-        "vendedor. Os sete de cada dez que não entram são recusados por sinistro estrutural, " +
-        "passagem por leilão, adulteração de numeração ou desgaste crônico grave.",
+        "vendedor.",
+      "Os sete de cada dez que não entram são recusados por um destes motivos:\n" +
+        "- sinistro estrutural;\n" +
+        "- passagem por leilão;\n" +
+        "- adulteração de numeração;\n" +
+        "- desgaste crônico grave.",
       "Nenhuma perícia prevê tudo. Ela verifica estrutura, identificação e histórico, mas não " +
         "abre motor, não mede compressão de cilindro nem avalia bomba de alta pressão.",
       "Quando a avaliação levanta suspeita (vazamento, fumaça, solavanco no câmbio, " +

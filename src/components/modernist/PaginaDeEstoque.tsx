@@ -331,11 +331,9 @@ export default function PaginaDeEstoque({
         {secoes.map((secao) => (
           <section key={secao.titulo} className="max-w-[680px] pb-8 last:pb-0">
             <h2 className="mt-titulo m-0 text-[20px] lg:text-[26px]">{secao.titulo}</h2>
-            {secao.paragrafos.map((paragrafo, i) => (
-              <p key={i} className={CLASSE_DO_PARAGRAFO}>
-                {comLinks(paragrafo)}
-              </p>
-            ))}
+            {/* Mesmas marcas da leitura do hub (30/09/2026): "- " vira lista.
+                Parágrafo sem marca sai como sempre saiu. */}
+            {blocosDaSecao(secao.paragrafos).map((bloco, b) => desenharBloco(bloco, `${secao.titulo}-${b}`))}
           </section>
         ))}
       </div>
