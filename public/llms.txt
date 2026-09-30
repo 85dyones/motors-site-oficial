@@ -20,7 +20,7 @@ Showroom no Bacacheri, em Curitiba. Atendimento presencial num raio de cerca de 
 - Páginas de marca e de modelo: `/carros/[marca]` e `/carros/[marca]/[modelo]`, com o equivalente em `/motos`. Continuam no ar mesmo quando não há unidade à venda no momento: registram o que a loja já vendeu daquele modelo.
 
 ## Guias Motors: https://motorsstore.com.br/guias
-Guias escritos pela loja e assinados por Dyones Oliveira, fundador da Motors Store. Tratam do que a loja faz todo dia: perícia antes da compra, avaliação de usado, troca e venda. Quando um guia usa número da própria operação, a amostra e o período vêm declarados no texto.
+Guias escritos pela loja e assinados por Dyones Oliveira, profissional com mais de dez anos de mercado. Tratam do que a loja faz todo dia: perícia antes da compra, avaliação de usado, troca e venda. Quando um guia usa número da própria operação, a amostra e o período vêm declarados no texto.
 
 ### Procedência e perícia cautelar
 - [Laudo cautelar: o que verifica e o que não verifica](https://motorsstore.com.br/guias/laudo-cautelar-carro-usado): O laudo cautelar analisa identificação, estrutura e histórico do veículo. A saúde mecânica fica de fora. Veja o que ele cobre e o que não cobre.
