@@ -264,6 +264,33 @@ export const PRAZOS_ESTENDIDOS = `${PLANOS_ESTENDIDOS_MESES.slice(0, -1).join(",
 } meses`;
 
 /** A abertura, sob o `<h1>`. */
+/**
+ * O resumo do topo de `/garantia` (tarefa 4.8 da revisão de UI de 30/09):
+ * prazo, o que cobre e o que não cobre, para responder "está coberto?" sem
+ * rolar. Nenhuma afirmação nova: tudo aqui está nas seções abaixo, que
+ * detalham cada item. O prazo sai de `PRAZO_DA_GARANTIA`, como no resto.
+ */
+export const RESUMO_DA_GARANTIA: { rotulo: string; texto: string }[] = [
+  {
+    rotulo: "Prazo",
+    texto:
+      `${PRAZO_DA_GARANTIA.charAt(0).toUpperCase()}${PRAZO_DA_GARANTIA.slice(1)}, contados da ` +
+      "entrega. Sem carência e sem franquia.",
+  },
+  {
+    rotulo: "Cobre",
+    texto:
+      "Falha interna de motor (com o turbo original de fábrica), câmbio e diferencial. O conserto " +
+      "é em oficina parceira, com a mão de obra inclusa.",
+  },
+  {
+    rotulo: "Não cobre",
+    texto:
+      "Manutenção e desgaste de uso, como óleo, filtros, freios, pneus, bateria e embreagem; peça " +
+      "fora de especificação; e evento externo, como colisão e enchente.",
+  },
+];
+
 export const TEXTO_DE_GARANTIA: string[] = [
   "Todo carro do estoque da Motors Store sai com garantia de motor e câmbio, e também do " +
     "diferencial, como está no contrato de venda. O prazo é de " +

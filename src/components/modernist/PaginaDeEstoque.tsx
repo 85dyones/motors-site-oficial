@@ -156,6 +156,22 @@ export interface PaginaDeEstoqueProps {
    * uma vez por página, no primeiro lugar em que o leitor encontra o termo.
    */
   secoes?: SecaoDeTexto[];
+  /**
+   * As seções vêm DEPOIS do `conteudo`, e não antes.
+   *
+   * Tarefa 4.7 da revisão de UI de 30/09: em `/financiamento` o simulador é o
+   * assunto da página, e quatro parágrafos entre o título e ele eram um muro
+   * de texto antes da ferramenta. A abertura fica com o primeiro parágrafo
+   * ("o simulador abaixo…"), e o resto do texto desce para depois do
+   * simulador, em seção com `<h2>`. O texto é o mesmo, palavra por palavra.
+   */
+  secoesDepoisDoConteudo?: boolean;
+  /**
+   * Um bloco logo abaixo do `<h1>`, antes da introdução — hoje o resumo da
+   * `/garantia` (tarefa 4.8): prazo, o que cobre e o que não cobre, à vista
+   * sem rolar.
+   */
+  resumo?: ReactNode;
 }
 
 /** Uma seção de texto corrido: vira `<h2>` e parágrafos. */
@@ -210,6 +226,8 @@ export default function PaginaDeEstoque({
   posicaoDoConteudo = "depois-da-grade",
   caminho,
   secoes = [],
+  secoesDepoisDoConteudo = false,
+  resumo,
 }: PaginaDeEstoqueProps) {
   // Um linkador para a página inteira: o mesmo `Set` atravessa introdução e
   // FAQ, então cada destino vira link UMA vez por página, e não uma por
@@ -250,11 +268,26 @@ export default function PaginaDeEstoque({
   const blocoLivre = conteudo ? (
     <div className="-mx-[18px] lg:-mx-10">{conteudo}</div>
   ) : null;
-  const resumo = resumirSelecao(veiculos);
+  const blocoDeSecoes =
+    secoes.length > 0 ? (
+      <div className="border-b-2 border-mt-regua py-8">
+        {secoes.map((secao) => (
+          <section key={secao.titulo} className="max-w-[680px] pb-8 last:pb-0">
+            <h2 className="mt-titulo m-0 text-[20px] lg:text-[26px]">{secao.titulo}</h2>
+            {secao.paragrafos.map((paragrafo, i) => (
+              <p key={i} className={CLASSE_DO_PARAGRAFO}>
+                {comLinks(paragrafo)}
+              </p>
+            ))}
+          </section>
+        ))}
+      </div>
+    ) : null;
+  const resumoDaSelecao = resumirSelecao(veiculos);
   const temResumo = veiculos.length > 0;
   const mostraContagem = contagem && temResumo;
-  const marcasVisiveis = resumo.marcas.slice(0, 3);
-  const marcasOcultas = resumo.marcas.length - marcasVisiveis.length;
+  const marcasVisiveis = resumoDaSelecao.marcas.slice(0, 3);
+  const marcasOcultas = resumoDaSelecao.marcas.length - marcasVisiveis.length;
 
   return (
     <div className="font-modernist">
@@ -306,6 +339,7 @@ export default function PaginaDeEstoque({
             <h1 className="mt-titulo m-0 text-[34px] lg:text-[56px] lg:leading-[.95]">
               {semQuebraNoHifen(titulo)}
             </h1>
+            {resumo && <div className="mt-6">{resumo}</div>}
             {/* A introdução linka pela mesma régua do FAQ, e aqui sem a
                 restrição do JSON-LD: nada deste texto vai para o `FAQPage`.
 
@@ -336,34 +370,34 @@ export default function PaginaDeEstoque({
                 <div className="mb-2 text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
                   NESTA SELEÇÃO
                 </div>
-                {resumo.precoMinimo !== null && (
+                {resumoDaSelecao.precoMinimo !== null && (
                   <div className="text-[15px] font-extrabold">
-                    A partir de {formatarPreco(resumo.precoMinimo)}
+                    A partir de {formatarPreco(resumoDaSelecao.precoMinimo)}
                   </div>
                 )}
                 <dl className="m-0 mt-1.5 text-xs leading-relaxed text-mt-neutral-600">
-                  {resumo.anoMaisNovo !== null && (
+                  {resumoDaSelecao.anoMaisNovo !== null && (
                     <div>
                       <dt className="inline">Ano: </dt>
                       <dd className="m-0 inline text-mt-ink">
-                        {resumo.anoMaisAntigo === resumo.anoMaisNovo
-                          ? resumo.anoMaisNovo
-                          : `${resumo.anoMaisAntigo} a ${resumo.anoMaisNovo}`}
+                        {resumoDaSelecao.anoMaisAntigo === resumoDaSelecao.anoMaisNovo
+                          ? resumoDaSelecao.anoMaisNovo
+                          : `${resumoDaSelecao.anoMaisAntigo} a ${resumoDaSelecao.anoMaisNovo}`}
                       </dd>
                     </div>
                   )}
-                  {resumo.kmMinimo !== null && (
+                  {resumoDaSelecao.kmMinimo !== null && (
                     <div>
                       <dt className="inline">Quilometragem: </dt>
                       <dd className="m-0 inline text-mt-ink">
-                        a partir de {formatarKm(resumo.kmMinimo)}
+                        a partir de {formatarKm(resumoDaSelecao.kmMinimo)}
                       </dd>
                     </div>
                   )}
                   {marcasVisiveis.length > 0 && (
                     <div>
                       <dt className="inline">
-                        {resumo.marcas.length === 1 ? "Marca: " : "Marcas: "}
+                        {resumoDaSelecao.marcas.length === 1 ? "Marca: " : "Marcas: "}
                       </dt>
                       <dd className="m-0 inline text-mt-ink">
                         {marcasVisiveis.join(", ")}
@@ -383,25 +417,15 @@ export default function PaginaDeEstoque({
           )}
         </div>
 
-        {/* Seções com `<h2>` — hoje só a `/garantia`. Depois do cabeçalho e
-            antes de qualquer bloco; lista vazia não desenha nada, e as outras
-            páginas saem idênticas. */}
-        {secoes.length > 0 && (
-          <div className="border-b-2 border-mt-regua py-8">
-            {secoes.map((secao) => (
-              <section key={secao.titulo} className="max-w-[680px] pb-8 last:pb-0">
-                <h2 className="mt-titulo m-0 text-[20px] lg:text-[26px]">{secao.titulo}</h2>
-                {secao.paragrafos.map((paragrafo, i) => (
-                  <p key={i} className={CLASSE_DO_PARAGRAFO}>
-                    {comLinks(paragrafo)}
-                  </p>
-                ))}
-              </section>
-            ))}
-          </div>
-        )}
+        {/* Seções com `<h2>` — `/garantia` e `/financiamento`. Depois do
+            cabeçalho e antes de qualquer bloco, ou logo depois do `conteudo`
+            quando `secoesDepoisDoConteudo`; lista vazia não desenha nada, e
+            as outras páginas saem idênticas. */}
+        {!secoesDepoisDoConteudo && blocoDeSecoes}
 
         {posicaoDoConteudo === "antes-da-grade" && blocoLivre}
+
+        {secoesDepoisDoConteudo && blocoDeSecoes}
 
         {veiculos.length > 0 ? (
           <div className="py-8">

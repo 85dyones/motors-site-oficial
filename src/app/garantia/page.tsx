@@ -10,6 +10,7 @@ import { blocoJsonLd, schemaDePerguntas, schemaDeTrilha } from "../../lib/schema
 import { schemaDaLoja, schemaDoSite } from "../../lib/schemaLoja";
 import {
   PERGUNTAS_DE_GARANTIA,
+  RESUMO_DA_GARANTIA,
   SECOES_DE_GARANTIA,
   TEXTO_DE_GARANTIA,
 } from "../../lib/paginasInstitucionais";
@@ -82,6 +83,7 @@ export default async function GarantiaPage() {
       <PaginaDeEstoque
         trilha={[{ rotulo: "Home", href: "/" }]}
         titulo="Garantia do seminovo"
+        resumo={<ResumoDaGarantia />}
         introducao={TEXTO_DE_GARANTIA}
         secoes={SECOES_DE_GARANTIA}
         contagem={false}
@@ -105,5 +107,27 @@ export default async function GarantiaPage() {
         caminho={CAMINHO}
       />
     </div>
+  );
+}
+
+/**
+ * Prazo, o que cobre e o que não cobre, logo abaixo do título (tarefa 4.8 da
+ * revisão de UI de 30/09). Antes, quem chegava perguntando "está coberto?"
+ * lia três parágrafos e duas seções até a lista de exclusões. Uma `dl`: é
+ * rótulo e resposta, e o leitor de tela anuncia assim.
+ */
+function ResumoDaGarantia() {
+  return (
+    <dl className="m-0 grid grid-cols-1 border-t-2 border-mt-regua lg:grid-cols-3">
+      {RESUMO_DA_GARANTIA.map((item) => (
+        <div
+          key={item.rotulo}
+          className="border-b border-mt-regua-fina py-4 lg:border-b-0 lg:border-r lg:border-mt-regua-media lg:px-6 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"
+        >
+          <dt className="mt-rotulo mt-rotulo-accent">{item.rotulo}</dt>
+          <dd className="m-0 mt-2 text-[15px] leading-relaxed text-mt-ink">{item.texto}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
