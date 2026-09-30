@@ -10,8 +10,10 @@ import { AUTOR_DOS_GUIAS } from "./assinaturaDoGuia";
 /** O `@id` da pessoa que assina os guias — estável, para outro nó poder citá-la. */
 export const ID_DO_AUTOR_DOS_GUIAS = `${SITE_URL}/#autor-dyones-oliveira`;
 
-/** Onde o site apresenta o autor: o bloco `#autor` de `/sobre`. */
-export const URL_DO_AUTOR_DOS_GUIAS = `${SITE_URL}/sobre#autor`;
+/** Onde o site apresenta o autor: o bloco `#autor` de `/sobre`. O caminho
+ *  relativo é o do link visível no guia; a URL absoluta, a do schema. */
+export const CAMINHO_DO_AUTOR_DOS_GUIAS = "/sobre#autor";
+export const URL_DO_AUTOR_DOS_GUIAS = `${SITE_URL}${CAMINHO_DO_AUTOR_DOS_GUIAS}`;
 
 /** O autor dos guias como `Person`, trabalhando para a loja. */
 export function schemaDoAutorDosGuias() {

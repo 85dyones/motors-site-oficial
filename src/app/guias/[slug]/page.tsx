@@ -5,7 +5,7 @@ import { buscarGuiaPublicado, listarGuiasPublicados } from "../../../lib/guiasDo
 import { getCachedSettings } from "../../../lib/settings";
 import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import { blocoJsonLd } from "../../../lib/schemaListagem";
-import { grafoDoGuia } from "../../../lib/schemaGuia";
+import { CAMINHO_DO_AUTOR_DOS_GUIAS, grafoDoGuia } from "../../../lib/schemaGuia";
 import { criarLinkador } from "../../../lib/linksNoTexto";
 import { NOME_DA_SECAO } from "../../../lib/guias";
 import {
@@ -15,7 +15,6 @@ import {
   iniciaisDoAutor,
   mesmoDiaEmCuritiba,
 } from "../../../lib/assinaturaDoGuia";
-import { URL_DO_AUTOR_DOS_GUIAS } from "../../../lib/schemaGuia";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -195,30 +194,32 @@ export default async function GuiaPage({ params }: PageProps) {
             (`/sobre#autor`, o mesmo `url` do nó `Person`) — e UMA data à
             vista: a da atualização, quando houve; a da publicação, quando
             não. As duas continuam no `Article` do JSON-LD. */}
-        {publicadoEm && (
-          <div className="mt-6 flex flex-col gap-3 pb-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <span
-                aria-hidden="true"
-                className="flex h-10 w-10 shrink-0 items-center justify-center bg-mt-cobre text-[13px] font-extrabold tracking-[.04em] text-mt-bg"
-              >
-                {iniciaisDoAutor()}
+        {/* O autor aparece mesmo se a data vier inválida do banco; só a data
+            some. */}
+        <div className="mt-6 flex flex-col gap-3 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 shrink-0 items-center justify-center bg-mt-cobre text-[13px] font-extrabold tracking-[.04em] text-mt-bg"
+            >
+              {iniciaisDoAutor()}
+            </span>
+            <p className="m-0 leading-snug">
+              <span className="block text-[15px] font-bold text-mt-ink">
+                Por{" "}
+                <Link
+                  href={CAMINHO_DO_AUTOR_DOS_GUIAS}
+                  className="mt-foco text-mt-ink underline decoration-mt-regua underline-offset-2 hover:decoration-mt-accent"
+                >
+                  {AUTOR_DOS_GUIAS.nome}
+                </Link>
               </span>
-              <p className="m-0 leading-snug">
-                <span className="block text-[15px] font-bold text-mt-ink">
-                  Por{" "}
-                  <Link
-                    href={URL_DO_AUTOR_DOS_GUIAS.replace(/^https?:\/\/[^/]+/, "")}
-                    className="mt-foco text-mt-ink underline decoration-mt-regua underline-offset-2 hover:decoration-mt-accent"
-                  >
-                    {AUTOR_DOS_GUIAS.nome}
-                  </Link>
-                </span>
-                <span className="block text-[13px] text-mt-neutral-700">{apresentacao}</span>
-              </p>
-            </div>
-            {/* No celular a data desce e alinha com o texto do autor (40 px
-                do monograma + 12 de vão), e não com a borda do monograma. */}
+              <span className="block text-[13px] text-mt-neutral-700">{apresentacao}</span>
+            </p>
+          </div>
+          {/* No celular a data desce e alinha com o texto do autor (40 px
+              do monograma + 12 de vão), e não com a borda do monograma. */}
+          {(atualizadoEm || publicadoEm) && (
             <p className="m-0 pl-[52px] text-[13px] text-mt-neutral-700 sm:pl-0">
               {atualizadoEm ? (
                 <>
@@ -230,8 +231,8 @@ export default async function GuiaPage({ params }: PageProps) {
                 </>
               )}
             </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <article className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">

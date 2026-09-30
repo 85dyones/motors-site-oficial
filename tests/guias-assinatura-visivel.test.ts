@@ -109,8 +109,8 @@ describe("a assinatura do guia na tela", () => {
       datePublished: string;
       dateModified: string;
     };
-    expect(artigo.datePublished).toBeTruthy();
-    expect(artigo.dateModified).toBeTruthy();
+    expect(artigo.datePublished).toBe(ATUALIZADO.publicadoEm);
+    expect(artigo.dateModified).toBe(ATUALIZADO.atualizadoEm);
   });
 
   it("o autor visível é a pessoa que o Article declara, e a loja é a do #dealer", async () => {
@@ -143,7 +143,8 @@ describe("a assinatura do guia na tela", () => {
 
   it("nada de caixa alta espaçada: a linha de rodapé jurídico não volta", async () => {
     const html = await pagina("atualizado");
-    const bloco = html.slice(html.indexOf("Por "), html.indexOf("</time>"));
+    const bloco = html.slice(html.indexOf("Por <a"), html.indexOf("</time>"));
+    expect(bloco.length).toBeGreaterThan(0);
     expect(bloco).not.toMatch(/uppercase/);
   });
 });
