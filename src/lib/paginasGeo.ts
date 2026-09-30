@@ -70,17 +70,17 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "assoalho, molas e parafusos antes de aparecer na pintura.\n" +
         "- A partida numa manhã fria. Motor que custa a pegar a cinco graus não mostra isso às " +
         "três da tarde, com o carro já quente.",
-      "O comprador daqui costuma chegar à loja sabendo o que é laudo e o que ele mostra, porque " +
-        "Curitiba tem um dos mercados de perícia cautelar mais maduros do país. Na Motors Store a " +
+      "Curitiba tem um dos mercados de perícia cautelar mais maduros do país, e o comprador " +
+        "daqui costuma chegar à loja já sabendo o que é laudo e o que ele mostra. Por isso a " +
         "perícia é feita antes, por empresa independente, e o laudo está disponível para consulta " +
         "com o vendedor antes de você fechar o negócio.",
-      "### Como chegar de outros bairros",
+      "### Como chegar ao showroom",
       "- Do Centro, do Batel, do Água Verde ou do Alto da XV: pela Avenida Paraná ou pela " +
         "Linha Verde.\n" +
         "- De Santa Felicidade e do Portão: pela Marechal Floriano e depois pela Linha Verde.\n" +
         "- Da Região Metropolitana, que a loja também atende: Pinhais, Colombo, São José dos " +
-        "Pinhais, Almirante Tamandaré e Araucária ficam a poucos minutos pela Linha Verde e " +
-        "pelo Contorno Norte.",
+        "Pinhais, Almirante Tamandaré e Araucária ficam a poucos minutos do Bacacheri pela Linha " +
+        "Verde e pelo Contorno Norte.",
       "Há estacionamento na porta, e dá para ver o carro, fazer o test drive e conferir a " +
         "documentação na mesma visita.",
     ],
@@ -149,19 +149,22 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       // e não se repete na página de Curitiba.
       "Comprar perto de casa muda o que dá para verificar. Você pode:\n" +
         "- voltar de manhã cedo e dar a partida com o motor frio, o teste mais revelador de um " +
-        "usado e o único que uma visita à tarde nunca faz;\n" +
+        "usado e o único que uma visita única à tarde nunca faz;\n" +
         "- trazer o seu mecânico, ou o amigo que entende de carro, sem marcar o dia com uma " +
         "semana de antecedência;\n" +
         "- ver o mesmo veículo duas vezes antes de decidir.",
-      // Até 30/09 este parágrafo terminava em "Pouca gente pesa isso na hora
-      // de escolher.", um fecho que só repetia o argumento. A prática de
-      // perícia fica na página de Curitiba e no FAQ daqui (ver
-      // `tests/paginas-geo.test.ts`, que mede a sobreposição).
+      // Este parágrafo falava de perícia, e dizia quase palavra por palavra o
+      // que a página de Curitiba já diz: `tests/paginas-geo.test.ts` mediu a
+      // sobreposição e reprovou. A saída certa foi dar a esta o ângulo que só
+      // ela tem, não afrouxar a régua. A prática de perícia fica contada na
+      // página de Curitiba. Até 30/09 terminava em "Pouca gente pesa isso na
+      // hora de escolher.", fecho que só repetia o argumento (humanizer).
       "Depois da compra, a proximidade também ajuda. Dúvida de documentação, de garantia ou da " +
         "primeira revisão se resolve passando aqui numa tarde, sem abrir chamado e esperar retorno.",
-      "O Bacacheri tem concessionárias de marca e seminovos de grupo. Numa multimarcas do " +
-        "bairro, o vendedor atende sem fila de senha e tem tempo para cada venda: de cada dez " +
-        "veículos avaliados, três entram no estoque, e a conversa é sobre esses três.",
+      "O Bacacheri tem concessionárias de marca e seminovos de grupo, e a Motors Store, " +
+        "multimarcas do próprio bairro, se distingue pelo tempo que dedica a cada venda. Aqui o " +
+        "vendedor atende sem fila de senha: de cada dez veículos avaliados, três entram no " +
+        "estoque, e a conversa é sobre esses três.",
       "### Chegando à loja",
       "- De fora do bairro, a referência mais fácil é a Linha Verde.\n" +
         "- De dentro, a Avenida Erasto Gaertner e a Avenida Paraná chegam em poucos minutos.\n" +

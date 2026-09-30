@@ -259,7 +259,7 @@ export default function PaginaDeEstoque({
   // A regra sai do próprio texto, sem prop nova: o que vem ANTES do primeiro
   // parágrafo "### Título" fica na abertura; dele em diante, desce para
   // depois da grade, como uma seção de leitura (o "###" vira `<h2>`). Texto
-  // sem "###" (/garantia, /financiamento, bairros) sai como sempre saiu. As
+  // sem "###" (/garantia, /financiamento) sai como sempre saiu. As
   // marcas são as dos guias (`lib/blocosDoGuia.ts`): "- " vira lista, "---"
   // fecha o subtítulo.
   const inicioDaLeitura = introducao.findIndex((p) => /^###\s/.test(p.trim()));
