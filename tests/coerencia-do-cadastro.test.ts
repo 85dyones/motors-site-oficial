@@ -329,8 +329,11 @@ describe("5 · o gate está ligado no lugar certo", () => {
     // O gate tira o carro das listas, mas a URL da ficha continua de pé —
     // resolvida por id, e já indexada. Sem `noindex`, o Google segue servindo a
     // ficha de um carro que o site decidiu não publicar.
+    // Desde 30/09 a decisão mora em `lib/publicacaoDaFicha.ts`, que a ficha
+    // e a prévia de WhatsApp (`/og/ficha/[id]`) usam.
     const rota = lerCodigo("src/app/[categoria]/[marca]/[modelo]/[ficha]/page.tsx");
-    expect(rota).toContain("bloqueadoParaPublicacao");
+    expect(rota).toContain('import { publicacaoDoVeiculo } from "../../../../../lib/publicacaoDaFicha";');
+    expect(lerCodigo("src/lib/publicacaoDaFicha.ts")).toContain("bloqueadoParaPublicacao: !publicavel(veiculo)");
     expect(lerCodigo("src/lib/publicacao.ts")).toMatch(/bloqueadoParaPublicacao[\s\S]{0,300}noindex:\s*true/);
   });
 });

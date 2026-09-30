@@ -4,14 +4,18 @@ import { getVeiculoById } from "../../../../lib/supabase";
 import { getCachedSettings } from "../../../../lib/settings";
 import DEFAULT_COMPANY_SETTINGS from "../../../../lib/companySettings.json";
 import { modeloEVersaoParaExibir } from "../../../../lib/estoqueTabela";
+import { publicacaoDoVeiculo } from "../../../../lib/publicacaoDaFicha";
 import {
   ALTURA_CARD,
+  ID_DA_PREVIA,
   LARGURA_CARD,
+  caminhoDaPreviaDaFicha,
   fotoDaPreviaDoVeiculo,
   fotoPodeVirarPrevia,
   periciaAprovadaNaPrevia,
   previaDaFotoDoVeiculo,
   versaoDaPreviaDaFicha,
+  type RotuloDaPrevia,
 } from "../../../../lib/compartilhamento";
 import { APOIO, ACENTO, COBRE_DA_MARCA, PAPEL, TINTA, carregarArchivo, carregarLogo } from "../../recursos";
 
@@ -52,7 +56,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // Qualquer falha cai no card gerado: prévia genérica é melhor que nenhuma.
   const cardGerado = () => Response.redirect(new URL("/og", request.url), 302);
 
-  if (!/^\d+$/.test(id)) return cardGerado();
+  if (!ID_DA_PREVIA.test(id)) return cardGerado();
 
   let veiculo: Awaited<ReturnType<typeof getVeiculoById>> = null;
   try {
@@ -62,11 +66,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
   if (!veiculo) return cardGerado();
 
-  // A `v` que não confere vai para a certa: a imagem só é desenhada para o
-  // carro como ele está, e trocar a `v` à toa não força outra rasterização.
-  const versao = versaoDaPreviaDaFicha(veiculo);
-  if (pedido.searchParams.get("v") !== versao) {
-    return Response.redirect(new URL(`/og/ficha/${id}?v=${versao}`, request.url), 302);
+  // Carro arquivado (a ficha já o manda para o hub do modelo) não ganha peça.
+  // O vendido na carência e o indisponível ganham, com o selo da ficha.
+  let rotulo: RotuloDaPrevia = null;
+  try {
+    const publicacao = await publicacaoDoVeiculo(veiculo);
+    if (publicacao.arquivar) return cardGerado();
+    rotulo = publicacao.indisponivel ? publicacao.rotulo : null;
+  } catch {
+    return cardGerado();
+  }
+
+  // Só o endereço canônico, exato, é desenhado. `v` errada, parâmetro a mais
+  // ou id escrito de outro jeito vão para ele: variar a URL não força outra
+  // rasterização. O `Response.redirect` sai sem `Cache-Control`, então a borda
+  // não guarda o redirecionamento.
+  const canonico = caminhoDaPreviaDaFicha(String(veiculo.id), versaoDaPreviaDaFicha(veiculo, rotulo));
+  if (`${pedido.pathname}${pedido.search}` !== canonico) {
+    return Response.redirect(new URL(canonico, request.url), 302);
   }
 
   const foto = fotoDaPreviaDoVeiculo(veiculo);
@@ -98,11 +115,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const km = Number(veiculo.quilometragem);
     const anoEKm = [
       String(veiculo.ano ?? "").trim(),
-      Number.isFinite(km) && km > 0 ? `${km.toLocaleString("pt-BR")} km` : "",
+      // Espaço fixo: "km" não desce sozinho para a linha de baixo.
+      Number.isFinite(km) && km > 0 ? `${km.toLocaleString("pt-BR")}\u00a0km` : "",
     ]
       .filter(Boolean)
       .join(" · ");
-    const pericia = periciaAprovadaNaPrevia(veiculo);
+    // Um selo só, no alto: o de venda vence o de perícia, como na ficha.
+    const selo = rotulo ?? (periciaAprovadaNaPrevia(veiculo) ? "PERÍCIA APROVADA" : null);
 
     const png = new ImageResponse(
       (
@@ -141,9 +160,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
             </div>
 
             <div style={{ display: "flex", flexDirection: "column" }}>
-              {pericia ? (
+              {selo ? (
                 <div style={{ display: "flex", alignItems: "center", marginBottom: 22 }}>
-                  <div style={{ display: "flex", width: 12, height: 12, backgroundColor: COBRE_DA_MARCA }} />
+                  <div style={{ display: "flex", width: 12, height: 12, backgroundColor: rotulo ? ACENTO : COBRE_DA_MARCA }} />
                   <div
                     style={{
                       display: "flex",
@@ -154,7 +173,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
                       color: PAPEL,
                     }}
                   >
-                    PERÍCIA APROVADA
+                    {selo}
                   </div>
                 </div>
               ) : null}
@@ -217,11 +236,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .jpeg({ quality: 80, mozjpeg: true })
       .toBuffer();
 
+    // A `v` muda quando o carro muda: a peça completa pode ficar na borda. A
+    // que saiu sem a fonte ou sem o logo (falha passageira de rede) fica
+    // cinco minutos, para a próxima tentativa sair inteira.
+    const completa = fontes !== null && logo !== null;
     return new Response(new Uint8Array(jpeg), {
       headers: {
         "Content-Type": "image/jpeg",
-        // A `v` muda quando o que a imagem mostra muda: pode ficar na borda.
-        "Cache-Control": "public, max-age=604800, s-maxage=2592000, immutable",
+        "Cache-Control": completa
+          ? "public, max-age=604800, s-maxage=2592000, immutable"
+          : "public, max-age=300, s-maxage=300",
       },
     });
   } catch (err) {

@@ -333,9 +333,13 @@ export function previaDaFotoDoVeiculo(foto?: string | null): {
  * ---------------------------------------------------------------------------
  * `/og/ficha/[id]` lê o carro do banco pelo id e desenha o que está lá. Se
  * aceitasse nome e quilometragem pela URL, qualquer um montaria uma "peça da
- * Motors Store" com o texto que quisesse. A `v` que não confere com o carro
- * leva a um redirecionamento para a certa, então variar a `v` também não
- * força a rota a desenhar de novo.
+ * Motors Store" com o texto que quisesse. E ela só desenha para o endereço
+ * canônico, exato: `v` errada, parâmetro a mais ou id escrito de outro jeito
+ * levam a um redirecionamento, que não é guardado em cache. Assim ninguém
+ * força a rota a desenhar a mesma peça de novo variando a URL.
+ *
+ * Carro arquivado (vendido há mais de 90 dias, que a ficha já redireciona)
+ * não ganha peça: cai no card genérico.
  */
 export interface VeiculoDaPrevia {
   id: string | number;
@@ -348,6 +352,13 @@ export interface VeiculoDaPrevia {
   whatsapp_images?: string[] | null;
   web_full_images?: string[] | null;
 }
+
+/**
+ * O selo de quem não está à venda ("VENDIDO", "INDISPONÍVEL"), o mesmo da
+ * ficha. Entra na peça no lugar do selo de perícia e na `v`: o carro vendido
+ * ganha URL nova, e a próxima prévia já sai com o selo.
+ */
+export type RotuloDaPrevia = "VENDIDO" | "INDISPONÍVEL" | null;
 
 /** A capa do carro: a mesma escolha que a ficha sempre fez para a prévia. */
 export function fotoDaPreviaDoVeiculo(veiculo: VeiculoDaPrevia): string {
@@ -364,7 +375,10 @@ export function periciaAprovadaNaPrevia(veiculo: VeiculoDaPrevia): boolean {
  * segurança, é só um nome de versão, e roda igual no servidor e no navegador
  * (este módulo também é lido pelo painel).
  */
-export function versaoDaPreviaDaFicha(veiculo: VeiculoDaPrevia): string {
+export function versaoDaPreviaDaFicha(
+  veiculo: VeiculoDaPrevia,
+  rotuloDeIndisponivel: RotuloDaPrevia = null,
+): string {
   const texto = [
     fotoDaPreviaDoVeiculo(veiculo),
     veiculo.marca,
@@ -373,6 +387,7 @@ export function versaoDaPreviaDaFicha(veiculo: VeiculoDaPrevia): string {
     veiculo.ano ?? "",
     veiculo.quilometragem ?? "",
     periciaAprovadaNaPrevia(veiculo) ? "pericia" : "",
+    rotuloDeIndisponivel ?? "",
   ].join("|");
   let hash = 0x811c9dc5;
   for (let i = 0; i < texto.length; i++) {
@@ -387,14 +402,30 @@ export function versaoDaPreviaDaFicha(veiculo: VeiculoDaPrevia): string {
  * `/og/ficha/[id]`, com 1200×630 declarado; foto de fora dele segue como
  * `previaDaFotoDoVeiculo` já tratava.
  */
-export function previaDaFicha(veiculo: VeiculoDaPrevia): { url: string; semDimensao: boolean } {
+export function previaDaFicha(
+  veiculo: VeiculoDaPrevia,
+  rotuloDeIndisponivel: RotuloDaPrevia = null,
+): { url: string; semDimensao: boolean } {
   const foto = fotoDaPreviaDoVeiculo(veiculo);
   const id = String(veiculo.id ?? "").trim();
-  if (!fotoPodeVirarPrevia(foto) || !/^\d+$/.test(id)) return previaDaFotoDoVeiculo(foto);
+  if (!fotoPodeVirarPrevia(foto) || !ID_DA_PREVIA.test(id)) return previaDaFotoDoVeiculo(foto);
   return {
-    url: `/og/ficha/${id}?v=${versaoDaPreviaDaFicha(veiculo)}`,
+    url: caminhoDaPreviaDaFicha(id, versaoDaPreviaDaFicha(veiculo, rotuloDeIndisponivel)),
     semDimensao: false,
   };
+}
+
+/**
+ * O id que a rota aceita: sem zero à esquerda e com até nove dígitos. Zero à
+ * esquerda faria infinitas URLs para o mesmo carro, e um número além da faixa
+ * do INTEGER de `estoque_motors` faria o Postgres recusar a consulta, o que o
+ * `getVeiculoById` trata como estoque fora do ar (e alerta).
+ */
+export const ID_DA_PREVIA = /^[1-9]\d{0,8}$/;
+
+/** O endereço canônico da peça. A rota só desenha para ele. */
+export function caminhoDaPreviaDaFicha(id: string, versao: string): string {
+  return `/og/ficha/${id}?v=${versao}`;
 }
 
 interface EntradaCompartilhamento {

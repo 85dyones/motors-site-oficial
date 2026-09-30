@@ -1,8 +1,7 @@
 import { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
-import { publicavel } from "../../../../../lib/coerenciaDoCadastro";
-import { getEstoque, getSinaisDeEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../lib/supabase";
-import { decidirPublicacao, getDatasDeVenda } from "../../../../../lib/publicacao";
+import { getEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../lib/supabase";
+import { publicacaoDoVeiculo } from "../../../../../lib/publicacaoDaFicha";
 import PDPClientWrapper from "../../../../../components/PDPClientWrapper";
 import FaixaProcedencia from "../../../../../components/modernist/FaixaProcedencia";
 import { getCachedSettings } from "../../../../../lib/settings";
@@ -78,38 +77,6 @@ export async function generateStaticParams() {
   });
 }
 
-/**
- * Como este veículo se apresenta: disponível, vendido ou indisponível, e se
- * continua no índice de busca. A regra vive em `lib/publicacao.ts`; aqui só se
- * junta o que o banco sabe.
- *
- * Chamada duas vezes por render — uma no `generateMetadata`, outra na página.
- * As duas consultas são leves (`getDatasDeVenda` é cacheada, e a de estoque lê
- * só id e carimbo), e a PDP renderiza no máximo uma vez por hora sob o ISR.
- */
-async function publicacaoDoVeiculo(veiculo: {
-  id: string;
-  vendido?: boolean;
-  laudo_pericia?: string | null;
-  whatsapp_images?: unknown;
-}) {
-  const [sinais, datasDeVenda] = await Promise.all([
-    getSinaisDeEstoque(veiculo.id),
-    getDatasDeVenda(),
-  ]);
-
-  return decidirPublicacao({
-    vendido: veiculo.vendido,
-    foraDoFeed: sinais.foraDoFeed,
-    ultimaPresenca: sinais.ultimaPresenca,
-    dataVenda: datasDeVenda[String(veiculo.id)],
-    // A ficha continua respondendo 200 — `getVeiculoById` não filtra —, mas
-    // sai do índice. Sem isto, o carro sairia da vitrine e seguiria ranqueando:
-    // meia-medida, e a pior metade.
-    bloqueadoParaPublicacao: !publicavel(veiculo),
-  });
-}
-
 // Generate dynamic meta tags for Google Index SEO (High Performance indexation)
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
@@ -175,13 +142,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       "financiamento. Motors Store, Bacacheri, Curitiba.";
 
   const pdpUrl = getVeiculoPdpUrl(veiculo);
-  // Desde 30/09 a prévia é a peça montada (foto, modelo, ano, km, selo e
-  // logo, sem preço), em `/og/ficha/[id]`. Ver `previaDaFicha`.
-  const previa = previaDaFicha(veiculo);
   const [{ companySettings }, publicacao] = await Promise.all([
     getCachedSettings(),
     publicacaoDoVeiculo(veiculo),
   ]);
+  // Desde 30/09 a prévia é a peça montada (foto, modelo, ano, km, selo e
+  // logo, sem preço), em `/og/ficha/[id]`. Ver `previaDaFicha`.
+  const previa = previaDaFicha(veiculo, publicacao.indisponivel ? publicacao.rotulo : null);
 
   /**
    * Nome do veículo sem repetir a versão.
