@@ -12,6 +12,8 @@ import { GUIAS_DA_PAGINA } from "../../lib/guiasNoSite";
 import { NOME_DA_SECAO } from "../../lib/guias";
 import { AUTOR_DOS_GUIAS } from "../../lib/assinaturaDoGuia";
 import { schemaDoAutorDosGuias } from "../../lib/schemaGuia";
+import { getReputacaoGoogle } from "../../lib/avaliacoesGoogle";
+import GoogleReviewsFeed from "../../components/GoogleReviewsFeed";
 
 export const revalidate = 60;
 
@@ -59,9 +61,12 @@ const breadcrumbSchema = {
 export default async function SobrePage() {
   // O manifesto cita o tamanho do estoque como argumento ("N unidades e não
   // 300"). O número vem do banco, não do texto — ver `comTotal` no wrapper.
-  const [estoque, { companySettings }] = await Promise.all([
+  const [estoque, { companySettings }, painelDoGoogle] = await Promise.all([
     getEstoque(),
     getCachedSettings(),
+    // A mesma leitura da home, com o mesmo cache de 24 h: as duas páginas
+    // dividem a chamada ao Places API.
+    getReputacaoGoogle(),
   ]);
   const disponiveis = disponiveisDe(estoque);
   const totalEstoque = disponiveis.length;
@@ -107,13 +112,23 @@ export default async function SobrePage() {
     </section>
   );
 
+  /* A nota do Google ao vivo e três avaliações (pedido do dono em 30/09).
+     Sem as variáveis do Places API, ou com a API fora do ar, não há seção:
+     nunca um título "O que dizem os clientes" em cima de caixa vazia. */
+  const reputacao = painelDoGoogle && (
+    <section id="avaliacoes" className="px-[18px] pt-12 lg:px-10 lg:pt-16">
+      <h2 className="mt-titulo m-0 text-[26px] lg:text-[34px]">O que dizem os clientes</h2>
+      <GoogleReviewsFeed painel={painelDoGoogle} limite={3} />
+    </section>
+  );
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: grafo }}
       />
-      <SobreClientWrapper totalEstoque={totalEstoque} autor={autor} />
+      <SobreClientWrapper totalEstoque={totalEstoque} autor={autor} reputacao={reputacao} />
     </>
   );
 }

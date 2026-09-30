@@ -19,6 +19,7 @@ import { GARANTIA_MESES } from "../lib/paginasInstitucionais";
 export default function SobreClientWrapper({
   totalEstoque,
   autor,
+  reputacao,
 }: {
   totalEstoque?: number;
   /**
@@ -27,6 +28,13 @@ export default function SobreClientWrapper({
    * painel: o `@id` e o texto precisam andar juntos.
    */
   autor?: ReactNode;
+  /**
+   * A nota do Google e algumas avaliações, ao vivo (Places API, lida no
+   * servidor pela página). Entra logo depois dos valores, onde o texto do
+   * painel fala de quem já comprou: o número ao lado da prova. Sem dado, a
+   * página não manda nada e a seção não existe.
+   */
+  reputacao?: ReactNode;
 }) {
   const { aboutSettings, companySettings } = useTheme();
 
@@ -150,6 +158,8 @@ export default function SobreClientWrapper({
           </div>
         </section>
       )}
+
+      {reputacao}
 
       {/* ─── Tecnologia ─── */}
       {(aboutSettings.techTitle || aboutSettings.techSubtitle || cards.length > 0) && (
