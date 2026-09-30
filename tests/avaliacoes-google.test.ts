@@ -22,6 +22,7 @@ function avaliacao(over: Partial<AvaliacaoGoogle> = {}): AvaliacaoGoogle {
     id: Math.random().toString(36).slice(2),
     autorNome: "Cliente",
     autorFotoUrl: null,
+    autorUrl: null,
     nota: 5,
     comentario: "Atendimento bom.",
     publicadaEm: "2026-07-01T12:00:00Z",
@@ -101,6 +102,7 @@ describe("montarPainel", () => {
         authorAttribution: {
           displayName: "Rafael M.",
           photoUri: "https://lh3.googleusercontent.com/a/foto",
+          uri: "https://www.google.com/maps/contrib/123",
         },
       },
     ],
@@ -133,6 +135,7 @@ describe("montarPainel", () => {
       id: "places/ChIJabc/reviews/rev1",
       autorNome: "Rafael M.",
       autorFotoUrl: "https://lh3.googleusercontent.com/a/foto",
+      autorUrl: "https://www.google.com/maps/contrib/123",
       nota: 5,
       comentario: "Atendimento impecável.",
       publicadaEm: "2026-07-01T12:00:00Z",

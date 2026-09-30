@@ -118,7 +118,7 @@ export default async function SobrePage() {
   const reputacao = painelDoGoogle && (
     <section id="avaliacoes" className="px-[18px] pt-12 lg:px-10 lg:pt-16">
       <h2 className="mt-titulo m-0 text-[26px] lg:text-[34px]">O que dizem os clientes</h2>
-      <GoogleReviewsFeed painel={painelDoGoogle} limite={3} />
+      <GoogleReviewsFeed painel={painelDoGoogle} limite={3} grade="linha-de-tres" />
     </section>
   );
 

@@ -36,6 +36,12 @@ export type AvaliacaoGoogle = {
   id: string;
   autorNome: string;
   autorFotoUrl: string | null;
+  /**
+   * O perfil do autor no Google Maps (`authorAttribution.uri`). As políticas
+   * do Places API pedem o nome do autor com link para ele quando a resposta
+   * traz o endereço.
+   */
+  autorUrl: string | null;
   nota: number;
   comentario: string | null;
   publicadaEm: string;
@@ -90,7 +96,7 @@ type RespostaPlaces = {
     rating?: number;
     text?: { text?: string };
     publishTime?: string;
-    authorAttribution?: { displayName?: string; photoUri?: string };
+    authorAttribution?: { displayName?: string; photoUri?: string; uri?: string };
   }>;
 };
 
@@ -111,6 +117,7 @@ function mapAvaliacao(cru: NonNullable<RespostaPlaces["reviews"]>[number]): Aval
     id: cru.name,
     autorNome,
     autorFotoUrl: cru.authorAttribution?.photoUri ?? null,
+    autorUrl: cru.authorAttribution?.uri ?? null,
     nota: typeof cru.rating === "number" ? cru.rating : 0,
     comentario: comentario && comentario.length > 0 ? comentario : null,
     publicadaEm: cru.publishTime,

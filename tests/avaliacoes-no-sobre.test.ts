@@ -38,6 +38,7 @@ function avaliacao(id: string, dias: number, comentario = `Comentário ${id}`) {
     id,
     autorNome: `Cliente ${id}`,
     autorFotoUrl: null,
+    autorUrl: `https://www.google.com/maps/contrib/${id}`,
     nota: 5,
     comentario,
     publicadaEm: new Date(Date.now() - dias * 86_400_000).toISOString(),
@@ -76,6 +77,29 @@ describe("avaliações do Google no /sobre", () => {
     // tem texto e a "a" é a mais antiga.
     const nomes = [...html.matchAll(/Cliente ([a-e])/g)].map((m) => m[1]);
     expect(nomes).toEqual(["b", "e", "c"]);
+  });
+
+  it("atribuição das políticas do Places API: \"Google Maps\" e o autor com link para o perfil", async () => {
+    estado.painel = {
+      reputacao: { notaMedia: 4.8, totalAvaliacoes: 173, urlPerfil: null },
+      avaliacoes: [avaliacao("b", 2)] as PainelReputacao["avaliacoes"],
+    };
+    const html = await pagina();
+    expect(html).toMatch(/<p[^>]*translate="no"[^>]*>Google Maps<\/p>/);
+    expect(html).toMatch(/<a href="https:\/\/www\.google\.com\/maps\/contrib\/b"[^>]*rel="noopener noreferrer"[^>]*>Cliente b<\/a>/);
+  });
+
+  it("a linha de três é escolha do /sobre, não da quantidade que a API devolveu", async () => {
+    const { default: GoogleReviewsFeed } = await import("../src/components/GoogleReviewsFeed");
+    const painel = {
+      reputacao: { notaMedia: 4.8, totalAvaliacoes: 3, urlPerfil: null },
+      avaliacoes: [avaliacao("a", 1), avaliacao("b", 2), avaliacao("c", 3)] as PainelReputacao["avaliacoes"],
+    };
+    const padrao = renderToStaticMarkup(createElement(GoogleReviewsFeed, { painel }));
+    expect(padrao).toContain("md:grid-cols-2");
+    expect(padrao).not.toContain("lg:grid-cols-3");
+    const doSobre = renderToStaticMarkup(createElement(GoogleReviewsFeed, { painel, grade: "linha-de-tres" }));
+    expect(doSobre).toContain("lg:grid-cols-3");
   });
 
   it("sem dado (variáveis ausentes, API fora), nenhuma seção", async () => {

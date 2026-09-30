@@ -10,8 +10,9 @@
  * script de terceiro — o único recurso externo que resta é a foto do autor, e
  * ela é opcional (ver `Avatar`).
  *
- * Quem decide se a seção existe é a home: sem dado, `getReputacaoGoogle()`
- * devolve `null` e a seção inteira não é renderizada. Este componente nunca
+ * Quem decide se a seção existe é a página que a usa (a home e, desde 30/09,
+ * o `/sobre`): sem dado, `getReputacaoGoogle()` devolve `null` e a seção
+ * inteira não é renderizada. Este componente nunca
  * precisa desenhar estado vazio — e por isso não há como ele publicar uma
  * caixa de "widget não configurado" em produção, que era o que acontecia.
  */
@@ -88,7 +89,20 @@ function CartaoAvaliacao({ avaliacao }: { avaliacao: AvaliacaoGoogle }) {
       <div className="flex items-center gap-3">
         <Avatar nome={avaliacao.autorNome} fotoUrl={avaliacao.autorFotoUrl} />
         <div className="min-w-0">
-          <div className="truncate text-sm font-extrabold">{avaliacao.autorNome}</div>
+          <div className="truncate text-sm font-extrabold">
+            {avaliacao.autorUrl ? (
+              <a
+                href={avaliacao.autorUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-foco text-mt-ink no-underline hover:underline"
+              >
+                {avaliacao.autorNome}
+              </a>
+            ) : (
+              avaliacao.autorNome
+            )}
+          </div>
           <div className="mt-1 flex items-center gap-2">
             <Estrelas nota={avaliacao.nota} rotulo={`${avaliacao.nota} de 5 estrelas`} />
             {quando && <span className="text-[11px] text-mt-neutral-600">{quando}</span>}
@@ -116,10 +130,17 @@ function CartaoAvaliacao({ avaliacao }: { avaliacao: AvaliacaoGoogle }) {
 export default function GoogleReviewsFeed({
   painel,
   limite,
+  grade = "padrao",
 }: {
   painel: PainelReputacao;
   /** Quantas avaliações mostrar. A home usa o padrão; o `/sobre`, três. */
   limite?: number;
+  /**
+   * `linha-de-tres`: uma linha de três do `lg` para cima — o `/sobre`, que
+   * mostra três. Em duas colunas sobrava uma sozinha embaixo. Escolha da
+   * página, e não da quantidade que a API devolveu.
+   */
+  grade?: "padrao" | "linha-de-tres";
 }) {
   const { reputacao } = painel;
   const avaliacoes = selecionarParaVitrine(painel.avaliacoes, limite);
@@ -164,12 +185,9 @@ export default function GoogleReviewsFeed({
       </div>
 
       {avaliacoes.length > 0 && (
-        // Três avaliações (o `/sobre`) viram uma linha de três do `lg` para
-        // cima; em duas colunas sobrava uma sozinha embaixo. A home, com
-        // até cinco, segue como era.
         <div
           className={`grid grid-cols-1 gap-x-10 gap-y-7 ${
-            avaliacoes.length === 3 ? "lg:grid-cols-3" : "md:grid-cols-2 desktop:grid-cols-3"
+            grade === "linha-de-tres" ? "lg:grid-cols-3" : "md:grid-cols-2 desktop:grid-cols-3"
           }`}
         >
           {avaliacoes.map((avaliacao) => (
@@ -177,6 +195,13 @@ export default function GoogleReviewsFeed({
           ))}
         </div>
       )}
+
+      {/* Atribuição exigida pelas políticas do Places API quando o conteúdo
+          aparece sem um mapa do Google ao lado: o texto "Google Maps", sem
+          tradução nem estilo que o altere. */}
+      <p className="m-0 text-[12px] text-mt-neutral-600" translate="no">
+        Google Maps
+      </p>
     </div>
   );
 }
