@@ -1,7 +1,9 @@
 # Avaliações do Google — como ligar
 
-A seção "04 — REPUTAÇÃO" da home lê o Places API **no servidor**, uma vez por
-dia. Não há tabela, migração, workflow do n8n nem widget de terceiro: o cache do
+A seção "04 — REPUTAÇÃO" da home e o bloco "O que dizem os clientes" do
+`/sobre` (desde 30/09/2026, três avaliações) leem o Places API **no
+servidor**, uma vez por dia, pela mesma função e o mesmo cache: as duas
+páginas dividem a chamada. Não há tabela, migração, workflow do n8n nem widget de terceiro: o cache do
 próprio Next segura o resultado por 24 horas.
 
 O visitante nunca fala com o Google — quem chama é o servidor, na renderização.
@@ -9,7 +11,7 @@ O visitante nunca fala com o Google — quem chama é o servidor, na renderizaç
 | Onde | O quê |
 |---|---|
 | `src/lib/avaliacoesGoogle.ts` | A chamada, o cache e as regras de exibição |
-| `src/components/GoogleReviewsFeed.tsx` | A seção da home |
+| `src/components/GoogleReviewsFeed.tsx` | A seção, na home e no `/sobre` |
 | `tests/avaliacoes-google.test.ts` | Ordenação, formato e o parsing da resposta |
 
 ---
@@ -84,6 +86,11 @@ ordena por data e não olha a nota; há teste fixando isso.
 
 **Não editar o texto da avaliação.** Nem corrigir ortografia, nem cortar. É
 depoimento de cliente.
+
+**Não tirar a atribuição.** Sem um mapa do Google ao lado, as políticas do
+Places API pedem o texto "Google Maps" junto do conteúdo, e o nome de cada
+autor com link para o perfil dele quando a API manda `authorAttribution.uri`.
+O componente faz as duas coisas.
 
 **Não expor a chave no cliente.** `GOOGLE_PLACES_API_KEY` é lida em Server
 Component. Com o prefixo `NEXT_PUBLIC_` ela seria publicada no bundle e
