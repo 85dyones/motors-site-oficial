@@ -409,8 +409,7 @@ export const SECOES_DE_GARANTIA: SecaoDeTexto[] = [
   {
     titulo: "O que fazer se algo falhar",
     paragrafos: [
-      "Nesta ordem:\n" +
-        "- Avise antes de mexer. Reparo feito por conta própria, sem falar com a gente antes, " +
+      "- Avise antes de mexer. Reparo feito por conta própria, sem falar com a gente antes, " +
         "dificulta a análise e pode agravar o problema.\n" +
         "- A gente avalia e conserta na oficina parceira da especialidade, dentro do prazo e do " +
         "escopo do termo, sem franquia e com a mão de obra inclusa.\n" +
