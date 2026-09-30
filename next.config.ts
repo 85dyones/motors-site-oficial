@@ -237,8 +237,11 @@ const nextConfig: NextConfig = {
       ...[
         ["/carros/volkswagen/t-cross-highline-250-tsi-aut", "/carros/volkswagen/t-cross"],
         ["/carros/ford/f-250-xlt", "/carros/ford/f-250"],
-        ["/carros/mercedes-benz/a250-turbo-sport", "/carros/mercedes-benz/a250"],
+        ["/carros/mercedes-benz/a250-turbo-sport", "/carros/mercedes-benz/classe-a"],
         ["/motos/suzuki/gsx-r-750-w-srad", "/motos/suzuki/gsx-r"],
+        // Em 30/09 o dono pediu "Classe A", como fez com a Classe C: o modelo
+        // é a Classe A, e A250 é o motor. `/a250` viveu um dia no ar.
+        ["/carros/mercedes-benz/a250", "/carros/mercedes-benz/classe-a"],
       ].map(([source, destination]) => ({ source, destination, permanent: true })),
       // A página institucional do site antigo. Ficou fora da medição de 20/09
       // porque não estava no sitemap de lá, mas continua indexada: em

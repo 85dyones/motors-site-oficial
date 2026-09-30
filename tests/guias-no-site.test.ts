@@ -81,7 +81,6 @@ describe("o registro de guias do site", () => {
   it("só liga um guia de mecânica a modelo que o texto do guia cita pelo nome", () => {
     // O nome como o guia escreve, quando o slug do hub não é o nome.
     const nome: Record<string, string> = {
-      a250: "Classe A",
       "onix-plus": "Onix Plus",
     };
     for (const [chave, guias] of Object.entries(GUIAS_POR_MODELO)) {

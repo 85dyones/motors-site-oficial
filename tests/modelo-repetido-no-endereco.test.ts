@@ -84,6 +84,15 @@ describe("a regra do nome repetido", () => {
       expect(getVeiculoPdpUrl(v as Parameters<typeof getVeiculoPdpUrl>[0])).toBe(url);
     }
   });
+
+  it("com o override de 30/09, a A250 mora no hub da Classe A", async () => {
+    const { getVeiculoPdpUrl } = await import("../src/lib/supabase");
+    // `mapDbToVeiculo` já troca modelo e versão pelo override; é o que chega aqui.
+    const v = { id: "8497421", marca: "Mercedes-Benz", modelo: "Classe A", versao: "A250 Turbo Sport", tipo: "Hatch" };
+    expect(getVeiculoPdpUrl(v as Parameters<typeof getVeiculoPdpUrl>[0])).toBe(
+      "/carros/mercedes-benz/classe-a/a250-turbo-sport-8497421",
+    );
+  });
 });
 
 describe("os endereços velhos não viram 404", () => {
@@ -93,7 +102,9 @@ describe("os endereços velhos não viram 404", () => {
     const par = (de: string) => regras.find((r) => r.source === de);
     expect(par("/carros/volkswagen/t-cross-highline-250-tsi-aut")?.destination).toBe("/carros/volkswagen/t-cross");
     expect(par("/carros/ford/f-250-xlt")?.destination).toBe("/carros/ford/f-250");
-    expect(par("/carros/mercedes-benz/a250-turbo-sport")?.destination).toBe("/carros/mercedes-benz/a250");
+    // A250 foi para "Classe A" pelo override (30/09), e o hub velho vai junto.
+    expect(par("/carros/mercedes-benz/a250-turbo-sport")?.destination).toBe("/carros/mercedes-benz/classe-a");
+    expect(par("/carros/mercedes-benz/a250")?.destination).toBe("/carros/mercedes-benz/classe-a");
     expect(par("/motos/suzuki/gsx-r-750-w-srad")?.destination).toBe("/motos/suzuki/gsx-r");
     for (const de of ["/carros/volkswagen/t-cross-highline-250-tsi-aut", "/carros/ford/f-250-xlt"]) {
       expect(par(de)?.permanent).toBe(true);
