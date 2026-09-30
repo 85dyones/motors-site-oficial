@@ -32,7 +32,12 @@ export const PUBLICACOES_AO_VIVO = 6;
 /** Uma leitura por hora. A `media_url` do Instagram é assinada e vence em dias. */
 const VALIDADE_DO_CACHE_S = 3_600;
 
-const VERSAO_DA_API = "v23.0";
+/** A mesma versão do resto da integração com a Meta (`META_GRAPH_API_VERSION`);
+ *  sem ela, a última que este módulo conhece. */
+const VERSAO_PADRAO = "v23.0";
+
+/** A Graph API travada não pode travar a geração da home. */
+const TEMPO_LIMITE_MS = 5_000;
 
 const CAMPOS = ["id", "media_type", "media_product_type", "media_url", "thumbnail_url", "permalink"].join(",");
 
@@ -70,6 +75,8 @@ export function montarPublicacoes(bruto: unknown, limite: number = PUBLICACOES_A
     if (item.media_product_type === "STORY") continue;
 
     const imagemUrl = item.media_type === "VIDEO" ? https(item.thumbnail_url) : https(item.media_url);
+    // Carrossel que abre com vídeo traz o mp4 em `media_url`: quadro quebrado.
+    if (imagemUrl && /\.(mp4|mov)(\?|$)/i.test(imagemUrl)) continue;
     const permalink = https(item.permalink);
     if (!imagemUrl || !permalink) continue;
 
@@ -94,13 +101,15 @@ export async function getInstagramAoVivo(): Promise<PublicacaoInstagram[] | null
   }
 
   try {
+    const versao = process.env.META_GRAPH_API_VERSION?.trim();
     const url =
-      `https://graph.facebook.com/${VERSAO_DA_API}/${encodeURIComponent(conta)}/media` +
+      `https://graph.facebook.com/${versao && /^v\d+\.\d+$/.test(versao) ? versao : VERSAO_PADRAO}/${encodeURIComponent(conta)}/media` +
       `?fields=${CAMPOS}&limit=${PUBLICACOES_AO_VIVO * 3}`;
     const res = await fetch(url, {
       // O token vai no cabeçalho, e não na query string: a URL vai para log de
       // servidor e de proxy, e o token junto.
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
       next: { revalidate: VALIDADE_DO_CACHE_S, tags: ["instagram_ao_vivo"] },
     });
 

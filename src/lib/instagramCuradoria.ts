@@ -27,7 +27,8 @@
 export type PublicacaoInstagram = {
   /** Estável entre salvamentos: é a chave de lista do React e do editor. */
   id: string;
-  /** Imagem servida pelo Storage do projeto, não pelo CDN do Instagram. */
+  /** Na curadoria, imagem do Storage do projeto; na faixa automática
+   *  (`instagramAoVivo.ts`), a foto do CDN do Instagram. */
   imagemUrl: string;
   /** Link do post. Opcional — sem ele o quadro não é clicável. */
   permalink: string | null;

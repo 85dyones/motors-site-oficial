@@ -23,8 +23,10 @@ faixa não aparece.
 2. **Atribuir ativos** ao usuário do sistema: a conta do Instagram
    @motorsstore.oficial (e a Página do Facebook ligada a ela), com permissão de
    visualizar.
-3. **Gerar token** para esse usuário, com as permissões `instagram_basic` e
-   `pages_show_list`. Escolha a validade **"Nunca"**. É o token de usuário do
+3. **Gerar token** para esse usuário, com as permissões `instagram_basic`,
+   `pages_show_list`, `pages_read_engagement` e `business_management` (as duas
+   últimas são as que a Meta costuma exigir quando o acesso vem pelo Business
+   Manager). Escolha a validade **"Nunca"**. É o token de usuário do
    sistema que não expira; o token de usuário comum vence em 60 dias.
 4. Na Vercel (motors-site-oficial → Settings → Environment Variables,
    Production):

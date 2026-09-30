@@ -47,6 +47,11 @@ describe("montarPublicacoes", () => {
     expect(lista.map((p) => p.id)).toEqual(["ok"]);
   });
 
+  it("carrossel que abre com vídeo (mp4 em media_url) fica de fora", () => {
+    const lista = montarPublicacoes({ data: [img("cv", { media_type: "CAROUSEL_ALBUM", media_url: "https://cdn/cv.mp4?x=1" }), img("ok")] });
+    expect(lista.map((p) => p.id)).toEqual(["ok"]);
+  });
+
   it("corta em seis, na ordem da API (mais recente primeiro)", () => {
     const lista = montarPublicacoes({ data: Array.from({ length: 10 }, (_, i) => img(`p${i}`)) });
     expect(lista).toHaveLength(PUBLICACOES_AO_VIVO);
@@ -72,5 +77,6 @@ describe("a home", () => {
     expect(lib).toMatch(/Authorization: `Bearer \$\{token\}`/);
     expect(lib).not.toMatch(/access_token=/);
     expect(lib).not.toMatch(/NEXT_PUBLIC_INSTAGRAM/);
+    expect(lib).toMatch(/AbortSignal\.timeout/);
   });
 });
