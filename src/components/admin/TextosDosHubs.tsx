@@ -279,6 +279,13 @@ export default function TextosDosHubs() {
                     ? " Esta página já tem texto próprio."
                     : " Começando do texto que o site gera hoje."}
                 </span>
+                {/* As marcas de leitura (30/09/2026), iguais às dos guias. Sem
+                    este aviso, quem edita não teria como saber que o "###"
+                    muda o lugar do texto na página. */}
+                <span className="text-[11px] text-mt-neutral-700">
+                  Um parágrafo que começa com &quot;### &quot; vira subtítulo, e dele em diante o texto
+                  aparece depois dos carros. Linhas que começam com &quot;- &quot; viram lista.
+                </span>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 border-t border-mt-regua pt-3">

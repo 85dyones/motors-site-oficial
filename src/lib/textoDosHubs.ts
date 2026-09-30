@@ -113,6 +113,15 @@ function enumerar(itens: string[]): string {
  * pegava a frase porque ela atravessava uma concatenação de template literal
  * com string, e porque "fica na ficha" não estava no padrão.
  */
+/**
+ * O subtítulo que abre a leitura do hub (30/09/2026). Tudo o que vem depois
+ * dele desce para depois da grade de carros (`PaginaDeEstoque`): em cima fica
+ * só o resumo do estoque, que é o que quem chegou procurando carro quer ler
+ * primeiro. É uma marca do texto ("### "), e não uma prop, para o texto
+ * editado no painel seguir a mesma regra.
+ */
+export const SUBTITULO_DA_LEITURA = "### Como o carro chega à vitrine";
+
 function paragrafoDaSelecao(genero: Genero = "m"): string {
   return (
     "Todo veículo que entra no estoque passa por perícia cautelar independente antes de ir para a " +
@@ -165,6 +174,7 @@ export function textoDeMarca(
     );
   }
 
+  paragrafos.push(SUBTITULO_DA_LEITURA);
   paragrafos.push(paragrafoDaSelecao(genero));
   return paragrafos;
 }
@@ -216,6 +226,7 @@ export function textoDeModelo(
   // Some a moldura, fica a lista. Vale para os 103 hubs de uma vez, que é o
   // que a edição manual não alcançaria: ninguém escreve cópia para 103
   // páginas.
+  paragrafos.push(SUBTITULO_DA_LEITURA);
   paragrafos.push(
     `${No(genero)} ${nome} ${usado(genero)}, a perícia olha primeiro o histórico: sinistro, leilão, ` +
       "chassi, quilometragem coerente com o ano e restrição de documento.",
@@ -257,6 +268,7 @@ export function textoDeCarroceria(
     );
   }
 
+  paragrafos.push(SUBTITULO_DA_LEITURA);
   paragrafos.push(paragrafoDaSelecao(genero));
   return paragrafos;
 }
@@ -288,6 +300,7 @@ export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[
   // O "de cada dez, três entram" desta página vem só do parágrafo da seleção,
   // logo abaixo: repetido aqui, o hub de faixa dizia a mesma frase duas vezes
   // seguidas (revisão do humanizer, 2026-09-21).
+  paragrafos.push(SUBTITULO_DA_LEITURA);
   paragrafos.push(
     "O carro de R$ 30 mil passa pela mesma perícia cautelar independente que o mais caro da " +
       "vitrine. A faixa de preço só organiza a página e não muda o critério de entrada.",
@@ -333,6 +346,7 @@ export function textoDePerfil(perfil: PerfilDeUso, veiculos: Veiculo[]): string[
     );
   }
 
+  paragrafos.push(SUBTITULO_DA_LEITURA);
   paragrafos.push(
     // Sem repetir "de cada dez, três entram": `paragrafoDaSelecao()` logo
     // abaixo já traz a estatística, e dizê-la duas vezes no mesmo texto
