@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Veiculo } from "../../types";
 import { resumirSelecao } from "../../lib/destaquesRapidos";
 import { criarLinkador } from "../../lib/linksNoTexto";
+import { blocosDaSecao, blocosDoParagrafo, type BlocoDoGuia } from "../../lib/blocosDoGuia";
 import GradeDeVeiculos from "./GradeDeVeiculos";
 import BotaoWhatsApp from "./BotaoWhatsApp";
 import GuiasRelacionados from "./GuiasRelacionados";
@@ -251,6 +252,59 @@ export default function PaginaDeEstoque({
       ),
     );
 
+  // O texto do hub em duas partes (30/09/2026). O dono: os blocos de texto
+  // são "escaneáveis pelos LLMs e buscadores, mas maçantes para os leitores".
+  // Nos hubs, quatro parágrafos ficavam entre o `<h1>` e o primeiro carro.
+  //
+  // A regra sai do próprio texto, sem prop nova: o que vem ANTES do primeiro
+  // parágrafo "### Título" fica na abertura; dele em diante, desce para
+  // depois da grade, como uma seção de leitura (o "###" vira `<h2>`). Texto
+  // sem "###" (/garantia, /financiamento, bairros) sai como sempre saiu. As
+  // marcas são as dos guias (`lib/blocosDoGuia.ts`): "- " vira lista, "---"
+  // fecha o subtítulo.
+  const inicioDaLeitura = introducao.findIndex((p) => /^###\s/.test(p.trim()));
+  const abertura = inicioDaLeitura === -1 ? introducao : introducao.slice(0, inicioDaLeitura);
+  const leitura = inicioDaLeitura === -1 ? [] : introducao.slice(inicioDaLeitura);
+
+  // Um bloco de texto na régua da página: parágrafo, lista ou subtítulo.
+  const desenharBloco = (bloco: BlocoDoGuia, chave: string, nivelDoSubtitulo: "h2" | "h3") => {
+    if (bloco.tipo === "separador") {
+      return <hr key={chave} className="m-0 mt-7 w-16 border-0 border-t-2 border-mt-regua" />;
+    }
+    if (bloco.tipo === "subtitulo") {
+      return nivelDoSubtitulo === "h2" ? (
+        <h2 key={chave} className="mt-titulo m-0 mt-8 text-[20px] first:mt-0 lg:text-[26px]">
+          {bloco.texto}
+        </h2>
+      ) : (
+        <h3 key={chave} className="m-0 mt-6 text-[16px] font-extrabold leading-snug text-mt-ink lg:text-[17px]">
+          {bloco.texto}
+        </h3>
+      );
+    }
+    if (bloco.tipo === "lista") {
+      return (
+        // `role="list"`: com `list-none`, o VoiceOver do Safari deixa de
+        // anunciar a lista como lista.
+        <ul key={chave} role="list" className="m-0 mt-4 max-w-[620px] list-none p-0">
+          {bloco.itens.map((item, i) => (
+            <li
+              key={`${chave}-${i}`}
+              className="relative mt-2 pl-5 text-[14px] leading-relaxed text-mt-neutral-800 before:absolute before:left-0 before:top-[.62em] before:h-[6px] before:w-[6px] before:bg-mt-accent before:content-[''] lg:text-[15px]"
+            >
+              {comLinks(item)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <p key={chave} className={CLASSE_DO_PARAGRAFO}>
+        {comLinks(bloco.texto)}
+      </p>
+    );
+  };
+
   // Os guias que o TEXTO desta página já linka não voltam como card: seria
   // o segundo link para o mesmo destino, e a régua do site é um por página.
   // Aconteceu em `/garantia` na primeira versão (revisão de 29/09): a
@@ -353,11 +407,9 @@ export default function PaginaDeEstoque({
                 `/financiamento` — o ponto exato em que quem está simulando
                 parcela descobre que o carro dele vale entrada, e até 05/09/2026
                 a frase não levava a lugar nenhum. */}
-            {introducao.map((paragrafo, i) => (
-              <p key={i} className={CLASSE_DO_PARAGRAFO}>
-                {comLinks(paragrafo)}
-              </p>
-            ))}
+            {abertura.flatMap((paragrafo, i) =>
+              blocosDoParagrafo(paragrafo).map((bloco, b) => desenharBloco(bloco, `abertura-${i}-${b}`, "h3")),
+            )}
             {acao && <div className="mt-6">{acao}</div>}
           </div>
 
@@ -492,6 +544,16 @@ export default function PaginaDeEstoque({
         )}
 
         {posicaoDoConteudo === "depois-da-grade" && blocoLivre}
+
+        {/* A leitura do hub: o texto que ficava entre o título e os carros.
+            O "###" do texto abre a seção e vira o `<h2>` dela. */}
+        {leitura.length > 0 && (
+          <section className="border-t-2 border-mt-regua py-8">
+            <div className="max-w-[680px]">
+              {blocosDaSecao(leitura).map((bloco, b) => desenharBloco(bloco, `leitura-${b}`, "h2"))}
+            </div>
+          </section>
+        )}
 
         {/* Bloco sem link nenhum não entra: cabeçalho seguido de nada é ruído
             para quem lê e landmark vazio para quem navega por leitor de tela.
