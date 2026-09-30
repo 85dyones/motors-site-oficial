@@ -194,7 +194,7 @@ export default function LeadCaptureModal({
             <span id="lead-modal-title" className="text-[15px] font-extrabold leading-tight tracking-[-.01em]">
               Motors Store
             </span>
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[.08em] text-mt-inverso-suave">
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[.08em] text-mt-inverso-suave">
               <span className="mt-pulso h-1.5 w-1.5 bg-mt-accent" aria-hidden="true" />
               ONLINE AGORA
             </span>

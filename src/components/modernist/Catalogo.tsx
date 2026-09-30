@@ -664,7 +664,7 @@ export default function Catalogo({
                 type="button"
                 onClick={() => setOrdem(o.id)}
                 aria-pressed={ordem === o.id}
-                className={`mt-foco border-b-2 pb-[3px] ${
+                className={`mt-foco mt-alvo border-b-2 pb-[3px] ${
                   ordem === o.id
                     ? "border-mt-accent text-mt-ink"
                     : "border-transparent text-mt-neutral-600 hover:text-mt-ink"

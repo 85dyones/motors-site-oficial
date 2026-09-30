@@ -124,7 +124,7 @@ export default function GaragemVeiculo({ veiculo }: { veiculo: VeiculoDaGaragem 
       {/* ---- o estado de hoje ---- */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <Rotulo className="text-[10px] tracking-[.14em]">KM CONHECIDO</Rotulo>
+          <Rotulo className="text-[11px] tracking-[.14em]">KM CONHECIDO</Rotulo>
           <p className="m-0 mt-1 text-[17px] font-bold tabular-nums text-mt-ink">
             {kmBr(kmConhecido.km)}
           </p>
@@ -135,7 +135,7 @@ export default function GaragemVeiculo({ veiculo }: { veiculo: VeiculoDaGaragem 
         </div>
 
         <div>
-          <Rotulo className="text-[10px] tracking-[.14em]">PRÓXIMA REVISÃO</Rotulo>
+          <Rotulo className="text-[11px] tracking-[.14em]">PRÓXIMA REVISÃO</Rotulo>
           {veiculo.saiu_em ? (
             <p className="m-0 mt-1 text-[13px] leading-snug text-mt-neutral-700">
               Acompanhamento encerrado em {dataBr(veiculo.saiu_em)}. O diário de bordo abaixo
@@ -159,7 +159,7 @@ export default function GaragemVeiculo({ veiculo }: { veiculo: VeiculoDaGaragem 
         </div>
 
         <div>
-          <Rotulo className="text-[10px] tracking-[.14em]">GARANTIA</Rotulo>
+          <Rotulo className="text-[11px] tracking-[.14em]">GARANTIA</Rotulo>
           {veiculo.contrato ? (
             <>
               <p className="m-0 mt-1 text-[15px] font-bold text-mt-ink">
@@ -218,18 +218,18 @@ export default function GaragemVeiculo({ veiculo }: { veiculo: VeiculoDaGaragem 
                   ) : null}
                 </span>
                 {m.confirmada_em ? (
-                  <span className="ml-auto border border-mt-ink px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] text-mt-ink">
+                  <span className="ml-auto border border-mt-ink px-2 py-0.5 text-[11px] font-semibold tracking-[.14em] text-mt-ink">
                     {m.dentro_da_janela ? "VERIFICADA · NA JANELA" : "VERIFICADA"}
                   </span>
                 ) : m.recusada_em ? (
                   <span
-                    className="ml-auto border border-mt-accent px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] text-mt-accent"
+                    className="ml-auto border border-mt-accent px-2 py-0.5 text-[11px] font-semibold tracking-[.14em] text-mt-accent"
                     title={m.motivo_recusa ?? undefined}
                   >
                     NÃO VALIDADA
                   </span>
                 ) : (
-                  <span className="ml-auto border border-mt-regua-fina px-2 py-0.5 text-[9px] font-semibold tracking-[.14em] text-mt-neutral-700">
+                  <span className="ml-auto border border-mt-regua-fina px-2 py-0.5 text-[11px] font-semibold tracking-[.14em] text-mt-neutral-700">
                     AGUARDANDO VERIFICAÇÃO
                   </span>
                 )}
@@ -365,7 +365,7 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
             );
           }}
         >
-          <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+          <label className="text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
             KM no painel do carro
           </label>
           <input
@@ -444,7 +444,7 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+              <label className="text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
                 Data do serviço
               </label>
               <input
@@ -456,7 +456,7 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+              <label className="text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
                 KM no dia
               </label>
               <input
@@ -471,7 +471,7 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
+            <label className="text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700">
               Onde fez, o que trocou (opcional)
             </label>
             <input
@@ -488,7 +488,7 @@ function Registros({ veiculoId, kmConhecido }: { veiculoId: string; kmConhecido:
           <div className="flex flex-col gap-1.5">
             <label
               htmlFor={`foto-${veiculoId}`}
-              className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
+              className="text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
             >
               Foto da etiqueta de troca de óleo
             </label>

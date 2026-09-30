@@ -81,7 +81,7 @@ export default function SimuladorDeFinanciamento({
       <div className="px-5 pt-8 md:px-10">
         <label
           htmlFor="simulador-veiculo"
-          className="text-[10px] font-semibold uppercase tracking-[.14em] text-mt-neutral-600"
+          className="text-[11px] font-semibold uppercase tracking-[.14em] text-mt-neutral-600"
         >
           Simular com qual veículo
         </label>

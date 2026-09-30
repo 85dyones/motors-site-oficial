@@ -39,7 +39,7 @@ export default function SecaoDaFicha({
             onClick={recolhivel.aoAlternar}
             aria-expanded={recolhivel.aberto}
             aria-controls={recolhivel.idDoCorpo}
-            className="mt-foco flex w-full cursor-pointer items-center justify-between gap-4 text-left uppercase tracking-[inherit]"
+            className="mt-foco mt-alvo flex w-full cursor-pointer items-center justify-between gap-4 text-left uppercase tracking-[inherit]"
           >
             <span>{titulo}</span>
             <span aria-hidden="true" className="text-lg font-normal leading-none text-mt-accent">

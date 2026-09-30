@@ -61,7 +61,7 @@ export default function RelogioDaChegada({
 
   return (
     <div className="border-l-[3px] border-mt-accent pl-4">
-      <div className="text-[10px] font-semibold tracking-[.16em] text-mt-accent">
+      <div className="text-[11px] font-semibold tracking-[.16em] text-mt-accent">
         EM PREPARAÇÃO
       </div>
       {chegada?.fase === "a-qualquer-momento" ? (

@@ -79,7 +79,7 @@ export default function GaragemEntrada({ linkVencido = false }: { linkVencido?: 
       <form onSubmit={pedirLink} className="flex flex-col gap-3">
         <label
           htmlFor="garagem-email"
-          className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
+          className="text-[11px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
         >
           E-mail da compra
         </label>

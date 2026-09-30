@@ -234,7 +234,7 @@ export default async function Home() {
            horizontal, e não uma caixa que quebra em várias linhas: na tela 09
            do design doc ele é uma régua só, do lado do rótulo. */
         <div className="flex flex-col border-b border-mt-regua-fina md:flex-row md:items-center lg:px-10">
-          <span className="shrink-0 px-[18px] py-3.5 text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600 md:border-r md:border-mt-regua-fina md:py-3.5 md:pr-5 lg:pl-0">
+          <span className="shrink-0 px-[18px] py-3.5 text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600 md:border-r md:border-mt-regua-fina md:py-3.5 md:pr-5 lg:pl-0">
             DESTAQUES RÁPIDOS
           </span>
           <div className="flex flex-wrap gap-1.5 px-[18px] pb-3 md:flex-nowrap md:gap-0 md:overflow-x-auto md:px-0 md:pb-0">
@@ -245,10 +245,10 @@ export default async function Home() {
                 /* `uppercase` porque o nome vem do painel e não há garantia de
                    caixa no que já está salvo — o trilho é uma régua só, e um
                    chip em caixa baixa no meio dela salta aos olhos. */
-                className="mt-foco flex shrink-0 items-baseline gap-1.5 whitespace-nowrap border border-mt-regua px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline md:border-0 md:border-r md:border-mt-regua-fina md:px-5 md:py-3.5 md:text-xs md:tracking-[.08em]"
+                className="mt-foco flex shrink-0 items-baseline gap-1.5 whitespace-nowrap border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline md:border-0 md:border-r md:border-mt-regua-fina md:px-5 md:py-3.5 md:text-xs md:tracking-[.08em]"
               >
                 {d.tag.name}
-                <span className="text-[10px] font-semibold text-mt-cobre">{d.total}</span>
+                <span className="text-[11px] font-semibold text-mt-cobre">{d.total}</span>
               </Link>
             ))}
           </div>
@@ -335,7 +335,7 @@ export default async function Home() {
     consultoria: (
       <section className="mt-faixa-cheia mt-16 flex flex-col gap-10 bg-mt-inverso-fundo px-[18px] py-12 text-mt-inverso lg:mt-20 lg:flex-row lg:gap-16 lg:px-10 lg:py-16">
         <div className="lg:flex-[1.15]">
-          <div className="mb-3.5 text-[10px] font-semibold tracking-[.18em] text-mt-cobre-marca lg:text-[11px]">
+          <div className="mb-3.5 text-[11px] font-semibold tracking-[.18em] text-mt-cobre-marca lg:text-[11px]">
             02 — CONSULTORIA
           </div>
           <h2 className="mt-titulo m-0 text-[34px] lg:text-[54px] lg:leading-[.95]">
@@ -392,13 +392,13 @@ export default async function Home() {
           <div className="mt-7 flex max-w-[420px] border-t-2 border-mt-regua">
             <div className="flex-1 border-r border-mt-regua-media pr-4 pt-3.5">
               <div className="text-[26px] font-extrabold">3 EM 10</div>
-              <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
+              <div className="mt-1 text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
                 VIRAM ESTOQUE
               </div>
             </div>
             <div className="flex-1 pl-4 pt-3.5">
               <div className="text-[26px] font-extrabold">FIPE</div>
-              <div className="mt-1 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
+              <div className="mt-1 text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
                 DADOS OFICIAIS
               </div>
             </div>

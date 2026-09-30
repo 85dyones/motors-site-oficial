@@ -333,7 +333,7 @@ export default function PaginaDeEstoque({
                 </p>
               )}
               <div className="border-t-2 border-mt-regua pt-3.5">
-                <div className="mb-2 text-[10px] font-semibold tracking-[.14em] text-mt-neutral-600">
+                <div className="mb-2 text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
                   NESTA SELEÇÃO
                 </div>
                 {resumo.precoMinimo !== null && (
@@ -374,7 +374,7 @@ export default function PaginaDeEstoque({
                 </dl>
                 <div className="mt-3 flex items-center gap-2">
                   <span className="h-1.5 w-1.5 bg-mt-cobre" aria-hidden="true" />
-                  <span className="text-[10px] font-semibold tracking-[.1em] text-mt-neutral-600">
+                  <span className="text-[11px] font-semibold tracking-[.1em] text-mt-neutral-600">
                     TODOS PASSAM PELA PERÍCIA CAUTELAR
                   </span>
                 </div>
@@ -483,7 +483,7 @@ export default function PaginaDeEstoque({
                 >
                   {link.rotulo}
                   {typeof link.total === "number" && (
-                    <span className="text-[10px] font-semibold text-mt-cobre">{link.total}</span>
+                    <span className="text-[11px] font-semibold text-mt-cobre">{link.total}</span>
                   )}
                 </Link>
               ))}

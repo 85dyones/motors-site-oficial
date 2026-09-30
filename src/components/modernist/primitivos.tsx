@@ -220,7 +220,7 @@ export function EstatisticasRegua({
             {item.valor}
           </div>
           <div
-            className={`mt-1 text-[10px] font-semibold tracking-[.14em] ${
+            className={`mt-1 text-[11px] font-semibold tracking-[.14em] ${
               inverso ? "text-mt-inverso-suave" : "text-mt-neutral-600"
             }`}
           >
@@ -406,23 +406,23 @@ export function CardVeiculo({
             {periciaAprovada && (
               <span
                 data-selo="pericia"
-                className="flex items-center gap-1.5 bg-mt-inverso-fundo px-2 py-1.5 text-[9px] font-extrabold tracking-[.12em] text-mt-inverso"
+                className="flex items-center gap-1.5 bg-mt-inverso-fundo px-2 py-1.5 text-[11px] font-extrabold tracking-[.12em] text-mt-inverso"
               >
                 <span className="h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
                 PERÍCIA APROVADA
               </span>
             )}
-            {etiqueta && <Etiqueta className="text-[9px]">{etiqueta}</Etiqueta>}
+            {etiqueta && <Etiqueta className="text-[11px]">{etiqueta}</Etiqueta>}
           </div>
         )}
         {/* Carro em preparação: canto de baixo, à esquerda — o de cima é da
             etiqueta e o da direita é da contagem de fotos. */}
         <FaixaEmPreparacao
           veiculo={veiculo}
-          className="absolute bottom-0 left-0 px-2 py-1 text-[9px]"
+          className="absolute bottom-0 left-0 px-2 py-1 text-[11px]"
         />
         {contagemFotos && (
-          <span className="pointer-events-none absolute bottom-0 right-0 bg-[rgba(20,18,18,.82)] px-2 py-1 text-[10px] font-semibold text-mt-inverso">
+          <span className="pointer-events-none absolute bottom-0 right-0 bg-[rgba(20,18,18,.82)] px-2 py-1 text-[11px] font-semibold text-mt-inverso">
             {contagemFotos}
           </span>
         )}
@@ -485,7 +485,7 @@ export function CardVeiculo({
               key={coluna.rotulo}
               className={`min-w-0 pt-2 ${i > 0 ? `border-l pl-2.5 ${cor.fina}` : ""}`}
             >
-              <dt className={`text-[9px] font-semibold tracking-[.14em] ${cor.apoio}`}>
+              <dt className={`text-[11px] font-semibold tracking-[.14em] ${cor.apoio}`}>
                 {coluna.rotulo}
               </dt>
               <dd

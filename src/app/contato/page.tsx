@@ -74,19 +74,19 @@ export default async function ContatoPage() {
         <div className="flex items-center gap-2 self-start mb-2">
           <a
             href="/"
-            className="text-[9px] font-thin uppercase tracking-wider text-brand-text/40 hover:text-brand-primary transition-colors"
+            className="text-[11px] font-thin uppercase tracking-wider text-brand-text/40 hover:text-brand-primary transition-colors"
           >
             HOME
           </a>
           <span className="text-brand-text/20 text-[8px]">/</span>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-brand-gold">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-brand-gold">
             CONTATO
           </span>
         </div>
 
         {/* Hero Section */}
         <section className="flex flex-col gap-1.5 text-center sm:text-left mb-2">
-          <span className="text-[10px] font-bold text-brand-primary uppercase tracking-[0.2em]">
+          <span className="text-[11px] font-bold text-brand-primary uppercase tracking-[0.2em]">
             CANAIS DE ATENDIMENTO
           </span>
           <h1 className="text-2xl font-extrabold text-brand-text tracking-tight uppercase" id="contato-h1">

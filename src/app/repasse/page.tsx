@@ -139,7 +139,7 @@ export default async function PaginaDoRepasse() {
               {" / "}
               <span className="text-mt-inverso">{TRILHA_DO_REPASSE.repasse.toUpperCase()}</span>
             </nav>
-            <p className="m-0 mt-6 text-[11px] font-extrabold tracking-[.14em] text-mt-accent">{HEROI_DO_REPASSE.rotulo}</p>
+            <p className="m-0 mt-6 text-[11px] font-extrabold tracking-[.14em] text-mt-cobre-marca">{HEROI_DO_REPASSE.rotulo}</p>
             <h1 className="mt-titulo m-0 mt-3 text-[38px] lg:text-[64px]">{HEROI_DO_REPASSE.titulo}</h1>
             <p className="m-0 mt-4 max-w-[560px] text-[15px] leading-relaxed text-mt-inverso-suave">{HEROI_DO_REPASSE.texto}</p>
             {!vazio && <TrilhaDoHeroi totalNoLote={resumo.lote.length} />}

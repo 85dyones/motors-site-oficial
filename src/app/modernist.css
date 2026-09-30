@@ -235,7 +235,7 @@
   padding: 6px 10px;
   background: var(--mt-inverso-fundo);
   color: var(--mt-inverso-texto);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
 }
@@ -487,6 +487,15 @@
   }
 }
 
+/* A barra de cookies do celular fica no pé da tela até o "Entendi": enquanto
+   ela existe, o navegador rola o elemento em foco para cima dela, e não para
+   baixo (WCAG 2.4.11, foco não encoberto). */
+@media (width < 48rem) {
+  html:has(.mt-aviso-cookies) {
+    scroll-padding-bottom: 104px;
+  }
+}
+
 .mt-grupo-conta {
   font-size: 11px;
   font-weight: 800;
@@ -500,6 +509,27 @@
 .mt-foco:focus-visible {
   outline: 2px solid var(--mt-accent);
   outline-offset: 2px;
+}
+
+/* Área de toque de 44 × 44 px em volta de um controle que, pelo desenho, é
+   menor (a ordenação do estoque, a migalha, o cabeçalho de seção da ficha).
+   O controle continua do tamanho que se vê; o que cresce é uma camada
+   invisível por dentro dele, então o toque cai nele mesmo. Só cresce o que
+   falta: um controle que já tem 44 px não ganha nada. Tarefa 4.2 da revisão
+   de UI de 30/09. Não usar em itens empilhados a menos de 44 px um do outro:
+   as camadas se sobreporiam. */
+.mt-alvo,
+nav[aria-label="Trilha"] a {
+  position: relative;
+}
+/* A migalha (`<nav aria-label="Trilha">`) aparece em nove páginas, cada uma
+   com o seu markup: a regra mora aqui, e não em nove `className`. */
+.mt-alvo::after,
+nav[aria-label="Trilha"] a::after {
+  content: "";
+  position: absolute;
+  inset-block: min(0px, calc((100% - 44px) / 2));
+  inset-inline: min(0px, calc((100% - 44px) / 2));
 }
 
 /* ─── Painel interno ───────────────────────────────────────────────────────
@@ -525,7 +555,7 @@
 .mt-tabela th {
   padding: 0 14px 8px 0;
   border-bottom: 2px solid var(--mt-regua);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-align: left;

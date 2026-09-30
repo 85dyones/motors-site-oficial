@@ -647,7 +647,7 @@ export default function PDPClientWrapper({
           {veiculo.pericia &&
             !veiculo.pericia.toLowerCase().includes("análise") &&
             !veiculo.pericia.toLowerCase().includes("analise") && (
-              <span className="mt-3 flex w-fit items-center gap-2 bg-mt-inverso-fundo px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-[.12em] text-mt-inverso">
+              <span className="mt-3 flex w-fit items-center gap-2 bg-mt-inverso-fundo px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.12em] text-mt-inverso">
                 <span className="mt-pulso h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
                 {veiculo.pericia}
               </span>
@@ -658,7 +658,7 @@ export default function PDPClientWrapper({
         <div className="grid grid-cols-2 border-t-2 border-mt-regua">
           {quickSpecs.map((spec) => (
             <div key={spec.label} className="border-b border-mt-regua-fina py-3">
-              <div className="text-[9px] font-semibold tracking-[.14em] text-mt-neutral-600">
+              <div className="text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
                 {spec.label}
               </div>
               <div className="mt-1 truncate text-base font-extrabold text-mt-ink">
@@ -677,7 +677,7 @@ export default function PDPClientWrapper({
 
         {/* Preço */}
         <div>
-          <div className="text-[10px] font-semibold tracking-[.16em] text-mt-neutral-600">
+          <div className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600">
             {hasDiscount ? "PREÇO PROMOCIONAL" : "À VISTA"}
           </div>
           <div className="mt-1.5 text-[38px] font-extrabold leading-none tracking-[-.04em] lg:text-[48px]">
@@ -820,7 +820,13 @@ export default function PDPClientWrapper({
               <div
                 ref={carouselRef}
                 onScroll={handleCarouselScroll}
- className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0"
+                // Rolável pelo teclado (tarefa 4.5, axe
+                // `scrollable-region-focusable`): com o foco aqui, as setas
+                // passam as fotos, como no dedo.
+                tabIndex={0}
+                role="region"
+                aria-label={`Fotos do ${veiculo.marca} ${veiculo.modelo}`}
+                className="mt-foco focus-visible:[outline-offset:-3px] flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0"
                 style={{ scrollBehavior: "smooth" }}
               >
                 {displayImages.map((imgUrl, index) => (
@@ -872,7 +878,7 @@ export default function PDPClientWrapper({
               {/* Etiqueta de estado, colada no canto — o sistema não flutua
                   selo com sombra e raio, encosta na quina da célula. */}
               {veiculo.status_tag && (
-                <div className="mt-etiqueta mt-etiqueta-accent absolute left-0 top-0 z-30 gap-2 text-[10px]">
+                <div className="mt-etiqueta mt-etiqueta-accent absolute left-0 top-0 z-30 gap-2 text-[11px]">
                   <span className="mt-pulso h-1.5 w-1.5 bg-mt-inverso" aria-hidden="true" />
                   {veiculo.status_tag.toUpperCase()}
                 </div>
@@ -964,7 +970,7 @@ export default function PDPClientWrapper({
                         +{displayImages.length - 4}
                       </span>
                     )}
-                    <span className="mt-1.5 block text-[10px] font-semibold tracking-[.14em] text-mt-inverso-suave">
+                    <span className="mt-1.5 block text-[11px] font-semibold tracking-[.14em] text-mt-inverso-suave">
                       VER GALERIA
                     </span>
                     <span className="sr-only">

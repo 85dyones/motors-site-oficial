@@ -207,7 +207,7 @@ export default function HeroHome({
         <h1 className="mt-display m-0 text-[44px] text-mt-inverso sm:text-[52px] lg:text-[length:clamp(52px,calc(var(--hero-cabe)*0.1333),112px)] lg:leading-[.88]">
           <span className="mb-3 flex items-center gap-3 leading-[1.5] sm:mb-6 lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
             <span className="h-0.5 w-5 bg-mt-cobre-marca lg:w-7" aria-hidden="true" />
-            <span className="text-[9px] font-semibold uppercase tracking-[.2em] text-mt-cobre-marca lg:text-[11px]">
+            <span className="text-[11px] font-semibold uppercase tracking-[.2em] text-mt-cobre-marca lg:text-[11px]">
               Seminovos selecionados em Curitiba
             </span>
           </span>
@@ -296,7 +296,7 @@ export default function HeroHome({
                       Carre…", e no celular a segunda linha empurrava o preço da
                       placa para fora da primeira dobra. O leitor de tela ouve o
                       nome pelo `sr-only` em qualquer largura. */}
-                  <span className="hidden w-full truncate text-[10px] font-semibold tracking-[.04em] sm:block">
+                  <span className="hidden w-full truncate text-[11px] font-semibold tracking-[.04em] sm:block">
                     {modeloEVersaoParaExibir(v.modelo, v.versao).modelo}
                   </span>
                   <span className="sr-only">{` — ver ${v.marca} ${v.modelo}`}</span>
@@ -318,7 +318,7 @@ export default function HeroHome({
             href={getVeiculoPdpUrl(destaque)}
             className="mt-foco flex w-full flex-col items-start bg-[rgba(20,18,18,.86)] px-[18px] py-3 no-underline sm:px-[22px] sm:py-[18px] sm:w-auto sm:min-w-[280px] lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
           >
-            <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent-400">
+            <span className="text-[11px] font-semibold tracking-[.16em] text-mt-accent-400">
               EM DESTAQUE
             </span>
             <span className="mt-1.5 text-lg font-extrabold tracking-[-.02em] text-mt-inverso sm:mt-[7px] sm:text-xl lg:text-[length:clamp(15px,calc(var(--hero-cabe)*0.0238),20px)]">

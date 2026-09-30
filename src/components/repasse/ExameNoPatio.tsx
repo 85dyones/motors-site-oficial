@@ -196,7 +196,7 @@ export default function ExameNoPatio({ carro, dias, titulo }: { carro: CarroPara
             </div>
           </fieldset>
 
-          <label className="flex items-center gap-2 text-[14px]">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-[14px]">
             <input type="checkbox" name="mecanico" checked={levaMecanico} onChange={(e) => setLevaMecanico(e.target.checked)} />
             {F.levaMecanico}
           </label>

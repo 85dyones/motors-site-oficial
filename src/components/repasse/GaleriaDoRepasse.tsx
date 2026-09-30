@@ -40,7 +40,7 @@ export default function GaleriaDoRepasse({ fotos, etiqueta }: { fotos: FotoDaGal
             className="object-cover"
           />
         )}
-        <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[10px]">
+        <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[11px]">
           {etiqueta}
         </Etiqueta>
         {fotos.length > 0 && (

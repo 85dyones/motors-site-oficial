@@ -94,7 +94,7 @@ export function RepasseOuEstoque() {
       <Rotulo accent>{R.rotulo}</Rotulo>
       <h2 className={TITULO}>{R.titulo}</h2>
       <p className={TEXTO}>{R.texto}</p>
-      <div className="mt-6 overflow-x-auto">
+      <div className="mt-foco mt-6 overflow-x-auto" tabIndex={0} role="region" aria-label={R.titulo}>
         <table className="w-full min-w-[560px] border-collapse text-left text-[14px]">
           <thead>
             <tr className="border-b-2 border-mt-regua text-[11px] tracking-[.12em] text-mt-neutral-600">

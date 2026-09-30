@@ -350,14 +350,14 @@ export default function ListaDoRepasse({ contexto, cabecalho = true }: { context
               </label>
               <fieldset className="m-0 border-0 p-0">
                 <legend className={ROTULO}>{L.tipo}</legend>
-                <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-2 text-[14px]">
+                <div className="mt-1 flex flex-wrap gap-x-5 text-[14px]">
                   {CARROCERIAS_DA_LISTA.map((c) => (
-                    <label key={c} className="flex items-center gap-2">
+                    <label key={c} className="flex min-h-11 cursor-pointer items-center gap-2">
                       <input type="checkbox" name={`carroceria-${c}`} checked={carrocerias.includes(c)} onChange={() => alternar(c)} />
                       {NOME_DA_CARROCERIA[c].rotulo}
                     </label>
                   ))}
-                  <label className="flex items-center gap-2">
+                  <label className="flex min-h-11 cursor-pointer items-center gap-2">
                     <input type="checkbox" name="carroceria-tanto-faz" checked={carrocerias.length === 0} onChange={() => setCarrocerias([])} />
                     {L.tantoFaz}
                   </label>

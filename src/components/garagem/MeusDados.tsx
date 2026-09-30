@@ -89,7 +89,7 @@ export default function MeusDados({ cliente }: { cliente: DadosDoCliente }) {
   return (
     <section className="flex flex-col gap-6 border border-mt-regua-fina bg-mt-surface p-6">
       <div className="border-b border-mt-regua-fina pb-4">
-        <Rotulo className="text-[10px] tracking-[.14em]">MEUS DADOS</Rotulo>
+        <Rotulo className="text-[11px] tracking-[.14em]">MEUS DADOS</Rotulo>
         <h2 className="m-0 mt-2 text-[19px] font-extrabold tracking-[-.015em] text-mt-ink">
           O que a Motors tem sobre você
         </h2>

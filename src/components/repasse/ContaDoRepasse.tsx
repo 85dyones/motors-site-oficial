@@ -34,7 +34,7 @@ export default function ContaDoRepasse({
       <div className="mt-2">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-[23px] font-extrabold tracking-[-.03em]">{emReais(conta.preco)}</span>
-          <span className="text-[10px] text-mt-neutral-600">{ROTULOS_DA_CONTA.noEstado}</span>
+          <span className="text-[11px] text-mt-neutral-600">{ROTULOS_DA_CONTA.noEstado}</span>
         </div>
         <dl className="m-0 mt-1 grid grid-cols-[1fr_auto] gap-x-3 text-[12px]">
           {comReparo && (
