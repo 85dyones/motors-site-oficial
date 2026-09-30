@@ -161,9 +161,9 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       // hora de escolher.", fecho que só repetia o argumento (humanizer).
       "Depois da compra, a proximidade também ajuda. Dúvida de documentação, de garantia ou da " +
         "primeira revisão se resolve passando aqui numa tarde, sem abrir chamado e esperar retorno.",
-      "O Bacacheri tem concessionárias de marca e seminovos de grupo, e a Motors Store, " +
-        "multimarcas do próprio bairro, se distingue pelo tempo que dedica a cada venda. Aqui o " +
-        "vendedor atende sem fila de senha: de cada dez veículos avaliados, três entram no " +
+      "O Bacacheri tem concessionárias de marca e seminovos de grupo, e uma multimarcas que " +
+        "mora no bairro se distingue pelo tempo que pode dedicar a cada venda. Aqui o vendedor " +
+        "não trabalha por fila de senha: de cada dez veículos avaliados, três entram no " +
         "estoque, e a conversa é sobre esses três.",
       "### Chegando à loja",
       "- De fora do bairro, a referência mais fácil é a Linha Verde.\n" +
