@@ -52,7 +52,7 @@ export function ProvasDoRepasse() {
 /** O glossário da conta, e o quadro de exemplo com um carro de verdade do lote (decisão 19). */
 export function ContaAberta({ exemplo }: { exemplo: Repasse | null }) {
   return (
-    <section id={ANCORA_DA_CONTA} className={`${SECAO} scroll-mt-24`}>
+    <section id={ANCORA_DA_CONTA} className={SECAO}>
       <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr]">
         <div>
           <Rotulo accent>{CONTA_ABERTA.rotulo}</Rotulo>

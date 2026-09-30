@@ -132,7 +132,7 @@ export default function ExameNoPatio({ carro, dias, titulo }: { carro: CarroPara
   }
 
   return (
-    <section id={ANCORA_DO_EXAME} className="scroll-mt-24 border-t-2 border-mt-regua px-[18px] py-10 lg:px-10">
+    <section id={ANCORA_DO_EXAME} className="border-t-2 border-mt-regua px-[18px] py-10 lg:px-10">
       <p className="mt-rotulo mt-rotulo-accent m-0">{F.exameRotulo}</p>
       <h2 className="mt-titulo m-0 mt-2 text-[28px] lg:text-[36px]">{titulo}</h2>
       <p className="m-0 mt-2 max-w-[560px] text-[14px] leading-relaxed text-mt-neutral-800">{F.exameTexto}</p>

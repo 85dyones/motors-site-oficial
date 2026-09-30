@@ -53,7 +53,7 @@ const ULTIMA_ATUALIZACAO = "25 de setembro de 2026";
 
 function Secao({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="flex scroll-mt-24 flex-col gap-3">
+    <section id={id} className="flex flex-col gap-3">
       <h2 className="mt-titulo m-0 border-t-2 border-mt-regua pt-4 text-[22px] sm:text-[26px]">
         {titulo}
       </h2>

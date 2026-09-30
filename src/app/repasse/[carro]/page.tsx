@@ -313,7 +313,7 @@ export default async function FichaDoRepasse({ params }: PageProps) {
         </section>
       )}
 
-      <section id={ANCORA_DA_FICHA_DE_ESTADO} className={`scroll-mt-24 ${SECAO}`}>
+      <section id={ANCORA_DA_FICHA_DE_ESTADO} className={SECAO}>
         <Rotulo accent>{F.fichaRotulo}</Rotulo>
         <h2 className={TITULO}>{F.fichaTitulo}</h2>
         <p className="m-0 mt-2 max-w-[620px] text-[14px] leading-relaxed text-mt-neutral-800">{F.fichaTexto}</p>

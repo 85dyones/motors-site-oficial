@@ -233,7 +233,7 @@ export default async function GuiaPage({ params }: PageProps) {
         <article className="min-w-0 lg:col-start-1 lg:row-start-1">
           {guia.corpo.map((secao, s) => (
             <section key={ancoras[s]} className="pb-10 last:pb-0">
-              <h2 id={ancoras[s]} className="mt-titulo m-0 scroll-mt-24 text-[22px] lg:text-[28px]">
+              <h2 id={ancoras[s]} className="mt-titulo m-0 text-[22px] lg:text-[28px]">
                 {secao.titulo}
               </h2>
               {blocosDaSecao(secao.paragrafos).map((bloco, b) => {

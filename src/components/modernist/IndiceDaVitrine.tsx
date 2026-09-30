@@ -30,9 +30,9 @@ export default function IndiceDaVitrine({ disponiveis }: { disponiveis: Veiculo[
   if (!vitrineTemFichas(disponiveis)) return null;
 
   return (
-    // `scroll-mt-24` porque o header é `sticky top-0`: sem a folga, a âncora
-    // deixa o título embaixo dele. Mesma régua que `/privacidade` já usa.
-    <section id="todos-os-veiculos" className="mb-8 scroll-mt-24">
+    // A folga para o header `sticky top-0` vem do `scroll-padding-top` do
+    // `html` (globals.css, 30/09/2026), que vale para toda âncora do site.
+    <section id="todos-os-veiculos" className="mb-8">
       <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
         Todos os veículos à venda <span className="text-mt-cobre">{fichas.length}</span>
       </h2>
