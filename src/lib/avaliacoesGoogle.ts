@@ -117,7 +117,8 @@ function mapAvaliacao(cru: NonNullable<RespostaPlaces["reviews"]>[number]): Aval
     id: cru.name,
     autorNome,
     autorFotoUrl: cru.authorAttribution?.photoUri ?? null,
-    autorUrl: cru.authorAttribution?.uri ?? null,
+    // Só `https:`: o endereço vem de fora e vira `href`.
+    autorUrl: /^https:\/\//i.test(cru.authorAttribution?.uri ?? "") ? cru.authorAttribution!.uri! : null,
     nota: typeof cru.rating === "number" ? cru.rating : 0,
     comentario: comentario && comentario.length > 0 ? comentario : null,
     publicadaEm: cru.publishTime,

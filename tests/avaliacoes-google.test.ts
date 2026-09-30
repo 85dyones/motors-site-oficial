@@ -144,6 +144,14 @@ describe("montarPainel", () => {
     });
   });
 
+  it("link do autor só com https", () => {
+    const [a] = montarPainel({
+      ...respostaCompleta,
+      reviews: [{ ...respostaCompleta.reviews[0], authorAttribution: { displayName: "X", uri: "javascript:alert(1)" } }],
+    })!.avaliacoes;
+    expect(a.autorUrl).toBeNull();
+  });
+
   it("descarta avaliação sem autor — não pode ir ao ar como avaliação do Google", () => {
     const painel = montarPainel({
       ...respostaCompleta,
