@@ -137,7 +137,11 @@ describe("os títulos não pulam nível", () => {
 });
 
 describe("o nome acessível contém o texto visível", () => {
-  it("as miniaturas do hero começam pelo número que mostram", async () => {
+  it("a paginação do hero tira o nome do que está escrito: número, modelo e a marca só para o leitor", async () => {
+    // Desde 29/09 (revisão de UI, pino 5) cada botão mostra "01" e o modelo
+    // ("Kwid"), e perdeu o `aria-label`: com o nome escrito na tela, o
+    // `aria-label` só servia para divergir dele. A marca completa entra num
+    // `sr-only`, como no "VER GALERIA" da ficha.
     const { default: HeroHome } = await import("../src/components/modernist/HeroHome");
     const html = renderToStaticMarkup(
       createElement(HeroHome, {
@@ -146,14 +150,19 @@ describe("o nome acessível contém o texto visível", () => {
         totalMarcas: 17,
       }),
     );
-    const botoes = [...html.matchAll(/<button[^>]*aria-label="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)];
+    const botoes = [...html.matchAll(/<button[^>]*aria-current="(?:true|false)"[^>]*>([\s\S]*?)<\/button>/g)];
     expect(botoes).toHaveLength(2);
-    botoes.forEach(([, rotulo, dentro], i) => {
-      const visivel = textoVisivel(dentro);
-      expect(visivel).toBe(String(i + 1).padStart(2, "0"));
-      expect(rotulo.startsWith(visivel), `"${rotulo}" não começa por "${visivel}"`).toBe(true);
-      // E continua dizendo qual carro é.
-      expect(rotulo).toContain(i === 0 ? "Renault Kwid" : "Renault Sandero");
+    botoes.forEach(([tag, dentro], i) => {
+      expect(tag.slice(0, tag.indexOf(">"))).not.toMatch(/aria-label=/);
+      const visivel = textoVisivel(dentro).replace(/\s+/g, " ").trim();
+      const modelo = i === 0 ? "Kwid" : "Sandero";
+      expect(visivel).toBe(`${String(i + 1).padStart(2, "0")} ${modelo}`);
+      expect(dentro).toMatch(new RegExp(`class="sr-only">[^<]*Renault ${modelo}`));
+      // E na ORDEM: o que se vê vem primeiro. Com o `sr-only` antes do "01",
+      // o nome viraria "— ver Renault Kwid 01 Kwid" (WCAG 2.5.3 pede que ele
+      // comece pelo texto visível).
+      const nome = dentro.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      expect(nome.startsWith(`${String(i + 1).padStart(2, "0")} ${modelo}`), nome).toBe(true);
     });
   });
 

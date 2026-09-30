@@ -5,14 +5,17 @@ import { useEffect, useState, type CSSProperties } from "react";
 import type { Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import { EstatisticasRegua, formatarKm, formatarPreco } from "./primitivos";
+import NumeroQueConta from "./NumeroQueConta";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 
 /**
  * Hero editorial da home.
  *
- * Três fotos em crossfade atrás de um título fixo. O texto não troca com o
- * slide — só a foto e a placa do veículo em destaque, para o hero não piscar
- * conteúdo (mesma regra que o painel documenta em "Áreas do site").
+ * Fotos em crossfade e um título fixo. O texto não troca com o slide — só a
+ * foto e a placa do veículo em destaque, para o hero não piscar conteúdo
+ * (mesma regra que o painel documenta em "Áreas do site"). Do `lg` para cima
+ * a foto é o fundo e o título fica sobre ela; abaixo, a foto vem numa faixa
+ * própria, em cima do texto (29/09).
  */
 
 const INTERVALO_MS = 5200;
@@ -105,7 +108,7 @@ export default function HeroHome({
      * As duas primeiras vars alimentam a EstatisticasRegua, cujos tamanhos
      * moram no primitivo e por isso chegam lá por herança de CSS. */
     <section
-      className="relative flex flex-col bg-mt-inverso-fundo min-h-[520px] lg:min-h-[min(43vw,var(--hero-cabe))]"
+      className="relative flex flex-col bg-mt-inverso-fundo lg:min-h-[min(43vw,var(--hero-cabe))]"
       style={
         {
           "--hero-cabe": "min(840px, calc(100svh - 68px))",
@@ -114,6 +117,16 @@ export default function HeroHome({
         } as CSSProperties
       }
     >
+      {/* A foto no celular: faixa própria, na proporção da foto (3:2), em
+          cima do texto — e não fundo de tela inteira atrás dele.
+
+          Até 29/09 a foto cobria o hero todo em qualquer largura. No celular
+          o hero tem ~390 × 530 px (retrato) e a foto é paisagem: o
+          `object-cover` mostrava um terço da largura e o carro saía cortado
+          ao meio, ainda coberto pelo título e pelo degradê. Em 3:2 a foto
+          entra inteira. Do `lg` para cima volta a ser o fundo, como antes. */}
+      {slides.some((v) => v.web_full_images?.[0] ?? v.whatsapp_images?.[0]) && (
+      <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] lg:absolute lg:inset-0 lg:aspect-auto">
       {slides.map((v, i) => {
         const foto = v.web_full_images?.[0] ?? v.whatsapp_images?.[0];
         if (!foto) return null;
@@ -141,10 +154,20 @@ export default function HeroHome({
           </div>
         );
       })}
+        {/* No celular, só a borda de baixo da foto funde com o fundo do
+            texto: o carro fica limpo, sem véu por cima. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-[linear-gradient(180deg,rgba(32,30,29,0),var(--mt-inverso-fundo))] lg:hidden"
+        />
+      </div>
+      )}
 
+      {/* O véu grafite da esquerda, só onde o texto fica SOBRE a foto (lg+).
+          É ele que garante a leitura do título com carro branco ou preto. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(20,18,18,.25),rgba(20,18,18,.92))] lg:bg-[linear-gradient(90deg,rgba(20,18,18,.92)_0%,rgba(20,18,18,.55)_46%,rgba(20,18,18,0)_78%)]"
+        className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(32,30,29,.92)_0%,rgba(32,30,29,.55)_46%,rgba(32,30,29,0)_78%)] lg:block"
       />
 
       {/* Conteúdo do hero.
@@ -155,7 +178,7 @@ export default function HeroHome({
        * junto com a largura), a régua de estatísticas descia por cima do
        * "01 02 03". Uma coluna flex com `mt-auto` no rodapé mantém a mesma
        * composição e torna a colisão impossível. */}
-      <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-16 lg:px-10 lg:pb-[min(40px,calc(var(--hero-cabe)*0.0476))] lg:pt-[min(76px,calc(var(--hero-cabe)*0.0905))]">
+      <div className="relative z-10 flex flex-1 flex-col px-[18px] pb-6 pt-3 sm:pt-4 lg:px-10 lg:pb-[min(40px,calc(var(--hero-cabe)*0.0476))] lg:pt-[min(76px,calc(var(--hero-cabe)*0.0905))]">
       <div className="pointer-events-none max-w-[700px]">
         {/* O `<h1>` da home diz o que a loja vende e onde — 2026-09-08.
          *
@@ -178,12 +201,11 @@ export default function HeroHome({
          * `tests/h1-da-home-com-praca.test.ts` trava as duas pontas, e trava
          * também que o `<h1>` continue sendo UM só.
          *
-         * O que SAIU daqui: "3 DE CADA 10 ENTRAM". Na home mobile esta era a
-         * única aparição da frase-mãe do posicionamento — a régua de
-         * estatísticas que repete "100% PASSAM PELA CAUTELAR" só existe de
-         * `lg:` para cima. Recolocar é decisão de texto do dono, não de código. */}
-        <h1 className="mt-display m-0 text-[52px] text-mt-inverso lg:text-[length:clamp(52px,calc(var(--hero-cabe)*0.1333),112px)] lg:leading-[.88]">
-          <span className="mb-6 flex items-center gap-3 leading-[1.5] lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
+         * "3 DE CADA 10 ENTRAM" saiu daqui (do `<h1>`) em 08/09. A frase
+         * voltou à capa em 29/09 no parágrafo logo abaixo, no lugar de
+         * "Curadoria, não vitrine." (decisão D4 do dono). */}
+        <h1 className="mt-display m-0 text-[44px] text-mt-inverso sm:text-[52px] lg:text-[length:clamp(52px,calc(var(--hero-cabe)*0.1333),112px)] lg:leading-[.88]">
+          <span className="mb-3 flex items-center gap-3 leading-[1.5] sm:mb-6 lg:mb-[min(26px,calc(var(--hero-cabe)*0.031))]">
             <span className="h-0.5 w-5 bg-mt-cobre-marca lg:w-7" aria-hidden="true" />
             <span className="text-[9px] font-semibold uppercase tracking-[.2em] text-mt-cobre-marca lg:text-[11px]">
               Seminovos selecionados em Curitiba
@@ -204,9 +226,9 @@ export default function HeroHome({
           </span>
         </h1>
 
-        <p className="m-0 mt-3.5 max-w-[460px] text-[13px] leading-relaxed text-mt-neutral-300 lg:mt-[min(28px,calc(var(--hero-cabe)*0.0333))] lg:text-[length:clamp(13px,calc(var(--hero-cabe)*0.0202),17px)]">
+        <p className="m-0 mt-2.5 max-w-[460px] sm:mt-3.5 text-[13px] leading-relaxed text-mt-neutral-300 lg:mt-[min(28px,calc(var(--hero-cabe)*0.0333))] lg:text-[length:clamp(13px,calc(var(--hero-cabe)*0.0202),17px)]">
           {totalEstoque} veículos em estoque com procedência auditada, laudo
-          cautelar e garantia. Curadoria, não vitrine.
+          cautelar e garantia. Três em cada dez avaliados entram.
         </p>
 
         {/* Régua de indicadores: os três números precisam sair do estoque
@@ -215,15 +237,18 @@ export default function HeroHome({
             distintas, que se conta do mesmo estoque que já está em memória. */}
         <EstatisticasRegua
           inverso
+          desenhar
           className="mt-[min(32px,calc(var(--hero-cabe)*0.0381))] hidden w-[460px] lg:flex"
           itens={[
-            { valor: String(totalEstoque), rotulo: "EM ESTOQUE" },
-            { valor: String(totalMarcas), rotulo: "MARCAS" },
+            { valor: <NumeroQueConta valor={totalEstoque} />, rotulo: "EM ESTOQUE" },
+            { valor: <NumeroQueConta valor={totalMarcas} />, rotulo: "MARCAS" },
             // "100% LAUDO CAUTELAR" era lido como "100% aprovado", e no feed
             // de 2026-08-06 só 35 dos 88 estavam aprovados — 53 seguiam em
             // análise. O compromisso real da loja, confirmado pelo dono, é de
             // processo: todo carro é enviado para a perícia. O rótulo agora
             // diz isso, e não o resultado.
+            // O 100% fica parado: contando, ele passava por "37%", num
+            // rótulo que já foi mal lido antes (ver acima).
             { valor: "100%", rotulo: "PASSAM PELA CAUTELAR", accent: true },
           ]}
         />
@@ -233,7 +258,7 @@ export default function HeroHome({
           No mobile a linha não cabe (4 indicadores + placa de 280px > 360px),
           então o rodapé empilha: indicadores em cima, placa embaixo em
           largura total. */}
-      <div className="mt-auto flex flex-col gap-6 pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
+      <div className="mt-auto flex flex-col gap-2.5 pt-4 sm:gap-6 sm:pt-10 sm:flex-row sm:items-end sm:justify-between lg:pt-[min(40px,calc(var(--hero-cabe)*0.0476))]">
         {slides.length > 1 ? (
           <div className="flex items-center gap-4 lg:gap-[18px]">
             {slides.map((v, i) => (
@@ -241,11 +266,6 @@ export default function HeroHome({
                 key={v.id}
                 type="button"
                 onClick={() => setAtual(i)}
-                // O nome começa pelo que está escrito no botão ("01"). Era só
-                // "Ver Renault Kwid…", e quem usa comando de voz dizia "01" e
-                // nada acontecia — o nome não continha o texto visível (WCAG
-                // 2.5.3, auditoria axe `label-content-name-mismatch`, 25/09).
-                aria-label={`${String(i + 1).padStart(2, "0")} — ver ${v.marca} ${v.modelo}`}
                 aria-current={i === atual}
                 /* 64px abaixo de `sm` porque a régua é de largura FIXA: com
                    quatro slides, 4x76 + 3x16 = 352px estoura os 343px úteis de
@@ -259,12 +279,27 @@ export default function HeroHome({
                     style={{ width: i === atual ? "100%" : "0%" }}
                   />
                 </span>
+                {/* Número e o modelo do slide ("01 Kwid"): a paginação vira
+                    navegação de verdade (revisão de 29/09, pino 5). Sem
+                    `aria-label`: o nome acessível é o que está escrito, mais a
+                    marca só para o leitor de tela — quem usa comando de voz
+                    diz o que vê (WCAG 2.5.3). */}
                 <span
-                  className={`text-[11px] font-extrabold tracking-[.12em] ${
+                  className={`flex min-w-0 flex-col items-start gap-1 text-left ${
                     i === atual ? "text-mt-inverso" : "text-mt-inverso-suave"
                   }`}
                 >
-                  {String(i + 1).padStart(2, "0")}
+                  <span className="text-[11px] font-extrabold tracking-[.12em]">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>{" "}
+                  {/* O modelo só do `sm` para cima: a 64 px ele virava "911
+                      Carre…", e no celular a segunda linha empurrava o preço da
+                      placa para fora da primeira dobra. O leitor de tela ouve o
+                      nome pelo `sr-only` em qualquer largura. */}
+                  <span className="hidden w-full truncate text-[10px] font-semibold tracking-[.04em] sm:block">
+                    {modeloEVersaoParaExibir(v.modelo, v.versao).modelo}
+                  </span>
+                  <span className="sr-only">{` — ver ${v.marca} ${v.modelo}`}</span>
                 </span>
               </button>
             ))}
@@ -281,19 +316,19 @@ export default function HeroHome({
              280px voltam a caber na mesma linha. */
           <Link
             href={getVeiculoPdpUrl(destaque)}
-            className="mt-foco flex w-full flex-col items-start bg-[rgba(20,18,18,.86)] px-[22px] py-[18px] no-underline sm:w-auto sm:min-w-[280px] lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
+            className="mt-foco flex w-full flex-col items-start bg-[rgba(20,18,18,.86)] px-[18px] py-3 no-underline sm:px-[22px] sm:py-[18px] sm:w-auto sm:min-w-[280px] lg:py-[min(18px,calc(var(--hero-cabe)*0.0214))]"
           >
             <span className="text-[10px] font-semibold tracking-[.16em] text-mt-accent-400">
               EM DESTAQUE
             </span>
-            <span className="mt-[7px] text-xl font-extrabold tracking-[-.02em] text-mt-inverso lg:text-[length:clamp(15px,calc(var(--hero-cabe)*0.0238),20px)]">
+            <span className="mt-1.5 text-lg font-extrabold tracking-[-.02em] text-mt-inverso sm:mt-[7px] sm:text-xl lg:text-[length:clamp(15px,calc(var(--hero-cabe)*0.0238),20px)]">
               {destaque?.marca} {modeloDestaque}
             </span>
             {versaoDestaque && (
               <span className="mt-0.5 text-xs text-mt-inverso-suave">{versaoDestaque}</span>
             )}
-            <span className="mt-3 flex w-full items-baseline gap-2.5 border-t border-[rgba(243,242,242,.25)] pt-3 lg:mt-[min(12px,calc(var(--hero-cabe)*0.0143))] lg:pt-[min(12px,calc(var(--hero-cabe)*0.0143))]">
-              <span className="text-[22px] font-extrabold tracking-[-.03em] text-mt-inverso lg:text-[length:clamp(16px,calc(var(--hero-cabe)*0.0262),22px)]">
+            <span className="mt-2 flex w-full items-baseline gap-2.5 border-t border-[rgba(243,242,242,.25)] pt-2 sm:mt-3 sm:pt-3 lg:mt-[min(12px,calc(var(--hero-cabe)*0.0143))] lg:pt-[min(12px,calc(var(--hero-cabe)*0.0143))]">
+              <span className="text-[20px] font-extrabold tracking-[-.03em] text-mt-inverso sm:text-[22px] lg:text-[length:clamp(16px,calc(var(--hero-cabe)*0.0262),22px)]">
                 {formatarPreco(preco)}
               </span>
               <span className="ml-auto text-[11px] text-mt-inverso-suave">

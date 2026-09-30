@@ -414,6 +414,39 @@
 .mt-grupo > legend + * {
   clear: both;
 }
+/* — o único movimento de entrada do site (tarefa 3.7, 29/09) —
+   Na capa da home, a régua de 2px sob o título se desenha da esquerda para a
+   direita e, quando ela termina, os números aparecem contando até o valor
+   (NumeroQueConta). Nenhum outro elemento entra animado — o crossfade das
+   fotos e a barra da paginação são troca de slide, não entrada. Com
+   movimento reduzido, tudo já aparece pronto. */
+.mt-regua-desenha {
+  transform-origin: left center;
+  animation: mt-regua-desenha 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
+}
+@keyframes mt-regua-desenha {
+  from {
+    transform: scaleX(0);
+  }
+}
+/* Invisível até 0,7 s (o `APARECE_EM_MS` de NumeroQueConta): a contagem
+   começa no cliente enquanto o número ainda não aparece, e ninguém vê o
+   valor final cair para zero. Sem JavaScript, ele aparece com o valor final. */
+.mt-numeros-surgem {
+  animation: mt-numeros-surgem 0.3s ease-out 0.7s both;
+}
+@keyframes mt-numeros-surgem {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-regua-desenha,
+  .mt-numeros-surgem {
+    animation: none;
+  }
+}
+
 /* — folha de filtros do celular (tarefa 3.5, 29/09) —
    O painel de filtros, aberto abaixo do `lg`, deixa de empurrar a grade para
    baixo e vira uma folha presa ao pé da tela: rolagem própria, cabeçalho e
