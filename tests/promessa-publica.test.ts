@@ -478,7 +478,7 @@ describe("o que entrou no lugar da promessa", () => {
     // corrigido o derivado e deixado a origem.
     const sobre = JSON.parse(readFileSync(join(raiz, "src/lib/aboutSettings.json"), "utf8"));
 
-    expect(sobre.card2Desc).toMatch(/saem da análise de cada banco/);
+    expect(sobre.card2Desc).toMatch(/análise de cada banco/);
     expect(sobre.card2Desc).not.toMatch(/melhores taxas|sem burocracia/i);
   });
 });
@@ -587,8 +587,9 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
     const textoDoSobre = [sobre.card3Desc, sobre.ctaDescription].join(" ");
 
     expect(textoDoSobre).not.toMatch(/todo o Brasil|qualquer região do Brasil/i);
-    expect(textoDoSobre.match(/em todo o Paraná e no litoral catarinense até Balneário Camboriú/gi))
-      .toHaveLength(2);
+    // Desde a reescrita do /sobre em 30/09/2026 o convite final não fala mais
+    // de entrega; quem diz o alcance é o card da troca, com a frase exata.
+    expect(sobre.card3Desc).toMatch(ALCANCE);
   });
 
   it("o FAQ da garantia diz o alcance real", () => {

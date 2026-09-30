@@ -61,7 +61,7 @@ const breadcrumbSchema = {
 export default async function SobrePage() {
   // O manifesto cita o tamanho do estoque como argumento ("N unidades e não
   // 300"). O número vem do banco, não do texto — ver `comTotal` no wrapper.
-  const [estoque, { companySettings }, painelDoGoogle] = await Promise.all([
+  const [estoque, { companySettings, aboutSettings }, painelDoGoogle] = await Promise.all([
     getEstoque(),
     getCachedSettings(),
     // A mesma leitura da home, com o mesmo cache de 24 h: as duas páginas
@@ -128,7 +128,12 @@ export default async function SobrePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: grafo }}
       />
-      <SobreClientWrapper totalEstoque={totalEstoque} autor={autor} reputacao={reputacao} />
+      <SobreClientWrapper
+        totalEstoque={totalEstoque}
+        autor={autor}
+        reputacao={reputacao}
+        sobre={aboutSettings}
+      />
     </>
   );
 }
