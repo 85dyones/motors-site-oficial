@@ -58,26 +58,31 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       // em `tests/paginas-geo.test.ts`.
       "A Motors Store atende Curitiba inteira a partir do showroom no Bacacheri e se diferencia " +
         "das outras revendas da cidade pelo filtro: de cada dez veículos avaliados, três entram.",
-      "Curitiba tem um dos mercados de perícia cautelar mais maduros do país, e o comprador " +
-        "daqui costuma chegar à loja já sabendo o que é laudo e o que ele mostra. Por isso a " +
+      // Forma escaneável desde 30/09/2026 (o dono: "blocos imensos de texto
+      // (...) maçantes para os leitores"). Só o parágrafo acima fica sobre a
+      // grade; do "###" em diante a `PaginaDeEstoque` desenha depois dos
+      // carros, com "- " como lista (ver `lib/blocosDoGuia.ts`).
+      "### O que conferir num carro de Curitiba",
+      // O "o que olhar" (2026-09-01, fórmula do relatório dos hubs), ancorado
+      // no que é específico de Curitiba, não em conselho genérico de compra.
+      "Duas conferências pesam mais aqui do que na média do país:\n" +
+        "- Por baixo do carro. Muito carro daqui passa temporada no litoral, e a maresia ataca " +
+        "assoalho, molas e parafusos antes de aparecer na pintura.\n" +
+        "- A partida numa manhã fria. Motor que custa a pegar a cinco graus não mostra isso às " +
+        "três da tarde, com o carro já quente.",
+      "O comprador daqui costuma chegar à loja sabendo o que é laudo e o que ele mostra, porque " +
+        "Curitiba tem um dos mercados de perícia cautelar mais maduros do país. Na Motors Store a " +
         "perícia é feita antes, por empresa independente, e o laudo está disponível para consulta " +
         "com o vendedor antes de você fechar o negócio.",
-      // O parágrafo "o que olhar" (2026-09-01, fórmula do relatório dos hubs).
-      // Faltava nas duas páginas geo: elas explicavam o critério da loja e o
-      // caminho até ela, sem nunca dizer o que só quem mexe com carro sabe. É
-      // o que o documento chama de autoridade — e aqui é ancorado no que é
-      // específico de Curitiba, não em conselho genérico de compra.
-      "Duas conferências valem mais nesta cidade do que na média do país. A primeira é por " +
-        "baixo: muito carro daqui passa temporada no litoral, e a maresia ataca assoalho, molas e " +
-        "parafusos antes de aparecer na pintura. A segunda é a partida em manhã fria, porque motor " +
-        "que custa a pegar a cinco graus não demonstra isso às três da tarde, com o carro já quente.",
-      "Quem vem do Centro, do Batel, do Água Verde ou do Alto da XV chega pela Avenida Paraná ou " +
-        "pela Linha Verde; de Santa Felicidade e do Portão, o caminho natural é a Marechal " +
-        "Floriano seguida da Linha Verde. Há estacionamento na porta, e dá para ver o carro, " +
-        "fazer o test drive e conferir a documentação na mesma visita.",
-      "O atendimento cobre também a Região Metropolitana: Pinhais, Colombo, São José dos " +
-        "Pinhais, Almirante Tamandaré e Araucária estão a poucos minutos do Bacacheri pela " +
-        "Linha Verde e pelo Contorno Norte.",
+      "### Como chegar de outros bairros",
+      "- Do Centro, do Batel, do Água Verde ou do Alto da XV: pela Avenida Paraná ou pela " +
+        "Linha Verde.\n" +
+        "- De Santa Felicidade e do Portão: pela Marechal Floriano e depois pela Linha Verde.\n" +
+        "- Da Região Metropolitana, que a loja também atende: Pinhais, Colombo, São José dos " +
+        "Pinhais, Almirante Tamandaré e Araucária ficam a poucos minutos pela Linha Verde e " +
+        "pelo Contorno Norte.",
+      "Há estacionamento na porta, e dá para ver o carro, fazer o test drive e conferir a " +
+        "documentação na mesma visita.",
     ],
     faq: [
       {
@@ -136,33 +141,32 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       "independente em todo o estoque, avaliação do seu usado e financiamento.",
     paragrafos: [
       `A loja fica no próprio bairro: ${ENDERECO}, Bacacheri. Quem mora aqui não precisa ` +
-        "atravessar a cidade para ver carro. Dá para passar no fim da tarde, olhar o veículo com " +
+        "atravessar a cidade para ver carro: dá para passar no fim da tarde, olhar o veículo com " +
         "calma e voltar no dia seguinte com quem vai dirigir junto.",
-      "O Bacacheri é território de concessionária de marca e de seminovo de grupo, e uma " +
-        "multimarcas que mora no bairro se distingue pelo tempo que pode dedicar a cada venda. " +
-        "Aqui o vendedor não trabalha por fila de senha: de cada dez veículos avaliados, três " +
-        "entram no estoque, e a conversa é sobre esses três.",
-      // O "o que olhar" desta página é o que a PROXIMIDADE permite verificar —
-      // não conselho de compra genérico. É o argumento da página de bairro
-      // dito em termos mecânicos, e não se repete na página de Curitiba.
-      "Comprar perto de casa muda o que dá para verificar, e quase ninguém aproveita. Você pode " +
-        "voltar de manhã cedo e dar a partida com o motor frio, o teste mais revelador de um " +
-        "usado e o único que uma visita única à tarde nunca faz. Também pode trazer o seu " +
-        "mecânico, ou o amigo que entende de carro, sem marcar o dia com uma semana de " +
-        "antecedência, e ver o mesmo veículo duas vezes antes de decidir.",
-      "A referência mais fácil para quem vem de fora do bairro é a Linha Verde; de dentro, a " +
-        "Avenida Erasto Gaertner e a Avenida Paraná chegam em poucos minutos. Boa Vista, Atuba, " +
-        "Cabral, Tarumã, Santa Cândida e Bairro Alto ficam a menos de dez minutos de carro na " +
-        "maior parte do dia.",
-      // Este parágrafo falava de perícia, e dizia quase palavra por palavra o
-      // que a página de Curitiba já diz — `tests/paginas-geo.test.ts` mediu a
-      // sobreposição e reprovou. Duas páginas geo que repetem o mesmo bloco
-      // são o começo da doorway que o comentário no topo deste arquivo proíbe;
-      // a saída certa foi dar a esta o ângulo que só ela tem, não afrouxar a
-      // régua. A prática de perícia continua contada na outra, e no FAQ daqui.
-      "Comprar de uma loja do próprio bairro também ajuda depois da compra. Quando surge dúvida " +
-        "de documentação, de garantia ou da primeira revisão, você resolve passando aqui numa " +
-        "tarde, sem abrir chamado e esperar retorno. Pouca gente pesa isso na hora de escolher.",
+      // Forma escaneável desde 30/09/2026, como a página de Curitiba.
+      "### O que muda comprando no próprio bairro",
+      // O "o que olhar" desta página é o que a PROXIMIDADE permite verificar,
+      // e não se repete na página de Curitiba.
+      "Comprar perto de casa muda o que dá para verificar. Você pode:\n" +
+        "- voltar de manhã cedo e dar a partida com o motor frio, o teste mais revelador de um " +
+        "usado e o único que uma visita à tarde nunca faz;\n" +
+        "- trazer o seu mecânico, ou o amigo que entende de carro, sem marcar o dia com uma " +
+        "semana de antecedência;\n" +
+        "- ver o mesmo veículo duas vezes antes de decidir.",
+      // Até 30/09 este parágrafo terminava em "Pouca gente pesa isso na hora
+      // de escolher.", um fecho que só repetia o argumento. A prática de
+      // perícia fica na página de Curitiba e no FAQ daqui (ver
+      // `tests/paginas-geo.test.ts`, que mede a sobreposição).
+      "Depois da compra, a proximidade também ajuda. Dúvida de documentação, de garantia ou da " +
+        "primeira revisão se resolve passando aqui numa tarde, sem abrir chamado e esperar retorno.",
+      "O Bacacheri tem concessionárias de marca e seminovos de grupo. Numa multimarcas do " +
+        "bairro, o vendedor atende sem fila de senha e tem tempo para cada venda: de cada dez " +
+        "veículos avaliados, três entram no estoque, e a conversa é sobre esses três.",
+      "### Chegando à loja",
+      "- De fora do bairro, a referência mais fácil é a Linha Verde.\n" +
+        "- De dentro, a Avenida Erasto Gaertner e a Avenida Paraná chegam em poucos minutos.\n" +
+        "- Boa Vista, Atuba, Cabral, Tarumã, Santa Cândida e Bairro Alto ficam a menos de dez " +
+        "minutos de carro na maior parte do dia.",
     ],
     faq: [
       {

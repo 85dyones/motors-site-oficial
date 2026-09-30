@@ -15,6 +15,7 @@ import {
 } from "../src/lib/textoDosHubs";
 import { PERFIS_DE_USO } from "../src/lib/perfisDeUso";
 import { SECOES_DE_GARANTIA } from "../src/lib/paginasInstitucionais";
+import { PAGINAS_GEO } from "../src/lib/paginasGeo";
 import { marcasFortes } from "./marcasDeIA";
 
 /**
@@ -154,4 +155,24 @@ describe("as seções da /garantia também leem as marcas (30/09/2026)", () => {
   it("cada seção continua com o seu h2", () => {
     for (const secao of SECOES_DE_GARANTIA) expect(html).toContain(`>${secao.titulo}</h2>`);
   });
+});
+
+describe("as páginas de bairro na mesma forma (30/09/2026)", () => {
+  for (const pagina of PAGINAS_GEO) {
+    it(pagina.slug, () => {
+      const p = pagina.paragrafos;
+      const inicio = p.findIndex((t) => /^### \S/.test(t));
+      // Só a abertura fica sobre a grade, e ela é curta.
+      expect(inicio, "tem a leitura").toBeGreaterThanOrEqual(1);
+      expect(palavras(p.slice(0, inicio).join(" ")), "abertura curta").toBeLessThanOrEqual(55);
+      const blocos = p.flatMap(blocosDoParagrafo);
+      expect(blocos.some((b) => b.tipo === "lista"), "tem lista").toBe(true);
+      for (const b of blocos) {
+        if (b.tipo === "paragrafo") expect(palavras(b.texto), b.texto.slice(0, 60)).toBeLessThanOrEqual(60);
+      }
+      const html = renderizar(p);
+      expect(html).not.toContain("###");
+      expect(html).not.toMatch(/>\s*- /);
+    });
+  }
 });
