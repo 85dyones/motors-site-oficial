@@ -235,16 +235,37 @@ describe("o que a ficha anuncia fora da página", () => {
     descricaoDisponivel: "Spin 2014 com 80.000 km, cor prata. Motors Store, Curitiba.",
   };
 
-  it("carro À VENDA: preço no título e no card", () => {
-    // A correção não pode custar o título que converte.
+  it("carro À VENDA: preço no título da aba e do Google, fora do card do WhatsApp", () => {
+    // A correção não pode custar o título que converte na busca. O card do
+    // WhatsApp perdeu o preço em 30/09 (decisão do dono): a prévia fica
+    // guardada na conversa por dias, e o preço muda.
     const t = montarTextosDaFicha({
       ...base,
+      descricaoDisponivel: "Spin 2014 prata. Chevrolet Spin por R$ 43.900.",
+      km: 80000,
+      cor: "PRATA",
+      periciaAprovada: true,
       publicacao: { indisponivel: false, rotulo: null },
     });
 
     expect(t.titulo).toBe("Chevrolet Spin 1.8 LT Automático - R$ 43.900 | Motors Store");
-    expect(t.descricao).toBe(base.descricaoDisponivel);
-    expect(t.tituloDoCard).toContain("R$ 43.900");
+    expect(t.descricao).toContain("R$ 43.900");
+    for (const texto of [t.tituloDoCard, t.descricaoDoCard]) {
+      expect(texto, `preço no card: ${texto}`).not.toMatch(/R\$|43\.900/);
+    }
+    expect(t.tituloDoCard).toBe(`Chevrolet Spin 1.8 LT Automático · ${base.ano}`);
+    expect(t.descricaoDoCard).toBe("80.000 km · prata · perícia aprovada. Na Motors Store, em Bacacheri, Curitiba.");
+  });
+
+  it("card sem perícia aprovada não inventa selo, e nome que já tem o ano não repete", () => {
+    const t = montarTextosDaFicha({
+      ...base,
+      nome: `Chevrolet Spin ${base.ano}`,
+      periciaAprovada: false,
+      publicacao: { indisponivel: false, rotulo: null },
+    });
+    expect(t.descricaoDoCard).not.toContain("perícia");
+    expect(t.tituloDoCard).toBe(`Chevrolet Spin ${base.ano}`);
   });
 
   it("carro VENDIDO: nenhum preço, em lugar nenhum", () => {
@@ -259,7 +280,7 @@ describe("o que a ficha anuncia fora da página", () => {
     });
 
     expect(t.titulo).toContain("Vendido");
-    for (const texto of [t.titulo, t.descricao, t.tituloDoCard]) {
+    for (const texto of [t.titulo, t.descricao, t.tituloDoCard, t.descricaoDoCard]) {
       expect(texto, `preço vazou em: ${texto}`).not.toContain("43.900");
       expect(texto).not.toMatch(/R\$/);
     }
@@ -370,6 +391,9 @@ describe("o que a ficha anuncia fora da página", () => {
     expect(pdp).toContain("montarTextosDaFicha({");
     expect(pdp).toContain("title: textos.titulo");
     expect(pdp).toContain("tituloPadrao: textos.tituloDoCard");
+    // O card leva a descrição SEM preço, e não a meta description.
+    expect(pdp).toContain("descricaoPadrao: textos.descricaoDoCard");
+    expect(pdp).toContain('periciaAprovada: veiculo.pericia === "PERÍCIA APROVADA"');
     expect(pdp, "voltou a interpolar o preço no título").not.toContain(
       "title: `${nomeDoVeiculo} - ${priceText}"
     );

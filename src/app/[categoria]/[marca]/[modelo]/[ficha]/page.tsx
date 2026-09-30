@@ -8,7 +8,7 @@ import { getCachedSettings } from "../../../../../lib/settings";
 import { parametrosDoFinanciamento } from "../../../../../lib/parametrosDoFinanciamento-servidor";
 import {
   montarCompartilhamento,
-  previaDaFicha,
+  previaDaFotoDoVeiculo,
 } from "../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../lib/similares";
@@ -146,9 +146,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     getCachedSettings(),
     publicacaoDoVeiculo(veiculo),
   ]);
-  // Desde 30/09 a prévia é a peça montada (foto, modelo, ano, km, selo e
-  // logo, sem preço), em `/og/ficha/[id]`. Ver `previaDaFicha`.
-  const previa = previaDaFicha(veiculo, publicacao.indisponivel ? publicacao.rotulo : null);
+  const imageUrl = veiculo.whatsapp_images[0] || veiculo.web_full_images[0] || "";
+  const previa = previaDaFotoDoVeiculo(imageUrl);
 
   /**
    * Nome do veículo sem repetir a versão.
@@ -170,6 +169,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     km: veiculo.quilometragem,
     precoTexto: priceText,
     descricaoDisponivel: seoDescription,
+    periciaAprovada: veiculo.pericia === "PERÍCIA APROVADA",
     publicacao,
   });
 
@@ -181,8 +181,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // scraper confia no que é declarado, e foto em 4:3 anunciada como se fosse
   // outra coisa é o mesmo defeito que esticava o logo da home. Desde 23/09 a
   // foto passa por `/og/foto`, que a entrega em 1200×630 exatos — e aí a
-  // dimensão volta a ser declarada. Ver `previaDaFotoDoVeiculo` e, desde 30/09,
-  // `previaDaFicha`.
+  // dimensão volta a ser declarada. Ver `previaDaFotoDoVeiculo`.
   return {
     title: textos.titulo,
     description: textos.descricao,
@@ -204,7 +203,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       pagina: "pdp",
       rotulo: `${veiculo.ano} · ${veiculo.quilometragem.toLocaleString("pt-BR")} km`,
       tituloPadrao: textos.tituloDoCard,
-      descricaoPadrao: textos.descricao,
+      descricaoPadrao: textos.descricaoDoCard,
       caminho: pdpUrl,
       imagemPreferida: previa.url,
       imagemPreferidaSemDimensao: previa.semDimensao,
