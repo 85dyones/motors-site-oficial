@@ -1,5 +1,6 @@
 /**
- * Faixa do Instagram — grade de publicações curadas no painel.
+ * Faixa do Instagram — grade das publicações recentes (Graph API,
+ * `lib/instagramAoVivo.ts`) ou, na falta delas, das curadas no painel.
  *
  * Era uma casca do Elfsight, com o mesmo problema da seção de reputação: script
  * de terceiro, plano gratuito com teto de visualizações e, sem o ID
@@ -24,6 +25,8 @@ function Quadro({ publicacao }: { publicacao: PublicacaoInstagram }) {
       src={publicacao.imagemUrl}
       alt={publicacao.legenda ?? "Publicação da Motors no Instagram"}
       loading="lazy"
+      // A foto pode vir do CDN do Instagram: sem o endereço da página junto.
+      referrerPolicy="no-referrer"
       className="aspect-square w-full object-cover"
     />
   );
