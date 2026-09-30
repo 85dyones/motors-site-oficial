@@ -1,5 +1,6 @@
 "use client";
 
+import type { AboutSettings, CompanySettings } from "../types";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
@@ -20,6 +21,8 @@ export default function SobreClientWrapper({
   totalEstoque,
   autor,
   reputacao,
+  sobre,
+  empresa,
 }: {
   totalEstoque?: number;
   /**
@@ -35,8 +38,21 @@ export default function SobreClientWrapper({
    * página não manda nada e a seção não existe.
    */
   reputacao?: ReactNode;
+  /**
+   * O texto do painel, lido NO SERVIDOR pela página (30/09/2026).
+   *
+   * Sem isto o HTML saía com o `aboutSettings.json` de fábrica e só trocava
+   * pelo texto do painel depois que `/api/settings` respondia no navegador:
+   * o buscador lia o texto velho, e o visitante via o velho piscar antes do
+   * novo. Medido em produção no mesmo dia em que o dono reescreveu o painel.
+   */
+  sobre?: AboutSettings | null;
+  /** Endereço, horário e telefone, também lidos no servidor, pelo mesmo motivo. */
+  empresa?: CompanySettings | null;
 }) {
-  const { aboutSettings, companySettings } = useTheme();
+  const { aboutSettings: doContexto, companySettings: empresaDoContexto } = useTheme();
+  const aboutSettings = sobre ?? doContexto;
+  const companySettings = empresa ?? empresaDoContexto;
 
   /** Ver `lib/textoInstitucional.ts` — a regra é testada lá. */
   const comTotal = (texto: string) => aplicarTotalEstoque(texto, totalEstoque);
