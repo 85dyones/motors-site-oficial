@@ -24,7 +24,7 @@ const carregador: ImageLoader = ({ src, width, quality }) =>
 export default function FotoDaFicha(props: Omit<ImageProps, "loader" | "unoptimized"> & { src: string }) {
   // A foto esmaece ao chegar, menos a prioritária: a capa da galeria e a da
   // tela cheia (ver `useSurgimento`).
-  const surgimento = useSurgimento({ imediata: Boolean(props.priority), onLoad: props.onLoad, onError: props.onError });
+  const surgimento = useSurgimento({ imediata: Boolean(props.priority || props.preload), onLoad: props.onLoad, onError: props.onError });
   // `alt` vem nas props; o lint não enxerga através do spread.
   return ehFotoPropria(props.src) ? (
     // eslint-disable-next-line jsx-a11y/alt-text

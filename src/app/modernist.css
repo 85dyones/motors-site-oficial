@@ -523,10 +523,19 @@ img[data-surge="espera"] {
   .mt-card:hover .mt-card-foto {
     transform: none;
   }
-  /* Parada e inteira: o aviso continua, sem o movimento. */
+  /* Parada e inteira: o aviso continua, sem o movimento, e com o mesmo
+     atraso de 120 ms, para a navegação rápida não piscar aqui também. */
   .mt-sinal-de-abertura[data-abrindo] {
-    animation: none;
+    animation: mt-sinal-parado 0s linear 120ms both;
     transform: none;
+  }
+}
+@keyframes mt-sinal-parado {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

@@ -27,7 +27,7 @@ const link = vi.hoisted(() => ({ pending: false }));
 
 vi.mock("next/image", () => ({
   default: (props: Record<string, unknown>) => {
-    const { fill: _f, sizes: _s, priority: _p, loader: _l, fetchPriority: _fp, unoptimized: _u, ...resto } = props;
+    const { fill: _f, sizes: _s, priority: _p, preload: _pl, loader: _l, fetchPriority: _fp, unoptimized: _u, ...resto } = props;
     return createElement("img", resto as never);
   },
 }));
@@ -107,9 +107,9 @@ describe("1 · a foto surge em vez de piscar", () => {
     }
   });
 
-  it("a foto prioritária (a do LCP) nunca passa pela espera", async () => {
+  it.each([{ priority: true }, { preload: true }])("a foto prioritária (a do LCP) nunca passa pela espera: %o", async (prioridade) => {
     const { default: FotoOtimizadaDoCard } = await import("../src/components/modernist/FotoOtimizadaDoCard");
-    const img = (await montar(createElement(FotoOtimizadaDoCard, { src: CARRO57, alt: "x", fill: true, priority: true }))).querySelector("img")!;
+    const img = (await montar(createElement(FotoOtimizadaDoCard, { src: CARRO57, alt: "x", fill: true, ...prioridade }))).querySelector("img")!;
     expect(img.hasAttribute("data-surge")).toBe(false);
     await disparar(img, "load");
     expect(img.hasAttribute("data-surge")).toBe(false);
@@ -194,7 +194,7 @@ describe("3 · o card tocado mostra que a ficha está abrindo", () => {
     const css = lerCodigo("src/app/modernist.css");
     expect(css).toMatch(/\.mt-sinal-de-abertura\[data-abrindo\] \{\s*opacity: 1;\s*animation: mt-sinal-de-abertura 1\.6s [^;]* 120ms both;/);
     expect(css).toMatch(/to \{\s*transform: scaleX\(0\.9\);/);
-    expect(css).toMatch(/\.mt-sinal-de-abertura\[data-abrindo\] \{\s*animation: none;\s*transform: none;/);
+    expect(css).toMatch(/\.mt-sinal-de-abertura\[data-abrindo\] \{\s*animation: mt-sinal-parado 0s linear 120ms both;\s*transform: none;/);
   });
 
   it("sem `loading.tsx` na ficha: ele trocaria o 308 e o 404 da ficha por respostas 200", () => {

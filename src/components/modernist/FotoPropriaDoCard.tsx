@@ -21,7 +21,7 @@ const carregador: ImageLoader = ({ src, width, quality }) =>
 
 export default function FotoPropriaDoCard(props: Omit<ImageProps, "loader" | "unoptimized">) {
   // A foto esmaece ao chegar, menos a prioritária (ver `useSurgimento`).
-  const surgimento = useSurgimento({ imediata: Boolean(props.priority), onLoad: props.onLoad, onError: props.onError });
+  const surgimento = useSurgimento({ imediata: Boolean(props.priority || props.preload), onLoad: props.onLoad, onError: props.onError });
   // `alt` vem nas props; o lint não enxerga através do spread.
   // eslint-disable-next-line jsx-a11y/alt-text
   return <Image {...props} {...surgimento} loader={carregador} />;

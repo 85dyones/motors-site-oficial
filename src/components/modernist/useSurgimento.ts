@@ -14,7 +14,8 @@ import { useEffect, useRef, useState, type SyntheticEvent } from "react";
  * 1. **O HTML do servidor não esconde nada.** O atributo só aparece depois da
  *    hidratação, e só se a foto ainda não tiver chegado. Sem JavaScript, com o
  *    JavaScript quebrado ou com a foto já no cache, ela aparece como antes.
- * 2. **Foto prioritária não passa por isso** (`imediata`). É a capa das
+ * 2. **Foto prioritária não passa por isso** (`imediata`: `priority`, ou o
+ *    `preload` que o substitui no Next 16). É a capa das
  *    primeiras linhas do `/estoque` e da ficha, a que conta para o LCP: uma
  *    imagem com opacidade zero não conta como pintada.
  * 3. **Erro também revela.** Se a foto falhar, o estado volta ao normal e o

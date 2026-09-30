@@ -12,7 +12,7 @@ import { useSurgimento } from "./useSurgimento";
  * existe do lado do cliente. A irmã para a foto nossa é `FotoPropriaDoCard`.
  */
 export default function FotoOtimizadaDoCard(props: Omit<ImageProps, "loader">) {
-  const surgimento = useSurgimento({ imediata: Boolean(props.priority), onLoad: props.onLoad, onError: props.onError });
+  const surgimento = useSurgimento({ imediata: Boolean(props.priority || props.preload), onLoad: props.onLoad, onError: props.onError });
   // `alt` vem nas props; o lint não enxerga através do spread.
   // eslint-disable-next-line jsx-a11y/alt-text
   return <Image {...props} {...surgimento} />;
