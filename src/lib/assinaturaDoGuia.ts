@@ -34,10 +34,23 @@ export const AUTOR_DOS_GUIAS = {
   apresentacao: "profissional com mais de dez anos de mercado",
 } as const;
 
-/** "Dyones Oliveira, Motors Store" — a loja pelo nome que o `#dealer` publica. */
-export function assinaturaDoAutor(nomeDaLoja: string | null | undefined): string {
+/**
+ * A segunda linha do bloco de autor do guia (tarefa 4.11, 30/09):
+ * "Profissional com mais de dez anos de mercado · Motors Store". A loja pelo
+ * nome que o `#dealer` publica; sem nome, só a apresentação.
+ */
+export function apresentacaoDoAutor(nomeDaLoja: string | null | undefined): string {
   const loja = (nomeDaLoja ?? "").trim();
-  return loja ? `${AUTOR_DOS_GUIAS.nome}, ${loja}` : AUTOR_DOS_GUIAS.nome;
+  const frase = AUTOR_DOS_GUIAS.apresentacao.charAt(0).toUpperCase() + AUTOR_DOS_GUIAS.apresentacao.slice(1);
+  return loja ? `${frase} · ${loja}` : frase;
+}
+
+/** "DO": primeira letra do primeiro e do último nome, para o monograma. */
+export function iniciaisDoAutor(): string {
+  const partes = AUTOR_DOS_GUIAS.nome.trim().split(/\s+/);
+  const primeira = partes[0]?.charAt(0) ?? "";
+  const ultima = partes.length > 1 ? partes[partes.length - 1].charAt(0) : "";
+  return (primeira + ultima).toUpperCase();
 }
 
 const FUSO = "America/Sao_Paulo";

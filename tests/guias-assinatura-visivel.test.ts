@@ -81,17 +81,36 @@ function grafo(html: string): Record<string, unknown>[] {
 }
 
 describe("a assinatura do guia na tela", () => {
-  it("mostra autor, publicação e atualização", async () => {
+  // Bloco de autor desde 30/09 (tarefa 4.11): nome, apresentação e UMA data
+  // à vista — a da atualização quando houve, a da publicação quando não.
+  it("mostra o autor como pessoa, a apresentação e a data da atualização", async () => {
     const texto = visivel(await pagina("atualizado"));
-    expect(texto).toContain(
-      "Por Dyones Oliveira, Motors Store · Publicado em 5 de setembro de 2026 · Atualizado em 18 de setembro de 2026",
-    );
+    expect(texto).toContain("Por Dyones Oliveira");
+    expect(texto).toContain("Profissional com mais de dez anos de mercado · Motors Store");
+    expect(texto).toContain("Atualizado em 18 de setembro de 2026");
+    // Com atualização, a data de publicação sai da tela (fica no schema).
+    expect(texto).not.toContain("Publicado em");
   });
 
-  it("as datas vão em <time> com o valor do schema", async () => {
+  it("o nome leva a quem ele é: o mesmo `url` do nó Person", async () => {
     const html = await pagina("atualizado");
-    expect(html).toContain(`<time dateTime="${ATUALIZADO.publicadoEm}">`);
+    expect(html).toMatch(/<a[^>]*href="\/sobre#autor"[^>]*>Dyones Oliveira<\/a>/);
+  });
+
+  it("monograma decorativo, fora da leitura", async () => {
+    const html = await pagina("atualizado");
+    expect(html).toMatch(/<span aria-hidden="true"[^>]*>DO<\/span>/);
+  });
+
+  it("a data à vista vai em <time> com o valor do schema, e o schema guarda as duas", async () => {
+    const html = await pagina("atualizado");
     expect(html).toContain(`<time dateTime="${ATUALIZADO.atualizadoEm}">`);
+    const artigo = grafo(html).find((n) => n["@type"] === "Article") as {
+      datePublished: string;
+      dateModified: string;
+    };
+    expect(artigo.datePublished).toBe(ATUALIZADO.publicadoEm);
+    expect(artigo.dateModified).toBe(ATUALIZADO.atualizadoEm);
   });
 
   it("o autor visível é a pessoa que o Article declara, e a loja é a do #dealer", async () => {
@@ -109,13 +128,24 @@ describe("a assinatura do guia na tela", () => {
     expect(loja?.name).toBe("Motors Store");
     // A loja continua sendo quem publica.
     expect(artigo.publisher["@id"]).toBe(artigo.author.worksFor["@id"]);
-    expect(visivel(html)).toContain(`Por ${artigo.author.name}, ${loja.name} ·`);
+    const texto = visivel(html);
+    expect(texto).toContain(`Por ${artigo.author.name}`);
+    expect(texto).toContain(`· ${loja.name}`);
   });
 
-  it("atualização no mesmo dia de Curitiba não vira uma segunda data", async () => {
-    const texto = visivel(await pagina("mesmo-dia"));
+  it("sem atualização (ou no mesmo dia de Curitiba), mostra a publicação", async () => {
+    const html = await pagina("mesmo-dia");
+    const texto = visivel(html);
     expect(texto).toContain("Publicado em 5 de setembro de 2026");
     expect(texto).not.toContain("Atualizado em");
+    expect(html).toContain(`<time dateTime="${MESMO_DIA.publicadoEm}">`);
+  });
+
+  it("nada de caixa alta espaçada: a linha de rodapé jurídico não volta", async () => {
+    const html = await pagina("atualizado");
+    const bloco = html.slice(html.indexOf("Por <a"), html.indexOf("</time>"));
+    expect(bloco.length).toBeGreaterThan(0);
+    expect(bloco).not.toMatch(/uppercase/);
   });
 });
 
