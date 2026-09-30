@@ -3,10 +3,9 @@ import path from "path";
 import { imagemServivelComoPrevia } from "../../lib/compartilhamento";
 
 /**
- * O que os cards gerados de `/og` compartilham: a paleta fixa, a fonte e o
- * logo. Sai de `route.tsx` desde 30/09, quando a prévia da ficha
- * (`/og/ficha/[id]`) passou a usar os mesmos três. Um arquivo de rota do Next
- * só pode exportar os handlers, por isso o módulo à parte.
+ * O que o card gerado de `/og` usa: a paleta fixa, a fonte e o logo. Saiu de
+ * `route.tsx` em 30/09, para ser reaproveitado por outras rotas de imagem; um
+ * arquivo de rota do Next só pode exportar os handlers.
  */
 
 export const TINTA = "#201e1d";
@@ -14,8 +13,6 @@ export const ACENTO = "#ec3013";
 export const PAPEL = "#f3f2f2";
 /** O cinza de apoio sobre a tinta, o mesmo do rodapé do card. */
 export const APOIO = "#a8a3a1";
-/** O cobre do logo (`--mt-cobre-marca`), o ponto do selo de perícia. */
-export const COBRE_DA_MARCA = "#b29172";
 
 /**
  * Archivo, a mesma tipografia do site, para o card não sair em outra voz.

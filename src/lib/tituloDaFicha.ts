@@ -33,14 +33,26 @@ import type { Publicacao } from "./publicacao";
  * O JSON-LD continua declarando `price` junto de `OutOfStock` — ali é o par
  * correto, e o schema.org espera o preço da oferta que existiu. O que muda é
  * só o texto que uma pessoa lê antes de clicar.
+ *
+ * ---------------------------------------------------------------------------
+ * O card do WhatsApp não leva preço, nem do carro à venda (30/09/2026)
+ * ---------------------------------------------------------------------------
+ * Decisão do dono. O WhatsApp guarda a prévia do link por dias: quem recebeu o
+ * link continua vendo o título e a descrição de quando ele foi mandado. Uma
+ * promoção que acabou, ou um preço que subiu, seguiria anunciado na conversa.
+ * O card diz o que não muda depois de publicado (nome, ano, quilometragem,
+ * perícia) e o preço fica a um toque, na ficha. O `<title>` e a meta
+ * description, que o Google relê, continuam com o preço.
  */
 export type TextosDaFicha = {
   /** O `<title>` da aba e do resultado de busca. */
   titulo: string;
   /** A meta description, e a descrição padrão do card. */
   descricao: string;
-  /** O título do card de compartilhamento, sem o sufixo da loja. */
+  /** O título do card de compartilhamento, sem o sufixo da loja. Sem preço. */
   tituloDoCard: string;
+  /** A descrição do card de compartilhamento. Sem preço. */
+  descricaoDoCard: string;
 };
 
 export function montarTextosDaFicha(entrada: {
@@ -54,15 +66,31 @@ export function montarTextosDaFicha(entrada: {
   precoTexto: string;
   /** A descrição do carro à venda, do feed ou montada. */
   descricaoDisponivel: string;
+  /** O selo "PERÍCIA APROVADA", a mesma régua do card do site. */
+  periciaAprovada?: boolean;
   publicacao: Pick<Publicacao, "indisponivel" | "rotulo">;
 }): TextosDaFicha {
-  const { nome, ano, cor, km, precoTexto, descricaoDisponivel, publicacao } = entrada;
+  const { nome, ano, cor, km, precoTexto, descricaoDisponivel, periciaAprovada, publicacao } = entrada;
+  const kmTexto = km ? `${km.toLocaleString("pt-BR")} km` : "";
 
   if (!publicacao.indisponivel) {
+    /* O card é montado dos campos, e não da descrição do feed: a frase de
+       último recurso da ficha diz "por R$ …", e o texto do RevendaMais pode
+       citar preço. */
+    const tituloDoCard = nomeTemOAno(nome, ano) ? nome : `${nome} · ${ano}`;
+    // Cor em minúscula: o cadastro às vezes a traz em caixa alta ("PRATA").
+    const tracosDoCard = [kmTexto, cor?.trim().toLowerCase(), periciaAprovada ? "perícia aprovada" : ""].filter(Boolean).join(" · ");
+    const descricaoDoCard = [
+      tracosDoCard ? `${tracosDoCard.charAt(0).toUpperCase()}${tracosDoCard.slice(1)}.` : "",
+      "Na Motors Store, em Bacacheri, Curitiba.",
+    ]
+      .filter(Boolean)
+      .join(" ");
     return {
       titulo: `${nome} - ${precoTexto} | Motors Store`,
       descricao: descricaoDisponivel,
-      tituloDoCard: `${nome} por ${precoTexto}`,
+      tituloDoCard,
+      descricaoDoCard,
     };
   }
 
@@ -90,7 +118,7 @@ export function montarTextosDaFicha(entrada: {
      duas não divergirem. */
   const anoNoTraco = nomeTemOAno(nome, ano) ? "" : String(ano);
 
-  const tracos = [anoNoTraco, cor, km ? `${km.toLocaleString("pt-BR")} km` : ""]
+  const tracos = [anoNoTraco, cor, kmTexto]
     .filter(Boolean)
     .join(", ");
 
@@ -100,11 +128,13 @@ export function montarTextosDaFicha(entrada: {
      família do "não deixa buraco no texto" logo abaixo, e nasceu aqui. */
   const descrito = [nome, tracos].filter(Boolean).join(" ");
 
+  const descricao =
+    `${descrito} — ${rotulo.toLowerCase()}. ` +
+    "Veja opções semelhantes no estoque da Motors Store, em Bacacheri, Curitiba.";
   return {
     titulo: `${nome} — ${rotulo} | Motors Store`,
-    descricao:
-      `${descrito} — ${rotulo.toLowerCase()}. ` +
-      "Veja opções semelhantes no estoque da Motors Store, em Bacacheri, Curitiba.",
+    descricao,
     tituloDoCard: `${nome} — ${rotulo}`,
+    descricaoDoCard: descricao,
   };
 }

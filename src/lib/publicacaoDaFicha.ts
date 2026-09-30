@@ -7,10 +7,6 @@ import { decidirPublicacao, getDatasDeVenda } from "./publicacao";
  * continua no índice de busca. A regra vive em `lib/publicacao.ts`; aqui só se
  * junta o que o banco sabe.
  *
- * Mora aqui, e não na ficha, desde 30/09: a prévia de WhatsApp da ficha
- * (`/og/ficha/[id]`) precisa da mesma decisão para não montar peça de carro
- * arquivado.
- *
  * Chamada duas vezes por render — uma no `generateMetadata`, outra na página.
  * As duas consultas são leves (`getDatasDeVenda` é cacheada, e a de estoque lê
  * só id e carimbo), e a PDP renderiza no máximo uma vez por hora sob o ISR.
