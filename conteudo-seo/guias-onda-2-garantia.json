@@ -1,5 +1,5 @@
 {
-  "_leia": "As 2 peças deste lote da Onda 2 (conteudo-seo/pacote/guias/*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-2-garantia.json — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como TEXTO PURO: markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
+  "_leia": "As 2 peças deste lote da Onda 2 (conteudo-seo/pacote/guias/*.md) no formato da tabela public.guias. Converta-as com `node conteudo-seo/aplicar-guias.mjs --json=conteudo-seo/guias-onda-2-garantia.json — sem flag ele confere e ensaia; `--gravar` escreve; `--reverter` volta para rascunho. `publicado_em` e `atualizado_por` NÃO entram aqui: quem grava define. O que mudou do markdown para cá está em `conteudo-seo/guias-onda-2-mudancas.md`. O renderizador (`src/app/guias/[slug]/page.tsx`) serve parágrafo como texto, com duas marcas só (30/09/2026, `src/lib/blocosDoGuia.ts`): linha que começa com \"- \" vira item de lista, e parágrafo que começa com \"### \" vira subtítulo. O resto do markdown não vira nada, e link no corpo só existe pelos termos de `src/lib/linksNoTexto.ts`.",
   "guias": [
     {
       "slug": "garantia-carro-usado-loja",
@@ -18,8 +18,11 @@
           "titulo": "Três coisas diferentes chamadas de garantia",
           "paragrafos": [
             "Quem compra usado ouve a palavra \"garantia\" em três sentidos, e muita conversa boa vira briga porque eles se confundem.",
+            "### Garantia prevista em lei",
             "A primeira é a garantia prevista em lei. Ela existe na compra feita em loja, é direito do consumidor e não depende de o vendedor querer. Este guia não explica o alcance dela, porque quem descreve direito do comprador é quem responde por ele, o Procon ou um advogado, e a loja está do outro lado da mesa. Se a sua dúvida é sobre os seus direitos, leve a pergunta a eles.",
+            "### Garantia contratual da loja",
             "A segunda é a garantia contratual da loja: o que a casa oferece por escrito, em acréscimo, com prazo e escopo que ela mesma define. Este guia trata dela, porque é a que a loja pode descrever sem falar pelo que não é seu.",
+            "### Plano estendido",
             "A terceira é o plano estendido, opcional, vendido à parte por uma administradora e com regras próprias de cobertura e de acionamento. Ele não substitui as outras duas, e as condições dele estão no manual da administradora. O assunto tem guia próprio: \"Garantia estendida de carro usado vale a pena?\".",
             "As três convivem sem que uma anule a outra, e nenhuma loja séria vai pedir que você abra mão de alguma delas para fechar negócio."
           ]
@@ -37,7 +40,8 @@
           "titulo": "O que não está, e por quê",
           "paragrafos": [
             "Item de desgaste fica de fora. Pastilha, disco, pneu, palheta e bateria existem para gastar, e num carro usado já vêm com história. Trocar esses itens é manutenção, e a garantia cobre conserto.",
-            "A manutenção também fica de fora: óleo, filtro, vela e correia dentro do intervalo são serviço do dono do carro. Em alguns motores modernos, o item de manutenção mal feito destrói o item coberto, como detalha a peça \"Correia dentada banhada em óleo: por que ela falha\", e por isso a nota fiscal da revisão vale tanto. Mas, se um item de manutenção falhar dentro do prazo e o dano atingir o motor ou o câmbio, o conserto desse dano entra na cobertura.",
+            "A manutenção também fica de fora: óleo, filtro, vela e correia dentro do intervalo são serviço do dono do carro. Em alguns motores modernos, o item de manutenção mal feito destrói o item coberto, como detalha a peça \"Correia dentada banhada em óleo: por que ela falha\", e por isso a nota fiscal da revisão vale tanto.",
+            "Mas, se um item de manutenção falhar dentro do prazo e o dano atingir o motor ou o câmbio, o conserto desse dano entra na cobertura.",
             "Embreagem em uso normal não entra, porque desgaste de embreagem não é falha interna do câmbio. Em carro de dupla embreagem, essa é a exclusão que mais gera conversa, e o teste que evita o susto está em \"Câmbio de dupla embreagem em carro usado: o que checar\".",
             "Bombas, fluidos e óleos em geral estão excluídos.",
             "O mesmo vale para peça fora de especificação e para remap, e um turbo que não é o original de fábrica entra nesse grupo. Alterar característica do veículo muda o esforço que o conjunto recebe, e ninguém pode responder por uma peça que não escolheu.",
@@ -74,7 +78,7 @@
         {
           "titulo": "Antes de assinar, e depois",
           "paragrafos": [
-            "Antes de assinar qualquer compra em loja: peça o termo de garantia e leia o escopo; confirme se a mão de obra está inclusa; pergunte qual é a oficina e qual é o procedimento; peça o laudo do exame que a loja fez. Depois de comprar, guarde tudo por escrito e, se algo acontecer, avise a loja antes de levar o carro a qualquer lugar.",
+            "Antes de assinar qualquer compra em loja:\n- peça o termo de garantia e leia o escopo\n- confirme se a mão de obra está inclusa\n- pergunte qual é a oficina e qual é o procedimento\n- peça o laudo do exame que a loja fez.\nDepois de comprar, guarde tudo por escrito e, se algo acontecer, avise a loja antes de levar o carro a qualquer lugar.",
             "A página de garantia traz por escrito o que a Motors Store assume depois da entrega: prazo, o que entra, o que não entra e a ordem de acionamento."
           ]
         }
@@ -132,10 +136,15 @@
         {
           "titulo": "O que perguntar antes de contratar",
           "paragrafos": [
+            "### Elegibilidade",
             "Comece pela elegibilidade: pergunte se o seu carro pode entrar no plano, porque idade e quilometragem costumam entrar nessa conta.",
-            "Depois, o que está coberto no motor e no câmbio, item por item, e o que está nas exclusões. Leia a lista de exclusões antes da de coberturas, porque é nela que estão as surpresas. Em carro moderno, duas perguntas decidem muito: o turbocompressor está coberto? E o kit de embreagem? O que checar nesses dois conjuntos antes de comprar está em \"Motor turbo de baixa cilindrada usado: o que checar\" e em \"Câmbio de dupla embreagem em carro usado: o que checar\".",
+            "### Coberturas e exclusões",
+            "Depois, o que está coberto no motor e no câmbio, item por item, e o que está nas exclusões. Leia a lista de exclusões antes da de coberturas, porque é nela que estão as surpresas.",
+            "Em carro moderno, duas perguntas decidem muito: o turbocompressor está coberto? E o kit de embreagem? O que checar nesses dois conjuntos antes de comprar está em \"Motor turbo de baixa cilindrada usado: o que checar\" e em \"Câmbio de dupla embreagem em carro usado: o que checar\".",
+            "### Manutenção exigida",
             "Em seguida, a manutenção que o plano exige e como comprová-la: o intervalo, a especificação do óleo e o que precisa constar na nota fiscal. Guarde a resposta por escrito.",
-            "Por fim, o caminho do acionamento: como acionar, em quanto tempo, se o reparo precisa de autorização antes de começar, se existe um limite de valor para os reparos e se o plano passa para o próximo dono quando você vender o carro."
+            "### Acionamento",
+            "Por fim, o caminho do acionamento:\n- como acionar\n- em quanto tempo\n- se o reparo precisa de autorização antes de começar\n- se existe um limite de valor para os reparos\n- se o plano passa para o próximo dono quando você vender o carro."
           ]
         },
         {
@@ -149,7 +158,8 @@
         {
           "titulo": "A garantia que já vem incluída",
           "paragrafos": [
-            "Antes de decidir sobre o plano, compare com o que você já tem, porque boa parte da decisão é saber o que ele acrescenta, e por quanto. Na Motors Store, a garantia da loja é de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, e cobre falha interna de motor, câmbio e diferencial (incluído o turbo original de fábrica), sem carência, sem franquia e com mão de obra inclusa. O detalhe do que entra e do que fica de fora está em \"Garantia de carro usado em loja: o que está coberto\"."
+            "Antes de decidir sobre o plano, compare com o que você já tem, porque boa parte da decisão é saber o que ele acrescenta, e por quanto.",
+            "Na Motors Store, a garantia da loja é de três meses ou 5.000 quilômetros, o que vier primeiro, contados da entrega, e cobre falha interna de motor, câmbio e diferencial (incluído o turbo original de fábrica), sem carência, sem franquia e com mão de obra inclusa. O detalhe do que entra e do que fica de fora está em \"Garantia de carro usado em loja: o que está coberto\"."
           ]
         },
         {
@@ -161,7 +171,7 @@
         {
           "titulo": "Antes de contratar um plano",
           "paragrafos": [
-            "Descubra o que costuma quebrar no modelo que você está comprando e leia a lista de exclusões do plano antes da de coberturas. Pergunte qual manutenção ele exige e como comprová-la, e compare o preço do plano com o orçamento do reparo que você teme. Se contratar, guarde as notas da manutenção desde a primeira.",
+            "- Descubra o que costuma quebrar no modelo que você está comprando e leia a lista de exclusões do plano antes da de coberturas.\n- Pergunte qual manutenção ele exige e como comprová-la, e compare o preço do plano com o orçamento do reparo que você teme.\n- Se contratar, guarde as notas da manutenção desde a primeira.",
             "O que a Motors Store cobre por conta própria, sem custo, está na página de garantia."
           ]
         }
