@@ -1,6 +1,6 @@
 "use client";
 
-import type { AboutSettings } from "../types";
+import type { AboutSettings, CompanySettings } from "../types";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
@@ -22,6 +22,7 @@ export default function SobreClientWrapper({
   autor,
   reputacao,
   sobre,
+  empresa,
 }: {
   totalEstoque?: number;
   /**
@@ -46,9 +47,12 @@ export default function SobreClientWrapper({
    * novo. Medido em produção no mesmo dia em que o dono reescreveu o painel.
    */
   sobre?: AboutSettings | null;
+  /** Endereço, horário e telefone, também lidos no servidor, pelo mesmo motivo. */
+  empresa?: CompanySettings | null;
 }) {
-  const { aboutSettings: doContexto, companySettings } = useTheme();
+  const { aboutSettings: doContexto, companySettings: empresaDoContexto } = useTheme();
   const aboutSettings = sobre ?? doContexto;
+  const companySettings = empresa ?? empresaDoContexto;
 
   /** Ver `lib/textoInstitucional.ts` — a regra é testada lá. */
   const comTotal = (texto: string) => aplicarTotalEstoque(texto, totalEstoque);

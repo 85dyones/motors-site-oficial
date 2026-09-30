@@ -133,6 +133,7 @@ export default async function SobrePage() {
         autor={autor}
         reputacao={reputacao}
         sobre={aboutSettings}
+        empresa={companySettings}
       />
     </>
   );

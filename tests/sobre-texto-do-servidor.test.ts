@@ -40,5 +40,6 @@ describe("o /sobre renderiza o texto do painel no servidor", () => {
     const pagina = lerCodigo("src/app/sobre/page.tsx");
     expect(pagina).toMatch(/\{ companySettings, aboutSettings \}/);
     expect(pagina).toMatch(/sobre=\{aboutSettings\}/);
+    expect(pagina).toMatch(/empresa=\{companySettings\}/);
   });
 });

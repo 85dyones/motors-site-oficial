@@ -590,6 +590,8 @@ describe("os dois FAQ dão a mesma resposta sobre alcance", () => {
     // Desde a reescrita do /sobre em 30/09/2026 o convite final não fala mais
     // de entrega; quem diz o alcance é o card da troca, com a frase exata.
     expect(sobre.card3Desc).toMatch(ALCANCE);
+    // E se o convite voltar a falar de entrega, é com a mesma frase.
+    if (/entreg/i.test(sobre.ctaDescription)) expect(sobre.ctaDescription).toMatch(ALCANCE);
   });
 
   it("o FAQ da garantia diz o alcance real", () => {
