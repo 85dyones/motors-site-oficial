@@ -8,7 +8,14 @@ import { blocoJsonLd } from "../../../lib/schemaListagem";
 import { grafoDoGuia } from "../../../lib/schemaGuia";
 import { criarLinkador } from "../../../lib/linksNoTexto";
 import { NOME_DA_SECAO } from "../../../lib/guias";
-import { assinaturaDoAutor, dataPorExtenso, mesmoDiaEmCuritiba } from "../../../lib/assinaturaDoGuia";
+import {
+  AUTOR_DOS_GUIAS,
+  apresentacaoDoAutor,
+  dataPorExtenso,
+  iniciaisDoAutor,
+  mesmoDiaEmCuritiba,
+} from "../../../lib/assinaturaDoGuia";
+import { URL_DO_AUTOR_DOS_GUIAS } from "../../../lib/schemaGuia";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -111,7 +118,7 @@ export default async function GuiaPage({ params }: PageProps) {
   // A assinatura visível mostra o MESMO autor do `Article` — a pessoa de
   // `AUTOR_DOS_GUIAS` —, com a loja pelo nome que o nó `#dealer` publica.
   // Ver `lib/assinaturaDoGuia.ts`.
-  const autor = assinaturaDoAutor(companySettings?.name);
+  const apresentacao = apresentacaoDoAutor(companySettings?.name);
   const publicadoEm = dataPorExtenso(guia.publicadoEm);
   const atualizadoEm = mesmoDiaEmCuritiba(guia.publicadoEm, guia.atualizadoEm)
     ? ""
@@ -181,19 +188,49 @@ export default async function GuiaPage({ params }: PageProps) {
         <p className="m-0 mt-4 max-w-[680px] text-[15px] leading-relaxed text-mt-neutral-800 lg:text-[16px]">
           {guia.descricao}
         </p>
-        {/* Assinatura: autor e datas que o JSON-LD já declarava e a tela não
-            mostrava (2026-09-21). `uppercase` no CSS, como a trilha — o DOM
-            fica em caixa de frase para quem lê o texto. */}
+        {/* Bloco de autor (tarefa 4.11 da revisão de UI, 30/09). Até ali era
+            uma linha só, em caixa alta espaçada, com autor, loja e duas datas:
+            lia como rodapé jurídico. Agora a pessoa aparece como pessoa —
+            monograma em cobre, nome em caixa normal com link para quem ela é
+            (`/sobre#autor`, o mesmo `url` do nó `Person`) — e UMA data à
+            vista: a da atualização, quando houve; a da publicação, quando
+            não. As duas continuam no `Article` do JSON-LD. */}
         {publicadoEm && (
-          <p className="m-0 mt-5 text-[11px] font-semibold uppercase tracking-[.16em] text-mt-neutral-600">
-            {autor && <>Por {autor} · </>}
-            Publicado em <time dateTime={guia.publicadoEm}>{publicadoEm}</time>
-            {atualizadoEm && (
-              <>
-                {" · "}Atualizado em <time dateTime={guia.atualizadoEm}>{atualizadoEm}</time>
-              </>
-            )}
-          </p>
+          <div className="mt-6 flex flex-col gap-3 pb-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-10 w-10 shrink-0 items-center justify-center bg-mt-cobre text-[13px] font-extrabold tracking-[.04em] text-mt-bg"
+              >
+                {iniciaisDoAutor()}
+              </span>
+              <p className="m-0 leading-snug">
+                <span className="block text-[15px] font-bold text-mt-ink">
+                  Por{" "}
+                  <Link
+                    href={URL_DO_AUTOR_DOS_GUIAS.replace(/^https?:\/\/[^/]+/, "")}
+                    className="mt-foco text-mt-ink underline decoration-mt-regua underline-offset-2 hover:decoration-mt-accent"
+                  >
+                    {AUTOR_DOS_GUIAS.nome}
+                  </Link>
+                </span>
+                <span className="block text-[13px] text-mt-neutral-700">{apresentacao}</span>
+              </p>
+            </div>
+            {/* No celular a data desce e alinha com o texto do autor (40 px
+                do monograma + 12 de vão), e não com a borda do monograma. */}
+            <p className="m-0 pl-[52px] text-[13px] text-mt-neutral-700 sm:pl-0">
+              {atualizadoEm ? (
+                <>
+                  Atualizado em <time dateTime={guia.atualizadoEm}>{atualizadoEm}</time>
+                </>
+              ) : (
+                <>
+                  Publicado em <time dateTime={guia.publicadoEm}>{publicadoEm}</time>
+                </>
+              )}
+            </p>
+          </div>
         )}
       </div>
 
