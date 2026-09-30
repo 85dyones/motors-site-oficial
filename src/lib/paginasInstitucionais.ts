@@ -263,6 +263,46 @@ export const PRAZOS_ESTENDIDOS = `${PLANOS_ESTENDIDOS_MESES.slice(0, -1).join(",
   PLANOS_ESTENDIDOS_MESES[PLANOS_ESTENDIDOS_MESES.length - 1]
 } meses`;
 
+/**
+ * O resumo do topo de `/garantia` (tarefa 4.8 da revisão de UI de 30/09):
+ * para responder "está coberto?" sem rolar. Nenhuma afirmação nova: cada item
+ * está nas seções abaixo, com as mesmas palavras do termo ("pastilha e disco",
+ * "embreagem em uso normal"), e o prazo sai de `PRAZO_DA_GARANTIA`.
+ *
+ * "Não cobre" traz a ressalva da correia (resposta do dono, 18/09): quem para
+ * no resumo não pode ler "não" onde o termo diz "entra". E o quarto item põe
+ * a perícia ao lado do prazo, porque o diferencial da loja é a seleção, não os
+ * três meses (ver o docblock de `garantia/page.tsx`). Revisão do qa-guardian.
+ */
+export const RESUMO_DA_GARANTIA: { rotulo: string; texto: string }[] = [
+  {
+    rotulo: "Prazo",
+    texto:
+      `${PRAZO_DA_GARANTIA.charAt(0).toUpperCase()}${PRAZO_DA_GARANTIA.slice(1)}, contados da ` +
+      "entrega. Sem carência e sem franquia.",
+  },
+  {
+    rotulo: "Cobre",
+    texto:
+      "Falha interna de motor (com o turbo original de fábrica), câmbio e diferencial. O conserto " +
+      "é em oficina parceira, com a mão de obra inclusa.",
+  },
+  {
+    rotulo: "Não cobre",
+    texto:
+      "Manutenção e desgaste de uso (óleo, filtros, pastilha e disco de freio, pneu, bateria, " +
+      "embreagem em uso normal), peça fora de especificação, evento externo como colisão e " +
+      "enchente, e custos fora do conserto, como guincho e transporte. Se um item de manutenção " +
+      "falhar dentro do prazo e o dano atingir o motor ou o câmbio, esse dano entra.",
+  },
+  {
+    rotulo: "Antes da garantia",
+    texto:
+      "Todo carro passa por perícia cautelar independente antes da vitrine. De cada dez " +
+      "avaliados, três entram.",
+  },
+];
+
 /** A abertura, sob o `<h1>`. */
 export const TEXTO_DE_GARANTIA: string[] = [
   "Todo carro do estoque da Motors Store sai com garantia de motor e câmbio, e também do " +
