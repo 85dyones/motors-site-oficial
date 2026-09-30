@@ -11,12 +11,13 @@
  * · vermelho só onde há decisão
  */
 
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Veiculo } from "../../types";
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import FotoPropriaDoCard from "./FotoPropriaDoCard";
+import FotoOtimizadaDoCard from "./FotoOtimizadaDoCard";
+import SinalDeAbertura from "./SinalDeAbertura";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
 import FaixaEmPreparacao from "./FaixaEmPreparacao";
 
@@ -314,9 +315,12 @@ export function CardVeiculo({
     // celular em vez de cortar com reticências. Apontado pelo qa-guardian.
     <Link
       href={href}
-      className={`group mt-foco flex min-w-0 flex-col no-underline ${inverso ? "text-mt-inverso" : ""}`}
+      className={`group mt-card mt-foco flex min-w-0 flex-col no-underline ${inverso ? "text-mt-inverso" : ""}`}
     >
-      <div className="relative aspect-[4/3] bg-mt-neutral-300">
+      {/* `overflow-hidden` por causa do zoom leve da foto no mouse
+          (`.mt-card-foto`, 30/09): a foto cresce dentro da moldura, sem
+          vazar sobre o texto. */}
+      <div className="relative aspect-[4/3] overflow-hidden bg-mt-neutral-300">
         {foto ? (
           /* Foto sem moldura e em cores — exceção deliberada ao P&B do
              sistema, porque cor é argumento de venda em carro.
@@ -379,10 +383,10 @@ export function CardVeiculo({
               priority={prioridade}
               fetchPriority={prioridade ? "high" : "auto"}
               loading={prioridade ? "eager" : "lazy"}
-              className="object-cover"
+              className="mt-card-foto object-cover"
             />
           ) : (
-            <Image
+            <FotoOtimizadaDoCard
               src={foto}
               alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
               fill
@@ -390,7 +394,7 @@ export function CardVeiculo({
               priority={prioridade}
               fetchPriority={prioridade ? "high" : "auto"}
               loading={prioridade ? "eager" : "lazy"}
-              className="object-cover"
+              className="mt-card-foto object-cover"
             />
           )
         ) : null}
@@ -421,6 +425,7 @@ export function CardVeiculo({
           veiculo={veiculo}
           className="absolute bottom-0 left-0 px-2 py-1 text-[11px]"
         />
+        <SinalDeAbertura />
         {contagemFotos && (
           <span className="pointer-events-none absolute bottom-0 right-0 bg-[rgba(20,18,18,.82)] px-2 py-1 text-[11px] font-semibold text-mt-inverso">
             {contagemFotos}

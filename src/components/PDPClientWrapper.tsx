@@ -858,12 +858,13 @@ export default function PDPClientWrapper({
               {/* Setas de navegação. No mobile a galeria tem ~210px de altura
                   e 48px de seta cobriam o carro; 36px porque ali a seta é
                   atalho secundário — o gesto primário é o arrasto do próprio
-                  carrossel (snap-x logo acima). */}
+                  carrossel (snap-x logo acima). O desenho fica em 36px, mas o
+                  toque pega em 44px (`.mt-alvo`, 30/09). */}
               {displayImages.length > 1 && (
                 <>
                   <button
                     onClick={() => scrollCarouselTo((activeImageIndex - 1 + displayImages.length) % displayImages.length)}
- className="mt-foco absolute left-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent sm:h-12 sm:w-12"
+ className="mt-foco mt-alvo absolute left-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent sm:h-12 sm:w-12"
                     aria-label="Imagem anterior"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
@@ -872,7 +873,7 @@ export default function PDPClientWrapper({
                   </button>
                   <button
                     onClick={() => scrollCarouselTo((activeImageIndex + 1) % displayImages.length)}
- className="mt-foco absolute right-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent sm:h-12 sm:w-12"
+ className="mt-foco mt-alvo absolute right-0 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 cursor-pointer items-center justify-center bg-[rgba(20,18,18,.72)] text-mt-inverso transition-colors hover:bg-mt-accent sm:h-12 sm:w-12"
                     aria-label="Próxima imagem"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor" className="h-3.5 w-3.5 sm:h-4 sm:w-4">

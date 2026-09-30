@@ -2,6 +2,7 @@
 
 import Image, { type ImageLoader, type ImageProps } from "next/image";
 import { urlDaFotoNaLargura } from "../../lib/fotosDoVeiculo";
+import { useSurgimento } from "./useSurgimento";
 
 /**
  * A capa do card quando a foto é NOSSA (bucket `veiculos`): `next/image` com o
@@ -19,7 +20,9 @@ const carregador: ImageLoader = ({ src, width, quality }) =>
   urlDaFotoNaLargura(src, width, quality ?? 75);
 
 export default function FotoPropriaDoCard(props: Omit<ImageProps, "loader" | "unoptimized">) {
+  // A foto esmaece ao chegar, menos a prioritária (ver `useSurgimento`).
+  const surgimento = useSurgimento({ imediata: Boolean(props.priority || props.preload), onLoad: props.onLoad, onError: props.onError });
   // `alt` vem nas props; o lint não enxerga através do spread.
   // eslint-disable-next-line jsx-a11y/alt-text
-  return <Image {...props} loader={carregador} />;
+  return <Image {...props} {...surgimento} loader={carregador} />;
 }

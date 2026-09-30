@@ -447,6 +447,106 @@
   }
 }
 
+/* — a foto surge e o card responde (qualidade percebida, 30/09) —
+   Nada disto é movimento de entrada: a régua da capa continua sendo o único.
+   São respostas a um carregamento (a foto que chega) e a um gesto (o mouse ou
+   o dedo sobre o card).
+
+   A foto: o fundo cinza do card já segurava o lugar; agora a foto esmaece por
+   cima dele em vez de aparecer de uma vez. Quem liga `data-surge` é
+   `useSurgimento`, e só depois da hidratação, então o HTML do servidor nunca
+   esconde uma foto. A animação de 4 s é a garantia para o caso de nenhum
+   evento chegar: a foto aparece de qualquer jeito. */
+img[data-surge] {
+  transition: opacity 240ms ease-out;
+}
+img[data-surge="espera"] {
+  opacity: 0;
+  animation: mt-surge-garantia 0s linear 4s forwards;
+}
+@keyframes mt-surge-garantia {
+  to {
+    opacity: 1;
+  }
+}
+
+/* O card: a foto cresce 3% dentro da moldura quando o mouse passa (só em
+   aparelho com mouse, para o toque não deixar a foto presa ampliada) e
+   escurece um pouco enquanto o dedo está sobre ela. O gatilho é `.mt-card`, o
+   link do próprio card, e não `.group`: uma seção inteira pode ser `group`, e
+   aí passar o mouse nela ampliaria todas as fotos. O seletor duplo mantém as
+   duas transições quando a foto também tem `data-surge`. */
+.mt-card-foto,
+.mt-card-foto[data-surge] {
+  transition:
+    opacity 240ms ease-out,
+    transform 600ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (hover: hover) {
+  .mt-card:hover .mt-card-foto {
+    transform: scale(1.03);
+  }
+}
+.mt-card:active .mt-card-foto {
+  opacity: 0.88;
+}
+
+/* O card que abre a ficha: uma linha cobre corre na base da foto enquanto a
+   próxima página carrega (`SinalDeAbertura`). Só aparece depois de 120 ms,
+   para a navegação rápida não piscar, e para em 90%: quem completa o
+   movimento é a ficha chegando. */
+.mt-sinal-de-abertura {
+  background: var(--mt-cobre-marca);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.mt-sinal-de-abertura[data-abrindo] {
+  opacity: 1;
+  animation: mt-sinal-de-abertura 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) 120ms both;
+}
+@keyframes mt-sinal-de-abertura {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  img[data-surge],
+  .mt-card-foto,
+  .mt-card-foto[data-surge] {
+    transition: none;
+  }
+  .mt-card:hover .mt-card-foto {
+    transform: none;
+  }
+  /* Parada e inteira: o aviso continua, sem o movimento, e com o mesmo
+     atraso de 120 ms, para a navegação rápida não piscar aqui também. */
+  .mt-sinal-de-abertura[data-abrindo] {
+    animation: mt-sinal-parado 0s linear 120ms both;
+    transform: none;
+  }
+}
+@keyframes mt-sinal-parado {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* — parágrafo sem palavra sozinha na última linha (30/09) —
+   `pretty` rearruma as últimas linhas para a derradeira não ficar com uma
+   palavra só. O navegador que não conhece a regra quebra como antes. Os
+   títulos já usam `balance` (`.mt-display`). */
+p {
+  text-wrap: pretty;
+}
+
 /* — folha de filtros do celular (tarefa 3.5, 29/09) —
    O painel de filtros, aberto abaixo do `lg`, deixa de empurrar a grade para
    baixo e vira uma folha presa ao pé da tela: rolagem própria, cabeçalho e
