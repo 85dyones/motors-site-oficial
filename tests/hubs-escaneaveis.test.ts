@@ -5,7 +5,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import PaginaDeEstoque from "../src/components/modernist/PaginaDeEstoque";
 import { blocosDoParagrafo } from "../src/lib/blocosDoGuia";
-import { SUBTITULO_DA_LEITURA, textoDeMarca, textoDeModelo } from "../src/lib/textoDosHubs";
+import {
+  SUBTITULO_DA_LEITURA,
+  textoDeCarroceria,
+  textoDeFaixaDePreco,
+  textoDeMarca,
+  textoDeModelo,
+  textoDePerfil,
+} from "../src/lib/textoDosHubs";
+import { PERFIS_DE_USO } from "../src/lib/perfisDeUso";
 import { marcasFortes } from "./marcasDeIA";
 
 /**
@@ -69,11 +77,12 @@ describe("PaginaDeEstoque: abertura em cima, leitura depois dos carros", () => {
 
   it("texto sem ### fica inteiro em cima, sem seção de leitura", () => {
     const sem = renderizar(["Primeiro parágrafo.", "Segundo parágrafo."]);
-    const h1 = sem.indexOf("<h1");
-    expect(sem.indexOf("Segundo parágrafo.")).toBeGreaterThan(h1);
-    // O segundo parágrafo continua no cabeçalho, antes de qualquer `<h2>`.
-    const primeiroH2 = sem.indexOf("<h2");
-    if (primeiroH2 > -1) expect(sem.indexOf("Segundo parágrafo.")).toBeLessThan(primeiroH2);
+    const i1 = sem.indexOf("Primeiro parágrafo.");
+    const i2 = sem.indexOf("Segundo parágrafo.");
+    expect(i1).toBeGreaterThan(sem.indexOf("<h1"));
+    // Os dois parágrafos vizinhos, no cabeçalho: nada entre eles além da
+    // troca de `<p>`.
+    expect(sem.slice(i1, i2)).toMatch(/^Primeiro parágrafo\.<\/span><\/p><p[^>]*><span>$/);
   });
 });
 
@@ -109,8 +118,14 @@ describe("os 31 textos da loja na forma escaneável", () => {
 });
 
 describe("o texto gerado também abre a leitura", () => {
-  it("marca e modelo levam o subtítulo, depois da abertura", () => {
-    for (const p of [textoDeMarca("Chevrolet", [], ["Onix"]), textoDeModelo("Chevrolet", "Onix", [])]) {
+  it("marca, modelo, carroceria, faixa e perfil levam o subtítulo, depois da abertura", () => {
+    for (const p of [
+      textoDeMarca("Chevrolet", [], ["Onix"]),
+      textoDeModelo("Chevrolet", "Onix", []),
+      textoDeCarroceria("SUV", [], "SUVs"),
+      textoDeFaixaDePreco("de R$ 60 a 100 mil", []),
+      ...PERFIS_DE_USO.map((perfil) => textoDePerfil(perfil, [])),
+    ]) {
       const i = p.indexOf(SUBTITULO_DA_LEITURA);
       expect(i).toBeGreaterThanOrEqual(1);
       expect(p.slice(i + 1).length).toBeGreaterThan(0);

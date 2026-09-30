@@ -266,20 +266,18 @@ export default function PaginaDeEstoque({
   const abertura = inicioDaLeitura === -1 ? introducao : introducao.slice(0, inicioDaLeitura);
   const leitura = inicioDaLeitura === -1 ? [] : introducao.slice(inicioDaLeitura);
 
-  // Um bloco de texto na régua da página: parágrafo, lista ou subtítulo.
-  const desenharBloco = (bloco: BlocoDoGuia, chave: string, nivelDoSubtitulo: "h2" | "h3") => {
+  // Um bloco de texto na régua da página: parágrafo, lista ou subtítulo. Só a
+  // leitura tem subtítulo (a abertura termina no primeiro "###"), e ele é o
+  // `<h2>` da seção.
+  const desenharBloco = (bloco: BlocoDoGuia, chave: string) => {
     if (bloco.tipo === "separador") {
       return <hr key={chave} className="m-0 mt-7 w-16 border-0 border-t-2 border-mt-regua" />;
     }
     if (bloco.tipo === "subtitulo") {
-      return nivelDoSubtitulo === "h2" ? (
+      return (
         <h2 key={chave} className="mt-titulo m-0 mt-8 text-[20px] first:mt-0 lg:text-[26px]">
           {bloco.texto}
         </h2>
-      ) : (
-        <h3 key={chave} className="m-0 mt-6 text-[16px] font-extrabold leading-snug text-mt-ink lg:text-[17px]">
-          {bloco.texto}
-        </h3>
       );
     }
     if (bloco.tipo === "lista") {
@@ -326,7 +324,7 @@ export default function PaginaDeEstoque({
   // no primeiro texto que ele LÊ. Montar as seções aqui em cima faria o
   // linkador passar por elas antes da introdução, e o link desceria para a
   // seção (revisão do qa-guardian, 30/09). Chamada no ponto do JSX, a ordem
-  // de leitura volta a ser a da página: introdução, seções, FAQ.
+  // de leitura volta a ser a da página: abertura, seções, leitura, FAQ.
   const desenharSecoes = () =>
     secoes.length > 0 ? (
       <div className="border-b-2 border-mt-regua py-8">
@@ -408,7 +406,7 @@ export default function PaginaDeEstoque({
                 parcela descobre que o carro dele vale entrada, e até 05/09/2026
                 a frase não levava a lugar nenhum. */}
             {abertura.flatMap((paragrafo, i) =>
-              blocosDoParagrafo(paragrafo).map((bloco, b) => desenharBloco(bloco, `abertura-${i}-${b}`, "h3")),
+              blocosDoParagrafo(paragrafo).map((bloco, b) => desenharBloco(bloco, `abertura-${i}-${b}`)),
             )}
             {acao && <div className="mt-6">{acao}</div>}
           </div>
@@ -550,7 +548,7 @@ export default function PaginaDeEstoque({
         {leitura.length > 0 && (
           <section className="border-t-2 border-mt-regua py-8">
             <div className="max-w-[680px]">
-              {blocosDaSecao(leitura).map((bloco, b) => desenharBloco(bloco, `leitura-${b}`, "h2"))}
+              {blocosDaSecao(leitura).map((bloco, b) => desenharBloco(bloco, `leitura-${b}`))}
             </div>
           </section>
         )}
