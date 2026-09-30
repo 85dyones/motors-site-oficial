@@ -42,7 +42,7 @@ Só `corpo`. `slug`, `titulo`, `titulo_seo`, `descricao`, `faq`, `saida`,
 
 ## Como gravar
 
-Os JSON são a fonte; o site lê o banco. Nada foi gravado por este PR. Depois do
+Os JSON são a fonte; o site lê o banco. Nada foi gravado pelo PR #175. Depois do
 merge, com o `.env.local` de produção:
 
 ```
@@ -57,6 +57,28 @@ As páginas revalidam em até uma hora.
 Enquanto o banco não for gravado, o site continua servindo o texto de 21/09. As
 mudanças de código deste PR não dependem disso: o linkador, os blocos de guias
 e o índice agrupado funcionam com o texto antigo e com o novo.
+
+## Gravado em 30/09/2026
+
+Gravado no projeto de produção (`zwbqmzgnagfeqinqkolp`) pelo SQL do Supabase,
+sem o script, porque só o `corpo` mudou e só as seções alteradas foram trocadas
+(`jsonb_set` por índice). Antes:
+
+- backup em `backup.guias_20260930` (as 26 linhas inteiras);
+- conferência de que o `md5(corpo::text)` de cada guia no banco era igual ao dos
+  JSON de 21/09 (commit `780eb5b`), para não sobrescrever edição feita pelo
+  painel.
+
+Cada `update` exigia o md5 da base e conferia o md5 do resultado contra o dos
+JSON deste PR; qualquer diferença abortava o lote inteiro. Os dois lotes
+passaram, e os 26 `corpo` no banco batem com `guias-onda-*.json`. Título, FAQ,
+`saida` e demais campos não foram tocados.
+
+Para desfazer:
+
+```sql
+update public.guias g set corpo = b.corpo from backup.guias_20260930 b where b.slug = g.slug;
+```
 
 ## Os 26 últimos `<h2>`
 
