@@ -73,7 +73,8 @@ describe("nomenclatura da tabela de inventário", () => {
     //   api/estoque/route.ts (1),
     //   lib/webhook-dispatcher.ts (1), app/investidor/page.tsx (1),
     //   api/investidores/participacoes/route.ts (1),
-    //   app/admin/estoque/page.tsx (1), app/admin/estoque/[id]/page.tsx (1)
+    //   app/admin/estoque/page.tsx (1), lib/veiculoNoPainel.ts (1; até 01/10
+    //   em app/admin/estoque/[id]/page.tsx, quando o editor era a página)
     //
     // Eram 10 acessos em 5 arquivos até 2026-08-03. A consulta perdeu um
     // quando a busca por placa foi removida (a coluna não existia então).

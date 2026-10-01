@@ -143,7 +143,7 @@ export default function VisaoDoVeiculo({
   const fotos = fotosDoVeiculo(v.whatsapp_images, v.web_full_images);
   const modelo = v.modelo_override?.trim() || v.modelo || "";
   const versao = v.versao_override?.trim() || v.versao || "";
-  const nome = [v.marca, modelo].filter(Boolean).join(" ");
+  const nome = [v.marca, modelo].filter(Boolean).join(" ") || `Veículo ${v.id}`;
 
   const checklist = checklistDoVeiculo(v, { totalDeFotos: fotos.length, podeVerCusto });
   const concluidos = checklist.filter((c) => c.ok).length;
@@ -161,8 +161,9 @@ export default function VisaoDoVeiculo({
     .map((slug) => PERFIS_DE_USO.find((p) => p.slug === slug)?.nome ?? slug)
     .join(", ");
 
+  // Carro publicado que a régua tira da vitrine não tem página para abrir.
   const urlNoSite =
-    estado === "publicado" && v.marca && modelo
+    estado === "publicado" && bloqueios.length === 0 && v.marca && modelo
       ? getVeiculoPdpUrl({ id: String(v.id), marca: v.marca, modelo, versao, tipo: v.tipo })
       : null;
 
@@ -171,14 +172,14 @@ export default function VisaoDoVeiculo({
     ["Modelo", modelo || NAO_INFORMADO],
     ["Versão", versao || NAO_INFORMADO],
     ["Ano (fabricação/modelo)", [v.ano_fabricacao, v.ano].filter(Boolean).join("/") || NAO_INFORMADO],
-    ["Quilometragem", v.quilometragem !== null ? `${v.quilometragem.toLocaleString("pt-BR")} km` : NAO_INFORMADO],
+    ["Quilometragem", v.quilometragem != null ? `${v.quilometragem.toLocaleString("pt-BR")} km` : NAO_INFORMADO],
     ["Câmbio", texto(v.cambio)],
     ["Combustível", texto(v.combustivel)],
     ["Cor", texto(v.cor)],
     ["Cor interna", texto(v.cor_interna)],
     ["Motor", texto(v.motor)],
     ["Placa", texto(v.placa)],
-    ["Donos anteriores", v.donos_anteriores !== null ? String(v.donos_anteriores) : NAO_INFORMADO],
+    ["Donos anteriores", v.donos_anteriores != null ? String(v.donos_anteriores) : NAO_INFORMADO],
     ["Garantia de fábrica", texto(v.garantia_fabrica)],
     ["Carroceria", texto(v.tipo)],
     ["Para que serve", perfisDeUso || NAO_INFORMADO],
@@ -225,7 +226,7 @@ export default function VisaoDoVeiculo({
             ← ESTOQUE
           </Link>
           <div className="mt-1 flex flex-wrap items-start justify-between gap-4">
-            <h1 className="mt-titulo m-0 text-2xl md:text-3xl">{nome || `Veículo ${v.id}`}</h1>
+            <h1 className="mt-titulo m-0 text-2xl md:text-3xl">{nome}</h1>
             {podeEditarOVeiculo(perfis) && (
               <Link href={`/admin/estoque/${v.id}/editar`} className="mt-btn mt-btn-primario mt-foco px-5 py-2.5 text-[11px]">
                 Editar
@@ -243,7 +244,8 @@ export default function VisaoDoVeiculo({
             </span>
             {urlNoSite && (
               <a href={urlNoSite} target="_blank" rel="noreferrer" className="underline">
-                Ver no site ↗
+                Ver no site <span aria-hidden="true">↗</span>
+                <span className="sr-only"> (abre em nova aba)</span>
               </a>
             )}
           </p>

@@ -132,6 +132,14 @@ describe("as portas do editor valem aqui", () => {
     expect(html).toContain("R$ 31.135");
   });
 
+  it("o preço de compra sai da linha antes de chegar às telas de quem não vê custo", () => {
+    // O editor é componente cliente: a linha inteira viaja no payload da
+    // página. Por isso o corte é no carregamento, e não só no JSX.
+    const abertura = ler("src", "lib", "veiculoNoPainel.ts");
+    expect(abertura).toContain('podeGravarCampo(perfis, "preco_compra") ? data : { ...data, preco_compra: null }');
+    expect(abertura).toContain("return { supabase, veiculo, perfis };");
+  });
+
   it("'Editar' só para quem grava algum campo do painel, e leva ao editor", async () => {
     expect(await visao(carro(), ["comercial"])).toContain('href="/admin/estoque/8453942/editar"');
     expect(await visao(carro(), ["sdr"])).not.toContain("/editar");
@@ -164,9 +172,15 @@ describe("o que a visão diz sobre o carro", () => {
     expect(html).toContain("Fora da vitrine");
   });
 
-  it("'Ver no site' só no carro publicado", async () => {
+  it("'Ver no site' só no carro publicado e que está na vitrine", async () => {
     expect(await visao(carro(), ["comercial"])).toContain("Ver no site");
     expect(await visao(carro({ estado_cadastro: "rascunho" }), ["comercial"])).not.toContain("Ver no site");
+    expect(await visao(carro({ whatsapp_images: [FOTO(1)], web_full_images: [FOTO(1)] }), ["comercial"])).not.toContain("Ver no site");
+  });
+
+  it("donos anteriores ausente conta como ficha pendente", () => {
+    const itens = checklistDoVeiculo(carro({ donos_anteriores: undefined as unknown as null }), { totalDeFotos: 8, podeVerCusto: false });
+    expect(itens.find((i) => i.l === "Ficha própria completa")?.ok).toBe(false);
   });
 
   it("promoção aparece com o 'por' e o desconto arredondado", async () => {

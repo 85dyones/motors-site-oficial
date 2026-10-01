@@ -24,7 +24,8 @@ export default async function EditorDeVeiculoPage({ params }: { params: Promise<
   const visitas = await visitasDaPagina(String(veiculo.id), 30);
 
   // O perfil decide o que a tela desenha: campo que este perfil não grava não
-  // é renderizado — e, por não existir no HTML, também não vaza valor (foi o
-  // caso do preço de compra). O layout do admin já garantiu a sessão.
+  // é renderizado. O valor do preço de compra nem chega aqui para quem não vê
+  // custo: `abrirVeiculoNoPainel` o tira da linha, porque o editor é
+  // componente cliente e a linha inteira viaja no payload da página.
   return <EditorDeVeiculo inicial={veiculo} visitas30Dias={visitas} perfil={perfis} />;
 }

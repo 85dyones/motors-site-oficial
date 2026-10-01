@@ -99,7 +99,7 @@ Notas de contrato:
 `lib/supabase.ts` (5), `lib/estoqueEscrita.ts` (2), `api/estoque/[id]` (2),
 `api/ciclo/vendas/estoque` (1 — único que devolve chassi/placa, atrás do gate da
 venda), `lib/webhook-dispatcher.ts` (1), `app/investidor/page.tsx` (1),
-`api/investidores/participacoes` (1), `admin/estoque/page` (1), `admin/estoque/[id]` (1).
+`api/investidores/participacoes` (1), `admin/estoque/page` (1), `lib/veiculoNoPainel` (1, a visão e o editor do veículo desde 01/10).
 Consumidores públicos via `getEstoque`: home, `/estoque`, destaques, sobre, vitrine,
 balcão, sitemap, feed XML do catálogo, `llms-full.txt`, `/api/match`, PDP.
 Qualquer mudança de shape quebra esse conjunto — e o teste acusa.

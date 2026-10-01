@@ -1357,6 +1357,9 @@ export default function EditorDeVeiculo({
                     </span>
                     <span className="ml-auto flex-none text-[11px] tabular-nums text-mt-neutral-700">
                       {new Date(h.registrado_em).toLocaleString("pt-BR", {
+                        // Hora de Curitiba, a mesma da visão (que renderiza no
+                        // servidor), e não a do navegador de quem abre.
+                        timeZone: "America/Sao_Paulo",
                         day: "2-digit",
                         month: "2-digit",
                         hour: "2-digit",

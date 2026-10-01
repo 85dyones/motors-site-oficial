@@ -40,7 +40,9 @@ export interface ItemDoChecklist {
   estado: string;
 }
 
-/** Placa, motor, cor interna, donos anteriores e garantia: a ficha que é nossa. */
+/** Placa, motor, cor interna, donos anteriores e garantia: a ficha que é nossa.
+ *  `donos_anteriores` ausente (`undefined`) conta como não preenchido, igual a
+ *  `null`; até 01/10 o editor só testava `null`. */
 export function fichaPropriaCompleta(v: VeiculoDoChecklist): boolean {
   return Boolean(v.placa && v.motor && v.cor_interna && v.donos_anteriores !== null && v.donos_anteriores !== undefined && v.garantia_fabrica);
 }

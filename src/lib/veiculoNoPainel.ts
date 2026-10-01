@@ -27,7 +27,14 @@ export async function abrirVeiculoNoPainel(id: string) {
   // Todos os papéis, não `normalizarPerfil(role)`: o primário sozinho
   // escondia campo que o segundo papel grava (regra 2-b).
   const perfis: Perfil[] = perfisDe(profile);
-  return { supabase, veiculo: data, perfis };
+
+  // O preço de compra sai da linha ANTES de ir para qualquer tela de quem não
+  // vê custo. Esconder o campo no JSX não bastava: o editor é componente
+  // cliente, e a linha inteira viajava no payload da página, legível no
+  // código-fonte (achado da revisão de 01/10). A rota de escrita já recusa o
+  // campo para esse perfil, então o editor não perde nada.
+  const veiculo = podeGravarCampo(perfis, "preco_compra") ? data : { ...data, preco_compra: null };
+  return { supabase, veiculo, perfis };
 }
 
 /** Quem pode abrir o editor: quem grava ao menos um campo do painel. */
