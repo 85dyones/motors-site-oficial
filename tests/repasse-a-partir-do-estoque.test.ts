@@ -165,6 +165,39 @@ describe("o carro do estoque, como o seletor do repasse o recebe", () => {
     expect(emBranco.versao).toBe("Trendline");
   });
 
+  it("modelo com a versão embutida: a versão sai do modelo, como na ficha do site (casos vivos de 01/10)", () => {
+    // O feed grava a versão dentro do `modelo`; sem o corte, o repasse nascia
+    // com "Toro Volcano 1.3 T270 4x2 Flex Aut." no modelo e a versão repetida
+    // logo depois. O corte é o da ficha (`modeloEVersaoParaExibir`).
+    const de = (marca: string, modelo: string, versao: string) => {
+      const c = carroDoEstoqueParaORepasse(linhaDoEstoque({ marca, modelo, versao }))!;
+      return [c.marca, c.modelo, c.versao];
+    };
+    expect(de("Fiat", "Toro Volcano 1.3 T270 4x2 Flex Aut.", "Volcano 1.3 T270 4x2 Flex Aut.")).toEqual([
+      "Fiat",
+      "Toro",
+      "Volcano 1.3 T270 4x2 Flex Aut.",
+    ]);
+    expect(de("BMW", "X1 X25i Active Flex", "X25i Active Flex")).toEqual(["BMW", "X1", "X25i Active Flex"]);
+    expect(de("Renault", "Kwid Zen 2", "Zen 2")).toEqual(["Renault", "Kwid", "Zen 2"]);
+    expect(de("Chevrolet", "Onix Plus Turbo LT Automatico", "Plus Turbo LT Automatico")).toEqual([
+      "Chevrolet",
+      "Onix",
+      "Plus Turbo LT Automatico",
+    ]);
+  });
+
+  it("o corte vem depois do override, como no site; sem modelo, a versão fica como está", () => {
+    const override = carroDoEstoqueParaORepasse(linhaDoEstoque({ modelo_override: "Gol G7 Trendline", versao_override: "Trendline" }))!;
+    expect([override.modelo, override.versao]).toEqual(["Gol G7", "Trendline"]);
+    // A ficha nunca vê modelo vazio (o mapper inventa "Sem Modelo"); aqui o
+    // corte com um lado vazio apagaria a versão que o cadastro tem.
+    const semModelo = carroDoEstoqueParaORepasse(linhaDoEstoque({ modelo: null }))!;
+    expect([semModelo.modelo, semModelo.versao]).toEqual([null, "Trendline"]);
+    const semVersao = carroDoEstoqueParaORepasse(linhaDoEstoque({ versao: "" }))!;
+    expect([semVersao.modelo, semVersao.versao]).toEqual(["Gol", null]);
+  });
+
   it("o tipo do estoque vira a carroceria do repasse", () => {
     const de = (tipo: unknown) => carroDoEstoqueParaORepasse(linhaDoEstoque({ tipo }))!.carroceria;
     expect(de("Hatch")).toBe("hatch");

@@ -25,7 +25,7 @@
  */
 import { cadastraRepasse, LIMITE_DE_FOTOS_DO_REPASSE, type RecusaDoPainel } from "./edicaoDoRepasse";
 import { normalizarEstadoCadastro } from "./estadoDoCadastro";
-import { normalizarBusca } from "./estoqueTabela";
+import { modeloEVersaoParaExibir, normalizarBusca } from "./estoqueTabela";
 import { caminhoDaFotoDoRepasse, caminhoDaUrlPublica } from "./fotosDoVeiculo";
 import { grafiaDaMarca, grafiaDaVersao, grafiaDoModelo } from "./grafiaCanonica";
 import type { Perfil } from "./permissoes";
@@ -91,6 +91,24 @@ function comOverride(override: unknown, doFeed: unknown, grafia: (v: string) => 
 }
 
 /**
+ * Modelo e versão como a ficha do site os mostra (dono, 01/10): o feed grava a
+ * versão dentro do `modelo` ("Toro Volcano 1.3 T270 4x2 Flex Aut." com versão
+ * "Volcano 1.3 T270 4x2 Flex Aut."), e o repasse nascia com a versão duas
+ * vezes. O corte é o da ficha (`modeloEVersaoParaExibir`), aplicado depois do
+ * override, na mesma ordem do site (o mapper resolve o override; a ficha corta).
+ *
+ * Só com os dois lados: a ficha nunca vê modelo vazio (o mapper inventa "Sem
+ * Modelo"), e aqui o corte com o modelo vazio apagaria a versão do cadastro.
+ */
+function modeloEVersao(linha: Record<string, unknown>): { modelo: string | null; versao: string | null } {
+  const modelo = comOverride(linha.modelo_override, linha.modelo, grafiaDoModelo);
+  const versao = comOverride(linha.versao_override, linha.versao, grafiaDaVersao);
+  if (modelo === null || versao === null) return { modelo, versao };
+  const exibidos = modeloEVersaoParaExibir(modelo, versao);
+  return { modelo: texto(exibidos.modelo), versao: texto(exibidos.versao) };
+}
+
+/**
  * Hatch → hatch, Sedan → seda, SUV → suv, Picape → picape (o vocabulário de
  * `TIPO_NO_FEED`, lido ao contrário). Outro tipo escrito (Motocicleta, Van)
  * vira "outro"; tipo em branco fica nulo — sem dado, a pessoa escolhe.
@@ -139,11 +157,12 @@ export function carroDoEstoqueParaORepasse(linha: Record<string, unknown>): Carr
   const id = inteiro(linha.id);
   if (id === null || id <= 0) return null;
   const { copiaveis, deFora } = paresDoEstoque(linha.web_full_images, linha.whatsapp_images);
+  const { modelo, versao } = modeloEVersao(linha);
   return {
     id,
     marca: texto(grafiaDaMarca(texto(linha.marca))),
-    modelo: comOverride(linha.modelo_override, linha.modelo, grafiaDoModelo),
-    versao: comOverride(linha.versao_override, linha.versao, grafiaDaVersao),
+    modelo,
+    versao,
     ano: inteiro(linha.ano),
     ano_fabricacao: inteiro(linha.ano_fabricacao),
     quilometragem: inteiro(linha.quilometragem),
