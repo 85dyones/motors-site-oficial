@@ -151,7 +151,15 @@ describe("nomenclatura da tabela de inventário", () => {
     // tela precisa enxergar o carro que já saiu do ar para poder listá-lo
     // como morto e deixar o operador limpar a marcação (ver
     // `src/lib/destaquesDoPainel.ts`).
-    expect(comAcesso.length).toBe(13);
+    //
+    // O décimo quarto e o décimo quinto, em 2026-10-01 (repasse a partir do
+    // estoque, pedido do dono): `api/repasses/estoque/route.ts`, a busca do
+    // novo carro de repasse — SELECT do estoque inteiro, com a placa lida só
+    // para casar a placa INTEIRA e nunca devolvida, e sem chassi, renavam,
+    // custo nem valor FIPE —, e `api/repasses/[id]/fotos-do-estoque/route.ts`,
+    // que lê só `id` e as duas listas de fotos para COPIAR os arquivos para a
+    // pasta do repasse. Nenhuma das duas grava no estoque.
+    expect(comAcesso.length).toBe(15);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -179,6 +187,7 @@ describe("nomenclatura da tabela de inventário", () => {
     // painel e não existe no RevendaMais.
     // E o acesso nº 21, em 2026-09-22, com o arquivo novo acima: o SELECT da
     // tela de curadoria dos destaques (Tarefa 7).
-    expect(total).toBe(21);
+    // E os acessos nº 22 e 23, em 2026-10-01, com os dois arquivos novos acima.
+    expect(total).toBe(23);
   });
 });
