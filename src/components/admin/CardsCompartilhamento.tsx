@@ -50,6 +50,15 @@ interface CardsCompartilhamentoProps {
 const LIMITE_TITULO = 65;
 const LIMITE_DESCRICAO = 130;
 
+/** As páginas que publicam com a chave de uma página do catálogo — e que,
+ *  desde 01/10, não recebem o card escrito aqui (ver `montarCompartilhamento`). */
+const QUEM_MAIS_USA_O_CARD: Partial<Record<IdPaginaCompartilhavel, string>> = {
+  estoque:
+    "O financiamento, as páginas de marca, modelo e bairro e os recortes do estoque usam o mesmo tipo de card, mas mantêm o próprio título, descrição e arte.",
+  sobre: "A página de garantia usa o mesmo tipo de card, mas mantém o próprio título, descrição e arte.",
+  guias: "Cada guia usa o mesmo tipo de card, mas mantém o próprio título, descrição e arte.",
+};
+
 export default function CardsCompartilhamento({
   valor,
   nomeLoja,
@@ -205,7 +214,11 @@ export default function CardsCompartilhamento({
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-mt-neutral-800">
             {textoVale
-              ? "Vale só para este endereço. Páginas que usam o mesmo tipo de card (o financiamento, as de marca e modelo, cada guia) mantêm o próprio título e descrição."
+              ? `Vale só para este endereço.${
+                  QUEM_MAIS_USA_O_CARD[selecionada]
+                    ? ` ${QUEM_MAIS_USA_O_CARD[selecionada]}`
+                    : ""
+                }`
               : "Cada landing de destaque usa o próprio título e descrição. Aqui, só a arte vale para todas."}
           </p>
 
