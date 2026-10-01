@@ -816,10 +816,16 @@ export function cardDoRepasse(
   estado: EstadoDoRepasse,
 ): { titulo: string; descricao: string } {
   const km = Number(r.quilometragem);
+  // Cor e câmbio são texto livre no editor: sai o ponto final e sai o que é
+  // só marcador de vazio ("N/D", "-").
+  const campo = (valor: string | null) => {
+    const limpo = (valor ?? "").trim().replace(/[.\s]+$/, "").toLowerCase();
+    return /^(n\/?d|n\/?a|-+|—|–)?$/.test(limpo) ? "" : limpo;
+  };
   const tracos = [
     Number.isFinite(km) && km > 0 ? `${km.toLocaleString("pt-BR")} km` : "",
-    r.cor?.trim().toLowerCase(),
-    r.cambio?.trim().toLowerCase(),
+    campo(r.cor),
+    campo(r.cambio),
   ]
     .filter(Boolean)
     .join(" · ");

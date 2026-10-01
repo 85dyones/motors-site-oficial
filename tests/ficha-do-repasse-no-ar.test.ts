@@ -284,6 +284,20 @@ describe("o nome da ficha na grafia de sempre, não em maiúsculas", () => {
     }
   });
 
+  it("cardDoRepasse: o estado na frente, campos vazios ou de marcador fora, nunca preço", async () => {
+    const { cardDoRepasse } = await import("../src/lib/paginaDoRepasse");
+    const carro = { quilometragem: 61234, cor: "PRATA", cambio: "Manual." };
+    expect(cardDoRepasse(carro, "Fiat Palio 2010", "aberto")).toEqual({
+      titulo: "Fiat Palio 2010",
+      descricao: "61.234 km · prata · manual. Repasse da Motors Store, em Bacacheri, Curitiba.",
+    });
+    expect(cardDoRepasse(carro, "Fiat Palio 2010", "reservado").descricao.startsWith("Reservado. 61.234 km")).toBe(true);
+    expect(cardDoRepasse(carro, "Fiat Palio 2010", "vendido").descricao.startsWith("Vendido. 61.234 km")).toBe(true);
+    expect(cardDoRepasse({ quilometragem: 0, cor: "N/D", cambio: "-" }, "Fiat Palio 2010", "lojistas").descricao).toBe(
+      "Repasse da Motors Store, em Bacacheri, Curitiba.",
+    );
+  });
+
   it("modelo que é sigla fica inteiro: HB20", async () => {
     estado.porSlug[SLUG] = HB20;
     const html = await servida();
