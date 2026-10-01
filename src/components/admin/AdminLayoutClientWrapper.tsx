@@ -43,6 +43,8 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
     partes.push("GERAL", "LEADS");
   } else if (pathname.startsWith("/admin/estoque/")) {
     partes.push("ESTOQUE", "VEÍCULOS", `CÓD. ${pathname.split("/")[3] ?? ""}`);
+    // A visão e o editor do mesmo carro (01/10): o trilho diz em qual se está.
+    if (pathname.endsWith("/editar")) partes.push("EDITAR");
   } else if (pathname.startsWith("/admin/site/areas")) {
     partes.push("SITE", "ÁREAS E CONTEÚDO");
   } else if (pathname.startsWith("/admin/usuarios")) {

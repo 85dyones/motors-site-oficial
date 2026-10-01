@@ -73,7 +73,8 @@ describe("nomenclatura da tabela de inventário", () => {
     //   api/estoque/route.ts (1),
     //   lib/webhook-dispatcher.ts (1), app/investidor/page.tsx (1),
     //   api/investidores/participacoes/route.ts (1),
-    //   app/admin/estoque/page.tsx (1), app/admin/estoque/[id]/page.tsx (1)
+    //   app/admin/estoque/page.tsx (1), lib/veiculoNoPainel.ts (1; até 01/10
+    //   em app/admin/estoque/[id]/page.tsx, quando o editor era a página)
     //
     // Eram 10 acessos em 5 arquivos até 2026-08-03. A consulta perdeu um
     // quando a busca por placa foi removida (a coluna não existia então).
@@ -158,8 +159,9 @@ describe("nomenclatura da tabela de inventário", () => {
     // via `lerComoEquipe((origem) => supabase.from(origem)…)` — que não é um
     // `.from("estoque_motors")` literal. Saíram daqui os três arquivos cuja
     // única leitura precisava delas: `app/admin/estoque/page.tsx` (tabela A6,
-    // que busca pela placa), `app/admin/estoque/[id]/page.tsx` (o editor) e
-    // `api/ciclo/vendas/estoque/route.ts` (placa, chassi e custo da venda).
+    // que busca pela placa), `lib/veiculoNoPainel.ts` (abre a visão e o
+    // editor do veículo) e `api/ciclo/vendas/estoque/route.ts` (placa, chassi
+    // e custo da venda).
     // A guarda de que nenhuma leitura literal pede coluna interna mora em
     // `tests/documento-e-custo-so-para-a-equipe.test.ts`.
     expect(comAcesso.length).toBe(10);

@@ -464,6 +464,19 @@ describe("o painel, rodando contra os privilégios do authenticated depois da mi
     expect(veiculo).toMatchObject({ placa: DO_FEED.placa, chassi: DO_FEED.chassi, renavam: DO_FEED.renavam, preco_compra: DO_FEED.preco_compra });
   });
 
+  it("a visão e o editor do veículo abrem com placa, chassi e renavam; o custo só a quem vê custo", async () => {
+    const { abrirVeiculoNoPainel } = await import("../src/lib/veiculoNoPainel");
+    sessao(["admin"]);
+    const doAdmin = await abrirVeiculoNoPainel(String(NATIVO.id));
+    expect(recusas).toEqual([]);
+    expect(doAdmin.veiculo).toMatchObject({ placa: NATIVO.placa, chassi: NATIVO.chassi, renavam: NATIVO.renavam, preco_compra: NATIVO.preco_compra });
+
+    sessao(["comercial"]);
+    const doComercial = await abrirVeiculoNoPainel(String(NATIVO.id));
+    expect(doComercial.veiculo.placa).toBe(NATIVO.placa);
+    expect(doComercial.veiculo.preco_compra).toBeNull();
+  });
+
   it("o seletor da venda traz placa e chassi; o custo só a quem vê custo", async () => {
     const { GET } = await import("../src/app/api/ciclo/vendas/estoque/route");
     sessao(["admin"]);
