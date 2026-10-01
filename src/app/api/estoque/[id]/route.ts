@@ -32,6 +32,18 @@ export async function GET(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
+    // A linha inteira tem placa, chassi, renavam e custo de compra. Até
+    // 2026-10-01 só o PATCH abaixo barrava quem não é equipe; o GET entregava
+    // tudo a qualquer sessão — cliente da Garagem e investidor incluídos.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, papeis")
+      .eq("id", user.id)
+      .single();
+    if (!ehStaff(profile)) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
+
     // O id é bigint no banco, mas chega como string na URL.
     const alvo = normalizarId(id);
     const { data, error } = await supabase

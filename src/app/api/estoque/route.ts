@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../lib/supabase-server";
 import { getEstoque } from "../../../lib/supabase";
 import { decidirCadastro } from "../../../lib/cadastroDeVeiculo";
+import { ehStaff } from "../../../lib/permissoes";
 import { registrarAcaoSensivel } from "../../../lib/auditoria";
 import { ehTabelaOuColunaAusente, mensagemDeMigracaoPendente } from "../../../lib/erroDeSchema";
 
@@ -36,6 +37,19 @@ export async function GET() {
     // Dado de operação interna (inclui veículos fora do feed): exige sessão.
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    // E exige EQUIPE (2026-10-01). Até aqui bastava a sessão, e cliente da
+    // Garagem e investidor com login — `authenticated` sem ser equipe —
+    // recebiam a placa de todo o pátio. Quem consome a lista é o seletor de
+    // veículo de `/admin/investidores`, que já é só da equipe.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, papeis")
+      .eq("id", user.id)
+      .single();
+    if (!ehStaff(profile)) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
 
     // `incluirPlaca`: a rota é autenticada e a busca por placa da tela de
