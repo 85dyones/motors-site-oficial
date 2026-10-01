@@ -397,3 +397,50 @@ describe("a rota /og", () => {
     expect(lidos).toEqual(["card"]);
   });
 });
+
+describe("o card do painel vale só para a própria página (01/10)", () => {
+  const painel = empresaCom({
+    estoque: { titulo: "Título do painel para o estoque", descricao: "Descrição do painel", imagemUrl: "https://cdn.exemplo/estoque.jpg" },
+    sobre: { titulo: "Título do Quem somos" },
+    guias: { titulo: "Título do índice de guias" },
+    destaques: { titulo: "Título dos destaques", imagemUrl: "https://cdn.exemplo/destaques.jpg" },
+  });
+
+  it("na própria página o painel vence", () => {
+    const meta = montarCompartilhamento({ empresa: painel, pagina: "estoque", tituloPadrao: "12 carros", caminho: "/estoque" });
+    expect(meta.openGraph?.title).toBe("Título do painel para o estoque");
+    expect(imagemDe(meta).url).toBe("https://cdn.exemplo/estoque.jpg");
+  });
+
+  it("quem só usa a chave mantém o próprio título, descrição e imagem", () => {
+    for (const [pagina, caminho, titulo] of [
+      ["estoque", "/financiamento", "Financiamento de seminovo em Curitiba"],
+      ["estoque", "/carros/jeep", "Jeep seminovos em Curitiba"],
+      ["estoque", "/estoque/suv", "SUVs seminovos"],
+      ["sobre", "/garantia", "Garantia do seminovo — Motors Store"],
+      ["guias", "/guias/como-ler-um-laudo", "Como ler um laudo"],
+    ] as const) {
+      const meta = montarCompartilhamento({ empresa: painel, pagina, tituloPadrao: titulo, descricaoPadrao: "Própria", caminho });
+      expect(meta.openGraph?.title, caminho).toBe(titulo);
+      expect(meta.openGraph?.description, caminho).toBe("Própria");
+      expect(imagemDe(meta).url, caminho).not.toContain("cdn.exemplo/estoque");
+    }
+  });
+
+  it("no catálogo com curinga, a arte do painel vale para todas; o texto, não", () => {
+    const meta = montarCompartilhamento({
+      empresa: painel,
+      pagina: "destaques",
+      tituloPadrao: "Carros blindados em Curitiba",
+      caminho: "https://www.motorsstore.com.br/destaques/blindados?utm_source=site",
+    });
+    expect(meta.openGraph?.title).toBe("Carros blindados em Curitiba");
+    expect(imagemDe(meta).url).toBe("https://cdn.exemplo/destaques.jpg");
+  });
+
+  it("sem caminho (o padrão do layout) vale como antes", () => {
+    const meta = montarCompartilhamento({ empresa: painel, pagina: "estoque", tituloPadrao: "x" });
+    expect(meta.openGraph?.title).toBe("Título do painel para o estoque");
+  });
+});
+
