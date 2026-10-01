@@ -69,6 +69,59 @@ export function recusaPorPisoDeCusto(
 }
 
 /**
+ * Abaixo desta fração do preço anunciado, o custo é erro de digitação.
+ *
+ * A trava acima confia no custo — e um custo errado para BAIXO a desarma em
+ * silêncio. Foi o que aconteceu em 01/10/2026: o Captur 8506096, anunciado a R$
+ * 92.900, ficou com custo de R$ 75,15 ("75.154,40" num campo numérico que
+ * engoliu a vírgula), e o City 8517481, a R$ 119.900, com R$ 113 ("113.000"
+ * lido como 113). Com esses custos, qualquer preço acima de R$ 113 passa no
+ * piso, e a margem do painel diz 99,9%.
+ *
+ * 10% é larguíssimo de propósito: nenhum carro de revenda entra por menos de um
+ * décimo do que se anuncia, e o que se quer pegar é o erro de três zeros, não
+ * discutir compra boa. Errado para CIMA não precisa disto: o próprio piso
+ * reclama no primeiro preço abaixo do custo inflado.
+ */
+export const FRACAO_MINIMA_DO_CUSTO = 0.1;
+
+const comoNumero = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Por que este custo não pode ser gravado contra este preço anunciado — `null`
+ * quando pode.
+ *
+ * Nomeia os dois valores sem a opção `podeVerCusto` de `recusaPorPisoDeCusto`:
+ * quem chega a esta recusa é quem está LANÇANDO o custo, e a matriz A17 só deixa
+ * lançar a quem vê (a rota devolve 403 antes, a quem não vê).
+ *
+ * Sem custo (nulo ou zero, o "não lançado" do painel) ou sem preço anunciado,
+ * não há o que comparar.
+ */
+export function recusaPorCustoImplausivel(
+  custo: unknown,
+  anunciado: unknown,
+): string | null {
+  const c = comoNumero(custo);
+  if (c === null || c <= 0) return null;
+  const a = comoNumero(anunciado);
+  if (a === null || a <= 0) return null;
+  if (c >= a * FRACAO_MINIMA_DO_CUSTO) return null;
+
+  const reais = (v: number, casas: number) =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: casas });
+  return (
+    `Preço de compra de ${reais(c, 2)} é menos de ${Math.round(FRACAO_MINIMA_DO_CUSTO * 100)}% do ` +
+    `preço anunciado (${reais(a, 0)}) — confira se o milhar não se perdeu. ` +
+    `Escreva como na nota: 75.154,40.`
+  );
+}
+
+/**
  * O preço efetivo que uma gravação produz — o que a trava precisa julgar.
  *
  * Recebe o estado ANTERIOR e o que está sendo escrito, porque as duas pontas
