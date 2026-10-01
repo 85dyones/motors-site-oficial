@@ -53,12 +53,11 @@ export async function generateMetadata(): Promise<Metadata> {
     ...montarCompartilhamento({
       empresa: companySettings,
       /*
-       * `"pdp"` e não `"sobre"`, e o motivo é mecânico: `montarCompartilhamento`
-       * faz `proprio = pagina === "pdp" ? {} : config[pagina] ?? {}`, e depois
-       * `limpar(proprio.titulo) || limpar(tituloPadrao)`. Com `"sobre"`, um card
-       * de "Quem Somos" customizado no painel VENCERIA o título e a descrição
-       * desta LP — o card do WhatsApp da campanha viraria o texto institucional.
-       * `"pdp"` zera esse override e deixa os padrões abaixo mandarem.
+       * `"pdp"`: a LP não é página do catálogo do painel, e nenhum card escrito
+       * lá deve valer aqui. Até 01/10 o motivo era mecânico (com `"sobre"` o
+       * card de "Quem somos" vencia o título desta LP); desde então o texto do
+       * painel só vale no próprio endereço da página, mas `"pdp"` continua o
+       * certo: sem arte própria do painel, sem card gerado de outra página.
        */
       pagina: "pdp",
       tituloPadrao: "Pole Position — a largada para grandes oportunidades",
