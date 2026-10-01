@@ -54,6 +54,7 @@ export const FUNCOES_COM_AMOSTRA = [
   "tituloDaFichaNaBusca",
   "textoDoVazio",
   "abertosHoje",
+  "cardDoRepasse",
 ] as const;
 
 export function textosMontadosDoRepasse(): string[] {
@@ -129,6 +130,10 @@ export function textosMontadosDoRepasse(): string[] {
     pagina.textoDoVazio(null),
     pagina.abertosHoje(1),
     pagina.abertosHoje(6),
+    ...(["aberto", "lojistas", "reservado", "vendido"] as const).flatMap((estado) => {
+      const card = pagina.cardDoRepasse({ quilometragem: 61234, cor: "PRATA", cambio: "Manual" }, "Renault Kwid Zen 1.0 2021", estado);
+      return [card.titulo, card.descricao];
+    }),
   ];
 }
 

@@ -273,6 +273,31 @@ describe("o nome da ficha na grafia de sempre, não em maiúsculas", () => {
     expect(JSON.stringify(meta)).not.toContain("PALIO");
   });
 
+  it("o card de compartilhamento não leva preço, nem aberto nem só para lojistas (01/10)", async () => {
+    // O WhatsApp guarda a prévia por dias, e o preço do repasse muda.
+    for (const aberto of ["2026-09-24T12:00:00Z", null]) {
+      estado.porSlug[SLUG] = { ...PALIO, aberto_ao_publico_em: aberto, resumo: "Por R$ 18.900, abaixo da FIPE." };
+      const meta = await ficha.generateMetadata({ params: Promise.resolve({ carro: SLUG }) });
+      const card = JSON.stringify([meta.openGraph?.title, meta.openGraph?.description, meta.twitter]);
+      expect(card, card).not.toMatch(/R\$/);
+      expect(String(meta.openGraph?.description)).toContain("Repasse da Motors Store");
+    }
+  });
+
+  it("cardDoRepasse: o estado na frente, campos vazios ou de marcador fora, nunca preço", async () => {
+    const { cardDoRepasse } = await import("../src/lib/paginaDoRepasse");
+    const carro = { quilometragem: 61234, cor: "PRATA", cambio: "Manual." };
+    expect(cardDoRepasse(carro, "Fiat Palio 2010", "aberto")).toEqual({
+      titulo: "Fiat Palio 2010",
+      descricao: "61.234 km · prata · manual. Repasse da Motors Store, em Bacacheri, Curitiba.",
+    });
+    expect(cardDoRepasse(carro, "Fiat Palio 2010", "reservado").descricao.startsWith("Reservado. 61.234 km")).toBe(true);
+    expect(cardDoRepasse(carro, "Fiat Palio 2010", "vendido").descricao.startsWith("Vendido. 61.234 km")).toBe(true);
+    expect(cardDoRepasse({ quilometragem: 0, cor: "N/D", cambio: "-" }, "Fiat Palio 2010", "lojistas").descricao).toBe(
+      "Repasse da Motors Store, em Bacacheri, Curitiba.",
+    );
+  });
+
   it("modelo que é sigla fica inteiro: HB20", async () => {
     estado.porSlug[SLUG] = HB20;
     const html = await servida();

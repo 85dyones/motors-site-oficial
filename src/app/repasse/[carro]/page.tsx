@@ -34,6 +34,7 @@ import {
   PERGUNTAS_DO_REPASSE_CABECALHO,
   TRILHA_DO_REPASSE,
   abaixoDaFipeNaBarra,
+  cardDoRepasse,
   anosDoCarro,
   constaNoHistorico,
   consultaFeitaEm,
@@ -119,6 +120,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const estado = estadoDoRepasse(r);
   const { companySettings } = await getCachedSettings();
   const previa = previaDaFotoDoVeiculo(r.whatsapp_images[0] ?? r.web_full_images[0] ?? "");
+  const card = estado ? cardDoRepasse(r, nome, estado) : { titulo: nome, descricao: DESCRICAO_DO_REPASSE };
   return {
     title: tituloDaFichaNaBusca(nome),
     description: r.resumo ?? DESCRICAO_DO_REPASSE,
@@ -127,9 +129,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       empresa: companySettings,
       pagina: "pdp",
       rotulo: TRILHA_DO_REPASSE.repasse,
-      // Reservado e vendido não anunciam preço no card — a régua da ficha do estoque.
-      tituloPadrao: estado === "aberto" || estado === "lojistas" ? `${nome} · ${emReais(r.preco)}` : nome,
-      descricaoPadrao: r.resumo ?? DESCRICAO_DO_REPASSE,
+      // Sem preço em estado nenhum (01/10): o WhatsApp guarda a prévia por
+      // dias. Ver `cardDoRepasse`.
+      tituloPadrao: card.titulo,
+      descricaoPadrao: card.descricao,
       caminho,
       imagemPreferida: previa.url,
       imagemPreferidaSemDimensao: previa.semDimensao,

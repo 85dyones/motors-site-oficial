@@ -38,6 +38,7 @@ import {
   type CarroceriaDoRepasse,
   type FaixaDoRepasse,
   type FiltroDoRepasse,
+  type EstadoDoRepasse,
   type LaudoDoRepasse,
   type Repasse,
 } from "./repasse";
@@ -801,3 +802,40 @@ export const ERROS_DO_REPASSE = {
   lista: "Não deu para entrar na lista agora. Tente de novo em instantes.",
   generico: "Não conseguimos enviar agora. Tente de novo em instantes.",
 } as const;
+
+/**
+ * O card de compartilhamento da ficha do repasse: título e descrição, sem
+ * preço (decisão do dono em 01/10/2026, a mesma régua da ficha do estoque
+ * desde 30/09). O WhatsApp guarda a prévia do link por dias, e o preço do
+ * repasse muda. O resumo escrito no painel também fica de fora do card, porque
+ * pode citar valor; ele continua na meta description e na página.
+ */
+export function cardDoRepasse(
+  r: Pick<Repasse, "quilometragem" | "cor" | "cambio">,
+  nome: string,
+  estado: EstadoDoRepasse,
+): { titulo: string; descricao: string } {
+  const km = Number(r.quilometragem);
+  // Cor e câmbio são texto livre no editor: sai o ponto final e sai o que é
+  // só marcador de vazio ("N/D", "-").
+  const campo = (valor: string | null) => {
+    const limpo = (valor ?? "").trim().replace(/[.\s]+$/, "").toLowerCase();
+    return /^(n\/?d|n\/?a|-+|—|–)?$/.test(limpo) ? "" : limpo;
+  };
+  const tracos = [
+    Number.isFinite(km) && km > 0 ? `${km.toLocaleString("pt-BR")} km` : "",
+    campo(r.cor),
+    campo(r.cambio),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const situacao = estado === "reservado" ? "Reservado." : estado === "vendido" ? "Vendido." : "";
+  const descricao = [
+    situacao,
+    tracos ? `${tracos.charAt(0).toUpperCase()}${tracos.slice(1)}.` : "",
+    "Repasse da Motors Store, em Bacacheri, Curitiba.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { titulo: nome, descricao };
+}
