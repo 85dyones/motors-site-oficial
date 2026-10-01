@@ -150,8 +150,10 @@ export async function GET(request: Request) {
       height: ALTURA_CARD,
       ...(fontes ? { fonts: fontes } : {}),
       headers: {
-        // O card só muda quando a loja troca logo ou nome. Um dia de cache na
-        // borda evita rasterizar de novo a cada scraper que passa. O que saiu
+        // O card só muda quando a loja troca logo ou nome, ou quando um deploy
+        // muda o texto de `CARDS_GERADOS` (a borda da Vercel limpa no deploy;
+        // o robô de prévia pode guardar o antigo por até um dia). Um dia de
+        // cache evita rasterizar de novo a cada scraper que passa. O que saiu
         // sem a fonte ou sem o logo (falha passageira de rede) fica cinco
         // minutos, para a próxima tentativa sair inteira.
         "Cache-Control":

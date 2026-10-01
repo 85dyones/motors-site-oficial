@@ -286,19 +286,25 @@ export function ehChaveDoCardGerado(valor: string | null | undefined): valor is 
 }
 
 /**
- * Qual card uma página publica. O rótulo pedido escolhe o card quando é o
- * rótulo de um deles ("Garantia", "Repasse"); rótulo que não é de card nenhum
- * (o nome de um hub, "2021 · 45.000 km") fica só no texto, e o card é o do
- * tipo da página. A ficha do carro sem foto usa o card do estoque.
+ * As páginas que publicam com o card de OUTRA e pedem o seu pelo rótulo.
+ * Lista fechada de propósito: um hub ou um destaque que um dia se chame
+ * "Garantia" não pode trocar o card da página dele.
+ */
+const CARD_PELO_ROTULO: Readonly<Record<string, ChaveDoCardGerado>> = {
+  Garantia: "garantia",
+  Financiamento: "financiamento",
+  Repasse: "repasse",
+};
+
+/**
+ * Qual card uma página publica: o do tipo da página, salvo as três que pedem
+ * o seu pelo rótulo (`CARD_PELO_ROTULO`). Rótulo livre (o nome de um hub,
+ * "2021 · 45.000 km") fica só no texto. A ficha do carro sem foto usa o card
+ * do estoque.
  */
 export function cardGeradoDa(pagina: ContextoCompartilhamento, rotulo?: string | null): ChaveDoCardGerado {
   const pedido = limpar(rotulo);
-  if (pedido) {
-    const porRotulo = (Object.keys(CARDS_GERADOS) as ChaveDoCardGerado[]).find(
-      (chave) => CARDS_GERADOS[chave].rotulo === pedido,
-    );
-    if (porRotulo) return porRotulo;
-  }
+  if (pedido && Object.prototype.hasOwnProperty.call(CARD_PELO_ROTULO, pedido)) return CARD_PELO_ROTULO[pedido];
   return pagina === "pdp" ? "estoque" : pagina;
 }
 
@@ -441,12 +447,19 @@ export function montarCompartilhamento({
           ? {}
           : { width: LARGURA_CARD, height: ALTURA_CARD }),
       }
-    : {
-        url: doPainel ?? urlDoCardGerado(cardGeradoDa(pagina, marcador)),
-        width: LARGURA_CARD,
-        height: ALTURA_CARD,
-        alt: titulo,
-      };
+    : doPainel
+      ? { url: doPainel, width: LARGURA_CARD, height: ALTURA_CARD, alt: titulo }
+      : (() => {
+          // O `alt` descreve o que a imagem mostra: o texto fixo do card, e
+          // não o título da página.
+          const chave = cardGeradoDa(pagina, marcador);
+          return {
+            url: urlDoCardGerado(chave),
+            width: LARGURA_CARD,
+            height: ALTURA_CARD,
+            alt: CARDS_GERADOS[chave].titulo,
+          };
+        })();
 
   return {
     openGraph: {

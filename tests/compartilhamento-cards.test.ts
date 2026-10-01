@@ -61,6 +61,7 @@ function imagemDe(meta: ReturnType<typeof montarCompartilhamento>) {
   const imagens = meta.openGraph?.images;
   return (Array.isArray(imagens) ? imagens[0] : imagens) as {
     url: string;
+    alt?: string;
     width?: number;
     height?: number;
   };
@@ -331,6 +332,8 @@ describe("card gerado: texto fixo, escolhido por chave (01/10)", () => {
     });
     expect(meta.openGraph?.title).toBe("Como ler um laudo cautelar");
     expect(imagemDe(meta).url).toBe("/og?card=guias");
+    // O `alt` descreve a imagem, que tem o texto fixo do card.
+    expect(imagemDe(meta).alt).toBe(CARDS_GERADOS.guias.titulo);
   });
 
   it("rótulo de card escolhe o card; rótulo livre fica no texto", () => {
@@ -340,6 +343,9 @@ describe("card gerado: texto fixo, escolhido por chave (01/10)", () => {
     expect(cardGeradoDa("estoque", "Jeep Compass")).toBe("estoque");
     expect(cardGeradoDa("pdp", "2021 · 45.000 km")).toBe("estoque");
     expect(cardGeradoDa("destaques", "Blindados")).toBe("destaques");
+    // Lista fechada: o rótulo de um card do catálogo não troca o card de outra página.
+    expect(cardGeradoDa("destaques", "Estoque")).toBe("destaques");
+    expect(cardGeradoDa("estoque", "__proto__")).toBe("estoque");
   });
 
   it("chave só vale se for de um card de verdade", () => {
