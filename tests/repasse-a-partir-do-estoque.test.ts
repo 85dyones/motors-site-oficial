@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { bancoDeTeste, sessaoDeTeste, type Banco } from "./bancoDoRepasseDeTeste";
 import { linhaDoBancoDeTeste } from "./repasseDeTeste";
+import { ESTOQUE_DA_EQUIPE } from "../src/lib/colunasDoEstoque";
 
 /**
  * Cadastrar o repasse a partir de um carro do estoque (pedido do dono de
@@ -321,42 +322,45 @@ describe("o plano da cópia das fotos", () => {
   });
 });
 
+/** A busca lê pela view da equipe desde 20261001150000; a tabela só se a view não existir. */
+const leuOEstoque = () => banco.lidas.some((t) => t === "estoque_motors" || t === ESTOQUE_DA_EQUIPE);
+
 const pedidoDaBusca = (q?: string) =>
   new Request(`http://teste/api/repasses/estoque${q === undefined ? "" : `?q=${encodeURIComponent(q)}`}`);
 
 describe("GET /api/repasses/estoque", () => {
   beforeEach(() => {
-    banco.leituras.estoque_motors = { data: [linhaDoEstoque()], error: null };
+    banco.leituras[ESTOQUE_DA_EQUIPE] = { data: [linhaDoEstoque()], error: null };
   });
 
   it("sem login: 401 e o estoque nem é lido", async () => {
     entrarComo(["comercial"], null);
-    banco.leituras.estoque_motors = { data: [linhaDoEstoque()], error: null };
+    banco.leituras[ESTOQUE_DA_EQUIPE] = { data: [linhaDoEstoque()], error: null };
     expect((await GET(pedidoDaBusca("gol"))).status).toBe(401);
-    expect(banco.lidas).not.toContain("estoque_motors");
+    expect(leuOEstoque()).toBe(false);
   });
 
   it("quem não é da equipe: 403", async () => {
     entrarComo(["cliente"]);
     expect((await GET(pedidoDaBusca("gol"))).status).toBe(403);
-    expect(banco.lidas).not.toContain("estoque_motors");
+    expect(leuOEstoque()).toBe(false);
   });
 
   it("quem foi desativado: 403", async () => {
     banco.leituras.profiles = { data: { role: "comercial", papeis: ["comercial"], full_name: "X", is_active: false }, error: null };
     expect((await GET(pedidoDaBusca("gol"))).status).toBe(403);
-    expect(banco.lidas).not.toContain("estoque_motors");
+    expect(leuOEstoque()).toBe(false);
   });
 
   it("perfil de equipe que não cadastra repasse: 403, sem ler o estoque", async () => {
     matriz.semCadastro = true;
     expect((await GET(pedidoDaBusca("gol"))).status).toBe(403);
-    expect(banco.lidas).not.toContain("estoque_motors");
+    expect(leuOEstoque()).toBe(false);
   });
 
   it.each(["admin", "gestor", "marketing", "comercial", "financeiro", "sdr"])("%s cadastra repasse e busca no estoque", async (papel) => {
     entrarComo([papel]);
-    banco.leituras.estoque_motors = { data: [linhaDoEstoque()], error: null };
+    banco.leituras[ESTOQUE_DA_EQUIPE] = { data: [linhaDoEstoque()], error: null };
     const res = await GET(pedidoDaBusca("gol"));
     expect(res.status).toBe(200);
     expect((await res.json()).veiculos.map((c: { id: number }) => c.id)).toEqual([4321]);
@@ -366,7 +370,7 @@ describe("GET /api/repasses/estoque", () => {
     const res = await GET(pedidoDaBusca("QXR-7E19"));
     const corpo = await res.json();
     expect(corpo.veiculos.map((c: { id: number }) => c.id)).toEqual([4321]);
-    const [consulta] = banco.consultas.filter((c) => c.tabela === "estoque_motors");
+    const [consulta] = banco.consultas.filter((c) => c.tabela === ESTOQUE_DA_EQUIPE);
     const colunas = String(consulta.colunas)
       .split(",")
       .map((c) => c.trim());
@@ -379,11 +383,11 @@ describe("GET /api/repasses/estoque", () => {
   it("termo curto: lista vazia, sem ir ao banco", async () => {
     const res = await GET(pedidoDaBusca("g"));
     expect((await res.json()).veiculos).toEqual([]);
-    expect(banco.lidas).not.toContain("estoque_motors");
+    expect(leuOEstoque()).toBe(false);
   });
 
   it("falha na leitura do estoque: 502", async () => {
-    banco.leituras.estoque_motors = { data: null, error: { message: "fora do ar", code: "XX000" } };
+    banco.leituras[ESTOQUE_DA_EQUIPE] = { data: null, error: { message: "fora do ar", code: "XX000" } };
     expect((await GET(pedidoDaBusca("gol"))).status).toBe(502);
   });
 });

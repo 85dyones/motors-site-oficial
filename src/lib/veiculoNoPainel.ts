@@ -4,6 +4,7 @@ import { ehTabelaOuColunaAusente } from "./erroDeSchema";
 import { historicoVisivel, type LinhaDeHistorico } from "./historicoDoVeiculo";
 import { perfisDe, podeGravarCampo, type Perfil } from "./permissoes";
 import { CAMPOS_NOSSOS } from "./estoqueEscrita";
+import { lerComoEquipe } from "./colunasDoEstoque";
 
 /**
  * O veículo no painel, para as duas telas dele (01/10/2026): a visão só de
@@ -14,9 +15,13 @@ import { CAMPOS_NOSSOS } from "./estoqueEscrita";
 export async function abrirVeiculoNoPainel(id: string) {
   const supabase = await createServerSupabaseClient();
 
-  // O id é bigint no banco e chega como string na URL.
+  // O id é bigint no banco e chega como string na URL. A linha inteira (placa,
+  // chassi, renavam, custo) vem pela view da equipe — a sessão não lê essas
+  // colunas na tabela desde 20261001150000.
   const alvo = /^\d+$/.test(id) ? Number(id) : id;
-  const { data } = await supabase.from("estoque_motors").select("*").eq("id", alvo).maybeSingle();
+  const { data } = await lerComoEquipe((origem) =>
+    supabase.from(origem).select("*").eq("id", alvo).maybeSingle(),
+  );
   if (!data) notFound();
 
   const {

@@ -19,6 +19,7 @@ import { diasDePrevisaoVencida } from "../../../lib/emPreparacao";
 import TabelaDeEstoque from "../../../components/admin/TabelaDeEstoque";
 import { diasEmEstoque } from "../../../lib/dataLayer";
 import { perfisDe, podeFazer } from "../../../lib/permissoes";
+import { lerComoEquipe } from "../../../lib/colunasDoEstoque";
 
 export const dynamic = "force-dynamic";
 
@@ -77,10 +78,11 @@ export default async function AdminEstoquePage() {
   const supabase = await createServerSupabaseClient();
 
   const [{ data: brutos }, settings, paginas] = await Promise.all([
-    supabase
-      .from("estoque_motors")
-      .select("*")
-      .order("created_at", { ascending: false }),
+    // Pela view da equipe: a tabela A6 mostra e busca pela placa, que a sessão
+    // não lê na tabela desde 20261001150000.
+    lerComoEquipe((origem) =>
+      supabase.from(origem).select("*").order("created_at", { ascending: false }),
+    ),
     getCachedSettings(),
     // `null` quando o GA4 não tem credencial de leitura — a célula mostra "—".
     // Uma consulta só para a lista inteira, não uma por veículo.

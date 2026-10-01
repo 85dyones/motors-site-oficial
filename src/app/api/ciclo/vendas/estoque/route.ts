@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../../lib/permissoes";
+import { lerComoEquipe } from "../../../../../lib/colunasDoEstoque";
 import {
   filtroDoSeletorDeVenda,
   vendidosAguardandoRegistro,
@@ -86,15 +87,20 @@ export async function GET() {
     ? []
     : vendidosAguardandoRegistro(mudancasDeVendido.data ?? [], vendasDoCiclo.data ?? []);
 
-  const { data, error } = await supabase
-    .from("estoque_motors")
-    .select(
-      `id, marca, modelo, versao, ano, ano_fabricacao, quilometragem,
-       preco, cor, placa, chassi, valor_fipe, vendido${podeVerCusto ? ", preco_compra" : ""}`,
-    )
-    .or(filtroDoSeletorDeVenda(aguardandoRegistro))
-    .order("marca", { ascending: true })
-    .limit(400);
+  // Placa, chassi, FIPE e custo: pela view da equipe, que é a única que os
+  // entrega à sessão desde 20261001150000. O recorte do custo por perfil
+  // continua AQUI — a view entrega o custo a toda a equipe.
+  const { data, error } = await lerComoEquipe((origem) =>
+    supabase
+      .from(origem)
+      .select(
+        `id, marca, modelo, versao, ano, ano_fabricacao, quilometragem,
+         preco, cor, placa, chassi, valor_fipe, vendido${podeVerCusto ? ", preco_compra" : ""}`,
+      )
+      .or(filtroDoSeletorDeVenda(aguardandoRegistro))
+      .order("marca", { ascending: true })
+      .limit(400),
+  );
 
   if (error) {
     console.error("[Ciclo/Vendas/Estoque] Falha ao listar:", error.message);

@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { campoNegadoAoPerfil, ehStaff, perfisDe } from "../../../../lib/permissoes";
 import { aplicarNosVeiculos, extrairCamposNossos, normalizarId } from "../../../../lib/estoqueEscrita";
+import { lerComoEquipe } from "../../../../lib/colunasDoEstoque";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,25 @@ export async function GET(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // O id é bigint no banco, mas chega como string na URL.
+    // A linha inteira tem placa, chassi, renavam e custo de compra. Até
+    // 2026-10-01 só o PATCH abaixo barrava quem não é equipe; o GET entregava
+    // tudo a qualquer sessão — cliente da Garagem e investidor incluídos.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, papeis")
+      .eq("id", user.id)
+      .single();
+    if (!ehStaff(profile)) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
+
+    // O id é bigint no banco, mas chega como string na URL. A linha inteira
+    // vem pela view da equipe: a sessão não lê documento nem custo na tabela
+    // desde 20261001150000.
     const alvo = normalizarId(id);
-    const { data, error } = await supabase
-      .from("estoque_motors")
-      .select("*")
-      .eq("id", alvo)
-      .maybeSingle();
+    const { data, error } = await lerComoEquipe((origem) =>
+      supabase.from(origem).select("*").eq("id", alvo).maybeSingle(),
+    );
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

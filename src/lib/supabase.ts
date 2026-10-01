@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { SELECT_PUBLICO_DO_ESTOQUE } from "./colunasDoEstoque";
+import { SELECT_PUBLICO_DO_ESTOQUE, lerComoEquipe } from "./colunasDoEstoque";
 import { registrarFalha } from "./observabilidade";
 import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
@@ -1011,13 +1011,16 @@ export async function getEstoque(
   let list: Veiculo[] = [];
   if (isSupabaseConfigured && fonte) {
     try {
+      // A placa vem pela view da equipe: desde 20261001150000 a sessão também
+      // não a lê na tabela — cliente da Garagem e investidor são sessão. O
+      // resto lê a lista pública da tabela, com a chave que vier.
+      //
       // `as "*"`: a lista vem de uma constante, e o supabase-js só tipa select
       // literal. Sem tipos gerados do banco, a linha de `*` é a mesma linha crua
       // de sempre — o cast só diz isso ao compilador.
-      const { data, error } = await fonte
-        .from("estoque_motors")
-        .select(colunas as "*")
-        .order("preco", { ascending: false });
+      const ler = (origem: string) =>
+        fonte.from(origem).select(colunas as "*").order("preco", { ascending: false });
+      const { data, error } = opts.incluirPlaca ? await lerComoEquipe(ler) : await ler("estoque_motors");
 
       if (error) {
         list = await estoqueIndisponivel(`o banco recusou a consulta — ${error.message}`);
