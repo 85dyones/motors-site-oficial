@@ -273,6 +273,17 @@ describe("o nome da ficha na grafia de sempre, não em maiúsculas", () => {
     expect(JSON.stringify(meta)).not.toContain("PALIO");
   });
 
+  it("o card de compartilhamento não leva preço, nem aberto nem só para lojistas (01/10)", async () => {
+    // O WhatsApp guarda a prévia por dias, e o preço do repasse muda.
+    for (const aberto of ["2026-09-24T12:00:00Z", null]) {
+      estado.porSlug[SLUG] = { ...PALIO, aberto_ao_publico_em: aberto, resumo: "Por R$ 18.900, abaixo da FIPE." };
+      const meta = await ficha.generateMetadata({ params: Promise.resolve({ carro: SLUG }) });
+      const card = JSON.stringify([meta.openGraph?.title, meta.openGraph?.description, meta.twitter]);
+      expect(card, card).not.toMatch(/R\$/);
+      expect(String(meta.openGraph?.description)).toContain("Repasse da Motors Store");
+    }
+  });
+
   it("modelo que é sigla fica inteiro: HB20", async () => {
     estado.porSlug[SLUG] = HB20;
     const html = await servida();
