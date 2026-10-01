@@ -28,6 +28,11 @@ export const dynamic = "force-dynamic";
  * `authenticated` não lê placa nem código FIPE na tabela (cliente da Garagem
  * e investidor também são sessão), e a view só entrega linhas a quem é da
  * equipe. A chave de serviço continua desnecessária.
+ *
+ * `fotosCopiaveis` conta os pares que vêm para o repasse — os do nosso bucket
+ * e os da pasta da loja no carro57, que a cópia baixa (dono, 01/10) —, e
+ * `fotosDeFora` só os que não têm como vir. A conta é pelo endereço, em
+ * `paresDoEstoque`: a busca não pede nada à rede.
  */
 export async function GET(request: Request) {
   try {
