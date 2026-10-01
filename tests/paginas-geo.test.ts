@@ -76,9 +76,19 @@ describe("cada página diz coisa própria — não é doorway", () => {
         t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
           .split(/[^a-z0-9]+/).filter((w) => w.length > 4),
       );
-    for (const b of bacacheri.paragrafos) {
+    // Desde 30/09/2026 os textos têm subtítulos ("### ...") como elementos
+    // próprios. Sozinho, um subtítulo tem de um a três termos, e uma palavra
+    // em comum já reprovaria: o convite a afrouxar esta régua. Ele entra
+    // colado ao bloco que abre, que é o texto que ele intitula.
+    const blocos = (paragrafos: string[]) =>
+      paragrafos.reduce<string[]>((acc, p, i) => {
+        if (i > 0 && /^###\s/.test(paragrafos[i - 1].trim())) acc[acc.length - 1] += ` ${p}`;
+        else acc.push(p);
+        return acc;
+      }, []);
+    for (const b of blocos(bacacheri.paragrafos)) {
       const daqui = termos(b);
-      for (const c of curitiba.paragrafos) {
+      for (const c of blocos(curitiba.paragrafos)) {
         const dali = termos(c);
         const comuns = [...daqui].filter((w) => dali.has(w)).length;
         const razao = comuns / Math.min(daqui.size, dali.size);
