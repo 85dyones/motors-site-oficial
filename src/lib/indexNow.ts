@@ -33,17 +33,40 @@ export const LIMITE_DE_URLS = 10_000;
  */
 export const JANELA_EM_HORAS = 26;
 
+const instante = (valor: string | Date | undefined): number =>
+  valor ? new Date(valor).getTime() : Number.NaN;
+
+/**
+ * As URLs que mudaram dentro da janela.
+ *
+ * Fica de fora o que carrega o carimbo GLOBAL do inventário (o `lastModified`
+ * da home, que o sitemap repete em hubs, páginas de bairro, destaques e
+ * /financiamento). Esse carimbo anda quando QUALQUER carro muda, então o hub
+ * da Fiat seria avisado porque uma Harley baixou de preço. No sitemap o
+ * exagero é passivo; aqui viraria um envio diário de páginas iguais, e o
+ * protocolo pede só o que mudou (revisão do qa-guardian, 01/10/2026). A home
+ * e o /estoque continuam: eles de fato mostram o carro que entrou. Os hubs
+ * são achados pelo Bing a partir das fichas, que vão com carimbo próprio.
+ */
 export function urlsParaAvisar(
   entradas: MetadataRoute.Sitemap,
   agora: Date,
+  siteUrl: string,
   janelaEmHoras = JANELA_EM_HORAS,
 ): string[] {
   const desde = agora.getTime() - janelaEmHoras * 3_600_000;
+  const sempre = new Set([siteUrl, `${siteUrl}/estoque`]);
+  const carimboGlobal = instante(entradas.find((e) => e.url === siteUrl)?.lastModified);
   const urls = new Set<string>();
   for (const entrada of entradas) {
-    if (!entrada.lastModified) continue;
-    const quando = new Date(entrada.lastModified).getTime();
+    const quando = instante(entrada.lastModified);
     if (Number.isNaN(quando) || quando < desde || quando > agora.getTime() + 3_600_000) continue;
+    // A ficha do carro que mudou por último tem o MESMO instante do carimbo
+    // global (ele é o máximo das fichas), e é justamente a que mais importa
+    // avisar. Ficha é a URL de quatro segmentos (/carros/marca/modelo/versao-id);
+    // hub, bairro e destaque têm no máximo três.
+    const ehFicha = new URL(entrada.url).pathname.split("/").filter(Boolean).length >= 4;
+    if (quando === carimboGlobal && !sempre.has(entrada.url) && !ehFicha) continue;
     urls.add(entrada.url);
   }
   return [...urls].slice(0, LIMITE_DE_URLS);
