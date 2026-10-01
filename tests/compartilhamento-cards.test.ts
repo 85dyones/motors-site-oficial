@@ -8,6 +8,7 @@ import {
   PAGINAS_COMPARTILHAVEIS,
   cardGeradoDa,
   ehChaveDoCardGerado,
+  textoDoPainelVale,
   fotoPodeVirarPrevia,
   imagemServivelComoPrevia,
   montarCompartilhamento,
@@ -436,6 +437,15 @@ describe("o card do painel vale só para a própria página (01/10)", () => {
     });
     expect(meta.openGraph?.title).toBe("Carros blindados em Curitiba");
     expect(imagemDe(meta).url).toBe("https://cdn.exemplo/destaques.jpg");
+  });
+
+  it("o painel lê a mesma régua: na página de curinga os campos de texto somem e a prévia ignora o texto", () => {
+    expect(textoDoPainelVale("/estoque")).toBe(true);
+    expect(textoDoPainelVale("/destaques/…")).toBe(false);
+    const painelDoAdmin = ler("src", "components", "admin", "CardsCompartilhamento.tsx");
+    expect(painelDoAdmin).toContain("const textoVale = textoDoPainelVale(pagina.caminho);");
+    expect(painelDoAdmin).toContain("{textoVale && (");
+    expect(painelDoAdmin).toContain("(textoVale && card.titulo?.trim()) || fabrica.titulo");
   });
 
   it("sem caminho (o padrão do layout) vale como antes", () => {

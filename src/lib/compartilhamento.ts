@@ -390,6 +390,16 @@ interface EntradaCompartilhamento {
 }
 
 /**
+ * O título e a descrição que a loja escreve no painel para esta página são
+ * publicados? Não na página de catálogo com curinga ("/destaques/…"): ali
+ * cada landing tem o próprio título, e o painel oferece só a arte para todas.
+ * O painel e `montarCompartilhamento` leem a mesma régua.
+ */
+export function textoDoPainelVale(caminhoDoCatalogo: string): boolean {
+  return !caminhoDoCatalogo.endsWith("/…");
+}
+
+/**
  * Monta `openGraph` + `twitter` de uma página pública.
  *
  * Sempre `summary_large_image`: `summary` (que /sobre, /contato e /privacidade
@@ -439,7 +449,8 @@ export function montarCompartilhamento({
     }
   })();
   const caminhoDoCatalogo: string = doCatalogo?.caminho ?? "";
-  const ehAPropriaPagina = !caminhoPedido || caminhoPedido === caminhoDoCatalogo;
+  const ehAPropriaPagina =
+    textoDoPainelVale(caminhoDoCatalogo) && (!caminhoPedido || caminhoPedido === caminhoDoCatalogo);
   const prefixoDoCuringa = caminhoDoCatalogo.endsWith("/…") ? caminhoDoCatalogo.slice(0, -1) : null;
   const arteDoPainelVale = ehAPropriaPagina || (prefixoDoCuringa !== null && caminhoPedido.startsWith(prefixoDoCuringa));
   const proprio: CardCompartilhamento = ehAPropriaPagina
