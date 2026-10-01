@@ -82,6 +82,18 @@ const campo = (nome: string) => container.querySelector(`[name="${nome}"]`) as H
 const busca = () => container.querySelector('input[type="search"]') as HTMLInputElement;
 const botao = (texto: string) =>
   Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.trim() === texto) as HTMLButtonElement | undefined;
+/**
+ * Enter num campo de formulário, como o navegador o trata: se ninguém
+ * cancelar o `keydown`, vem a submissão implícita. O jsdom não a faz sozinho,
+ * então o teste a faz — com `requestSubmit`, que valida os obrigatórios como o
+ * navegador. Devolve se o Enter foi cancelado.
+ */
+function teclarEnter(el: HTMLInputElement): boolean {
+  const tecla = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+  el.dispatchEvent(tecla);
+  if (!tecla.defaultPrevented) el.form?.requestSubmit();
+  return tecla.defaultPrevented;
+}
 /** A busca espera o usuário parar de digitar; depois, a cadeia fetch → json → setState. */
 const esperar = (ms = 350) => act(async () => new Promise((resolve) => setTimeout(resolve, ms)));
 
@@ -199,6 +211,32 @@ describe("Buscar no estoque, no novo carro de repasse", () => {
     expect(empurrar).not.toHaveBeenCalled();
     expect(container.textContent).toContain("as fotos do estoque não vieram");
     expect(fetchFalso.mock.calls.filter(([url]) => String(url) === "/api/repasses")).toHaveLength(1);
+  });
+
+  it("Enter na busca não cria o rascunho — nem com um carro já escolhido e o preço digitado", async () => {
+    await escolherOGol();
+    await act(async () => digitar(campo("preco")!, "39900"));
+    // A pessoa vai procurar outro carro e tecla Enter, como em qualquer busca.
+    await act(async () => digitar(busca(), "argo"));
+    let cancelado = false;
+    await act(async () => {
+      cancelado = teclarEnter(busca());
+    });
+    await esperar(0);
+    expect(cancelado).toBe(true);
+    expect(fetchFalso.mock.calls.some(([url]) => String(url) === "/api/repasses")).toBe(false);
+    expect(fetchFalso.mock.calls.some(([url]) => String(url).includes("fotos-do-estoque"))).toBe(false);
+    expect(empurrar).not.toHaveBeenCalled();
+  });
+
+  it("Enter nos campos do carro continua enviando, como antes", async () => {
+    await escolherOGol();
+    await act(async () => digitar(campo("preco")!, "39900"));
+    await act(async () => {
+      teclarEnter(campo("preco")!);
+    });
+    await esperar(0);
+    expect(fetchFalso.mock.calls.some(([url]) => String(url) === "/api/repasses")).toBe(true);
   });
 
   it("Limpar volta ao branco", async () => {

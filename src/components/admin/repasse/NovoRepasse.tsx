@@ -251,6 +251,13 @@ export default function NovoRepasse() {
             className="mt-campo-caixa mt-foco"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
+            // A busca mora dentro do formulário, e Enter num campo envia o
+            // formulário (revisão de 01/10): com um carro já escolhido e o
+            // preço digitado, buscar outro e teclar Enter criava o rascunho do
+            // carro ANTERIOR e copiava as fotos dele. Aqui Enter só busca.
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.preventDefault();
+            }}
             placeholder="Marca, modelo, código ou placa inteira"
             autoComplete="off"
           />

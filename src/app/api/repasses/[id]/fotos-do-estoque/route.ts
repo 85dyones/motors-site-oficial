@@ -50,7 +50,10 @@ async function copiarPar(balde: Balde, par: ParDaCopia): Promise<ParCopiado> {
  * carro57 dos vendidos antigos fica de fora e é contado. Um par que falha não
  * corta os outros: o que copiou entra, a falha volta na resposta e vai para a
  * triagem. A gravação passa pelo mesmo portão do PATCH (`decidirEdicao`, teto
- * de 40 incluso), presa à situação lida.
+ * de 40 incluso), presa à situação e ao `updated_at` lidos.
+ *
+ * Roda uma vez: só o rascunho ainda SEM foto recebe a cópia
+ * (`decidirCopiaDoEstoque`); a segunda chamada é 409 e não copia nada.
  *
  * Nada liga o repasse ao carro de origem (decisão do dono: "só copia, sem
  * ligação"); o id do estoque aparece só na trilha de auditoria.
@@ -118,11 +121,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
     if (!edicao.ok) return recusar(edicao);
 
+    // Presa ao rascunho LIDO: a situação e o `updated_at` (o gatilho
+    // `repasses_updated_at` o renova a cada gravação). Outra cópia ou uma
+    // gravação do editor no meio do caminho mudam o `updated_at`, e a lista
+    // "lida + cópias" não passa por cima delas: vira 409.
     const { data, error } = await admin
       .from("repasses")
       .update(edicao.colunas)
       .eq("id", id)
       .eq("situacao", lido.repasse.situacao)
+      .eq("updated_at", lido.repasse.updated_at)
       .select("*")
       .maybeSingle();
     if (error) return falhaDoBanco(error);

@@ -245,9 +245,14 @@ export function planejarCopiaDasFotos(args: {
  * O portão da cópia: o mesmo de editar o rascunho (quem cadastra), e SÓ o
  * rascunho — a cópia é o passo seguinte ao "Criar rascunho". Fora dele, as
  * fotos se mexem pela galeria do editor, com o portão de quem valida.
+ *
+ * E só o rascunho SEM foto nenhuma, o que acabou de nascer (revisão de 01/10).
+ * É o que faz a cópia rodar uma vez: a segunda chamada duplicaria as fotos até
+ * o teto, e depois que o editor mexeu na galeria a cópia gravaria por cima.
+ * Foto de estoque em rascunho que já tem fotos se envia pela galeria.
  */
 export function decidirCopiaDoEstoque(args: {
-  repasse: Pick<Repasse, "situacao">;
+  repasse: Pick<Repasse, "situacao" | "web_full_images" | "whatsapp_images">;
   perfis: Perfil[];
   corpo: unknown;
 }): { ok: true; estoqueId: number } | RecusaDoPainel {
@@ -256,6 +261,9 @@ export function decidirCopiaDoEstoque(args: {
   }
   if (!cadastraRepasse(args.perfis)) {
     return { ok: false, status: 403, erro: "Seu perfil não cadastra carro de repasse." };
+  }
+  if (args.repasse.web_full_images.length > 0 || args.repasse.whatsapp_images.length > 0) {
+    return { ok: false, status: 409, erro: "Este rascunho já tem fotos. Envie as do estoque pela galeria." };
   }
   const bruto = typeof args.corpo === "object" && args.corpo !== null ? (args.corpo as { estoqueId?: unknown }).estoqueId : undefined;
   const estoqueId = typeof bruto === "number" ? bruto : Number.NaN;

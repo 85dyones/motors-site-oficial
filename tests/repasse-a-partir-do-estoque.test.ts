@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { bancoDeTeste, sessaoDeTeste, type Banco } from "./bancoDoRepasseDeTeste";
-import { fotoDeTeste, linhaDoBancoDeTeste } from "./repasseDeTeste";
+import { linhaDoBancoDeTeste } from "./repasseDeTeste";
 
 /**
  * Cadastrar o repasse a partir de um carro do estoque (pedido do dono de
@@ -15,7 +15,16 @@ import { fotoDeTeste, linhaDoBancoDeTeste } from "./repasseDeTeste";
  *   (c) só copia, sem ligação: nenhuma coluna guarda o carro de origem;
  *   (d) o preço não vem — o do repasse é outro —, nem o valor e o mês da FIPE.
  */
-const { falhas } = vi.hoisted(() => ({ falhas: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}) }));
+const { falhas, matriz } = vi.hoisted(() => ({
+  falhas: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
+  /**
+   * Hoje todo perfil de equipe cadastra repasse (`permissoes.ts`), então o 403
+   * de "cliente" vem de `sessaoDoRepasse` e o portão `cadastraRepasse` nunca
+   * reprovaria sozinho. Este interruptor simula a matriz mudando: um perfil de
+   * equipe que deixou de cadastrar.
+   */
+  matriz: { semCadastro: false },
+}));
 
 let banco: Banco;
 let sessao: ReturnType<typeof sessaoDeTeste>;
@@ -24,6 +33,10 @@ vi.mock("../src/lib/supabase-server", () => ({
   createServerSupabaseClient: async () => sessao,
   createAdminSupabaseClient: () => ({ ...banco.cliente, storage: balde.cliente }),
 }));
+vi.mock("../src/lib/edicaoDoRepasse", async (original) => {
+  const real = await original<typeof import("../src/lib/edicaoDoRepasse")>();
+  return { ...real, cadastraRepasse: (perfis: Parameters<typeof real.cadastraRepasse>[0]) => !matriz.semCadastro && real.cadastraRepasse(perfis) };
+});
 vi.mock("../src/lib/observabilidade", async (original) => ({
   ...(await original<typeof import("../src/lib/observabilidade")>()),
   registrarFalha: (...args: unknown[]) => falhas(...args),
@@ -118,6 +131,7 @@ function entrarComo(papeis: string[] | null, usuario?: { id: string; email: stri
   sessao = sessaoDeTeste(banco, papeis, usuario);
   balde = armazenamentoDeTeste();
   falhas.mockClear();
+  matriz.semCadastro = false;
 }
 beforeEach(() => entrarComo(["comercial"]));
 
@@ -237,6 +251,14 @@ describe("a busca no estoque", () => {
     expect(JSON.stringify(buscarNoEstoque(linhas, "bra2e19"))).not.toContain("BRA2E19");
   });
 
+  it("nenhum pedaço da placa acha o carro — senão a busca a revelaria letra a letra", () => {
+    // Prefixo de 5 e de 6, sufixo, miolo e a placa com um caractere a mais.
+    for (const pedaco of ["BRA2E", "BRA2E1", "bra-2e1", "RA2E19", "A2E1", "BRA2E19X"]) {
+      expect(buscarNoEstoque(linhas, pedaco), pedaco).toEqual([]);
+    }
+    expect(buscarNoEstoque(linhas, "BRA2E19").map((c) => c.id)).toEqual([77]);
+  });
+
   it("termo curto não busca; o resultado para em 8", () => {
     expect(buscarNoEstoque(linhas, "f")).toEqual([]);
     const muitas = Array.from({ length: 12 }, (_, i) => linhaDoEstoque({ id: i + 1 }));
@@ -326,6 +348,12 @@ describe("GET /api/repasses/estoque", () => {
     expect(banco.lidas).not.toContain("estoque_motors");
   });
 
+  it("perfil de equipe que não cadastra repasse: 403, sem ler o estoque", async () => {
+    matriz.semCadastro = true;
+    expect((await GET(pedidoDaBusca("gol"))).status).toBe(403);
+    expect(banco.lidas).not.toContain("estoque_motors");
+  });
+
   it.each(["admin", "gestor", "marketing", "comercial", "financeiro", "sdr"])("%s cadastra repasse e busca no estoque", async (papel) => {
     entrarComo([papel]);
     banco.leituras.estoque_motors = { data: [linhaDoEstoque()], error: null };
@@ -367,11 +395,46 @@ const pedidoDaCopia = (corpo: unknown) =>
     body: JSON.stringify(corpo),
   });
 const comId = (id = ID) => ({ params: Promise.resolve({ id }) });
+/** O rascunho que acabou de nascer em "Novo carro de repasse": sem foto nenhuma. */
+const SEM_FOTOS = { web_full_images: [], whatsapp_images: [] };
 
 describe("POST /api/repasses/[id]/fotos-do-estoque", () => {
   beforeEach(() => {
-    banco.leituras.repasses = { data: linhaDoBancoDeTeste(), error: null };
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste(SEM_FOTOS), error: null };
     banco.leituras.estoque_motors = { data: linhaDoEstoque(), error: null };
+  });
+
+  it("perfil de equipe que não cadastra repasse: 403, sem cópia e sem escrita", async () => {
+    matriz.semCadastro = true;
+    expect((await POST(pedidoDaCopia({ estoqueId: 4321 }), comId())).status).toBe(403);
+    expect(balde.chamadas).toEqual([]);
+    expect(banco.escritas).toEqual([]);
+  });
+
+  it("o rascunho que já tem fotos não recebe a cópia: 409, nada copiado", async () => {
+    banco.leituras.repasses = { data: linhaDoBancoDeTeste(), error: null };
+    const res = await POST(pedidoDaCopia({ estoqueId: 4321 }), comId());
+    expect(res.status).toBe(409);
+    expect(balde.chamadas).toEqual([]);
+    expect(banco.escritas).toEqual([]);
+  });
+
+  it("chamada em dobro: a segunda dá 409 e não copia de novo", async () => {
+    expect((await POST(pedidoDaCopia({ estoqueId: 4321 }), comId())).status).toBe(200);
+    const copiasDaPrimeira = balde.copias().length;
+    // O banco agora tem o rascunho com as fotos que a primeira gravou.
+    const [gravado] = banco.escritasEm("repasses");
+    banco.leituras.repasses = { data: { ...linhaDoBancoDeTeste(SEM_FOTOS), ...(gravado.valores as object) }, error: null };
+    const segunda = await POST(pedidoDaCopia({ estoqueId: 4321 }), comId());
+    expect(segunda.status).toBe(409);
+    expect(balde.copias()).toHaveLength(copiasDaPrimeira);
+    expect(banco.escritasEm("repasses")).toHaveLength(1);
+  });
+
+  it("a gravação fica presa ao rascunho lido: mudou no meio (outra cópia, o editor), 409", async () => {
+    banco.responderEscrita((e) => (e.tabela === "repasses" ? { data: null, error: null } : { data: null, error: null }));
+    expect((await POST(pedidoDaCopia({ estoqueId: 4321 }), comId())).status).toBe(409);
+    expect(banco.auditoria()).toEqual([]);
   });
 
   it("sem login: 401, sem cópia e sem escrita", async () => {
@@ -396,7 +459,11 @@ describe("POST /api/repasses/[id]/fotos-do-estoque", () => {
 
   it.each(["em_validacao", "publicado", "reservado", "vendido", "arquivado"])("só o rascunho recebe: %s dá 409", async (situacao) => {
     entrarComo(["admin"]);
-    banco.leituras.repasses = { data: linhaDoBancoDeTeste({ situacao: situacao as "publicado", lojistas_desde: "2026-09-24T12:00:00Z" }), error: null };
+    // Sem fotos: o 409 aqui tem de vir da situação, não da regra do rascunho novo.
+    banco.leituras.repasses = {
+      data: linhaDoBancoDeTeste({ ...SEM_FOTOS, situacao: situacao as "publicado", lojistas_desde: "2026-09-24T12:00:00Z" }),
+      error: null,
+    };
     banco.leituras.estoque_motors = { data: linhaDoEstoque(), error: null };
     expect((await POST(pedidoDaCopia({ estoqueId: 4321 }), comId())).status).toBe(409);
     expect(balde.chamadas).toEqual([]);
@@ -416,7 +483,7 @@ describe("POST /api/repasses/[id]/fotos-do-estoque", () => {
     expect(balde.chamadas).toEqual([]);
   });
 
-  it("copia só os pares nossos, para repasse/<id>/, e anexa em ordem às fotos do repasse", async () => {
+  it("copia só os pares nossos, para repasse/<id>/, em ordem, no rascunho novo", async () => {
     const res = await POST(pedidoDaCopia({ estoqueId: 4321 }), comId());
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ copiadas: 2, ficaramDeFora: 1, acimaDoLimite: 0, falharam: 0 });
@@ -435,17 +502,19 @@ describe("POST /api/repasses/[id]/fotos-do-estoque", () => {
 
     const [update] = banco.escritasEm("repasses");
     const valores = update.valores as { web_full_images: string[]; whatsapp_images: string[] };
-    const existentes = linhaDoBancoDeTeste();
     const publica = (de: string) => `${BALDE}/${destinoDe.get(de)}`;
-    expect(valores.web_full_images).toEqual([...(existentes.web_full_images as string[]), publica("4321/a-web.webp"), publica("4321/b-web.webp")]);
-    expect(valores.whatsapp_images).toEqual([...(existentes.whatsapp_images as string[]), publica("4321/a-zap.jpg"), publica("4321/b-zap.jpg")]);
+    expect(valores.web_full_images).toEqual([publica("4321/a-web.webp"), publica("4321/b-web.webp")]);
+    expect(valores.whatsapp_images).toEqual([publica("4321/a-zap.jpg"), publica("4321/b-zap.jpg")]);
     // Nenhuma URL do estoque entra no repasse: tudo é cópia na pasta dele.
     for (const url of [...valores.web_full_images, ...valores.whatsapp_images]) {
       expect(url.startsWith(`${BALDE}/repasse/${ID}/`)).toBe(true);
     }
+    // Presa ao rascunho LIDO — situação e `updated_at` —, para não gravar por
+    // cima de outra cópia nem de uma gravação do editor no meio do caminho.
     expect(update.filtros).toEqual([
       ["id", ID],
       ["situacao", "rascunho"],
+      ["updated_at", "2026-09-24T12:00:00Z"],
     ]);
     expect(Object.keys(valores).sort()).toEqual(["web_full_images", "whatsapp_images"]);
     expect(banco.auditoria()[0].acao).toBe("repasse.fotos-do-estoque");
@@ -465,8 +534,8 @@ describe("POST /api/repasses/[id]/fotos-do-estoque", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ copiadas: 1, ficaramDeFora: 1, acimaDoLimite: 0, falharam: 1 });
     const valores = banco.escritasEm("repasses")[0].valores as { web_full_images: string[]; whatsapp_images: string[] };
-    expect(valores.web_full_images).toHaveLength(5);
-    expect(valores.whatsapp_images).toHaveLength(5);
+    expect(valores.web_full_images).toHaveLength(1);
+    expect(valores.whatsapp_images).toHaveLength(1);
     expect(falhas).toHaveBeenCalledTimes(1);
     expect(falhas.mock.calls[0][0]).toBe("quebra");
     expect(String(falhas.mock.calls[0][2])).toContain("Object not found");
@@ -486,13 +555,16 @@ describe("POST /api/repasses/[id]/fotos-do-estoque", () => {
     expect(banco.escritasEm("repasses")).toEqual([]);
   });
 
-  it("teto de 40: o repasse com 39 fotos recebe só mais uma", async () => {
-    const web = Array.from({ length: 39 }, (_, i) => fotoDeTeste(`p${i}`));
-    const zap = Array.from({ length: 39 }, (_, i) => fotoDeTeste(`p${i}`, "zap"));
-    banco.leituras.repasses = { data: linhaDoBancoDeTeste({ web_full_images: web, whatsapp_images: zap }), error: null };
+  it("teto de 40: carro com 42 fotos nossas leva 40, e as outras 2 nem são copiadas", async () => {
+    const lotes = Array.from({ length: 42 }, (_, i) => `f${i}`);
+    banco.leituras.estoque_motors = {
+      data: linhaDoEstoque({ web_full_images: lotes.map((l) => doEstoque(l, "web")), whatsapp_images: lotes.map((l) => doEstoque(l, "zap")) }),
+      error: null,
+    };
     const res = await POST(pedidoDaCopia({ estoqueId: 4321 }), comId());
-    expect(await res.json()).toEqual({ copiadas: 1, ficaramDeFora: 1, acimaDoLimite: 1, falharam: 0 });
-    expect(balde.copias()).toHaveLength(2);
+    expect(await res.json()).toEqual({ copiadas: 40, ficaramDeFora: 0, acimaDoLimite: 2, falharam: 0 });
+    expect(balde.copias()).toHaveLength(80);
+    expect(balde.copias().some(([de]) => de.startsWith("4321/f40-") || de.startsWith("4321/f41-"))).toBe(false);
     const valores = banco.escritasEm("repasses")[0].valores as { web_full_images: string[]; whatsapp_images: string[] };
     expect(valores.web_full_images).toHaveLength(40);
     expect(valores.whatsapp_images).toHaveLength(40);
