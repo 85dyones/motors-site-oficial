@@ -19,6 +19,7 @@ import {
   type ProblemaDoCadastro,
 } from "../../lib/cadastroDeVeiculo";
 import { descontoPct, precoEfetivo, temPromocao } from "../../lib/precoPromocional";
+import { reaisOuNulo } from "../../lib/valorEmReais";
 
 /**
  * Cadastro nativo de veículo — o carro que não veio do RevendaMais.
@@ -234,9 +235,9 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
      preparação, documentação nem custo de pátio. Sai junto com o custo por
      NÃO-renderização, não por CSS: a margem é o custo por subtração, e um
      `hidden` deixaria o valor no HTML de quem não pode vê-lo. */
-  const preco = numeroOuNulo(v.preco);
-  const promo = numeroOuNulo(v.preco_promocional);
-  const compra = numeroOuNulo(v.preco_compra);
+  const preco = reaisOuNulo(v.preco);
+  const promo = reaisOuNulo(v.preco_promocional);
+  const compra = reaisOuNulo(v.preco_compra);
   /* A promoção sendo digitada, com a mesma régua do servidor. */
   const promocao = { pct: descontoPct(promo, preco), ativa: temPromocao(promo, preco) };
   /* Margem contra o preço EFETIVO: se o carro já entra em oferta, é a oferta
@@ -281,11 +282,17 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
         const n = numeroOuNulo(v[campo]);
         if (n !== null) corpo[campo] = n;
       };
+      // Dinheiro tem leitura própria: "113.000" é 113 mil (`lib/valorEmReais`).
+      const reais = (campo: keyof Rascunho) => {
+        const n = reaisOuNulo(v[campo]);
+        if (n !== null) corpo[campo] = n;
+      };
 
       // Identidade — sempre enviada por quem chegou até aqui: o gate da rota já
       // decidiu que este perfil cadastra veículo.
       (["marca", "modelo", "versao", "cambio", "combustivel", "cor"] as const).forEach(texto);
-      (["ano", "ano_fabricacao", "quilometragem", "preco"] as const).forEach(numero);
+      (["ano", "ano_fabricacao", "quilometragem"] as const).forEach(numero);
+      reais("preco");
 
       // A porta de entrada vai SEMPRE: ela não é campo de `estoque_motors` e
       // sim o que a rota usa para registrar a aquisição no núcleo. Sem ela, o
@@ -303,14 +310,14 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
         if (podeGravar(campo)) texto(campo);
       }
       if (podeGravar("donos_anteriores")) numero("donos_anteriores");
-      if (podeGravar("preco_compra")) numero("preco_compra");
+      if (podeGravar("preco_compra")) reais("preco_compra");
       // Promoção vai SEMPRE, inclusive vazia — e por isso não usa `numero`,
       // que omite o campo quando não há valor. A coluna fala "0 = sem
       // promoção": omiti-la gravaria NULL, e os 104 veículos que o sync trouxe
       // têm 0. Duas representações do mesmo nada é como nasce o relatório que
       // não bate.
       if (podeGravar("preco_promocional")) {
-        corpo.preco_promocional = numeroOuNulo(v.preco_promocional) ?? 0;
+        corpo.preco_promocional = reaisOuNulo(v.preco_promocional) ?? 0;
       }
       if (podeGravar("perfis_uso") && v.perfis_uso.length > 0) {
         corpo.perfis_uso = v.perfis_uso;
@@ -525,16 +532,19 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
             id="c-preco"
             rotulo="Preço anunciado *"
             problema={problemaDe("preco")}
-            dica="Em reais, sem centavos."
+            dica="Em reais, como na nota: 118.900."
           >
+            {/* Texto, e não `type="number"`, nos três campos de dinheiro: o
+                campo numérico engole a vírgula de "75.154,40" e lê "113.000"
+                como 113 — foi como dois carros ganharam custo de R$ 75 e R$
+                113 em 01/10. A leitura é `lib/valorEmReais.ts`. */}
             <input
               id="c-preco"
-              type="number"
-              min={0}
-              step={100}
-              inputMode="numeric"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
               value={v.preco}
-              placeholder="118900"
+              placeholder="118.900"
               onChange={(e) => set("preco", e.target.value)}
               className={`${campoCaixa} text-lg font-extrabold tabular-nums`}
             />
@@ -557,10 +567,9 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
             >
               <input
                 id="c-promo"
-                type="number"
-                min={0}
-                step={100}
-                inputMode="numeric"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={v.preco_promocional}
                 placeholder="Sem promoção"
                 onChange={(e) => set("preco_promocional", e.target.value)}
@@ -664,16 +673,16 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
             <Campo
               id="c-compra"
               rotulo="Preço de compra · nosso"
-              dica="Sem ele a margem por veículo não fecha."
+              problema={problemaDe("preco_compra")}
+              dica="Como na nota: 102.000 ou 102.000,50. Sem ele a margem por veículo não fecha."
             >
               <input
                 id="c-compra"
-                type="number"
-                min={0}
-                step={100}
-                inputMode="numeric"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={v.preco_compra}
-                placeholder="102000"
+                placeholder="102.000"
                 onChange={(e) => set("preco_compra", e.target.value)}
                 className={`${campoCaixa} border-mt-accent text-lg font-extrabold tabular-nums`}
               />

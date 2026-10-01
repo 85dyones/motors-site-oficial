@@ -55,8 +55,9 @@ import {
   recusaDaPromocao,
   temPromocao,
 } from "./precoPromocional";
-import { recusaPorPisoDeCusto } from "./pisoDePreco";
+import { recusaPorCustoImplausivel, recusaPorPisoDeCusto } from "./pisoDePreco";
 import { ANO_MINIMO, anoMaximo } from "./anoDoVeiculo";
+import { lerReais } from "./valorEmReais";
 
 /** Um campo obrigatório vazio ou um valor impossível, com o texto pronto. */
 export interface ProblemaDoCadastro {
@@ -284,8 +285,10 @@ export function normalizarCadastro(corpo: unknown): Record<string, unknown> {
       linha[campo] = n === null ? null : Math.trunc(n);
       continue;
     }
+    // Dinheiro tem leitura própria desde 01/10: "92.900" é 92 mil, não 92,9.
+    // Ver `lib/valorEmReais.ts`.
     if (campo === "preco" || campo === "preco_promocional") {
-      linha[campo] = numeroOuNulo(bruto);
+      linha[campo] = lerReais(bruto).valor;
       continue;
     }
     // Texto: `trim` e nada mais. A capitalização de exibição é do mapper
@@ -387,10 +390,17 @@ export function decidirCadastro(
   // as colunas de preço, cujo gate campo a campo é outro (a linha de preço da
   // A17). O preço do cadastro já vem de `normalizarCadastro`.
   const fonte = corpo as Record<string, unknown>;
-  const nossos = {
+  const nossos: Record<string, unknown> = {
     ...extrairCamposNossos(corpo),
     ...(CAMPO_DOS_OPCIONAIS in fonte ? { [CAMPO_DOS_OPCIONAIS]: fonte[CAMPO_DOS_OPCIONAIS] } : {}),
   };
+  // O custo chega como número da tela, mas a rota é de quem a chamar: texto
+  // "113.000" iria cru ao Postgres, que o lê como 113. Lido aqui; o que não
+  // dá para ler fica como veio, para a validação abaixo recusar com a frase.
+  if ("preco_compra" in nossos) {
+    const lido = lerReais(nossos.preco_compra);
+    if (!lido.erro) nossos.preco_compra = lido.valor;
+  }
   const documento = extrairCamposDeDocumento(corpo);
 
   const negado = campoNegadoAoPerfil(perfil, [
@@ -504,9 +514,12 @@ export function validarCadastroDeVeiculo(
     falta("quilometragem", "Quilometragem não pode ser negativa.");
   }
 
-  const preco = numeroOuNulo(corpo.preco);
-  if (!vazio(corpo.preco) && preco === null) {
-    falta("preco", "Preço precisa ser um número.");
+  // Os três campos de dinheiro passam por `lerReais`: o que ela não entende é
+  // recusado com a forma certa na mensagem, em vez de virar outro número.
+  const lidoPreco = lerReais(corpo.preco);
+  const preco = lidoPreco.valor;
+  if (lidoPreco.erro) {
+    falta("preco", lidoPreco.erro);
   }
   if (preco !== null && preco <= 0) {
     falta("preco", "O preço anunciado precisa ser maior que zero.");
@@ -515,9 +528,10 @@ export function validarCadastroDeVeiculo(
   // Promoção: opcional, mas se vier tem de ser menor que o anunciado. A régua é
   // a mesma que o editor A15 e a rota de escrita aplicam — uma função só, para
   // as três bocas não divergirem sobre o que é uma promoção válida.
-  const promocional = numeroOuNulo(corpo.preco_promocional);
-  if (!vazio(corpo.preco_promocional) && promocional === null) {
-    falta("preco_promocional", "Preço promocional precisa ser um número.");
+  const lidoPromocional = lerReais(corpo.preco_promocional);
+  const promocional = lidoPromocional.valor;
+  if (lidoPromocional.erro) {
+    falta("preco_promocional", lidoPromocional.erro);
   } else {
     const recusa = recusaDaPromocao(promocional, preco);
     if (recusa) falta("preco_promocional", recusa);
@@ -529,7 +543,17 @@ export function validarCadastroDeVeiculo(
   //
   // A recusa nomeia o valor porque quem enxerga este campo é, por definição,
   // quem pode ver custo: a seção inteira some para os outros perfis.
-  const custo = numeroOuNulo(corpo.preco_compra);
+  const lidoCusto = lerReais(corpo.preco_compra);
+  const custo = lidoCusto.valor;
+  if (lidoCusto.erro) {
+    falta("preco_compra", lidoCusto.erro);
+  }
+  // Antes do piso, porque o piso confia no custo: R$ 113 num carro de 119.900
+  // passa por ele sem reclamar (ver `FRACAO_MINIMA_DO_CUSTO`).
+  const implausivel = recusaPorCustoImplausivel(custo, preco);
+  if (implausivel) {
+    falta("preco_compra", implausivel);
+  }
   const abaixoDoPiso = recusaPorPisoDeCusto(precoEfetivo(promocional, preco), custo, {
     podeVerCusto: true,
   });

@@ -1,7 +1,11 @@
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
 import { lerComoEquipe } from "./colunasDoEstoque";
 import { colunasDaPromocao, recusaDaPromocao } from "./precoPromocional";
-import { efetivoDepoisDaEscrita, recusaPorPisoDeCusto } from "./pisoDePreco";
+import {
+  efetivoDepoisDaEscrita,
+  recusaPorCustoImplausivel,
+  recusaPorPisoDeCusto,
+} from "./pisoDePreco";
 import {
   CAMPO_DO_ESTADO,
   ehEstadoDoCadastro,
@@ -583,6 +587,37 @@ export async function aplicarNosVeiculos(
         custo as number | null,
         { podeVerCusto: opcoes?.podeVerCusto === true },
       );
+      if (recusa) {
+        return {
+          erro: alvos.length > 1 ? `Veículo ${linha.id}: ${recusa}` : recusa,
+          status: 422,
+          camposSalvos: [],
+          mudancasRegistradas: 0,
+        };
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Custo implausível: o piso só vale se o custo for de verdade
+  // ---------------------------------------------------------------------------
+  // Custo errado para BAIXO desarma o piso em silêncio — o caso do Captur e do
+  // City em 01/10 (ver `FRACAO_MINIMA_DO_CUSTO`). A tela já recusa; esta é a
+  // régua que vale, porque é o caminho único.
+  //
+  // Só o custo que MUDA é julgado. O editor reenvia `preco_compra` em todo
+  // Salvar, e recusar o reenvio do valor que já está no banco travaria a
+  // etiqueta e a descrição desses carros até alguém descobrir o custo certo —
+  // que não é quem edita a etiqueta. O valor velho, a tela aponta.
+  if ("preco_compra" in paraGravar && antes && !erroAntes) {
+    const comoNumero = (x: unknown) => (x === null || x === undefined || x === "" ? null : Number(x));
+    for (const linha of antes as Array<Record<string, unknown>>) {
+      const novo = comoNumero(paraGravar.preco_compra);
+      if (novo === comoNumero(linha.preco_compra)) continue;
+      // O anunciado é o "de"; `preco` só na falta dele, como no mapper público.
+      const depois = { ...linha, ...paraGravar };
+      const anunciado = Number(depois.preco_original) > 0 ? depois.preco_original : depois.preco;
+      const recusa = recusaPorCustoImplausivel(novo, anunciado);
       if (recusa) {
         return {
           erro: alvos.length > 1 ? `Veículo ${linha.id}: ${recusa}` : recusa,

@@ -11,7 +11,8 @@ import {
   recusaDaPromocao,
   temPromocao,
 } from "../../lib/precoPromocional";
-import { recusaPorPisoDeCusto } from "../../lib/pisoDePreco";
+import { recusaPorCustoImplausivel, recusaPorPisoDeCusto } from "../../lib/pisoDePreco";
+import { lerReais, reaisParaCampo } from "../../lib/valorEmReais";
 import {
   MINIMO_DE_FOTOS,
   MINIMO_DE_FOTOS_EM_PREPARACAO,
@@ -154,6 +155,28 @@ const campoCaixa =
 const SALVE_A_CAIXA_ANTES_DE_PUBLICAR =
   'Salve a caixa "Em preparação" antes de publicar: a publicação é julgada pelo que está salvo.';
 
+/**
+ * Os campos de dinheiro guardam o TEXTO digitado, e não o número.
+ *
+ * Até 01/10 eram `<input type="number">` com `Number(e.target.value)`, e o
+ * campo numérico estragava o valor antes do `onChange`: "75.154,40" perdia a
+ * vírgula (o Chrome a descarta) e virava 75,1544; "113.000" virava 113. Foi
+ * como o Captur 8506096 e o City 8517481 ganharam custo de R$ 75 e R$ 113 — e
+ * o piso de custo ficou desarmado nos dois. Agora o campo é texto, `lerReais`
+ * lê, e `v` só recebe o que ela entendeu.
+ *
+ * O promocional zero é campo vazio: é como o banco diz "sem promoção".
+ */
+const dinheiroDigitadoDe = (veiculo: VeiculoDb) => ({
+  preco_original: reaisParaCampo(veiculo.preco_original),
+  preco_promocional:
+    Number(veiculo.preco_promocional) > 0 ? reaisParaCampo(veiculo.preco_promocional) : "",
+  preco_compra: reaisParaCampo(veiculo.preco_compra),
+});
+type CampoDeDinheiro = keyof ReturnType<typeof dinheiroDigitadoDe>;
+
+const comoNumero = (x: unknown) => (x === null || x === undefined || x === "" ? null : Number(x));
+
 export default function EditorDeVeiculo({
   inicial,
   visitas30Dias,
@@ -202,6 +225,35 @@ export default function EditorDeVeiculo({
   const sujo = JSON.stringify(v) !== JSON.stringify(salvo);
   const set = <K extends keyof VeiculoDb>(campo: K, valor: VeiculoDb[K]) =>
     setV((atual) => ({ ...atual, [campo]: valor }));
+
+  const [dinheiroDigitado, setDinheiroDigitado] = useState(() => dinheiroDigitadoDe(inicial));
+  /* O texto vai para a tela sempre; o número só vai para `v` quando
+     `lerReais` o entende. Ilegível, `v` fica com o último valor lido, e o
+     Salvar trava pelo erro (`travaDoDinheiro`) — então o número velho nunca sai
+     no lugar do que está escrito no campo. */
+  const digitarDinheiro = (campo: CampoDeDinheiro, texto: string) => {
+    setDinheiroDigitado((atual) => ({ ...atual, [campo]: texto }));
+    const { valor, erro } = lerReais(texto);
+    if (erro) return;
+    if (campo === "preco_original") {
+      // As duas colunas andam juntas: o mapper público lê `preco_original` e
+      // a ordenação da vitrine lê `preco`.
+      set("preco_original", valor);
+      set("preco", valor);
+    } else if (campo === "preco_promocional") {
+      // Zero, e não null: é assim que o banco e a PDP dizem "sem promoção"
+      // (`hasDiscount` testa `> 0`). Gravar null faria o campo parecer
+      // não-preenchido em vez de deliberadamente vazio.
+      set("preco_promocional", valor ?? 0);
+    } else {
+      set("preco_compra", valor);
+    }
+  };
+  const erroDoDinheiro: Record<CampoDeDinheiro, string | null> = {
+    preco_original: lerReais(dinheiroDigitado.preco_original).erro,
+    preco_promocional: lerReais(dinheiroDigitado.preco_promocional).erro,
+    preco_compra: lerReais(dinheiroDigitado.preco_compra).erro,
+  };
 
   /* O nome contradiz a carroceria salva? Só diagnóstico — ver
      `lib/coerenciaDoCadastro.ts`, que nunca escreve. */
@@ -381,6 +433,29 @@ export default function EditorDeVeiculo({
   const margem =
     v.preco_compra && precoQueEntra ? precoQueEntra - Number(v.preco_compra) : null;
   const margemPct = margem !== null && precoQueEntra ? (margem / precoQueEntra) * 100 : null;
+
+  /**
+   * Custo de menos de 10% do anunciado — a mesma régua do servidor
+   * (`recusaPorCustoImplausivel`, em `aplicarNosVeiculos`).
+   *
+   * Aparece sempre, inclusive sobre o valor que já está no banco: é assim que o
+   * Captur e o City de 01/10 se denunciam a quem abrir a aba. Mas só TRAVA o
+   * Salvar quando o custo foi mudado nesta sessão — o servidor também só julga
+   * o custo que muda, e quem abriu para mexer na etiqueta não sabe o custo
+   * certo.
+   */
+  const custoImplausivel = podeGravar("preco_compra")
+    ? recusaPorCustoImplausivel(
+        v.preco_compra,
+        Number(v.preco_original) > 0 ? v.preco_original : v.preco,
+      )
+    : null;
+  const custoMudou = comoNumero(v.preco_compra) !== comoNumero(salvo.preco_compra);
+  const travaDoDinheiro =
+    erroDoDinheiro.preco_original ??
+    erroDoDinheiro.preco_promocional ??
+    erroDoDinheiro.preco_compra ??
+    (custoMudou ? custoImplausivel : null);
 
   const salvar = async () => {
     setSalvando(true);
@@ -578,7 +653,12 @@ export default function EditorDeVeiculo({
             })}
 
           <button
-            onClick={() => setV(salvo)}
+            onClick={() => {
+              setV(salvo);
+              // O texto dos campos de dinheiro volta junto, senão o campo
+              // mostraria um valor que não está em lugar nenhum.
+              setDinheiroDigitado(dinheiroDigitadoDe(salvo));
+            }}
             disabled={!sujo || salvando}
             className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:opacity-45"
           >
@@ -588,11 +668,13 @@ export default function EditorDeVeiculo({
               é um só, e o servidor recusaria tudo com 422. Deixar o botão vivo
               faria o operador perder também o texto e os opcionais que digitou
               na mesma sessão. O `title` diz o motivo, porque botão desabilitado
-              sem explicação é o que faz alguém concluir que a tela quebrou. */}
+              sem explicação é o que faz alguém concluir que a tela quebrou.
+              Valor em reais ilegível e custo implausível travam pelo mesmo
+              motivo (`travaDoDinheiro`). */}
           <button
             onClick={salvar}
-            disabled={!sujo || salvando || promocao.recusa !== null}
-            title={promocao.recusa ?? undefined}
+            disabled={!sujo || salvando || promocao.recusa !== null || travaDoDinheiro !== null}
+            title={promocao.recusa ?? travaDoDinheiro ?? undefined}
             className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-2.5 text-[11px] disabled:opacity-45"
           >
             {salvando ? "Salvando…" : "Salvar"}
@@ -973,21 +1055,24 @@ export default function EditorDeVeiculo({
                     <label className={rotuloCampo} htmlFor="f-preco">
                       Preço anunciado · deste painel
                     </label>
+                    {/* Texto, não `type="number"` — ver `dinheiroDigitadoDe`. */}
                     <input
                       id="f-preco"
-                      type="number"
-                      min={0}
-                      value={v.preco_original ?? ""}
-                      placeholder="Ex: 118900"
-                      onChange={(e) => {
-                        const valor = e.target.value === "" ? null : Number(e.target.value);
-                        // As duas colunas andam juntas: o mapper público lê
-                        // `preco_original` e a ordenação da vitrine lê `preco`.
-                        set("preco_original", valor);
-                        set("preco", valor);
-                      }}
-                      className={`${campoCaixa} border-mt-accent text-lg font-extrabold`}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={dinheiroDigitado.preco_original}
+                      placeholder="Ex: 118.900"
+                      onChange={(e) => digitarDinheiro("preco_original", e.target.value)}
+                      className={`${campoCaixa} ${
+                        erroDoDinheiro.preco_original ? "border-red-500" : "border-mt-accent"
+                      } text-lg font-extrabold`}
                     />
+                    {erroDoDinheiro.preco_original && (
+                      <span className="text-[11px] font-semibold text-red-600">
+                        {erroDoDinheiro.preco_original}
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1.5">
@@ -1014,23 +1099,23 @@ export default function EditorDeVeiculo({
                     </label>
                     <input
                       id="f-promo"
-                      type="number"
-                      min={0}
-                      value={v.preco_promocional ? v.preco_promocional : ""}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={dinheiroDigitado.preco_promocional}
                       placeholder="Em branco = sem promoção"
-                      onChange={(e) => {
-                        const valor = e.target.value === "" ? 0 : Number(e.target.value);
-                        // Zero, e não null: é assim que o banco e a PDP dizem
-                        // "sem promoção" (`hasDiscount` testa `> 0`). Gravar
-                        // null faria o campo parecer não-preenchido em vez de
-                        // deliberadamente vazio.
-                        set("preco_promocional", valor);
-                      }}
+                      onChange={(e) => digitarDinheiro("preco_promocional", e.target.value)}
                       className={`${campoCaixa} ${
-                        promocao.recusa ? "border-red-500" : "border-mt-accent"
+                        erroDoDinheiro.preco_promocional || promocao.recusa
+                          ? "border-red-500"
+                          : "border-mt-accent"
                       } text-lg font-extrabold`}
                     />
-                    {promocao.recusa ? (
+                    {erroDoDinheiro.preco_promocional ? (
+                      <span className="text-[11px] font-semibold text-red-600">
+                        {erroDoDinheiro.preco_promocional}
+                      </span>
+                    ) : promocao.recusa ? (
                       <span className="text-[11px] font-semibold text-red-600">
                         {promocao.recusa}
                       </span>
@@ -1071,15 +1156,23 @@ export default function EditorDeVeiculo({
                     </label>
                     <input
                       id="f-compra"
-                      type="number"
-                      min={0}
-                      value={v.preco_compra ?? ""}
-                      placeholder="Ex: 248000"
-                      onChange={(e) =>
-                        set("preco_compra", e.target.value === "" ? null : Number(e.target.value))
-                      }
-                      className={`${campoCaixa} border-mt-accent text-lg font-extrabold`}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      value={dinheiroDigitado.preco_compra}
+                      placeholder="Ex: 248.000"
+                      onChange={(e) => digitarDinheiro("preco_compra", e.target.value)}
+                      className={`${campoCaixa} ${
+                        erroDoDinheiro.preco_compra || custoImplausivel
+                          ? "border-red-500"
+                          : "border-mt-accent"
+                      } text-lg font-extrabold`}
                     />
+                    {(erroDoDinheiro.preco_compra ?? custoImplausivel) && (
+                      <span className="text-[11px] font-semibold text-red-600">
+                        {erroDoDinheiro.preco_compra ?? custoImplausivel}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
