@@ -1,7 +1,13 @@
 import { ImageResponse } from "next/og";
 import { getCachedSettings } from "../../lib/settings";
 import DEFAULT_COMPANY_SETTINGS from "../../lib/companySettings.json";
-import { ALTURA_CARD, LARGURA_CARD } from "../../lib/compartilhamento";
+import {
+  ALTURA_CARD,
+  CARDS_GERADOS,
+  LARGURA_CARD,
+  ehChaveDoCardGerado,
+  urlDoCardGerado,
+} from "../../lib/compartilhamento";
 import { APOIO, ACENTO, PAPEL, TINTA, carregarArchivo, carregarLogo } from "./recursos";
 
 /**
@@ -21,13 +27,24 @@ import { APOIO, ACENTO, PAPEL, TINTA, carregarArchivo, carregarLogo } from "./re
  * prévia do WhatsApp — respeita robots.txt ao buscar o `og:image`. Debaixo de
  * `/api` o card responderia 200 no navegador e sairia sem imagem no celular
  * do cliente, que é o tipo de defeito que ninguém encontra testando na tela.
+ *
+ * Desde 01/10 o texto da imagem não vem da URL: `?card=` escolhe um dos cards
+ * fixos de `CARDS_GERADOS` (`lib/compartilhamento.ts`, onde está o porquê).
+ * Qualquer outra URL (`?titulo=` dos links antigos, chave desconhecida,
+ * parâmetro a mais) é redirecionada para a canônica, sem desenhar nada; o
+ * redirecionamento sai sem `Cache-Control`, então a borda não o guarda.
  */
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const titulo = (searchParams.get("titulo") || "").trim().slice(0, 120);
-  const rotulo = (searchParams.get("rotulo") || "").trim().slice(0, 40);
+  const pedido = new URL(request.url);
+  const chavePedida = pedido.searchParams.get("card");
+  const chave = ehChaveDoCardGerado(chavePedida) ? chavePedida : "home";
+  const canonico = urlDoCardGerado(chave);
+  if (`${pedido.pathname}${pedido.search}` !== canonico) {
+    return Response.redirect(new URL(canonico, request.url), 302);
+  }
+  const { titulo, rotulo } = CARDS_GERADOS[chave];
 
   let empresa: { name?: string; logoUrl?: string } = DEFAULT_COMPANY_SETTINGS;
   try {
@@ -100,7 +117,7 @@ export async function GET(request: Request) {
           <div
             style={{
               display: "flex",
-              fontSize: titulo.length > 62 ? 60 : 76,
+              fontSize: titulo.length > 40 ? 64 : 76,
               fontWeight: 800,
               lineHeight: 1.08,
               letterSpacing: "-0.03em",
@@ -133,9 +150,16 @@ export async function GET(request: Request) {
       height: ALTURA_CARD,
       ...(fontes ? { fonts: fontes } : {}),
       headers: {
-        // O card só muda quando a loja troca logo ou nome. Um dia de cache na
-        // borda evita rasterizar de novo a cada scraper que passa.
-        "Cache-Control": "public, max-age=86400, s-maxage=86400, immutable",
+        // O card só muda quando a loja troca logo ou nome, ou quando um deploy
+        // muda o texto de `CARDS_GERADOS` (a borda da Vercel limpa no deploy;
+        // o robô de prévia pode guardar o antigo por até um dia). Um dia de
+        // cache evita rasterizar de novo a cada scraper que passa. O que saiu
+        // sem a fonte ou sem o logo (falha passageira de rede) fica cinco
+        // minutos, para a próxima tentativa sair inteira.
+        "Cache-Control":
+          fontes && logo
+            ? "public, max-age=86400, s-maxage=86400, immutable"
+            : "public, max-age=300, s-maxage=300",
       },
     }
   );

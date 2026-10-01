@@ -98,7 +98,7 @@ export function grafoDoGuia(opcoes: {
        * ser URL absoluta. Sem esta linha o campo saía `/og?titulo=…`, medido no
        * HTML construído.
        */
-      image: `${SITE_URL}${urlDoCardGerado(guia.titulo, "Guia")}`,
+      image: `${SITE_URL}${urlDoCardGerado("guias")}`,
       about: guia.sobre.map((name) => ({ "@type": "Thing", name })),
     },
     schemaDeTrilha([
