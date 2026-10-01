@@ -477,6 +477,19 @@ describe("o painel, rodando contra os privilégios do authenticated depois da mi
     expect(doComercial.veiculo.preco_compra).toBeNull();
   });
 
+  it("a busca do repasse a partir do estoque casa a placa inteira — sem devolvê-la", async () => {
+    // Chegou com o #207: a busca lê `placa` (só para casar) e `codigo_fipe`.
+    // Pedidas à tabela, a sessão é recusada e o seletor do repasse cai em 502.
+    const { GET } = await import("../src/app/api/repasses/estoque/route");
+    sessao(["admin"]);
+    const r = await GET(new Request(`${BASE}/api/repasses/estoque?q=${DO_FEED.placa}`));
+    expect(recusas).toEqual([]);
+    expect(r.status).toBe(200);
+    const corpo = await r.json();
+    expect(corpo.veiculos.map((v: { id: string | number }) => String(v.id))).toContain(String(DO_FEED.id));
+    expect(JSON.stringify(corpo)).not.toContain(DO_FEED.placa);
+  });
+
   it("o seletor da venda traz placa e chassi; o custo só a quem vê custo", async () => {
     const { GET } = await import("../src/app/api/ciclo/vendas/estoque/route");
     sessao(["admin"]);
