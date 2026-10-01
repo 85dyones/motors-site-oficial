@@ -390,6 +390,16 @@ interface EntradaCompartilhamento {
 }
 
 /**
+ * O título e a descrição que a loja escreve no painel para esta página são
+ * publicados? Não na página de catálogo com curinga ("/destaques/…"): ali
+ * cada landing tem o próprio título, e o painel oferece só a arte para todas.
+ * O painel e `montarCompartilhamento` leem a mesma régua.
+ */
+export function textoDoPainelVale(caminhoDoCatalogo: string): boolean {
+  return !caminhoDoCatalogo.endsWith("/…");
+}
+
+/**
  * Monta `openGraph` + `twitter` de uma página pública.
  *
  * Sempre `summary_large_image`: `summary` (que /sobre, /contato e /privacidade
@@ -411,8 +421,43 @@ export function montarCompartilhamento({
     pagina === "pdp"
       ? undefined
       : PAGINAS_COMPARTILHAVEIS.find((p) => p.id === pagina);
-  const proprio: CardCompartilhamento =
+  const doPainelDaPagina: CardCompartilhamento =
     pagina === "pdp" ? {} : config[pagina] ?? {};
+
+  /*
+   * O card que a loja escreve no painel vale para AQUELA página, e não para
+   * as que publicam com a chave dela (01/10/2026). `/financiamento`, os hubs
+   * de marca e modelo, as páginas de bairro e os recortes do estoque usam a
+   * chave "estoque"; `/garantia` usa "sobre"; cada guia usa "guias". Até aqui
+   * o título escrito para "Estoque" passava a ser o título de todas elas, por
+   * cima do título próprio de cada uma.
+   *
+   * A régua é o caminho: o texto do painel entra só quando quem chama é a
+   * página do catálogo (`caminho` igual). A arte entra também nas páginas de
+   * um catálogo com curinga ("/destaques/…"), porque ali uma imagem para
+   * todas é o que o painel oferece. Sem `caminho` (o layout, que é o padrão de
+   * quem não declara nada) vale como antes.
+   */
+  // Só o caminho: a landing de destaque passa a URL absoluta com UTM.
+  const caminhoPedido = (() => {
+    const bruto = limpar(caminho);
+    if (!bruto) return "";
+    try {
+      return new URL(bruto, "https://exemplo.invalid").pathname;
+    } catch {
+      return bruto.split("?")[0];
+    }
+  })();
+  const caminhoDoCatalogo: string = doCatalogo?.caminho ?? "";
+  const ehAPropriaPagina =
+    textoDoPainelVale(caminhoDoCatalogo) && (!caminhoPedido || caminhoPedido === caminhoDoCatalogo);
+  const prefixoDoCuringa = caminhoDoCatalogo.endsWith("/…") ? caminhoDoCatalogo.slice(0, -1) : null;
+  const arteDoPainelVale = ehAPropriaPagina || (prefixoDoCuringa !== null && caminhoPedido.startsWith(prefixoDoCuringa));
+  const proprio: CardCompartilhamento = ehAPropriaPagina
+    ? doPainelDaPagina
+    : arteDoPainelVale
+      ? { imagemUrl: doPainelDaPagina.imagemUrl }
+      : {};
 
   const titulo =
     limpar(proprio.titulo) ||

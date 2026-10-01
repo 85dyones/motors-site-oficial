@@ -6,6 +6,7 @@ import {
   textoDeFabricaDaPagina,
   urlDoCardGerado,
   cardGeradoDa,
+  textoDoPainelVale,
   type IdPaginaCompartilhavel,
 } from "../../lib/compartilhamento";
 import type { CardCompartilhamento, CompartilhamentoSettings } from "../../types";
@@ -49,6 +50,15 @@ interface CardsCompartilhamentoProps {
 const LIMITE_TITULO = 65;
 const LIMITE_DESCRICAO = 130;
 
+/** As páginas que publicam com a chave de uma página do catálogo — e que,
+ *  desde 01/10, não recebem o card escrito aqui (ver `montarCompartilhamento`). */
+const QUEM_MAIS_USA_O_CARD: Partial<Record<IdPaginaCompartilhavel, string>> = {
+  estoque:
+    "O financiamento, as páginas de marca, modelo e bairro e os recortes do estoque usam o mesmo tipo de card, mas mantêm o próprio título, descrição e arte.",
+  sobre: "A página de garantia usa o mesmo tipo de card, mas mantém o próprio título, descrição e arte.",
+  guias: "Cada guia usa o mesmo tipo de card, mas mantém o próprio título, descrição e arte.",
+};
+
 export default function CardsCompartilhamento({
   valor,
   nomeLoja,
@@ -85,8 +95,12 @@ export default function CardsCompartilhamento({
     cabecalhoDosGuias,
   });
 
-  const tituloExibido = card.titulo?.trim() || fabrica.titulo;
-  const descricaoExibida = card.descricao?.trim() || fabrica.descricao;
+  // Desde 01/10 o texto do painel vale só para a própria página, e nunca na
+  // de curinga ("/destaques/…"), onde cada landing tem o seu. A prévia mostra
+  // o que o site publica, então ali ela ignora o texto e os campos somem.
+  const textoVale = textoDoPainelVale(pagina.caminho);
+  const tituloExibido = (textoVale && card.titulo?.trim()) || fabrica.titulo;
+  const descricaoExibida = (textoVale && card.descricao?.trim()) || fabrica.descricao;
 
   // Qual imagem o site vai publicar para esta página, na mesma ordem da
   // cascata de `montarCompartilhamento`.
@@ -198,44 +212,57 @@ export default function CardsCompartilhamento({
           <div className="mt-1 font-mono text-[11px] text-mt-neutral-700">
             {pagina.caminho}
           </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-mt-neutral-800">
+            {textoVale
+              ? `Vale só para este endereço.${
+                  QUEM_MAIS_USA_O_CARD[selecionada]
+                    ? ` ${QUEM_MAIS_USA_O_CARD[selecionada]}`
+                    : ""
+                }`
+              : "Cada landing de destaque usa o próprio título e descrição. Aqui, só a arte vale para todas."}
+          </p>
 
-          <label
-            className="mt-5 block text-[11px] font-semibold text-mt-neutral-700"
-            htmlFor="compartilhar-titulo"
-          >
-            Título do card
-          </label>
-          <input
-            id="compartilhar-titulo"
-            className="mt-campo-caixa mt-1"
-            value={card.titulo ?? ""}
-            maxLength={LIMITE_TITULO}
-            placeholder={fabrica.titulo}
-            onChange={(e) => alterar(selecionada, "titulo", e.target.value)}
-          />
-          <div className="mt-1 text-right text-[10px] text-mt-neutral-700">
-            <span className="mt-num">{(card.titulo ?? "").length}</span>/{LIMITE_TITULO}
-          </div>
+          {textoVale && (
+            <>
+            <label
+              className="mt-5 block text-[11px] font-semibold text-mt-neutral-700"
+              htmlFor="compartilhar-titulo"
+            >
+              Título do card
+            </label>
+            <input
+              id="compartilhar-titulo"
+              className="mt-campo-caixa mt-1"
+              value={card.titulo ?? ""}
+              maxLength={LIMITE_TITULO}
+              placeholder={fabrica.titulo}
+              onChange={(e) => alterar(selecionada, "titulo", e.target.value)}
+            />
+            <div className="mt-1 text-right text-[10px] text-mt-neutral-700">
+              <span className="mt-num">{(card.titulo ?? "").length}</span>/{LIMITE_TITULO}
+            </div>
 
-          <label
-            className="mt-3 block text-[11px] font-semibold text-mt-neutral-700"
-            htmlFor="compartilhar-descricao"
-          >
-            Descrição
-          </label>
-          <textarea
-            id="compartilhar-descricao"
-            className="mt-campo-caixa mt-1 resize-y"
-            rows={3}
-            value={card.descricao ?? ""}
-            maxLength={LIMITE_DESCRICAO}
-            placeholder={fabrica.descricao}
-            onChange={(e) => alterar(selecionada, "descricao", e.target.value)}
-          />
-          <div className="mt-1 text-right text-[10px] text-mt-neutral-700">
-            <span className="mt-num">{(card.descricao ?? "").length}</span>/
-            {LIMITE_DESCRICAO}
-          </div>
+            <label
+              className="mt-3 block text-[11px] font-semibold text-mt-neutral-700"
+              htmlFor="compartilhar-descricao"
+            >
+              Descrição
+            </label>
+            <textarea
+              id="compartilhar-descricao"
+              className="mt-campo-caixa mt-1 resize-y"
+              rows={3}
+              value={card.descricao ?? ""}
+              maxLength={LIMITE_DESCRICAO}
+              placeholder={fabrica.descricao}
+              onChange={(e) => alterar(selecionada, "descricao", e.target.value)}
+            />
+            <div className="mt-1 text-right text-[10px] text-mt-neutral-700">
+              <span className="mt-num">{(card.descricao ?? "").length}</span>/
+              {LIMITE_DESCRICAO}
+            </div>
+            </>
+          )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <label

@@ -151,7 +151,29 @@ describe("nomenclatura da tabela de inventário", () => {
     // tela precisa enxergar o carro que já saiu do ar para poder listá-lo
     // como morto e deixar o operador limpar a marcação (ver
     // `src/lib/destaquesDoPainel.ts`).
-    expect(comAcesso.length).toBe(13);
+    //
+    // O décimo quarto e o décimo quinto, em 2026-10-01 (repasse a partir do
+    // estoque, pedido do dono): `api/repasses/estoque/route.ts`, a busca do
+    // novo carro de repasse — SELECT do estoque inteiro, com a placa lida só
+    // para casar a placa INTEIRA e nunca devolvida, e sem chassi, renavam,
+    // custo nem valor FIPE —, e `api/repasses/[id]/fotos-do-estoque/route.ts`,
+    // que lê só `id` e as duas listas de fotos para COPIAR os arquivos para a
+    // pasta do repasse. Nenhuma das duas grava no estoque.
+    //
+    // E no mesmo dia a lista ENCOLHEU de 15 para 11, sem leitura nenhuma
+    // sumir: a migração 20261001150000 fechou placa, chassi, renavam, custo e
+    // FIPE para a sessão também (cliente da Garagem e investidor são sessão),
+    // e o painel passou a ler essas colunas pela view `estoque_motors_equipe`,
+    // via `lerComoEquipe((origem) => supabase.from(origem)…)` — que não é um
+    // `.from("estoque_motors")` literal. Saíram daqui os quatro arquivos cuja
+    // única leitura precisava delas: `app/admin/estoque/page.tsx` (tabela A6,
+    // que busca pela placa), `lib/veiculoNoPainel.ts` (abre a visão e o
+    // editor do veículo), `api/ciclo/vendas/estoque/route.ts` (placa, chassi
+    // e custo da venda) e `api/repasses/estoque/route.ts` (a busca do repasse
+    // casa a placa inteira e lê o código FIPE).
+    // A guarda de que nenhuma leitura literal pede coluna interna mora em
+    // `tests/documento-e-custo-so-para-a-equipe.test.ts`.
+    expect(comAcesso.length).toBe(11);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -179,6 +201,15 @@ describe("nomenclatura da tabela de inventário", () => {
     // painel e não existe no RevendaMais.
     // E o acesso nº 21, em 2026-09-22, com o arquivo novo acima: o SELECT da
     // tela de curadoria dos destaques (Tarefa 7).
-    expect(total).toBe(21);
+    // E os acessos nº 22 e 23, em 2026-10-01, com os dois arquivos novos acima.
+    //
+    // E no mesmo dia, de 23 para 16: as sete leituras que precisam de
+    // documento ou custo foram para a view da equipe — as quatro dos arquivos
+    // que saíram da lista acima, mais o GET de `api/estoque/[id]`, o "antes"
+    // de `lib/estoqueEscrita.ts` (que alimenta o piso de custo) e a lista com
+    // placa de `getEstoque` em `lib/supabase.ts`. A curadoria dos destaques e
+    // o gerador de descritivo ficaram aqui, trocando `select("*")` pela lista
+    // pública: nenhum dos dois usa documento nem custo.
+    expect(total).toBe(16);
   });
 });

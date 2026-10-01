@@ -4,6 +4,7 @@ import { classificarEstado, versaoParaExibir, type LinhaDeEstoque } from "../../
 import { mapVeiculoDbToVeiculo } from "../../../../lib/supabase";
 import CuradoriaDeDestaques from "../../../../components/admin/CuradoriaDeDestaques";
 import { idsDaTvComHeranca } from "../../../../lib/destaquesDoPainel";
+import { SELECT_PUBLICO_DO_ESTOQUE } from "../../../../lib/colunasDoEstoque";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,9 @@ export const metadata = {
 export default async function DestaquesPage() {
   const supabase = await createServerSupabaseClient();
   const [{ data: brutos }, settings] = await Promise.all([
-    supabase.from("estoque_motors").select("*"),
+    // A lista pública basta: o estado e o cartão não usam documento nem custo,
+    // e a sessão não os lê na tabela desde 20261001150000.
+    supabase.from("estoque_motors").select(SELECT_PUBLICO_DO_ESTOQUE as "*"),
     getCachedSettings(),
   ]);
 

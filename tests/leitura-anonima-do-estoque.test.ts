@@ -187,7 +187,9 @@ function arquivosDe(pasta: string): string[] {
  * quem importa o cliente `supabase` dele, quem monta cliente com a chave anon
  * e todo componente de browser. Quem usa a sessão
  * (`createServerSupabaseClient`) ou recebe o cliente por parâmetro fica de fora
- * — ali o papel é `authenticated`, que segue lendo tudo.
+ * — ali o papel é `authenticated`, que lia tudo até 20261001150000. Desde
+ * então ele também lê só a lista pública, e a varredura que vale para TODA
+ * leitura, com qualquer chave, mora em `documento-e-custo-so-para-a-equipe`.
  */
 function usaAChavePublica(arquivo: string, codigo: string): boolean {
   if (arquivo === "src/lib/supabase.ts") return true;

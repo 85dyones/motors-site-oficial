@@ -119,10 +119,17 @@ function arquivosFonte(dir: string): string[] {
 
 type Citacao = { arquivo: string; coluna: string; origem: string };
 
-/** Trecho encadeado após cada `.from("estoque_motors")`, até o fim do statement. */
+/**
+ * Trecho encadeado após cada `.from("estoque_motors")`, até o fim do statement.
+ *
+ * Também após `.from(origem)`: é a forma das leituras que vão pela view da
+ * equipe (`lerComoEquipe((origem) => supabase.from(origem)…)`, 2026-10-01). A
+ * view é `select e.*` da tabela — as colunas são as mesmas, e a coluna
+ * fantasma derrubaria a consulta do mesmo jeito.
+ */
 function cadeias(codigo: string): string[] {
   const achadas: string[] = [];
-  const re = /\.from\(\s*["'`]estoque_motors["'`]\s*\)/g;
+  const re = /\.from\(\s*(?:["'`]estoque_motors["'`]|origem)\s*\)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(codigo)) !== null) {
     const resto = codigo.slice(m.index + m[0].length);
