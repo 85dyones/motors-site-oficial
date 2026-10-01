@@ -5,6 +5,7 @@ import {
   PAGINAS_COMPARTILHAVEIS,
   textoDeFabricaDaPagina,
   urlDoCardGerado,
+  cardGeradoDa,
   type IdPaginaCompartilhavel,
 } from "../../lib/compartilhamento";
 import type { CardCompartilhamento, CompartilhamentoSettings } from "../../types";
@@ -93,11 +94,13 @@ export default function CardsCompartilhamento({
     const propria = card.imagemUrl?.trim();
     if (propria) return { url: propria, origem: "própria desta página" };
     if (artePadrao) return { url: artePadrao, origem: "arte padrão do site" };
+    // O card gerado tem texto fixo por página desde 01/10: o título que a
+    // loja escreve aqui vai no texto da prévia, não na imagem.
     return {
-      url: urlDoCardGerado(tituloExibido, pagina.rotuloCard),
+      url: urlDoCardGerado(cardGeradoDa(pagina.id)),
       origem: "card gerado automaticamente",
     };
-  }, [card.imagemUrl, artePadrao, tituloExibido, pagina.rotuloCard]);
+  }, [card.imagemUrl, artePadrao, pagina.id]);
 
   const alterar = (
     id: IdPaginaCompartilhavel | "padrao",

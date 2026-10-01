@@ -1,15 +1,19 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ALTURA_CARD,
+  CARDS_GERADOS,
   LARGURA_CARD,
   PAGINAS_COMPARTILHAVEIS,
+  cardGeradoDa,
+  ehChaveDoCardGerado,
   fotoPodeVirarPrevia,
   imagemServivelComoPrevia,
   montarCompartilhamento,
   previaDaFotoDoVeiculo,
   urlDoCardGerado,
+  type ChaveDoCardGerado,
 } from "../src/lib/compartilhamento";
 import type { CompanySettings } from "../src/types";
 
@@ -138,7 +142,7 @@ describe("cascata da imagem", () => {
       const imagem = imagemDe(
         montarCompartilhamento({ empresa: EMPRESA_VAZIA, pagina: pagina.id })
       );
-      expect(imagem.url).toContain("/og?titulo=");
+      expect(imagem.url).toBe(urlDoCardGerado(pagina.id));
     }
   });
 });
@@ -310,16 +314,80 @@ describe("página do veículo", () => {
   });
 });
 
-describe("card gerado", () => {
-  it("leva título e rótulo na query", () => {
-    const url = urlDoCardGerado("Quanto vale o seu carro", "Avaliação Express");
-    const params = new URLSearchParams(url.split("?")[1]);
-
-    expect(params.get("titulo")).toBe("Quanto vale o seu carro");
-    expect(params.get("rotulo")).toBe("Avaliação Express");
+describe("card gerado: texto fixo, escolhido por chave (01/10)", () => {
+  it("a URL escolhe um card, não carrega texto", () => {
+    expect(urlDoCardGerado()).toBe("/og");
+    expect(urlDoCardGerado("avaliacao")).toBe("/og?card=avaliacao");
+    for (const chave of Object.keys(CARDS_GERADOS) as ChaveDoCardGerado[]) {
+      expect(urlDoCardGerado(chave)).not.toMatch(/titulo=|rotulo=/);
+    }
   });
 
-  it("omite o rótulo quando não há", () => {
-    expect(urlDoCardGerado("Motors Store")).not.toContain("rotulo=");
+  it("o título da página vai no texto da prévia, não na imagem", () => {
+    const meta = montarCompartilhamento({
+      empresa: EMPRESA_VAZIA,
+      pagina: "guias",
+      tituloPadrao: "Como ler um laudo cautelar",
+    });
+    expect(meta.openGraph?.title).toBe("Como ler um laudo cautelar");
+    expect(imagemDe(meta).url).toBe("/og?card=guias");
+  });
+
+  it("rótulo de card escolhe o card; rótulo livre fica no texto", () => {
+    expect(cardGeradoDa("sobre", "Garantia")).toBe("garantia");
+    expect(cardGeradoDa("estoque", "Financiamento")).toBe("financiamento");
+    expect(cardGeradoDa("pdp", "Repasse")).toBe("repasse");
+    expect(cardGeradoDa("estoque", "Jeep Compass")).toBe("estoque");
+    expect(cardGeradoDa("pdp", "2021 · 45.000 km")).toBe("estoque");
+    expect(cardGeradoDa("destaques", "Blindados")).toBe("destaques");
+  });
+
+  it("chave só vale se for de um card de verdade", () => {
+    expect(ehChaveDoCardGerado("estoque")).toBe(true);
+    expect(ehChaveDoCardGerado("__proto__")).toBe(false);
+    expect(ehChaveDoCardGerado("toString")).toBe(false);
+    expect(ehChaveDoCardGerado(null)).toBe(false);
+  });
+});
+
+describe("a rota /og", () => {
+  vi.mock("../src/lib/settings", () => ({
+    getCachedSettings: async () => ({ companySettings: { name: "Motors Store" } }),
+  }));
+  vi.mock("../src/app/og/recursos", async (original) => ({
+    ...(await original<Record<string, unknown>>()),
+    carregarArchivo: async () => null,
+  }));
+
+  const pedir = async (caminho: string) => {
+    const { GET } = await import("../src/app/og/route");
+    return GET(new Request(`https://www.motorsstore.com.br${caminho}`));
+  };
+
+  it("texto pela URL não desenha nada: vai para o card canônico", async () => {
+    const r = await pedir("/og?titulo=Pix%20para%20reservar&rotulo=Promo%C3%A7%C3%A3o");
+    expect(r.status).toBe(302);
+    expect(r.headers.get("location")).toBe("https://www.motorsstore.com.br/og");
+    expect(r.headers.get("cache-control")).toBeNull();
+  });
+
+  it("chave desconhecida ou parâmetro a mais também redirecionam", async () => {
+    expect((await pedir("/og?card=inventado")).headers.get("location")).toBe("https://www.motorsstore.com.br/og");
+    expect((await pedir("/og?card=estoque&x=1")).headers.get("location")).toBe(
+      "https://www.motorsstore.com.br/og?card=estoque",
+    );
+  });
+
+  it("a canônica desenha o card; sem a fonte, cache curto", async () => {
+    const r = await pedir("/og?card=garantia");
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toContain("image/png");
+    expect(r.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+  }, 30_000);
+
+  it("o código da rota não lê texto da URL", () => {
+    const rota = ler("src", "app", "og", "route.tsx");
+    const lidos = [...rota.matchAll(/searchParams\.get\("([^"]+)"\)/g)].map((m) => m[1]);
+    expect(lidos).toEqual(["card"]);
   });
 });

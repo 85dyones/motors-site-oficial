@@ -249,17 +249,68 @@ export function imagemServivelComoPrevia(url?: string | null): boolean {
 }
 
 /**
+ * Os cards que `/og` desenha: um por tipo de página, com texto FIXO
+ * (01/10/2026).
+ *
+ * Até aqui `/og` recebia o título e o rótulo pela URL (`/og?titulo=…`) e
+ * desenhava o que viesse, com o logo da loja. Qualquer pessoa montava, no
+ * domínio da loja, uma "peça da Motors Store" com o texto que quisesse ("Pix
+ * para reservar…"). Agora a URL só escolhe UM destes cards pela chave, e o
+ * texto da imagem é o daqui. O texto que muda de página para página (o título
+ * do guia, o nome do hub, o título que a loja escreveu no painel) vai no
+ * `og:title` e no `og:description`, que o WhatsApp mostra embaixo da imagem.
+ * É a mesma decisão da prévia da ficha em 30/09: a imagem é fixa, o texto
+ * escrito carrega o resto.
+ *
+ * Os títulos repetem o de fábrica de cada página, ou o `<h1>` dela.
+ */
+const CARDS_DO_CATALOGO = Object.fromEntries(
+  PAGINAS_COMPARTILHAVEIS.filter((p) => p.id !== "home").map((p) => [
+    p.id,
+    { rotulo: p.rotuloCard, titulo: p.tituloPadrao },
+  ]),
+) as Record<Exclude<IdPaginaCompartilhavel, "home">, { rotulo: string; titulo: string }>;
+
+export const CARDS_GERADOS = {
+  home: { rotulo: "", titulo: "Seminovos selecionados em Curitiba" },
+  ...CARDS_DO_CATALOGO,
+  // Páginas que publicam com o card de outra, mas com rótulo próprio.
+  garantia: { rotulo: "Garantia", titulo: "Garantia do seminovo" },
+  financiamento: { rotulo: "Financiamento", titulo: "Financiamento de seminovo em Curitiba" },
+} as const;
+
+export type ChaveDoCardGerado = keyof typeof CARDS_GERADOS;
+
+export function ehChaveDoCardGerado(valor: string | null | undefined): valor is ChaveDoCardGerado {
+  return typeof valor === "string" && Object.prototype.hasOwnProperty.call(CARDS_GERADOS, valor);
+}
+
+/**
+ * Qual card uma página publica. O rótulo pedido escolhe o card quando é o
+ * rótulo de um deles ("Garantia", "Repasse"); rótulo que não é de card nenhum
+ * (o nome de um hub, "2021 · 45.000 km") fica só no texto, e o card é o do
+ * tipo da página. A ficha do carro sem foto usa o card do estoque.
+ */
+export function cardGeradoDa(pagina: ContextoCompartilhamento, rotulo?: string | null): ChaveDoCardGerado {
+  const pedido = limpar(rotulo);
+  if (pedido) {
+    const porRotulo = (Object.keys(CARDS_GERADOS) as ChaveDoCardGerado[]).find(
+      (chave) => CARDS_GERADOS[chave].rotulo === pedido,
+    );
+    if (porRotulo) return porRotulo;
+  }
+  return pagina === "pdp" ? "estoque" : pagina;
+}
+
+/**
  * URL do card gerado, para quando não há arte subida no painel.
  *
  * `/og`, e não `/api/og`: o `robots.ts` bloqueia `/api/` para todo agente, e o
  * crawler do Facebook — o mesmo que monta a prévia do WhatsApp — obedece
  * robots.txt ao buscar o `og:image`. Ver a nota em `src/app/og/route.tsx`.
  */
-export function urlDoCardGerado(titulo: string, rotulo?: string): string {
-  const params = new URLSearchParams({ titulo: limpar(titulo).slice(0, 120) });
-  const marcador = limpar(rotulo);
-  if (marcador) params.set("rotulo", marcador.slice(0, 40));
-  return `/og?${params.toString()}`;
+export function urlDoCardGerado(chave: ChaveDoCardGerado = "home"): string {
+  return chave === "home" ? "/og" : `/og?card=${chave}`;
 }
 
 /**
@@ -391,7 +442,7 @@ export function montarCompartilhamento({
           : { width: LARGURA_CARD, height: ALTURA_CARD }),
       }
     : {
-        url: doPainel ?? urlDoCardGerado(titulo, marcador),
+        url: doPainel ?? urlDoCardGerado(cardGeradoDa(pagina, marcador)),
         width: LARGURA_CARD,
         height: ALTURA_CARD,
         alt: titulo,
