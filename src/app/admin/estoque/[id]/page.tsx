@@ -1,59 +1,26 @@
-import { notFound } from "next/navigation";
-import EditorDeVeiculo from "../../../../components/admin/EditorDeVeiculo";
-import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import VisaoDoVeiculo from "../../../../components/admin/VisaoDoVeiculo";
 import { visitasDaPagina } from "../../../../lib/analytics";
-import { perfisDe } from "../../../../lib/permissoes";
+import { abrirVeiculoNoPainel, lerHistoricoDoVeiculo } from "../../../../lib/veiculoNoPainel";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Editor de Veículo — Motors Store",
-  description: "Fotos, ficha técnica, opcionais e checklist de publicação.",
+  title: "Veículo — Motors Store",
 };
 
-export default async function EditorDeVeiculoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+/**
+ * O veículo no painel: a VISÃO, só leitura (pedido do dono em 01/10: "não
+ * temos a visualização apenas do cadastro dos veículos, estão em lista ou
+ * podem ser editados"). É o arranjo do repasse desde 28/09: abrir mostra o
+ * carro, e editar é um botão. O editor mora em `editar/`.
+ */
+export default async function VeiculoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createServerSupabaseClient();
+  const { supabase, veiculo, perfis } = await abrirVeiculoNoPainel(id);
+  const [visitas, historico] = await Promise.all([
+    visitasDaPagina(String(veiculo.id), 30),
+    lerHistoricoDoVeiculo(supabase, veiculo.id, perfis),
+  ]);
 
-  // O id é bigint no banco e chega como string na URL.
-  const alvo = /^\d+$/.test(id) ? Number(id) : id;
-  const { data } = await supabase
-    .from("estoque_motors")
-    .select("*")
-    .eq("id", alvo)
-    .maybeSingle();
-
-  if (!data) notFound();
-
-  // As URLs de veículo terminam com o id (ver getVeiculoPdpUrl), então o id
-  // é o filtro certo — e não depende do slug, que muda quando o título muda.
-  // `null` quando o GA4 não está configurado: a tela mostra "—", não zero.
-  const visitas = await visitasDaPagina(String(data.id), 30);
-
-  // O perfil decide o que a tela desenha: campo que este perfil não grava não
-  // é renderizado — e, por não existir no HTML, também não vaza valor (foi o
-  // caso do preço de compra). O layout do admin já garantiu a sessão.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, papeis")
-    .eq("id", user!.id)
-    .single();
-
-  return (
-    <EditorDeVeiculo
-      inicial={data}
-      visitas30Dias={visitas}
-      // Todos os papéis, não `normalizarPerfil(role)`: o primário sozinho
-      // escondia campo que o segundo papel grava — e normalizar um papel
-      // fora do vocabulário o promovia a "comercial" (regra 2-b).
-      perfil={perfisDe(profile)}
-    />
-  );
+  return <VisaoDoVeiculo veiculo={veiculo} perfis={perfis} visitas30Dias={visitas} historico={historico} agora={new Date()} />;
 }

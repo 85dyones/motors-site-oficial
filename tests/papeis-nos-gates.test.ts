@@ -35,7 +35,10 @@ const rotaUsuarios = ler("src", "app", "api", "users", "route.ts");
 const rotaUsuario = ler("src", "app", "api", "users", "[id]", "route.ts");
 const rotaAuditoria = ler("src", "app", "api", "auditoria", "route.ts");
 const rotaLeads = ler("src", "app", "api", "leads", "gerenciar", "route.ts");
-const paginaEditor = ler("src", "app", "admin", "estoque", "[id]", "page.tsx");
+// Desde 01/10 o editor mora em `[id]/editar`, e os papéis saem de
+// `abrirVeiculoNoPainel`, que a visão e o editor usam.
+const paginaEditor = ler("src", "app", "admin", "estoque", "[id]", "editar", "page.tsx");
+const aberturaDoVeiculo = ler("src", "lib", "veiculoNoPainel.ts");
 
 describe("os gates somam os papéis", () => {
   it("admin em segundo lugar é admin nas rotas restritas", () => {
@@ -64,8 +67,10 @@ describe("os gates somam os papéis", () => {
   });
 
   it("o editor de veículo recebe todos os papéis — o segundo papel também grava", () => {
-    expect(paginaEditor).toContain("perfil={perfisDe(profile)}");
+    expect(paginaEditor).toContain("perfil={perfis}");
+    expect(aberturaDoVeiculo).toContain("const perfis: Perfil[] = perfisDe(profile);");
     expect(semComentarios(paginaEditor)).not.toContain("normalizarPerfil");
+    expect(semComentarios(aberturaDoVeiculo)).not.toContain("normalizarPerfil");
   });
 });
 

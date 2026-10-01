@@ -164,6 +164,8 @@ describe("o painel consegue preencher", () => {
   });
 
   it("a alteração aparece no histórico com nome legível", () => {
-    expect(ler(EDITOR)).toMatch(/descricao_seo:\s*["'][^"']+["']/);
+    // Os nomes do histórico moram em `lib/historicoDoVeiculo.ts` desde 01/10
+    // (o editor e a visão do veículo leem de lá).
+    expect(ler("src/lib/historicoDoVeiculo.ts")).toMatch(/descricao_seo:\s*["'][^"']+["']/);
   });
 });

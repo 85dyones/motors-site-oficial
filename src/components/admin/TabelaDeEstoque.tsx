@@ -1044,9 +1044,13 @@ export default function TabelaDeEstoque({
                         />
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-[13px] font-extrabold tracking-[-.01em] text-mt-ink">
+                        {/* O nome abre a visão do veículo (01/10), como no repasse. */}
+                        <Link
+                          href={`/admin/estoque/${l.id}`}
+                          className="mt-foco block truncate text-[13px] font-extrabold tracking-[-.01em] text-mt-ink no-underline hover:underline"
+                        >
                           {l.marca} {l.modelo}
-                        </div>
+                        </Link>
                         {/* Só aparece quando acrescenta: no feed o modelo já
                             costuma trazer a versão embutida. */}
                         {l.versao && (
@@ -1214,13 +1218,25 @@ export default function TabelaDeEstoque({
                       )}
                   </td>
 
+                  {/* Ver abre a visão, só leitura; Editar vai direto ao editor
+                      (01/10). As duas telas recusam o que o perfil não pode. */}
                   <td className="py-2.5 text-right">
-                    <Link
-                      href={`/admin/estoque/${l.id}`}
-                      className="mt-foco whitespace-nowrap border border-mt-regua px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700 no-underline hover:border-mt-accent hover:text-mt-ink"
-                    >
-                      Editar
-                    </Link>
+                    <span className="inline-flex gap-1.5">
+                      <Link
+                        href={`/admin/estoque/${l.id}`}
+                        aria-label={`Ver ${l.marca} ${l.modelo}`}
+                        className="mt-foco whitespace-nowrap border border-mt-regua px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700 no-underline hover:border-mt-accent hover:text-mt-ink"
+                      >
+                        Ver
+                      </Link>
+                      <Link
+                        href={`/admin/estoque/${l.id}/editar`}
+                        aria-label={`Editar ${l.marca} ${l.modelo}`}
+                        className="mt-foco whitespace-nowrap border border-mt-regua px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-mt-neutral-700 no-underline hover:border-mt-accent hover:text-mt-ink"
+                      >
+                        Editar
+                      </Link>
+                    </span>
                   </td>
                 </tr>
               ))

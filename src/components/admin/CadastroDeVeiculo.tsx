@@ -398,7 +398,7 @@ export default function CadastroDeVeiculo({ perfil }: { perfil: Perfil[] }) {
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href={`/admin/estoque/${criado.id}`}
+            href={`/admin/estoque/${criado.id}/editar`}
             className="mt-btn mt-btn-primario mt-foco px-5 py-3 text-[11px] no-underline"
           >
             Abrir no editor

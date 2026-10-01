@@ -249,8 +249,8 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       return !activeTab || activeTab === "destaques"; // aba padrão quando a URL não diz
     }
 
-    // O editor de um veículo (/admin/estoque/[id]) continua dentro de
-    // "Veículos" no trilho — é de lá que se chega nele.
+    // A visão e o editor de um veículo (/admin/estoque/[id] e /editar)
+    // continuam dentro de "Veículos" no trilho — é de lá que se chega neles.
     if (href === "/admin/estoque") {
       return pathname.startsWith("/admin/estoque");
     }
