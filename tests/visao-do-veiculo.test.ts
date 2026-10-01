@@ -92,7 +92,12 @@ describe("a visão é só leitura", () => {
     const html = await visao(carro(), ["comercial"]);
     for (const trecho of [
       "BMW X1",
-      "sDrive20i GP",
+      // Na grafia da casa desde 01/10 — a MESMA da ficha pública
+      // (`grafiaDaVersao`), medida: "sDrive20i GP" sai "SDRIVE20i GP" lá e
+      // aqui. Se a BMW tiver de sair "sDrive", é um token em
+      // `lib/grafiaCanonica.ts`, e muda o site junto. Ver
+      // `tests/grafia-no-painel-do-veiculo.test.ts`.
+      "SDRIVE20i GP",
       "2017/2018",
       "45.000 km",
       "ABC1D23",

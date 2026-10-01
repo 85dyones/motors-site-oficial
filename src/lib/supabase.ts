@@ -4,6 +4,7 @@ import { registrarFalha } from "./observabilidade";
 import { limparModelo, segmentoDoVeiculo, slugDeVersao, slugificar } from "./veiculoUrl";
 import { perfisDoValorAntigo, perfisValidos } from "./perfisDeUso";
 import { grafiaDaMarca, grafiaDaVersao, grafiaDoModelo } from "./grafiaCanonica";
+import { grafiaDaCor, grafiaDoCambio, grafiaDoCombustivel } from "./grafiaDoCadastro";
 import { publicavel } from "./coerenciaDoCadastro";
 import { kmImplausivelParaAIdade } from "./kmDiscrepante";
 import type { Veiculo } from "../types";
@@ -185,30 +186,6 @@ export function ehEstoqueDeContingencia(lista: readonly Pick<Veiculo, "id">[]): 
   return lista.some((v) => IDS_DE_CONTINGENCIA.has(String(v.id)));
 }
 
-const formatCambio = (c: string): string => {
-  if (!c) return "Automático";
-  const val = c.toLowerCase().trim();
-  if (val.includes("manual")) return "Manual";
-  if (val.includes("automatico") || val.includes("automático") || val.includes("automatic") || val.includes("pdk") || val.includes("zf8") || val.includes("aut")) {
-    if (val.includes("pdk")) return "Automático PDK";
-    if (val.includes("zf8")) return "Automático ZF8";
-    if (val.includes("cvt")) return "Automático CVT";
-    return "Automático";
-  }
-  return c.charAt(0).toUpperCase() + c.slice(1);
-};
-
-const formatCombustivel = (c: string): string => {
-  if (!c) return "Flex";
-  const val = c.toLowerCase().trim();
-  if (val.includes("gasolina") || val.includes("gasoline") || val.includes("petrol")) return "Gasolina";
-  if (val.includes("diesel")) return "Diesel";
-  if (val.includes("flex")) return "Flex";
-  if (val.includes("eletrico") || val.includes("elétrico") || val.includes("ev")) return "Elétrico";
-  if (val.includes("hibrido") || val.includes("híbrido") || val.includes("mhev")) return "Híbrido";
-  return c.charAt(0).toUpperCase() + c.slice(1);
-};
-
 /**
  * Palavras que negam aprovação NA COLUNA DE STATUS — "não aprovado", "sem
  * aprovação", "reprovado", "pendente", "negado", "indeferido".
@@ -264,16 +241,6 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
   if (!dbItem) {
     throw new Error("Cannot map empty database item");
   }
-
-  // Capitalization helper for consistent visual display
-  const capitalizeWords = (str: string): string => {
-    if (!str) return "";
-    return str
-      .split(" ")
-      .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : ""))
-      .filter(Boolean)
-      .join(" ");
-  };
 
   // A allowlist de quatro siglas (BMW, BYD, GWM, GM) virou o dicionário de
   // `lib/grafiaCanonica.ts` em 2026-09-21 — "Citroën", "Mercedes-Benz",
@@ -454,9 +421,10 @@ export function mapVeiculoDbToVeiculo(dbItem: any): Veiculo {
     // Anunciar teto solar num carro que não tem, ou laudo limpo num carro não
     // periciado, é afirmação falsa sobre o produto — exposição direta ao CDC
     // para uma loja de veículos. String vazia deixa a UI ocultar a seção.
-    cambio: dbItem.cambio ? formatCambio(dbItem.cambio) : "",
-    combustivel: dbItem.combustivel ? formatCombustivel(dbItem.combustivel) : "",
-    cor: dbItem.cor ? capitalizeWords(dbItem.cor.trim()) : "",
+    // A mesma régua da visão e do editor do painel (`lib/grafiaDoCadastro.ts`).
+    cambio: dbItem.cambio ? grafiaDoCambio(dbItem.cambio) : "",
+    combustivel: dbItem.combustivel ? grafiaDoCombustivel(dbItem.combustivel) : "",
+    cor: dbItem.cor ? grafiaDaCor(dbItem.cor.trim()) : "",
     fipe: dbItem.fipe || "",
     preco_original: precoOriginal,
     preco_promocional: precoPromocional,

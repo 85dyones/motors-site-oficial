@@ -31,6 +31,7 @@ import {
   ESTADO_APOS_ACAO,
 } from "../../lib/estadoDoCadastro";
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
+import { cadastroNaGrafia } from "../../lib/grafiaDoCadastro";
 import { NOME_DO_CAMPO, historicoVisivel, resumir, type LinhaDeHistorico } from "../../lib/historicoDoVeiculo";
 import {
   checklistDoVeiculo,
@@ -209,6 +210,10 @@ export default function EditorDeVeiculo({
     () => divergenciaDeCarroceria({ marca: v.marca, modelo: v.modelo, versao: v.versao, tipo: v.tipo }),
     [v.marca, v.modelo, v.versao, v.tipo],
   );
+
+  /* O que se LÊ — título e etiquetas do feed — sai na grafia da casa, como na
+     visão, na lista e no site. Os campos editáveis seguem com o valor cru. */
+  const grafia = useMemo(() => cadastroNaGrafia(v), [v]);
 
   /* As duas colunas de foto, pareadas por índice — `whatsapp_images[3]` e
      `web_full_images[3]` são a mesma fotografia. É o pareamento que faz "a
@@ -505,7 +510,7 @@ export default function EditorDeVeiculo({
           </div>
           <div className="mt-1 flex flex-wrap items-baseline gap-3">
             <h1 className="mt-titulo text-2xl md:text-3xl">
-              {v.marca} {v.modelo}
+              {[grafia.marca, grafia.modelo].filter(Boolean).join(" ")}
             </h1>
             {/* A etiqueta lia `v.vendido ? "VENDIDO" : "PUBLICADO"` — e
                 escrevia PUBLICADO sobre todo carro que não estivesse vendido,
@@ -740,12 +745,12 @@ export default function EditorDeVeiculo({
                 <div className="mt-rotulo mb-3">Do feed · sobrescrito a cada sync</div>
                 <div className="flex flex-wrap gap-2">
                   {[
-                    ["Marca", v.marca],
+                    ["Marca", grafia.marca],
                     ["Ano", v.ano ? String(v.ano) : null],
                     ["KM", v.quilometragem ? v.quilometragem.toLocaleString("pt-BR") : null],
-                    ["Câmbio", v.cambio],
-                    ["Combustível", v.combustivel],
-                    ["Cor externa", v.cor],
+                    ["Câmbio", grafia.cambio],
+                    ["Combustível", grafia.combustivel],
+                    ["Cor externa", grafia.cor],
                   ].map(([l, valor]) => (
                     <span
                       key={l as string}

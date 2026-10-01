@@ -8,6 +8,7 @@ import {
   normalizarEstadoCadastro,
 } from "../../lib/estadoDoCadastro";
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
+import { cadastroNaGrafia } from "../../lib/grafiaDoCadastro";
 import { NOME_DO_CAMPO, resumir, type LinhaDeHistorico } from "../../lib/historicoDoVeiculo";
 import { ddmmEmCuritiba } from "../../lib/horarioDaLoja";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
@@ -143,7 +144,10 @@ export default function VisaoDoVeiculo({
   const fotos = fotosDoVeiculo(v.whatsapp_images, v.web_full_images);
   const modelo = v.modelo_override?.trim() || v.modelo || "";
   const versao = v.versao_override?.trim() || v.versao || "";
-  const nome = [v.marca, modelo].filter(Boolean).join(" ") || `Veículo ${v.id}`;
+  // O que se LÊ sai na grafia da casa, como na lista e no site; a URL abaixo
+  // continua com o valor do cadastro (o slug não depende da caixa).
+  const grafia = cadastroNaGrafia(v);
+  const nome = [grafia.marca, grafia.modelo].filter(Boolean).join(" ") || `Veículo ${v.id}`;
 
   const checklist = checklistDoVeiculo(v, { totalDeFotos: fotos.length, podeVerCusto });
   const concluidos = checklist.filter((c) => c.ok).length;
@@ -168,14 +172,14 @@ export default function VisaoDoVeiculo({
       : null;
 
   const carro: Array<[string, string]> = [
-    ["Marca", texto(v.marca)],
-    ["Modelo", modelo || NAO_INFORMADO],
-    ["Versão", versao || NAO_INFORMADO],
+    ["Marca", grafia.marca ?? NAO_INFORMADO],
+    ["Modelo", grafia.modelo ?? NAO_INFORMADO],
+    ["Versão", grafia.versao ?? NAO_INFORMADO],
     ["Ano (fabricação/modelo)", [v.ano_fabricacao, v.ano].filter(Boolean).join("/") || NAO_INFORMADO],
     ["Quilometragem", v.quilometragem != null ? `${v.quilometragem.toLocaleString("pt-BR")} km` : NAO_INFORMADO],
-    ["Câmbio", texto(v.cambio)],
-    ["Combustível", texto(v.combustivel)],
-    ["Cor", texto(v.cor)],
+    ["Câmbio", grafia.cambio ?? NAO_INFORMADO],
+    ["Combustível", grafia.combustivel ?? NAO_INFORMADO],
+    ["Cor", grafia.cor ?? NAO_INFORMADO],
     ["Cor interna", texto(v.cor_interna)],
     ["Motor", texto(v.motor)],
     ["Placa", texto(v.placa)],
