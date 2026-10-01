@@ -98,13 +98,27 @@ export async function PATCH(
     // Lido do BANCO, nunca do corpo — senão bastaria mandar `origem:"painel"`
     // no JSON para reprecificar um carro do feed.
     const alvoDaEscrita = normalizarId(id);
-    const { data: linha } = await supabase
+    const { data: linha, error: erroDaLinha } = await supabase
       .from("estoque_motors")
       .select("origem")
       .eq("id", alvoDaEscrita)
       .maybeSingle();
 
-    const atualizacao = extrairCamposNossos(body, linha?.origem);
+    // Sem a origem, a lista do que é gravável sai errada: preço e opcionais
+    // sumiam do pedido em silêncio. O pedido só de preço voltava "Nada para
+    // atualizar", e o misto respondia 200 tendo gravado só a metade sem preço.
+    // Mesma régua de `aplicarNosVeiculos`: sem ler, nada se grava.
+    if (erroDaLinha) {
+      return NextResponse.json(
+        { error: `Não foi possível ler este veículo antes de gravar: ${erroDaLinha.message}. Nada foi alterado.` },
+        { status: 500 },
+      );
+    }
+    if (!linha) {
+      return NextResponse.json({ error: "Veículo não encontrado" }, { status: 404 });
+    }
+
+    const atualizacao = extrairCamposNossos(body, linha.origem);
 
     // Matriz A17, campo a campo. `preco_compra` é custo de aquisição, que
     // Marketing e Comercial não veem; `placa` é a ficha travada, só de Admin.

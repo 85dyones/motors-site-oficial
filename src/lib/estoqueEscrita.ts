@@ -349,7 +349,9 @@ export interface ResultadoDaEscrita {
  * apenas o que de fato mudou.
  *
  * Salvar sem alterar nada não pode poluir a trilha — senão "quem mexeu no
- * preço?" vira uma lista de cliques em Salvar.
+ * preço?" vira uma lista de cliques em Salvar. E o que não dá para registrar
+ * não se grava: sem o estado anterior lido, a escrita é recusada inteira (ver
+ * o bloco `Sem o "antes", nada se grava`, lá embaixo).
  */
 export async function aplicarNosVeiculos(
   supabase: any,
@@ -575,7 +577,45 @@ export async function aplicarNosVeiculos(
     "preco" in paraGravar ||
     "preco_original" in paraGravar ||
     "preco_compra" in paraGravar;
-  if (mexeEmPreco && antes && !erroAntes) {
+
+  // ---------------------------------------------------------------------------
+  // Sem o "antes", nada se grava
+  // ---------------------------------------------------------------------------
+  // O piso só julga a linha que tem em mãos, e o histórico só registra a
+  // mudança que consegue comparar. Até 01/10, a leitura recusada por permissão
+  // (42501), rede ou timeout deixava `antes` nulo e a gravação SEGUIA: sem piso
+  // e sem trilha. Na PR #208 um PATCH que baixava o preço do nativo abaixo da
+  // compra passou com 200. Publicar e promoção já recusavam lá em cima.
+  //
+  // Recusa TODA escrita, e não só a de preço: o histórico é a única resposta
+  // para "quem tirou do ar", "quem marcou vendido", "quem trocou a placa". E a
+  // falha que importa — privilégio de leitura que não bate com o código, como
+  // na #208 — é permanente e não derruba o `update`: aberta, ela apagava a
+  // trilha de toda gravação em silêncio; fechada, aparece no primeiro
+  // salvamento. Como nada foi gravado, recusar não deixa nada pela metade.
+  //
+  // Preço exige ainda a linha de CADA veículo: a leitura pode voltar sem erro e
+  // sem a linha (é o que a RLS faz), e zero linhas lidas era zero julgamento.
+  // A coluna ausente que a releitura acima não resolveu fica com a frase da
+  // migração, que é a saída de quem lê.
+  const lidas = new Set(((antes ?? []) as Array<Record<string, unknown>>).map((linha) => String(linha.id)));
+  const faltaLinha = alvos.some((alvo) => !lidas.has(String(alvo)));
+  if (erroAntes || !antes || (mexeEmPreco && faltaLinha)) {
+    const estes = alvos.length > 1 ? "destes veículos" : "deste veículo";
+    const motivo = mexeEmPreco
+      ? `Não foi possível ler o preço e o custo atuais ${estes} para conferir o piso`
+      : `Não foi possível ler o estado atual ${estes} para registrar a alteração no histórico`;
+    return {
+      erro: ehTabelaOuColunaAusente(erroAntes)
+        ? MENSAGEM_DE_CAMPO_AUSENTE
+        : motivo + (erroAntes?.message ? `: ${erroAntes.message}` : "") + ". Nada foi alterado.",
+      status: 500,
+      camposSalvos: [],
+      mudancasRegistradas: 0,
+    };
+  }
+
+  if (mexeEmPreco) {
     for (const linha of antes as Array<Record<string, unknown>>) {
       const custo = "preco_compra" in paraGravar ? paraGravar.preco_compra : linha.preco_compra;
       const recusa = recusaPorPisoDeCusto(

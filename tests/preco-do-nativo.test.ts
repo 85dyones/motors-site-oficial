@@ -125,8 +125,9 @@ describe("a origem vem do banco, não do corpo", () => {
     const fonte = codigo(rotaItem);
     // Consulta a coluna...
     expect(fonte).toMatch(/\.select\(\s*["']origem["']\s*\)/);
-    // ...e é o resultado dela que alimenta o extrator.
-    expect(fonte).toMatch(/extrairCamposNossos\(\s*body\s*,\s*linha\?\.origem\s*\)/);
+    // ...e é o resultado dela que alimenta o extrator. (`linha.origem` desde
+    // 01/10: a rota recusa antes, com 500 ou 404, quando não há linha.)
+    expect(fonte).toMatch(/extrairCamposNossos\(\s*body\s*,\s*linha\??\.origem\s*\)/);
   });
 
   it("a rota NUNCA lê origem do corpo da requisição", () => {
