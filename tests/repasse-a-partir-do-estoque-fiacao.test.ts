@@ -135,7 +135,9 @@ describe("Buscar no estoque, no novo carro de repasse", () => {
     expect(campo("carroceria")!.value).toBe("hatch");
     expect(campo("fipe_codigo")!.value).toBe("005340-6");
     expect(container.textContent).toContain("Vendido");
-    expect(container.textContent).toContain("2 fotos serão copiadas; 1 fica de fora (fora do nosso armazenamento).");
+    expect(container.textContent).toContain(
+      "2 fotos vêm para o repasse; 1 fica de fora (sem as duas versões, ou fora do endereço da loja).",
+    );
   });
 
   it("o preço não vem do estoque: fica vazio e obrigatório", async () => {
@@ -195,9 +197,21 @@ describe("Buscar no estoque, no novo carro de repasse", () => {
     });
     await esperar(0);
     expect(empurrar).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("1 foto não copiou");
+    expect(container.textContent).toContain("1 foto veio para o repasse; 1 não veio. Envie as que faltam pelo editor.");
     expect(container.querySelector(`a[href="/admin/repasse/${ID}/editar"]`)).toBeTruthy();
     expect(botao("Criar rascunho")).toBeUndefined();
+  });
+
+  it("o resumo soma as fotos copiadas e as baixadas do carro57", async () => {
+    respostaDaCopia = () =>
+      new Response(JSON.stringify({ copiadas: 1, baixadas: 2, ficaramDeFora: 0, acimaDoLimite: 0, falharam: 1 }));
+    await escolherOGol();
+    await act(async () => digitar(campo("preco")!, "39900"));
+    await act(async () => {
+      container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await esperar(0);
+    expect(container.textContent).toContain("3 fotos vieram para o repasse; 1 não veio.");
   });
 
   it("a rota da cópia caiu: mesma coisa, sem recriar o rascunho", async () => {
@@ -250,7 +264,7 @@ describe("Buscar no estoque, no novo carro de repasse", () => {
     for (const nome of ["ano_fabricacao", "cambio", "combustivel", "cor", "carroceria", "fipe_codigo"]) {
       expect(campo(nome)).toBeNull();
     }
-    expect(container.textContent).not.toContain("serão copiadas");
+    expect(container.textContent).not.toContain("vêm para o repasse");
     expect(container.textContent).not.toContain("Vendido");
   });
 

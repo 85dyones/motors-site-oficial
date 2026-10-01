@@ -8,7 +8,8 @@
  *       Referenciar o arquivo do estoque seria perigoso: a galeria apaga o
  *       arquivo por caminho ao remover uma foto (`GaleriaDeFotos.gravar`), sem
  *       olhar de quem é a pasta — tirar a foto do repasse apagaria a do carro
- *       à venda;
+ *       à venda. Desde 01/10 a foto que mora no carro57 da LOJA também vem:
+ *       o servidor a baixa e sobe na mesma pasta (`baixarDoCarro57`);
  *   (b) a busca lista o estoque INTEIRO — publicado, vendido, arquivado e
  *       rascunho —, com a situação à vista;
  *   (c) só copia, sem ligação: nenhuma coluna guarda o carro de origem;
@@ -21,11 +22,11 @@
  * `/logo.png`), e no cadastro do repasse um valor inventado vira dado gravado.
  *
  * Módulo puro: a rota usa as funções de leitura e de plano; o formulário
- * (cliente) usa o tipo, `avisoDasFotos` e os rótulos.
+ * (cliente) usa o tipo, `avisoDasFotos`, `resumoDaCopia` e os rótulos.
  */
 import { cadastraRepasse, LIMITE_DE_FOTOS_DO_REPASSE, type RecusaDoPainel } from "./edicaoDoRepasse";
 import { normalizarEstadoCadastro } from "./estadoDoCadastro";
-import { normalizarBusca } from "./estoqueTabela";
+import { modeloEVersaoParaExibir, normalizarBusca } from "./estoqueTabela";
 import { caminhoDaFotoDoRepasse, caminhoDaUrlPublica } from "./fotosDoVeiculo";
 import { grafiaDaMarca, grafiaDaVersao, grafiaDoModelo } from "./grafiaCanonica";
 import type { Perfil } from "./permissoes";
@@ -68,9 +69,12 @@ export interface CarroDoEstoqueParaORepasse {
   situacao: SituacaoNoEstoque;
   /** A miniatura da lista: a primeira foto, como veio. */
   foto: string | null;
-  /** Pares com as duas versões no NOSSO armazenamento — os que a cópia leva. */
+  /**
+   * Pares que vêm para o repasse: cada versão no NOSSO armazenamento (cópia)
+   * ou na pasta da loja no carro57 (download) — par misto inclusive.
+   */
   fotosCopiaveis: number;
-  /** Pares com alguma versão fora dele (o carro57 dos vendidos antigos) ou sem par. */
+  /** Pares sem as duas versões, ou com alguma num endereço que não é da loja. */
   fotosDeFora: number;
 }
 
@@ -88,6 +92,24 @@ function inteiro(v: unknown): number | null {
 /** O que o site faz (`mapVeiculoDbToVeiculo`): override escrito vence; senão, o feed na grafia da casa. */
 function comOverride(override: unknown, doFeed: unknown, grafia: (v: string) => string): string | null {
   return texto(override) ?? texto(grafia(texto(doFeed) ?? ""));
+}
+
+/**
+ * Modelo e versão como a ficha do site os mostra (dono, 01/10): o feed grava a
+ * versão dentro do `modelo` ("Toro Volcano 1.3 T270 4x2 Flex Aut." com versão
+ * "Volcano 1.3 T270 4x2 Flex Aut."), e o repasse nascia com a versão duas
+ * vezes. O corte é o da ficha (`modeloEVersaoParaExibir`), aplicado depois do
+ * override, na mesma ordem do site (o mapper resolve o override; a ficha corta).
+ *
+ * Só com os dois lados: a ficha nunca vê modelo vazio (o mapper inventa "Sem
+ * Modelo"), e aqui o corte com o modelo vazio apagaria a versão do cadastro.
+ */
+function modeloEVersao(linha: Record<string, unknown>): { modelo: string | null; versao: string | null } {
+  const modelo = comOverride(linha.modelo_override, linha.modelo, grafiaDoModelo);
+  const versao = comOverride(linha.versao_override, linha.versao, grafiaDaVersao);
+  if (modelo === null || versao === null) return { modelo, versao };
+  const exibidos = modeloEVersaoParaExibir(modelo, versao);
+  return { modelo: texto(exibidos.modelo), versao: texto(exibidos.versao) };
 }
 
 /**
@@ -113,23 +135,69 @@ export function situacaoNoEstoque(linha: Record<string, unknown>): SituacaoNoEst
 const listaDeUrls = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((u): u is string => typeof u === "string" && u.trim() !== "").map((u) => u.trim()) : [];
 
+/** O S3 do RevendaMais. Hospeda TODAS as revendas dele, não só a nossa. */
+export const HOST_DO_CARRO57 = "s3.carro57.com.br";
+/** A pasta da loja nele — o mesmo recorte do `remotePatterns` de `next.config.ts`. */
+export const PASTA_DA_LOJA_NO_CARRO57 = "/FC/9037/";
+
+/**
+ * A URL que o SERVIDOR pode pedir, já normalizada — ou `null` (dono, 01/10).
+ *
+ * É a trava contra SSRF: a URL vem do banco, o banco vem do feed, e quem
+ * baixa é o servidor, de dentro da nossa rede. Por isso só passa https, o
+ * host EXATO do carro57 (sem credencial, sem porta, sem "s3.carro57.com.br."
+ * nem "s3.carro57.com.br.outro"), na pasta da loja. A régua é o `new URL`,
+ * não texto: ele resolve "../" e "%2e%2e" antes de a pasta ser conferida, e o
+ * que se pede é o `href` normalizado — o mesmo que foi conferido. Barra e
+ * contrabarra codificadas (%2F, %5C) não viram pasta no `new URL`, e saem.
+ */
+export function urlDaLojaNoCarro57(bruta: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(bruta.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:") return null;
+  if (url.username !== "" || url.password !== "") return null;
+  if (url.port !== "") return null;
+  if (url.hostname !== HOST_DO_CARRO57) return null;
+  if (!url.pathname.startsWith(PASTA_DA_LOJA_NO_CARRO57)) return null;
+  if (/%2f|%5c/i.test(url.pathname)) return null;
+  return url.href;
+}
+
+/**
+ * De onde vem cada versão de um par: do nosso bucket (copiada dentro dele) ou
+ * da pasta da loja no carro57 (baixada pelo servidor).
+ */
+export type OrigemDaFoto = { de: "bucket"; caminho: string } | { de: "carro57"; url: string };
+
+function origemDaFoto(url: string): OrigemDaFoto | null {
+  const caminho = caminhoDaUrlPublica(url);
+  if (caminho !== null) return { de: "bucket", caminho };
+  const daLoja = urlDaLojaNoCarro57(url);
+  return daLoja === null ? null : { de: "carro57", url: daLoja };
+}
+
 /**
  * Os pares de foto do estoque, por índice — `web_full_images[i]` e
  * `whatsapp_images[i]` são a mesma fotografia (`fotosDoVeiculo.ts`).
  *
  * Diferente de `fotosDoVeiculo`, aqui a versão que falta NÃO é suprida pela
- * outra: a cópia gravaria um WebP no lugar do JPEG do WhatsApp. Par sem as
- * duas versões, ou com alguma fora do nosso bucket, fica de fora.
+ * outra: a cópia gravaria um WebP no lugar do JPEG do WhatsApp. Cada versão
+ * vem pelo seu caminho (par misto inclusive); par sem as duas, ou com alguma
+ * num endereço que não é da loja, fica de fora.
  */
-export function paresDoEstoque(web: unknown, zap: unknown): { copiaveis: Array<{ web: string; zap: string }>; deFora: number } {
+export function paresDoEstoque(web: unknown, zap: unknown): { copiaveis: Array<{ web: OrigemDaFoto; zap: OrigemDaFoto }>; deFora: number } {
   const webs = listaDeUrls(web);
   const zaps = listaDeUrls(zap);
-  const copiaveis: Array<{ web: string; zap: string }> = [];
+  const copiaveis: Array<{ web: OrigemDaFoto; zap: OrigemDaFoto }> = [];
   let deFora = 0;
   for (let i = 0; i < Math.max(webs.length, zaps.length); i += 1) {
-    const w = webs[i];
-    const z = zaps[i];
-    if (w && z && caminhoDaUrlPublica(w) !== null && caminhoDaUrlPublica(z) !== null) copiaveis.push({ web: w, zap: z });
+    const w = webs[i] ? origemDaFoto(webs[i]) : null;
+    const z = zaps[i] ? origemDaFoto(zaps[i]) : null;
+    if (w && z) copiaveis.push({ web: w, zap: z });
     else deFora += 1;
   }
   return { copiaveis, deFora };
@@ -139,11 +207,12 @@ export function carroDoEstoqueParaORepasse(linha: Record<string, unknown>): Carr
   const id = inteiro(linha.id);
   if (id === null || id <= 0) return null;
   const { copiaveis, deFora } = paresDoEstoque(linha.web_full_images, linha.whatsapp_images);
+  const { modelo, versao } = modeloEVersao(linha);
   return {
     id,
     marca: texto(grafiaDaMarca(texto(linha.marca))),
-    modelo: comOverride(linha.modelo_override, linha.modelo, grafiaDoModelo),
-    versao: comOverride(linha.versao_override, linha.versao, grafiaDaVersao),
+    modelo,
+    versao,
     ano: inteiro(linha.ano),
     ano_fabricacao: inteiro(linha.ano_fabricacao),
     quilometragem: inteiro(linha.quilometragem),
@@ -196,28 +265,59 @@ export function buscarNoEstoque(linhas: Array<Record<string, unknown>>, termo: s
 
 const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios);
 
-/** "N fotos serão copiadas; M ficam de fora (fora do nosso armazenamento)." */
+/**
+ * Antes de criar: "N fotos vêm para o repasse; M ficam de fora (…)". As do
+ * carro57 da loja contam como vindo (o servidor as baixa); de fora fica só o
+ * que não tem como vir, e a frase só o menciona quando há.
+ */
 export function avisoDasFotos(c: Pick<CarroDoEstoqueParaORepasse, "fotosCopiaveis" | "fotosDeFora">): string {
   if (c.fotosCopiaveis === 0 && c.fotosDeFora === 0) return "O carro não tem fotos para copiar.";
   const vem = Math.min(c.fotosCopiaveis, LIMITE_DE_FOTOS_DO_REPASSE);
   const acima = c.fotosCopiaveis - vem;
+  const quantasVem = `${vem} ${plural(vem, "foto vem", "fotos vêm")} para o repasse`;
   const frase =
-    `${vem} ${plural(vem, "foto será copiada", "fotos serão copiadas")}; ` +
-    `${c.fotosDeFora} ${plural(c.fotosDeFora, "fica", "ficam")} de fora (fora do nosso armazenamento).`;
+    c.fotosDeFora > 0
+      ? `${quantasVem}; ${c.fotosDeFora} ${plural(c.fotosDeFora, "fica", "ficam")} de fora (sem as duas versões, ou fora do endereço da loja).`
+      : `${quantasVem}.`;
   return acima > 0 ? `${frase} Outras ${acima} passam do limite de ${LIMITE_DE_FOTOS_DO_REPASSE} do repasse.` : frase;
 }
 
-/** Um par a copiar: os caminhos no bucket, de onde e para onde. */
+/** O que `POST /api/repasses/[id]/fotos-do-estoque` responde. */
+export interface RespostaDaCopia {
+  /** Pares que vieram só do nosso bucket. */
+  copiadas: number;
+  /** Pares com alguma versão baixada do carro57 da loja. */
+  baixadas: number;
+  ficaramDeFora: number;
+  acimaDoLimite: number;
+  falharam: number;
+}
+
+/**
+ * Depois de criar, quando alguma foto não veio: "Rascunho criado. N fotos
+ * vieram para o repasse; F não vieram. …". N soma as copiadas e as baixadas;
+ * `baixadas` pode faltar (a resposta de antes do download não a tinha).
+ */
+export function resumoDaCopia(r: Pick<RespostaDaCopia, "copiadas" | "falharam"> & { baixadas?: number }): string {
+  const vieram = r.copiadas + (r.baixadas ?? 0);
+  return (
+    `Rascunho criado. ${vieram} ${plural(vieram, "foto veio", "fotos vieram")} para o repasse; ` +
+    `${r.falharam} ${plural(r.falharam, "não veio", "não vieram")}. Envie as que faltam pelo editor.`
+  );
+}
+
+/** Um par a trazer: de onde vem cada versão, e o caminho de cada uma na pasta do repasse. */
 export interface ParDaCopia {
-  origem: { web: string; zap: string };
+  origem: { web: OrigemDaFoto; zap: OrigemDaFoto };
   destino: { web: string; zap: string };
 }
 
 /**
- * O que a rota copia: os pares nossos, em ordem, cada um com um lote novo na
+ * O que a rota traz: os pares que vêm, em ordem, cada um com um lote novo na
  * pasta do repasse (`caminhoDaFotoDoRepasse`) — as duas versões no mesmo lote,
  * que é como a galeria apaga o par. O teto de 40 conta o que o repasse já tem;
- * o que passa dele não é copiado, para não deixar arquivo sem dono no bucket.
+ * o que passa dele não é copiado nem baixado, para não deixar arquivo sem dono
+ * no bucket.
  */
 export function planejarCopiaDasFotos(args: {
   repasseId: string;
@@ -231,7 +331,7 @@ export function planejarCopiaDasFotos(args: {
   const pares: ParDaCopia[] = copiaveis.slice(0, vagas).map((par) => {
     const lote = args.novoLote();
     return {
-      origem: { web: caminhoDaUrlPublica(par.web) as string, zap: caminhoDaUrlPublica(par.zap) as string },
+      origem: par,
       destino: {
         web: caminhoDaFotoDoRepasse(args.repasseId, lote, "web"),
         zap: caminhoDaFotoDoRepasse(args.repasseId, lote, "zap"),

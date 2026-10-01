@@ -1,38 +1,101 @@
 import { NextResponse } from "next/server";
 import { registrarAcaoSensivel } from "../../../../../lib/auditoria";
+import { baixarDoCarro57 } from "../../../../../lib/baixarDoCarro57";
 import { decidirEdicao } from "../../../../../lib/edicaoDoRepasse";
-import { decidirCopiaDoEstoque, planejarCopiaDasFotos, type ParDaCopia } from "../../../../../lib/estoqueParaORepasse";
-import { BUCKET_DE_FOTOS, novoLote } from "../../../../../lib/fotosDoVeiculo";
+import {
+  decidirCopiaDoEstoque,
+  planejarCopiaDasFotos,
+  type ParDaCopia,
+  type RespostaDaCopia,
+} from "../../../../../lib/estoqueParaORepasse";
+import { BUCKET_DE_FOTOS, novoLote, type VarianteDaFoto } from "../../../../../lib/fotosDoVeiculo";
 import { registrarFalha } from "../../../../../lib/observabilidade";
 import { repasseDoPainelDaLinha } from "../../../../../lib/repasseDoPainel";
 import { falhaDoBanco, lerRepasseParaEscrita, recusar, sessaoDoRepasse } from "../../../../../lib/rotaDoRepasse";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "../../../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
+/**
+ * Baixar do carro57 leva mais que copiar dentro do bucket: até 40 pares, 15 s
+ * por foto no pior caso. O prazo dos downloads (`PRAZO_DOS_DOWNLOADS_MS`) deixa
+ * folga para gravar antes de a função ser cortada.
+ */
+export const maxDuration = 60;
 
 const ROTA = "/api/repasses/[id]/fotos-do-estoque";
 
-type Balde = ReturnType<ReturnType<typeof createAdminSupabaseClient>["storage"]["from"]>;
-type ParCopiado = { ok: true; web: string; zap: string } | { ok: false; erro: string };
+/** Quantos pares andam ao mesmo tempo — e, com as versões de um par em fila, quantos pedidos ao carro57. */
+const PARES_AO_MESMO_TEMPO = 4;
+/**
+ * O prazo de todos os downloads juntos. Quem ainda baixa quando ele vence é
+ * cortado e o par conta como falha: a rota grava o que veio e responde dentro
+ * dos 60 s, em vez de a função morrer sem gravar nada.
+ */
+const PRAZO_DOS_DOWNLOADS_MS = 40_000;
+const VARIANTES: readonly VarianteDaFoto[] = ["web", "zap"];
+
+type Armazenamento = ReturnType<typeof createAdminSupabaseClient>["storage"];
+type ParTrazido = { ok: true; web: string; zap: string; baixou: boolean } | { ok: false; erro: string };
+type Gravacao = () => Promise<{ error: { message: string } | null }>;
 
 /**
- * Copia as duas versões de um par, web e depois zap. Nunca lança: a falha de
- * um par volta como resultado, para não derrubar os outros.
+ * Traz as duas versões de um par, como unidade. Nunca lança: a falha de um par
+ * volta como resultado, para não derrubar os outros.
+ *
+ * Primeiro BAIXA o que é do carro57 (web e depois zap, um pedido por vez), e
+ * só então grava as duas — cópia dentro do bucket para o lado nosso, upload
+ * dos bytes como vieram para o lado baixado. Um download que falha derruba o
+ * par antes de qualquer gravação, então não deixa arquivo sem dono. O upload
+ * leva o tipo da resposta (o arquivo `-web.webp` guarda o JPEG que o carro57
+ * serviu, se foi o caso) e o carimbo de 1 ano da galeria, sem `upsert`.
  */
-async function copiarPar(balde: Balde, par: ParDaCopia): Promise<ParCopiado> {
+async function trazerPar(armazenamento: Armazenamento, par: ParDaCopia, prazo: AbortSignal): Promise<ParTrazido> {
+  // O bucket aberto aqui, à vista do `upload`: é por ele que
+  // `tests/cache-de-imagens.test.ts` acha a chamada e confere o carimbo.
+  const balde = armazenamento.from(BUCKET_DE_FOTOS);
   try {
-    for (const variante of ["web", "zap"] as const) {
-      const { error } = await balde.copy(par.origem[variante], par.destino[variante]);
-      if (error) return { ok: false, erro: `${par.origem[variante]}: ${error.message}` };
+    const gravacoes: Gravacao[] = [];
+    for (const variante of VARIANTES) {
+      const origem = par.origem[variante];
+      const destino = par.destino[variante];
+      if (origem.de === "bucket") {
+        gravacoes.push(() => balde.copy(origem.caminho, destino));
+        continue;
+      }
+      const foto = await baixarDoCarro57(origem.url, { prazo });
+      if (!foto.ok) return { ok: false, erro: `${origem.url}: ${foto.erro}` };
+      // 1 ano, o carimbo da galeria (`GaleriaDeFotos`): o caminho nunca se
+      // reescreve. Literal, para a trava de cache conseguir conferir o valor.
+      gravacoes.push(() => balde.upload(destino, foto.bytes, { contentType: foto.tipo, upsert: false, cacheControl: "31536000" }));
+    }
+    for (const [i, gravar] of gravacoes.entries()) {
+      const { error } = await gravar();
+      if (error) return { ok: false, erro: `${par.destino[VARIANTES[i]]}: ${error.message}` };
     }
     return {
       ok: true,
       web: balde.getPublicUrl(par.destino.web).data.publicUrl,
       zap: balde.getPublicUrl(par.destino.zap).data.publicUrl,
+      baixou: par.origem.web.de === "carro57" || par.origem.zap.de === "carro57",
     };
   } catch (e: unknown) {
-    return { ok: false, erro: `${par.origem.web}: ${e instanceof Error ? e.message : String(e)}` };
+    return { ok: false, erro: `${par.destino.web}: ${e instanceof Error ? e.message : String(e)}` };
   }
+}
+
+/** `tarefa` sobre cada item, no máximo `limite` de cada vez; o resultado sai na ordem dos itens. */
+async function emFila<T, R>(itens: readonly T[], limite: number, tarefa: (item: T) => Promise<R>): Promise<R[]> {
+  const resultados = new Array<R>(itens.length);
+  let proximo = 0;
+  async function trabalhar() {
+    while (proximo < itens.length) {
+      const i = proximo;
+      proximo += 1;
+      resultados[i] = await tarefa(itens[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limite, itens.length) }, trabalhar));
+  return resultados;
 }
 
 /**
@@ -40,17 +103,22 @@ async function copiarPar(balde: Balde, par: ParDaCopia): Promise<ParCopiado> {
  * de nascer em "Novo carro de repasse" (decisão do dono de 01/10).
  *
  * COPIA, nunca referencia nem move: cada par vira arquivo novo em
- * `repasse/<id>/`, com a chave de serviço (`storage.copy`, sem baixar e
- * subir). O arquivo do estoque não é apagado, movido nem regravado — e é por
- * isso que a cópia existe: a galeria do editor apaga o arquivo por caminho ao
- * remover uma foto, e uma URL do estoque na lista do repasse levaria a foto do
- * carro à venda junto.
+ * `repasse/<id>/`, com a chave de serviço. O lado que mora no nosso bucket é
+ * copiado dentro dele (`storage.copy`); o que mora na pasta da LOJA no carro57
+ * é baixado pelo servidor e sobe com `upload` (dono, 01/10: há carros
+ * publicados 100% no carro57). O arquivo do estoque não é apagado, movido nem
+ * regravado — e é por isso que a cópia existe: a galeria do editor apaga o
+ * arquivo por caminho ao remover uma foto, e uma URL do estoque na lista do
+ * repasse levaria a foto do carro à venda junto.
  *
- * Só pares com as duas versões no nosso bucket (`planejarCopiaDasFotos`); o
- * carro57 dos vendidos antigos fica de fora e é contado. Um par que falha não
- * corta os outros: o que copiou entra, a falha volta na resposta e vai para a
- * triagem. A gravação passa pelo mesmo portão do PATCH (`decidirEdicao`, teto
- * de 40 incluso), presa à situação e ao `updated_at` lidos.
+ * Só pares em que cada versão é nossa ou da pasta da loja no carro57
+ * (`planejarCopiaDasFotos`); o resto fica de fora, nunca é pedido, e é
+ * contado. O download tem suas travas em `baixarDoCarro57` (endereço, sem
+ * redirecionamento, 15 s, 15 MB, tipo de imagem); aqui, no máximo 4 pares de
+ * cada vez e um prazo total. Um par que falha não corta os outros: o que veio
+ * entra, a falha volta na resposta e vai para a triagem. A gravação passa pelo
+ * mesmo portão do PATCH (`decidirEdicao`, teto de 40 incluso), presa à
+ * situação e ao `updated_at` lidos.
  *
  * Roda uma vez: só o rascunho ainda SEM foto recebe a cópia
  * (`decidirCopiaDoEstoque`); a segunda chamada é 409 e não copia nada.
@@ -89,32 +157,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       jaTem: lido.repasse.web_full_images.length,
       novoLote,
     });
-    const balde = admin.storage.from(BUCKET_DE_FOTOS);
-    const resultados = await Promise.all(plano.pares.map((par) => copiarPar(balde, par)));
-    const copiados = resultados.filter((r): r is Extract<ParCopiado, { ok: true }> => r.ok);
+    const prazo = new AbortController();
+    const relogio = setTimeout(() => prazo.abort(), PRAZO_DOS_DOWNLOADS_MS);
+    let resultados: ParTrazido[];
+    try {
+      resultados = await emFila(plano.pares, PARES_AO_MESMO_TEMPO, (par) => trazerPar(admin.storage, par, prazo.signal));
+    } finally {
+      clearTimeout(relogio);
+    }
+    // Na ordem do estoque, e o par inteiro ou nada: as duas listas andam juntas.
+    const trazidos = resultados.filter((r): r is Extract<ParTrazido, { ok: true }> => r.ok);
     const erros = resultados.flatMap((r) => (r.ok ? [] : [r.erro]));
 
     if (erros.length > 0) {
       await registrarFalha(
         "quebra",
         "repasse-fotos-do-estoque",
-        `${erros.length} de ${plano.pares.length} fotos do estoque #${estoqueId} não copiaram para o repasse ${id}: ${erros.slice(0, 3).join("; ")}`,
+        `${erros.length} de ${plano.pares.length} fotos do estoque #${estoqueId} não vieram para o repasse ${id}: ${erros.slice(0, 3).join("; ")}`,
         { rota: ROTA, origem: "servidor" },
       );
     }
-    const resposta = {
-      copiadas: copiados.length,
+    const baixadas = trazidos.filter((t) => t.baixou).length;
+    const resposta: RespostaDaCopia = {
+      copiadas: trazidos.length - baixadas,
+      baixadas,
       ficaramDeFora: plano.ficaramDeFora,
       acimaDoLimite: plano.acimaDoLimite,
       falharam: erros.length,
     };
-    if (copiados.length === 0) return NextResponse.json(resposta);
+    if (trazidos.length === 0) return NextResponse.json(resposta);
 
     const edicao = decidirEdicao({
       repasse: lido.repasse,
       corpo: {
-        web_full_images: [...lido.repasse.web_full_images, ...copiados.map((c) => c.web)],
-        whatsapp_images: [...lido.repasse.whatsapp_images, ...copiados.map((c) => c.zap)],
+        web_full_images: [...lido.repasse.web_full_images, ...trazidos.map((t) => t.web)],
+        whatsapp_images: [...lido.repasse.whatsapp_images, ...trazidos.map((t) => t.zap)],
       },
       perfis: sessao.perfis,
       agora: new Date(),
@@ -143,7 +220,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await registrarAcaoSensivel(
       admin,
       "repasse.fotos-do-estoque",
-      `${id}: ${copiados.length} foto(s) copiada(s) do estoque #${estoqueId}`,
+      `${id}: ${trazidos.length} foto(s) do estoque #${estoqueId} (${resposta.copiadas} copiada(s), ${baixadas} baixada(s) do carro57)`,
       sessao.autor,
     );
     return NextResponse.json(resposta);

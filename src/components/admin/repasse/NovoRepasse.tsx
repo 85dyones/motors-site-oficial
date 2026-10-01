@@ -8,7 +8,9 @@ import {
   avisoDasFotos,
   MINIMO_DA_BUSCA,
   NOME_DA_SITUACAO_NO_ESTOQUE,
+  resumoDaCopia,
   type CarroDoEstoqueParaORepasse,
+  type RespostaDaCopia,
 } from "../../../lib/estoqueParaORepasse";
 import { caminhoDoEditorNoPainel } from "../../../lib/painelDoRepasse";
 import { CARROCERIAS_DO_REPASSE } from "../../../lib/repasse";
@@ -81,15 +83,10 @@ function corpoDoRascunho(v: Valores): Record<string, unknown> {
   return corpo;
 }
 
-interface RespostaDaCopia {
-  copiadas?: number;
-  falharam?: number;
-  error?: string;
-}
-
 /**
- * Copia as fotos do carro escolhido para o rascunho recém-criado. Devolve o
- * aviso para a tela quando algo não veio; `null` quando tudo veio.
+ * Traz as fotos do carro escolhido para o rascunho recém-criado — copiadas do
+ * nosso bucket ou baixadas do carro57 da loja, pelo servidor. Devolve o resumo
+ * para a tela quando alguma não veio; `null` quando tudo veio.
  */
 async function copiarFotos(id: string, estoqueId: number): Promise<string | null> {
   const semFotos = "Rascunho criado, mas as fotos do estoque não vieram. Envie as fotos pelo editor.";
@@ -99,15 +96,11 @@ async function copiarFotos(id: string, estoqueId: number): Promise<string | null
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ estoqueId }),
     });
-    const data = (await res.json().catch(() => ({}))) as RespostaDaCopia;
+    const data = (await res.json().catch(() => ({}))) as Partial<RespostaDaCopia> & { error?: string };
     if (!res.ok) return data.error ? `${semFotos} (${data.error})` : semFotos;
     const falharam = data.falharam ?? 0;
     if (falharam === 0) return null;
-    const copiadas = data.copiadas ?? 0;
-    return (
-      `Rascunho criado. ${copiadas} ${copiadas === 1 ? "foto copiada" : "fotos copiadas"}; ` +
-      `${falharam} ${falharam === 1 ? "foto não copiou" : "fotos não copiaram"}. Envie as que faltam pelo editor.`
-    );
+    return resumoDaCopia({ copiadas: data.copiadas ?? 0, baixadas: data.baixadas ?? 0, falharam });
   } catch {
     return semFotos;
   }
@@ -120,9 +113,9 @@ async function copiarFotos(id: string, estoqueId: number): Promise<string | null
  * "Buscar no estoque" (dono, 28/09 e 01/10): o carro que já está cadastrado
  * no site empresta os dados — tudo editável, menos o preço, que não vem. As
  * fotos são COPIADAS para a pasta do repasse depois de o rascunho nascer
- * (`/api/repasses/[id]/fotos-do-estoque`); nada liga o repasse ao carro de
- * origem. A busca é no servidor (`?q=`), que casa a placa inteira sem
- * devolvê-la.
+ * (`/api/repasses/[id]/fotos-do-estoque`), as do carro57 da loja inclusive,
+ * que o servidor baixa; nada liga o repasse ao carro de origem. A busca é no
+ * servidor (`?q=`), que casa a placa inteira sem devolvê-la.
  */
 export default function NovoRepasse() {
   const router = useRouter();
