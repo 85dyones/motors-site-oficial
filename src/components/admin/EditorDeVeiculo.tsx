@@ -31,6 +31,12 @@ import {
   ESTADO_APOS_ACAO,
 } from "../../lib/estadoDoCadastro";
 import { fotosDoVeiculo } from "../../lib/fotosDoVeiculo";
+import { NOME_DO_CAMPO, historicoVisivel, resumir, type LinhaDeHistorico } from "../../lib/historicoDoVeiculo";
+import {
+  checklistDoVeiculo,
+  fichaPropriaCompleta as fichaPropriaCompletaDo,
+  minimoDeFotosDo,
+} from "../../lib/checklistDoVeiculo";
 import GaleriaDeFotos from "./GaleriaDeFotos";
 import { SugestaoDeTexto } from "./SugestaoDeTexto";
 import { SugestaoDeLaudoPadrao } from "./SugestaoDeLaudoPadrao";
@@ -134,68 +140,6 @@ interface VeiculoDb {
 
 type Aba = "fotos" | "ficha" | "opcionais" | "preco" | "texto";
 
-interface LinhaDeHistorico {
-  id: string;
-  campo: string;
-  valor_anterior: string | null;
-  valor_novo: string | null;
-  autor_nome: string | null;
-  registrado_em: string;
-}
-
-/** Rótulo legível para o nome de coluna que o histórico grava. */
-const NOME_DO_CAMPO: Record<string, string> = {
-  placa: "Placa",
-  motor: "Motor",
-  cor_interna: "Cor interna",
-  modelo_override: "Modelo",
-  versao_override: "Versão",
-  donos_anteriores: "Donos anteriores",
-  garantia_fabrica: "Garantia de fábrica",
-  preco_compra: "Preço de compra",
-  preco: "Preço efetivo",
-  preco_original: "Preço anunciado",
-  preco_promocional: "Preço promocional",
-  descricao: "Descrição",
-  descricao_seo: "Descrição para portais",
-  laudo_pericia: "Laudo cautelar",
-  opcionais: "Opcionais",
-  status_tag: "Tag de destaque",
-  status_tag_color: "Cor da tag",
-  em_preparacao: "Em preparação",
-  previsao_chegada_em: "Previsão de chegada ao pátio",
-  vendido: "Disponibilidade",
-  // A trilha de quem pôs no ar e quem tirou. `aplicarNosVeiculos` já registra
-  // autor e horário de qualquer campo — sem o rótulo, a linha sairia como
-  // "estado_cadastro" no meio de uma lista em português.
-  estado_cadastro: "Publicação",
-  tipo: "Carroceria",
-  perfil_uso: "Perfil de uso",
-  perfis_uso: "Para que serve",
-  whatsapp_images: "Fotos (galeria e anúncio)",
-  web_full_images: "Fotos (card e vitrine)",
-  url_imagem: "Foto de capa",
-};
-
-/** Colunas cujo valor é lista de URL — o histórico conta, não transcreve. */
-const CAMPOS_DE_LISTA_DE_FOTO = new Set(["whatsapp_images", "web_full_images"]);
-
-/** Encurta valor longo (descrição, opcionais) para caber na linha. */
-const resumir = (v: string | null, campo?: string) => {
-  if (v === null || v === "") return "vazio";
-  if (v === "true") return "vendido";
-  if (v === "false") return "disponível";
-  // Array de URL vira "12 fotos". `aplicarNosVeiculos` grava o valor com
-  // `String(array)`, o que produz 1.700 caracteres de URL colados por vírgula:
-  // transcrever isso na trilha não conta nada a ninguém, e o que importa
-  // ("eram 6, ficaram 12") cabe em duas palavras.
-  if (campo && CAMPOS_DE_LISTA_DE_FOTO.has(campo)) {
-    const n = v.split(",").filter((u) => u.trim() !== "").length;
-    return n === 1 ? "1 foto" : `${n} fotos`;
-  }
-  return v.length > 40 ? v.slice(0, 40) + "…" : v;
-};
-
 const brl = (v: number | null | undefined) =>
   v === null || v === undefined
     ? "—"
@@ -244,12 +188,12 @@ export default function EditorDeVeiculo({
     try {
       const res = await fetch(`/api/estoque/${inicial.id}/historico`);
       const d = await res.json();
-      setHistorico(d.historico ?? []);
+      setHistorico(historicoVisivel(d.historico ?? [], { podeVerCusto: podeGravarCampo(perfil, "preco_compra") }));
       setMigracaoPendente(Boolean(d.migracaoPendente));
     } catch {
       /* histórico é informativo: falha nele não atrapalha a edição */
     }
-  }, [inicial.id]);
+  }, [inicial.id, perfil]);
 
   useEffect(() => {
     carregarHistorico();
@@ -294,88 +238,15 @@ export default function EditorDeVeiculo({
     return d >= 0 ? d : null;
   }, [v.created_at]);
 
-  const fichaPropriaCompleta = Boolean(
-    v.placa && v.motor && v.cor_interna && v.donos_anteriores !== null && v.garantia_fabrica,
-  );
-
-  // A porta de fotos que vale PARA ESTE carro — a mesma conta de
-  // `bloqueiosDePublicacao`, para a tela não discordar do site.
-  const minimoDeFotos = liberadoEmPreparacao(v) ? MINIMO_DE_FOTOS_EM_PREPARACAO : MINIMO_DE_FOTOS;
-
-  /** Checklist de publicação — os itens do doc que temos como verificar. */
-  const checklist = [
-    {
-      // O número vem da constante, não da mão: `MINIMO_DE_FOTOS` é a mesma
-      // régua que `bloqueiosDePublicacao` aplica e que `getEstoque` usa para
-      // filtrar a vitrine. Escrito à mão, um dia mudaria num lugar só e a tela
-      // passaria a discordar do site sobre por que o carro sumiu.
-      l:
-        minimoDeFotos === MINIMO_DE_FOTOS
-          ? `${MINIMO_DE_FOTOS} fotos — libera a publicação`
-          : `${MINIMO_DE_FOTOS_EM_PREPARACAO} foto — em preparação, libera a publicação`,
-      d: "Frente, traseira, uma lateral e o interior já contam a história.",
-      ok: fotos.length >= minimoDeFotos,
-      estado: fotos.length >= minimoDeFotos ? "OK" : `FALTAM ${minimoDeFotos - fotos.length}`,
-    },
-    {
-      // O item que a mudança de 01/09 criou. Ele NÃO bloqueia — o carro já está
-      // no ar quando esta linha aparece pendente —, e é por isso que o rótulo
-      // fala de ficha, não de publicação. Ver `FOTOS_DA_FICHA_COMPLETA`.
-      l: `${FOTOS_DA_FICHA_COMPLETA} fotos — ficha completa`,
-      d: "As duas laterais, painel, porta-malas e motor. Não segura o carro fora do ar.",
-      ok: fotos.length >= FOTOS_DA_FICHA_COMPLETA,
-      estado:
-        fotos.length >= FOTOS_DA_FICHA_COMPLETA
-          ? "OK"
-          : `FALTAM ${FOTOS_DA_FICHA_COMPLETA - fotos.length}`,
-    },
-    {
-      l: "Ficha própria completa",
-      d: "Placa, motor, cor interna, donos anteriores e garantia.",
-      ok: fichaPropriaCompleta,
-      estado: fichaPropriaCompleta ? "OK" : "PENDENTE",
-    },
-    // O laudo saiu do checklist em 29/08. Ele acusava PENDENTE em 33 dos 34
-    // publicados, sobre uma premissa errada: 100% do pátio é periciado, e
-    // `laudo_pericia` guarda APONTAMENTOS pontuais. Vazio é o melhor caso, não
-    // uma falta — e checklist que fica vermelho no carro impecável ensina a
-    // ignorar o checklist.
-    {
-      l: "Texto do anúncio revisado",
-      d: "Descrição editorial que abre a página do veículo.",
-      ok: Boolean(v.descricao),
-      estado: v.descricao ? "OK" : "PENDENTE",
-    },
-    {
-      l: "Opcionais preenchidos",
-      // No carro do feed quem preenche é o RevendaMais: a aba é só leitura, e
-      // a pendência precisa dizer onde se resolve.
-      d:
-        v.origem === "painel"
-          ? "Os primeiros aparecem no card do catálogo."
-          : "Os primeiros aparecem no card do catálogo. Vêm do RevendaMais: o que faltar, preencha lá.",
-      ok: Boolean(v.opcionais),
-      estado: v.opcionais ? "OK" : "PENDENTE",
-    },
-    // Só para quem vê custo: "PENDENTE" aqui já contaria a quem não pode ver
-    // que o preço de compra está (ou não) lançado.
-    ...(podeGravarCampo(perfil, "preco_compra")
-      ? [
-          {
-            l: "Preço de compra lançado",
-            d: "Sem ele a margem por veículo não fecha.",
-            ok: v.preco_compra !== null && v.preco_compra !== undefined,
-            estado: v.preco_compra ? "OK" : "PENDENTE",
-          },
-        ]
-      : []),
-    {
-      l: "Carroceria e perfil",
-      d: "Alimentam os filtros e a curadoria do site.",
-      ok: Boolean(v.tipo && (v.perfis_uso ?? []).length > 0),
-      estado: v.tipo && (v.perfis_uso ?? []).length > 0 ? "OK" : "PENDENTE",
-    },
-  ];
+  // O checklist e as duas réguas que ele usa moram em `lib/checklistDoVeiculo`
+  // desde 01/10: a visão só de leitura mostra o mesmo checklist, e a conta não
+  // pode existir em duas cópias.
+  const fichaPropriaCompleta = fichaPropriaCompletaDo(v);
+  const minimoDeFotos = minimoDeFotosDo(v);
+  const checklist = checklistDoVeiculo(v, {
+    totalDeFotos: fotos.length,
+    podeVerCusto: podeGravarCampo(perfil, "preco_compra"),
+  });
   const concluidos = checklist.filter((c) => c.ok).length;
 
   /* O que tira este carro do ar agora. Mesma função que `getEstoque` usa para
@@ -616,12 +487,22 @@ export default function EditorDeVeiculo({
         </div>
 
         <div className="min-w-0 flex-1">
-          <Link
-            href="/admin/estoque"
-            className="text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-700 hover:text-mt-accent"
-          >
-            ← ESTOQUE
-          </Link>
+          <div className="flex flex-wrap gap-4">
+            <Link
+              href="/admin/estoque"
+              className="text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-700 hover:text-mt-accent"
+            >
+              ← ESTOQUE
+            </Link>
+            {/* A visão só de leitura (01/10), o caminho de volta do editor —
+                como o "VER O CARRO" do repasse. */}
+            <Link
+              href={`/admin/estoque/${v.id}`}
+              className="text-[11px] font-extrabold tracking-[.1em] text-mt-neutral-700 hover:text-mt-accent"
+            >
+              VER O VEÍCULO
+            </Link>
+          </div>
           <div className="mt-1 flex flex-wrap items-baseline gap-3">
             <h1 className="mt-titulo text-2xl md:text-3xl">
               {v.marca} {v.modelo}

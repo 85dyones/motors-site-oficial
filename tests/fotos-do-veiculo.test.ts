@@ -580,10 +580,14 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     // régua desce para `MINIMO_DE_FOTOS_EM_PREPARACAO`, e é `minimoDeFotos` —
     // não mais `MINIMO_DE_FOTOS` cru — quem decide `ok`/`estado`. A trava
     // continua a mesma: nenhum dos dois números pode estar digitado à mão.
+    // Desde 01/10 o checklist mora em `lib/checklistDoVeiculo.ts`, que o
+    // editor e a visão só de leitura usam.
+    const checklist = ler("src", "lib", "checklistDoVeiculo.ts");
+    expect(editor).toContain("checklistDoVeiculo(v, {");
     const publica = "? `${MINIMO_DE_FOTOS} fotos — libera a publicação`";
     const completa = "l: `${FOTOS_DA_FICHA_COMPLETA} fotos — ficha completa`";
-    expect(editor).toContain(publica);
-    expect(editor).toContain(completa);
+    expect(checklist).toContain(publica);
+    expect(checklist).toContain(completa);
     // E cada rótulo tem de estar no MESMO item que a sua condição: rótulo de um
     // degrau com o `ok` do outro passaria despercebido, e a tela acusaria a
     // faixa errada sem nunca quebrar.
@@ -591,12 +595,12 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     // próprio `l:` do primeiro degrau, e a janela precisa alcançar o `ok:`
     // depois dele.
     const itemDe = (rotulo: string) =>
-      editor.slice(editor.indexOf(rotulo), editor.indexOf(rotulo) + 300);
-    expect(itemDe(publica)).toContain("ok: fotos.length >= minimoDeFotos");
-    expect(itemDe(completa)).toContain("ok: fotos.length >= FOTOS_DA_FICHA_COMPLETA");
+      checklist.slice(checklist.indexOf(rotulo), checklist.indexOf(rotulo) + 300);
+    expect(itemDe(publica)).toContain("ok: totalDeFotos >= minimo");
+    expect(itemDe(completa)).toContain("ok: totalDeFotos >= FOTOS_DA_FICHA_COMPLETA");
     // O segundo diz, na própria linha, que não tira o carro do ar — sem isso
     // ele é lido como bloqueio e o operador segura a publicação por engano.
-    expect(editor).toContain("Não segura o carro fora do ar.");
+    expect(checklist).toContain("Não segura o carro fora do ar.");
   });
 
   it("`minimoDeFotos` continua vindo das duas constantes, não de números soltos", () => {
@@ -607,9 +611,12 @@ describe("a régua de publicação continua vindo de `MINIMO_DE_FOTOS`", () => {
     // `liberadoEmPreparacao(v) ? 1 : 4`, porque o comportamento observável é
     // idêntico. "Número vem da constante, nunca digitado" é propriedade da
     // FONTE, não do comportamento: precisa de uma âncora na atribuição.
-    expect(editor).toMatch(
-      /const\s+minimoDeFotos\s*=\s*liberadoEmPreparacao\(v\)\s*\?\s*MINIMO_DE_FOTOS_EM_PREPARACAO\s*:\s*MINIMO_DE_FOTOS\b/,
+    // A atribuição mora em `lib/checklistDoVeiculo.ts` desde 01/10; o editor
+    // usa a função.
+    expect(ler("src", "lib", "checklistDoVeiculo.ts")).toMatch(
+      /return\s+liberadoEmPreparacao\(v\)\s*\?\s*MINIMO_DE_FOTOS_EM_PREPARACAO\s*:\s*MINIMO_DE_FOTOS\b/,
     );
+    expect(editor).toMatch(/const\s+minimoDeFotos\s*=\s*minimoDeFotosDo\(v\)/);
   });
 
   it("quantas faltam sai da mesma função que filtra a vitrine", () => {

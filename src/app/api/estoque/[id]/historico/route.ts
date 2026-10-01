@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { ehTabelaOuColunaAusente } from "../../../../../lib/erroDeSchema";
+import { historicoVisivel } from "../../../../../lib/historicoDoVeiculo";
+import { perfisDe, podeGravarCampo } from "../../../../../lib/permissoes";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +36,11 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ historico: data ?? [] });
+    // O preço de compra some da tela de quem não vê custo; a linha dele no
+    // histórico contaria o valor do mesmo jeito (01/10).
+    const { data: profile } = await supabase.from("profiles").select("role, papeis").eq("id", user.id).single();
+    const podeVerCusto = podeGravarCampo(perfisDe(profile), "preco_compra");
+    return NextResponse.json({ historico: historicoVisivel(data ?? [], { podeVerCusto }) });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
