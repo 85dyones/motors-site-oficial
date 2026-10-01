@@ -271,8 +271,9 @@ describe("coluna ausente que a releitura não resolve", () => {
  * (PR #208), reduzido ao que o PATCH usa. Em vez de reproduzir o mapa de
  * privilégios daquela migração, ele recusa A LEITURA DO ESTADO ANTERIOR — a
  * única do PATCH que pede `preco_compra` —, venha ela da tabela ou da view
- * `estoque_motors_equipe` que a #208 introduz. Assim o teste vale antes e
- * depois daquela PR: o que se prova é "o 'antes' falhou", não por qual porta.
+ * `estoque_motors_equipe` que a #208 introduziu: o que se prova é "o 'antes'
+ * falhou", não por qual porta. Recusa também, à parte, a leitura da `origem`
+ * que a rota faz antes de tudo.
  */
 const BASE = "https://dubledeteste.supabase.co";
 
@@ -281,6 +282,8 @@ const estado = vi.hoisted(() => ({
   cliente: null as unknown,
   /** Como a leitura do "antes" falha; nula, ela passa. */
   falhaNoAntes: null as null | "permissão" | "rede",
+  /** A leitura da `origem`, que decide se o preço é gravável, estoura o tempo. */
+  falhaNaOrigem: false,
 }));
 
 vi.mock("../src/lib/supabase-server", () => ({ createServerSupabaseClient: async () => estado.cliente }));
@@ -334,6 +337,12 @@ async function postgrest(entrada: RequestInfo | URL, init?: RequestInit): Promis
         403,
       );
     }
+    if (select === "origem" && estado.falhaNaOrigem) {
+      return resposta(
+        { code: "57014", details: null, hint: null, message: "canceling statement due to statement timeout" },
+        500,
+      );
+    }
     return resposta(filtrar(url).map((l) => projetar(l, select)));
   }
 
@@ -355,7 +364,7 @@ function sessao(papeis: string[]) {
   estado.cliente = cliente;
 }
 
-async function patch(corpo: Record<string, unknown>) {
+async function patch(corpo: Record<string, unknown>, id: number = NATIVO.id) {
   const { PATCH } = await import("../src/app/api/estoque/[id]/route");
   return PATCH(
     new Request(`${BASE}/x`, {
@@ -363,7 +372,7 @@ async function patch(corpo: Record<string, unknown>) {
       body: JSON.stringify(corpo),
       headers: { "content-type": "application/json" },
     }) as never,
-    { params: Promise.resolve({ id: String(NATIVO.id) }) },
+    { params: Promise.resolve({ id: String(id) }) },
   );
 }
 
@@ -426,5 +435,43 @@ describe("PATCH /api/estoque/[id] com a leitura do 'antes' recusada", () => {
     expect(r.status).toBe(200);
     expect(gravacoesNoEstoque()).toHaveLength(1);
     expect(escritas.filter((e) => e.recurso === "historico_veiculo")).toHaveLength(1);
+  });
+});
+
+describe("PATCH /api/estoque/[id] sem conseguir ler a origem do veículo", () => {
+  // A rota lê `origem` antes de tudo: é ela que decide se preço e opcionais
+  // são graváveis. O erro dessa leitura era ignorado, e a origem virava
+  // "desconhecida" — o preço sumia do pedido em silêncio, e o pedido só de
+  // preço voltava "Nada para atualizar", que não é o que aconteceu.
+  beforeEach(() => {
+    escritas.length = 0;
+    estado.falhaNoAntes = null;
+    estado.falhaNaOrigem = false;
+    sessao(["admin"]);
+  });
+
+  it("pedido só de preço: diz que não leu o veículo, e não 'Nada para atualizar'", async () => {
+    estado.falhaNaOrigem = true;
+    const r = await patch({ preco_original: 52000 });
+    expect(r.status).toBe(500);
+    const { error } = await r.json();
+    expect(error).toMatch(/^Não foi possível ler este veículo/);
+    expect(error).toContain("statement timeout");
+    expect(error).toMatch(/Nada foi alterado\.$/);
+    expect(escritas).toEqual([]);
+  });
+
+  it("pedido que mistura preço e descrição: nada é gravado — nem a metade sem preço", async () => {
+    estado.falhaNaOrigem = true;
+    const r = await patch({ preco_original: 52000, descricao: "texto novo" });
+    expect(r.status).toBe(500);
+    expect(escritas).toEqual([]);
+  });
+
+  it("veículo que não existe: 404, e não 'salvo' sobre linha nenhuma", async () => {
+    const r = await patch({ descricao: "texto novo" }, 123456789);
+    expect(r.status).toBe(404);
+    expect((await r.json()).error).toBe("Veículo não encontrado");
+    expect(escritas).toEqual([]);
   });
 });

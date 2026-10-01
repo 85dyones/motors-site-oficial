@@ -317,7 +317,7 @@ describe("a escrita exige gate de papel", () => {
   it("a rota que grava confere staff, papel e origem — não só a sessão", () => {
     expect(rotaEstoque).toContain("ehStaff(profile)");
     expect(rotaEstoque).toContain("campoNegadoAoPerfil(perfil");
-    expect(rotaEstoque).toContain("extrairCamposNossos(body, linha?.origem)");
+    expect(rotaEstoque).toMatch(/extrairCamposNossos\(body, linha\??\.origem\)/);
     // A origem é lida do BANCO. Confiar no corpo deixaria qualquer um mandar
     // `origem:"painel"` e escrever foto num carro do feed.
     expect(rotaEstoque).toContain("Lido do BANCO, nunca do corpo");
