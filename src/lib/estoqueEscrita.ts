@@ -1,4 +1,5 @@
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
+import { lerComoEquipe } from "./colunasDoEstoque";
 import { colunasDaPromocao, recusaDaPromocao } from "./precoPromocional";
 import { efetivoDepoisDaEscrita, recusaPorPisoDeCusto } from "./pisoDePreco";
 import {
@@ -415,8 +416,12 @@ export async function aplicarNosVeiculos(
       ...COLUNAS_LIDAS_PARA_DECIDIR,
     ]),
   );
+  // Pela view da equipe: o "antes" lê placa e CUSTO, e a sessão não os lê na
+  // tabela desde 20261001150000. Pedidos à tabela, o PostgREST recusaria a
+  // leitura inteira — e o piso de custo abaixo, que só julga com o "antes" em
+  // mãos, deixaria a gravação passar sem trava.
   const lerAntes = (colunas: readonly string[]) =>
-    supabase.from("estoque_motors").select(colunas.join(",")).in("id", alvos);
+    lerComoEquipe((origem) => supabase.from(origem).select(colunas.join(",")).in("id", alvos));
   let { data: antes, error: erroAntes } = await lerAntes(colunasDoAntes);
 
   // ---------------------------------------------------------------------------

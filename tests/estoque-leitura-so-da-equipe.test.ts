@@ -67,7 +67,7 @@ function comPerfil(papeis: string[] | null) {
 
 const pedirLista = () => lista.GET();
 const pedirFicha = () =>
-  ficha.GET(new Request("http://x/api/estoque/8009174") as any, { params: Promise.resolve({ id: "8009174" }) });
+  ficha.GET(new Request("http://x/api/estoque/8009174") as never, { params: Promise.resolve({ id: "8009174" }) });
 
 beforeEach(() => {
   vi.clearAllMocks();

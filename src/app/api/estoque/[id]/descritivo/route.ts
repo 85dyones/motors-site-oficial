@@ -4,6 +4,7 @@ import { Redis } from "@upstash/redis";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { campoNegadoAoPerfil, ehStaff, perfisDe } from "../../../../../lib/permissoes";
 import { normalizarId } from "../../../../../lib/estoqueEscrita";
+import { SELECT_PUBLICO_DO_ESTOQUE } from "../../../../../lib/colunasDoEstoque";
 import { montarDossie } from "../../../../../lib/descritivo/dossie";
 import { primeiraFraseDe, validarDescritivo, type CampoDeTexto } from "../../../../../lib/descritivo/validacao";
 import { gerarTexto } from "../../../../../lib/descritivo/gerar";
@@ -183,9 +184,12 @@ export async function POST(
       }
     }
 
+    // A lista pública basta ao dossiê (`VeiculoParaDossie`), e é melhor assim:
+    // placa e chassi nem chegam perto do texto que vai ao gerador. A sessão
+    // também não os lê na tabela desde 20261001150000.
     const { data: veiculo, error: erroVeiculo } = await supabase
       .from("estoque_motors")
-      .select("*")
+      .select(SELECT_PUBLICO_DO_ESTOQUE as "*")
       .eq("id", normalizarId(id))
       .maybeSingle();
 

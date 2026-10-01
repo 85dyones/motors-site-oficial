@@ -150,7 +150,19 @@ describe("nomenclatura da tabela de inventário", () => {
     // tela precisa enxergar o carro que já saiu do ar para poder listá-lo
     // como morto e deixar o operador limpar a marcação (ver
     // `src/lib/destaquesDoPainel.ts`).
-    expect(comAcesso.length).toBe(13);
+    //
+    // Em 2026-10-01 a lista ENCOLHEU de 13 para 10, sem leitura nenhuma sumir:
+    // a migração 20261001150000 fechou placa, chassi, renavam, custo e FIPE
+    // para a sessão também (cliente da Garagem e investidor são sessão), e o
+    // painel passou a ler essas colunas pela view `estoque_motors_equipe`,
+    // via `lerComoEquipe((origem) => supabase.from(origem)…)` — que não é um
+    // `.from("estoque_motors")` literal. Saíram daqui os três arquivos cuja
+    // única leitura precisava delas: `app/admin/estoque/page.tsx` (tabela A6,
+    // que busca pela placa), `app/admin/estoque/[id]/page.tsx` (o editor) e
+    // `api/ciclo/vendas/estoque/route.ts` (placa, chassi e custo da venda).
+    // A guarda de que nenhuma leitura literal pede coluna interna mora em
+    // `tests/documento-e-custo-so-para-a-equipe.test.ts`.
+    expect(comAcesso.length).toBe(10);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -178,6 +190,14 @@ describe("nomenclatura da tabela de inventário", () => {
     // painel e não existe no RevendaMais.
     // E o acesso nº 21, em 2026-09-22, com o arquivo novo acima: o SELECT da
     // tela de curadoria dos destaques (Tarefa 7).
-    expect(total).toBe(21);
+    //
+    // Em 2026-10-01, de 21 para 15: as seis leituras que precisam de documento
+    // ou custo foram para a view da equipe — as três dos arquivos que saíram
+    // da lista acima, mais o GET de `api/estoque/[id]`, o "antes" de
+    // `lib/estoqueEscrita.ts` (que alimenta o piso de custo) e a lista com
+    // placa de `getEstoque` em `lib/supabase.ts`. A curadoria dos destaques e
+    // o gerador de descritivo ficaram aqui, trocando `select("*")` pela lista
+    // pública: nenhum dos dois usa documento nem custo.
+    expect(total).toBe(15);
   });
 });

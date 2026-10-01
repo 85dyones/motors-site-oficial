@@ -3,6 +3,7 @@ import EditorDeVeiculo from "../../../../components/admin/EditorDeVeiculo";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { visitasDaPagina } from "../../../../lib/analytics";
 import { perfisDe } from "../../../../lib/permissoes";
+import { lerComoEquipe } from "../../../../lib/colunasDoEstoque";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,13 @@ export default async function EditorDeVeiculoPage({
   const { id } = await params;
   const supabase = await createServerSupabaseClient();
 
-  // O id é bigint no banco e chega como string na URL.
+  // O id é bigint no banco e chega como string na URL. A linha inteira (placa,
+  // chassi, renavam, custo) vem pela view da equipe — a sessão não lê essas
+  // colunas na tabela desde 20261001150000.
   const alvo = /^\d+$/.test(id) ? Number(id) : id;
-  const { data } = await supabase
-    .from("estoque_motors")
-    .select("*")
-    .eq("id", alvo)
-    .maybeSingle();
+  const { data } = await lerComoEquipe((origem) =>
+    supabase.from(origem).select("*").eq("id", alvo).maybeSingle(),
+  );
 
   if (!data) notFound();
 
