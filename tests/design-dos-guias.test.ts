@@ -86,6 +86,11 @@ describe("a página do guia", () => {
     expect(pagina).toMatch(/catch \{\s*continuar = \[\];/);
   });
 
+  it("saída que já é o estoque não ganha um segundo botão para o estoque", () => {
+    expect(pagina).toContain('=== "/estoque"');
+    expect(pagina).toMatch(/\{!saidaEhOEstoque && \(\s*<Link\s+href="\/estoque"/);
+  });
+
   it("a barra de progresso é só CSS e some onde o navegador não a suporta", () => {
     const css = ler("src", "app", "modernist.css");
     expect(css).toMatch(/\.mt-progresso-de-leitura \{\s*display: none;/);
