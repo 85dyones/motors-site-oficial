@@ -12,6 +12,13 @@
  *    digitada) continua abrindo aquela tela: isso é navegação, e não recarga.
  *  · Voltar e avançar do navegador.
  *  · Navegar por dentro do painel.
+ *  · A aba que o navegador descartou para poupar memória e recarregou sozinho
+ *    quando a pessoa voltou (`document.wasDiscarded`): ninguém pediu recarga,
+ *    e o vendedor não pode perder a tela por ter trocado de aplicativo.
+ *
+ * Por causa desta regra, nenhuma mensagem do painel manda "recarregar a
+ * página": quem obedecesse cairia na Visão geral. Elas dizem "abra esta tela
+ * de novo".
  *
  * É um script na página, e não uma regra no servidor, porque só o navegador
  * sabe se a carga foi uma recarga (`PerformanceNavigationTiming.type`). Roda
@@ -22,5 +29,5 @@
 export const PORTA_DO_PAINEL = "/admin";
 
 export function scriptDaRecargaDoPainel(): string {
-  return `(function(){try{var n=performance.getEntriesByType('navigation')[0];if(n&&n.type==='reload'&&location.pathname.replace(/\\/+$/,'')!=='${PORTA_DO_PAINEL}'){location.replace('${PORTA_DO_PAINEL}');}}catch(e){}})();`;
+  return `(function(){try{var n=performance.getEntriesByType('navigation')[0];if(n&&n.type==='reload'&&!document.wasDiscarded&&location.pathname.replace(/\\/+$/,'')!=='${PORTA_DO_PAINEL}'){location.replace('${PORTA_DO_PAINEL}');}}catch(e){}})();`;
 }

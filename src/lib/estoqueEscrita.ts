@@ -268,7 +268,7 @@ const COLUNAS_DO_EM_PREPARACAO: ReadonlySet<string> = new Set(["em_preparacao", 
  */
 const MENSAGEM_DE_CAMPO_AUSENTE =
   "Campo da ficha própria ainda não existe no banco. Aplique as migrações " +
-  "pendentes de supabase/migrations e recarregue.";
+  "pendentes de supabase/migrations e abra a tela de novo.";
 
 /**
  * Os campos graváveis para ESTE veículo — a lista fixa e as fotos sempre, mais

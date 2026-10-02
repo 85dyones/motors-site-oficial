@@ -220,7 +220,7 @@ describe("o salvamento do cabeçalho", () => {
 
     expect(r.ok).toBe(false);
     expect(!r.ok && r.exigeRecarga).toBe(true);
-    expect(!r.ok && r.texto).toContain("Recarregue");
+    expect(!r.ok && r.texto).toContain("Abra esta tela de novo");
     // E não pode dizer que voltou ao padrão: era essa frase que empurrava o
     // operador para o clique destrutivo.
     expect(!r.ok && r.texto).not.toContain("de volta ao texto padrão");

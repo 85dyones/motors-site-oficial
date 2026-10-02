@@ -147,7 +147,7 @@ describe("a gravação", () => {
     rpc.mockResolvedValue({ data: null, error: { code: "23505", message: "parametros_financiamento_um_vigente" } });
     const { status, json } = await enviar(VALIDA);
     expect(status).toBe(409);
-    expect(json.error).toContain("Recarregue");
+    expect(json.error).toContain("Abra esta tela de novo");
     expect(revalidateTag).not.toHaveBeenCalled();
   });
 

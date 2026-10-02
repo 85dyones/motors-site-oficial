@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { scriptDaRecargaDoPainel } from "../src/lib/recargaDoPainel";
@@ -8,11 +9,12 @@ import { scriptDaRecargaDoPainel } from "../src/lib/recargaDoPainel";
  * 02/10/2026). Abrir um endereço direto, voltar e avançar não mudam.
  */
 
-function rodar(tipo: string | undefined, caminho: string): string | null {
+function rodar(tipo: string | undefined, caminho: string, descartada = false): string | null {
   let destino: string | null = null;
   const performance = { getEntriesByType: () => (tipo ? [{ type: tipo }] : []) };
   const location = { pathname: caminho, replace: (para: string) => (destino = para) };
-  new Function("performance", "location", scriptDaRecargaDoPainel())(performance, location);
+  const document = { wasDiscarded: descartada };
+  new Function("performance", "location", "document", scriptDaRecargaDoPainel())(performance, location, document);
   return destino;
 }
 
@@ -32,10 +34,22 @@ describe("a recarga do painel", () => {
     expect(rodar("back_forward", "/admin/leads")).toBeNull();
   });
 
+  it("aba descartada e recarregada pelo navegador fica onde estava", () => {
+    expect(rodar("reload", "/admin/leads", true)).toBeNull();
+  });
+
+  it("nenhuma mensagem do painel manda recarregar a página", () => {
+    const achados = execSync(
+      `grep -rIlE "Recarregue|e recarregue" src/app/api src/app/admin src/components/admin src/lib || true`,
+      { cwd: join(__dirname, ".."), encoding: "utf8" },
+    ).trim();
+    expect(achados).toBe("");
+  });
+
   it("navegador sem a API não quebra nem desvia", () => {
     expect(rodar(undefined, "/admin/estoque")).toBeNull();
-    const semApi = new Function("performance", "location", scriptDaRecargaDoPainel());
-    expect(() => semApi(undefined, { pathname: "/admin/estoque", replace: () => {} })).not.toThrow();
+    const semApi = new Function("performance", "location", "document", scriptDaRecargaDoPainel());
+    expect(() => semApi(undefined, { pathname: "/admin/estoque", replace: () => {} }, {})).not.toThrow();
   });
 
   it("o layout do painel carrega o script, e só ele", () => {

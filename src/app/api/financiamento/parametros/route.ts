@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     // ficou antes de decidir de novo.
     if (error.code === "23505") {
       return NextResponse.json(
-        { error: "Outra pessoa salvou uma vigência agora há pouco. Recarregue a página e confira antes de salvar de novo." },
+        { error: "Outra pessoa salvou uma vigência agora há pouco. Abra esta tela de novo e confira antes de salvar." },
         { status: 409 },
       );
     }

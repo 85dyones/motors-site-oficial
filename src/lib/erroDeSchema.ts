@@ -24,6 +24,6 @@ export function ehTabelaOuColunaAusente(erro: unknown): boolean {
 export function mensagemDeMigracaoPendente(arquivo: string): string {
   return (
     `Estrutura ainda não existe no banco. Aplique a migração ${arquivo} ` +
-    "(supabase/migrations) e recarregue."
+    "(supabase/migrations) e abra a tela de novo."
   );
 }

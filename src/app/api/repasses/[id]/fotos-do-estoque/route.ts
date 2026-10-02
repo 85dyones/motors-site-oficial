@@ -213,7 +213,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error) return falhaDoBanco(error);
     if (!data || !repasseDoPainelDaLinha(data as Record<string, unknown>)) {
       return NextResponse.json(
-        { error: "O carro mudou de situação enquanto as fotos copiavam. Recarregue a página." },
+        { error: "O carro mudou de situação enquanto as fotos copiavam. Abra esta tela de novo." },
         { status: 409 },
       );
     }

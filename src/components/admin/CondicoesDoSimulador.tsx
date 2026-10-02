@@ -158,7 +158,7 @@ export default function CondicoesDoSimulador({
       {!historico.tabela && !historico.faltaMigracao && (
         <div className="border border-mt-accent-300 bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent">
           <strong className="font-extrabold">Não deu para ler as condições agora.</strong> Os valores abaixo são os
-          de fábrica, não necessariamente os que o site está usando. Recarregue a página antes de salvar.{" "}
+          de fábrica, não necessariamente os que o site está usando. Abra esta tela de novo antes de salvar.{" "}
           <span className="text-mt-neutral-700">({historico.motivo})</span>
         </div>
       )}
