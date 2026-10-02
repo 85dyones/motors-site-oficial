@@ -91,6 +91,9 @@ describe("os hubs e as páginas de bairro nascem servidos", () => {
     "src/app/seminovos-curitiba/page.tsx",
     "src/app/seminovos-bacacheri/page.tsx",
     "src/app/seminovos-boa-vista/page.tsx",
+    "src/app/seminovos-colombo/page.tsx",
+    "src/app/seminovos-pinhais/page.tsx",
+    "src/app/seminovos-almirante-tamandare/page.tsx",
   ])("%s não é client component", (arquivo) => {
     expect(ler(arquivo).trimStart().startsWith('"use client"')).toBe(false);
   });

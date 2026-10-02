@@ -2,7 +2,7 @@ import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque"
 import { ALCANCE_DA_ENTREGA } from "./paginasInstitucionais";
 
 /**
- * As páginas de bairro/cidade — e por que são poucas (três desde 02/10/2026).
+ * As páginas de bairro/cidade — e por que são poucas (seis desde 02/10/2026).
  *
  * O plano de aquisição (§2.2.2) pede páginas geográficas como P0: o comprador
  * de Curitiba pesquisa por bairro e por eixo viário, não por cidade, e o site
@@ -22,13 +22,25 @@ import { ALCANCE_DA_ENTREGA } from "./paginasInstitucionais";
  * escritas, não interpoladas. O limite prático é seis (§2.2.2), e cada uma
  * custa texto de verdade.
  *
+ * Em 02/10/2026 o dono pediu as cidades do entorno: Colombo, Pinhais e
+ * Almirante Tamandaré. O argumento dele: ficam a menos de meia hora, o perfil
+ * de compra é o mesmo da capital e a loja está no eixo de acesso das três. Com
+ * elas a lista chega ao limite de seis. O que cada uma tem de próprio é o
+ * caminho (que é outro em cada cidade) e um assunto que as demais não tratam.
+ *
  * O texto não cita número de veículos: a grade abaixo dele já mostra o estoque
  * do momento, e frase com contagem congelada envelhece em uma semana.
  */
 
 export interface PaginaGeo {
   /** Segmento único da URL — a pasta em `src/app` tem o mesmo nome. */
-  slug: "seminovos-curitiba" | "seminovos-bacacheri" | "seminovos-boa-vista";
+  slug:
+    | "seminovos-curitiba"
+    | "seminovos-bacacheri"
+    | "seminovos-boa-vista"
+    | "seminovos-colombo"
+    | "seminovos-pinhais"
+    | "seminovos-almirante-tamandare";
   /** Como aparece no `<h1>` e na trilha. */
   nome: string;
   tituloSeo: string;
@@ -289,6 +301,185 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         resposta:
           `Dá. A loja abre ${HORARIO}. Avisando antes pelo WhatsApp, o veículo já fica ` +
           "separado para o test drive.",
+      },
+    ],
+  },
+  {
+    /**
+     * Colombo (02/10/2026). Próprio desta: a Estrada da Ribeira e a Rodovia da
+     * Uva como caminho, e o carro de quem faz esse trajeto todo dia.
+     */
+    slug: "seminovos-colombo",
+    nome: "Colombo",
+    titulo: "Seminovos perto de Colombo",
+    tituloSeo: "Seminovos perto de Colombo (PR) | Motors Store",
+    descricao:
+      `Seminovos a menos de meia hora de Colombo: ${ENDERECO}, Bacacheri, Curitiba. ` +
+      "Perícia cautelar independente, troca e financiamento.",
+    paragrafos: [
+      "Colombo começa onde a Linha Verde termina: a Estrada da Ribeira emenda nela na altura " +
+        `do Atuba, e a Motors Store fica logo depois, na ${ENDERECO}, no Bacacheri. Do Maracanã, ` +
+        "do Guaraituba ou da sede, a loja está no caminho de quem já desce para a capital.",
+      "### O carro de quem desce para Curitiba todo dia",
+      "Quem mora em Colombo e trabalha na capital passa boa parte do trajeto em fila. No test " +
+        "drive, repare no que esse uso pede:\n" +
+        "- Câmbio. O automático poupa a perna esquerda no para e anda; no manual, sinta o peso " +
+        "do pedal da embreagem.\n" +
+        "- Consumo urbano, que é o número que vale nesse percurso.\n" +
+        "- Ar-condicionado e banco do motorista, onde você passa a hora do rush.\n" +
+        "- Retomada, para entrar na rodovia com segurança.",
+      "Para resolver o que der antes de sair de casa, mande o modelo pelo WhatsApp: o vendedor " +
+        "envia as fotos reais e o laudo da perícia, e o veículo já fica separado para o test " +
+        "drive.",
+      "### Vindo de Colombo",
+      "- Do Maracanã, do Alto Maracanã e do Guaraituba: Estrada da Ribeira até o trevo do " +
+        "Atuba. Dali ao Bacacheri é um trecho curto.\n" +
+        "- Da sede: a Rodovia da Uva termina em Santa Cândida, já em Curitiba, a poucos " +
+        "quilômetros da loja.\n" +
+        "- Fora do pico, o percurso cabe em meia hora.",
+    ],
+    faq: [
+      {
+        pergunta: "Para quem vem de Colombo, a loja fica antes ou depois do trevo do Atuba?",
+        resposta:
+          "Depois. Passando o trevo você já está em Curitiba, e o Bacacheri fica a um trecho " +
+          `curto dali, na ${ENDERECO}.`,
+      },
+      {
+        pergunta: "Vocês entregam o carro em Colombo?",
+        resposta:
+          "Sim. Atendemos toda a Região Metropolitana, e a logística de entrega é combinada " +
+          "caso a caso com o consultor.",
+      },
+      {
+        pergunta: "Carro automático compensa para quem pega a Estrada da Ribeira todo dia?",
+        resposta:
+          "No trânsito parado, o automático cansa menos. Dirija os dois no test drive e compare " +
+          "o consumo de cada versão antes de decidir.",
+      },
+      {
+        pergunta: "Posso ver o laudo antes de sair de Colombo?",
+        resposta:
+          "Pode. Peça pelo WhatsApp: o vendedor envia o laudo da perícia cautelar e as fotos " +
+          "reais do veículo.",
+      },
+    ],
+  },
+  {
+    /**
+     * Pinhais (02/10/2026). Próprio desta: a divisa pelo Bairro Alto, e a
+     * troca (trazer o usado na mesma viagem e o que deixar à mão). A lista é
+     * conselho a quem vende, e não descrição do processo da loja: a Avaliação
+     * Express segue o fluxo de `paginasInstitucionais.ts` (formulário, retorno
+     * pelo WhatsApp, valor aprovado).
+     */
+    slug: "seminovos-pinhais",
+    nome: "Pinhais",
+    titulo: "Seminovos perto de Pinhais",
+    tituloSeo: "Seminovos perto de Pinhais (PR) | Motors Store",
+    descricao:
+      `Seminovos perto de Pinhais: ${ENDERECO}, Bacacheri, Curitiba. Avaliação do seu ` +
+      "usado, perícia cautelar independente e financiamento.",
+    paragrafos: [
+      "Pinhais faz divisa com a zona leste de Curitiba, e a Motors Store fica do outro lado do " +
+        `Bairro Alto: ${ENDERECO}, no Bacacheri. A visita cabe no intervalo do almoço ou no fim ` +
+        "do expediente.",
+      "### Traga o seu usado na mesma viagem",
+      "Se a ideia é trocar, venha com o carro atual. Antes de sair, vale cuidar do que todo " +
+        "avaliador olha primeiro:\n" +
+        "- Pintura e lataria. Venha com o carro lavado.\n" +
+        "- Pneus e freios.\n" +
+        "- Manual, chave reserva e notas das revisões.\n" +
+        "- Documento do veículo.",
+      "Quem prefere saber o valor antes preenche a Avaliação Express: o consultor responde " +
+        "pelo WhatsApp com uma proposta, com base na Tabela FIPE e no giro do nosso estoque, e " +
+        "o valor aprovado entra como entrada.",
+      "### O caminho a partir de Pinhais",
+      "- Pelo Centro de Pinhais: Avenida Victor Ferreira do Amaral até o Tarumã e, de lá, " +
+        "Linha Verde no sentido norte.\n" +
+        "- Pelo lado norte do município: o Bairro Alto é o vizinho, e o Bacacheri vem logo " +
+        "depois dele.\n" +
+        "- Vindo com o usado para avaliar, há estacionamento na porta.",
+    ],
+    faq: [
+      {
+        pergunta: "Dá para avaliar o meu carro e fazer o test drive na mesma visita?",
+        resposta:
+          "Dá. Avise pelo WhatsApp que vem com o usado, e o veículo que você quer ver já fica " +
+          "separado para o test drive.",
+      },
+      {
+        pergunta: "Vocês avaliam meu carro se eu for de Pinhais?",
+        resposta:
+          "Avaliamos. Dá para trazer o carro na visita ou preencher a Avaliação Express antes; " +
+          "o consultor responde pelo WhatsApp, e o valor aprovado entra como entrada.",
+      },
+      {
+        pergunta: "O que levar para a avaliação do usado?",
+        resposta:
+          "Documento do veículo, manual, chave reserva e as notas das revisões que você tiver.",
+      },
+      {
+        pergunta: "Qual o melhor caminho de Pinhais até a loja?",
+        resposta:
+          `Pelo Bairro Alto, ou pela Avenida Victor Ferreira do Amaral até a Linha Verde. A ` +
+          `loja fica na ${ENDERECO}, no Bacacheri.`,
+      },
+    ],
+  },
+  {
+    /**
+     * Almirante Tamandaré (02/10/2026). Próprio desta: a chegada pela zona
+     * norte, e a escolha do carro para ladeira e trecho sem asfalto.
+     */
+    slug: "seminovos-almirante-tamandare",
+    nome: "Almirante Tamandaré",
+    titulo: "Seminovos perto de Almirante Tamandaré",
+    tituloSeo: "Seminovos perto de Almirante Tamandaré (PR) | Motors Store",
+    descricao:
+      `Seminovos na zona norte de Curitiba, perto de Almirante Tamandaré: ${ENDERECO}, ` +
+      "Bacacheri. Perícia cautelar independente, troca e financiamento.",
+    paragrafos: [
+      "De Almirante Tamandaré, a Rodovia dos Minérios desce até a zona norte de Curitiba, e é " +
+        `nessa região que fica a Motors Store: ${ENDERECO}, no Bacacheri. Quem mora na ` +
+        "sede ou nos bairros ao longo da rodovia chega sem cruzar o Centro.",
+      "### Para quem tem ladeira no caminho",
+      "Se a sua rua tem subida forte ou trecho sem asfalto, vale escolher pensando nisso:\n" +
+        "- Altura do solo, para passar por valeta sem raspar.\n" +
+        "- Motor com torque em baixa rotação, que sobe carregado sem esforço.\n" +
+        "- Suspensão, que se avalia melhor em piso irregular.\n" +
+        "- Câmbio e freios, que trabalham mais em descida.\n" +
+        "- Pneus de perfil mais alto, que lidam melhor com piso irregular.",
+      "Conte ao vendedor como é o seu trajeto, e ele aponta os modelos do estoque que " +
+        "combinam com ele.",
+      "### Como vir pela zona norte",
+      "- Pela Rodovia dos Minérios até a entrada de Curitiba.\n" +
+        "- Ou pela Avenida Anita Garibaldi, que passa pela Barreirinha.\n" +
+        "- Nos dois casos, o trecho final é pelo Boa Vista, vizinho do Bacacheri. Fora do " +
+        "pico, o percurso cabe em meia hora.",
+    ],
+    faq: [
+      {
+        pergunta: "Preciso passar pelo Centro de Curitiba para chegar à loja?",
+        resposta:
+          `Não. A loja fica na ${ENDERECO}, no Bacacheri, zona norte, o lado da capital ` +
+          "voltado para Almirante Tamandaré.",
+      },
+      {
+        pergunta: "Que carro escolher para quem pega ladeira todo dia?",
+        resposta:
+          "Um com boa altura do solo, motor de torque em baixa e pneus de perfil mais alto. " +
+          "Conte o seu trajeto ao vendedor, e ele indica o que há no estoque.",
+      },
+      {
+        pergunta: "Dá para financiar morando em Almirante Tamandaré?",
+        resposta:
+          "Dá. A loja trabalha com vários bancos, e as condições finais dependem da análise " +
+          "de crédito.",
+      },
+      {
+        pergunta: "Quanto tempo leva de Almirante Tamandaré até a loja?",
+        resposta: "Menos de meia hora fora do horário de pico.",
       },
     ],
   },
