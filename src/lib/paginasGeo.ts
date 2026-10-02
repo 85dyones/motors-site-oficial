@@ -280,9 +280,8 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Carro com pouca quilometragem, usado só no bairro, é melhor compra?",
         resposta:
-          "É, quando a manutenção acompanhou o tempo. Trajeto curto com motor frio gasta " +
-          "bateria, óleo e escapamento mesmo rodando pouco, então peça a data das trocas de " +
-          "óleo junto com a quilometragem.",
+          "É, quando a manutenção acompanhou o tempo. Peça a data das trocas de óleo junto " +
+          "com a quilometragem: em carro que roda pouco, a troca se faz pelo calendário.",
       },
       {
         pergunta: "Dá para ver o carro no sábado?",
