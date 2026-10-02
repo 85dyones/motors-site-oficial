@@ -217,9 +217,9 @@ export const PAGINAS_GEO: PaginaGeo[] = [
      *
      * O risco declarado era repetir a página do Bacacheri. O que esta tem de
      * próprio, e as outras duas não dizem:
-     *   · a loja fica a poucos minutos a pé do Terminal Boa Vista (medido no
-     *     mapa: cerca de 220 m em linha reta), então dá para vir de ônibus e
-     *     voltar dirigindo;
+     *   · o caminho pela Avenida Paraná, sem citar ônibus nem terminal. O dono
+     *     pediu (02/10): transporte data o texto, porque o estoque e o público
+     *     mudam. A página fala da facilidade do acesso, e só;
      *   · o "o que olhar" é o do carro de trajeto curto, que é o uso de quem
      *     mora e trabalha nesses bairros (Curitiba fala de maresia e partida
      *     fria; o Bacacheri, do que a proximidade deixa conferir);
@@ -234,12 +234,12 @@ export const PAGINAS_GEO: PaginaGeo[] = [
     titulo: "Seminovos no Boa Vista e no Cabral",
     tituloSeo: "Seminovos no Boa Vista e no Cabral, Curitiba | Motors Store",
     descricao:
-      `Loja de carros seminovos perto do Terminal Boa Vista, em Curitiba: ${ENDERECO}. Perícia ` +
+      `Loja de carros seminovos ao lado do Boa Vista, em Curitiba: ${ENDERECO}. Perícia ` +
       "cautelar independente em todo o estoque, avaliação do seu usado e financiamento.",
     paragrafos: [
-      `A Motors Store fica na ${ENDERECO}, a poucos minutos a pé do Terminal Boa Vista. Para ` +
-        "quem mora no Boa Vista ou no Cabral, dá para vir de ônibus, ver o carro depois do " +
-        "trabalho e voltar no sábado com a família.",
+      `A Motors Store fica na ${ENDERECO}, perto da Avenida Paraná e ao lado do Boa Vista. ` +
+        "Para quem mora no Boa Vista ou no Cabral, dá para ver o carro depois do trabalho e " +
+        "voltar no sábado com a família.",
       "### O que olhar num carro que só rodou no bairro",
       "Carro de quem mora e trabalha perto roda pouco, e quilometragem baixa é boa notícia " +
         "quando a manutenção acompanhou o tempo. Confira:\n" +
@@ -253,23 +253,21 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
         "para ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
       "### Como chegar do Cabral e do Boa Vista",
-      "- Do Cabral: pela Avenida Paraná, no sentido do bairro, até a altura do Terminal Boa " +
-        "Vista. São pouco mais de dois quilômetros desde o Terminal Cabral.\n" +
-        "- Do Boa Vista: a loja fica a poucos minutos a pé do terminal, já no Bacacheri.\n" +
-        "- De ônibus: as linhas da Avenida Paraná que param no Terminal Boa Vista deixam você " +
-        "perto da loja.",
+      "- Do Cabral: siga pela Avenida Paraná no sentido do bairro. São cerca de dois " +
+        "quilômetros.\n" +
+        "- Do Boa Vista: a loja fica no bairro ao lado, o Bacacheri, perto da Avenida Paraná.\n" +
+        `- No mapa: procure por Motors Store ou pelo endereço, ${ENDERECO}.`,
     ],
     faq: [
       {
         pergunta: "A Motors Store fica no Boa Vista ou no Bacacheri?",
         resposta:
-          `No Bacacheri, na ${ENDERECO}, a poucos minutos a pé do Terminal Boa Vista.`,
+          `No Bacacheri, na ${ENDERECO}, perto da Avenida Paraná e ao lado do Boa Vista.`,
       },
       {
-        pergunta: "Dá para ir de ônibus do Cabral até a loja?",
+        pergunta: "A loja fica longe do Cabral?",
         resposta:
-          "Dá. As linhas da Avenida Paraná que saem do Terminal Cabral e param no Terminal Boa " +
-          "Vista deixam você a poucos minutos a pé da loja.",
+          "Não. Pela Avenida Paraná são cerca de dois quilômetros, sem passar pelo Centro.",
       },
       {
         pergunta: "Posso passar pela minha garagem no test drive?",
