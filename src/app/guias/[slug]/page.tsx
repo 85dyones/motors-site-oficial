@@ -208,7 +208,7 @@ export default async function GuiaPage({ params }: PageProps) {
         {tema && (
           <p className="m-0 mt-5 flex flex-wrap items-center gap-2.5 text-[11px] font-extrabold uppercase tracking-[.14em]">
             <span className="bg-mt-ink px-2.5 py-1.5 text-mt-bg">Tema {doisDigitos(tema.numero)}</span>
-            <span className="text-mt-accent-hover">{tema.titulo}</span>
+            <span className="text-mt-cobre">{tema.titulo}</span>
           </p>
         )}
         <h1 className="mt-display m-0 mt-4 max-w-[980px] text-[34px] leading-[1] lg:text-[64px]">
@@ -307,7 +307,7 @@ export default async function GuiaPage({ params }: PageProps) {
               {/* O número fica FORA do `<h2>`: o título que o leitor de tela e
                   o rastreador leem continua sendo só o título. */}
               <div className="flex items-baseline gap-3 border-t-2 border-mt-ink pt-4 lg:gap-4">
-                <span aria-hidden="true" className="text-[13px] font-extrabold text-mt-accent-hover lg:text-[14px]">
+                <span aria-hidden="true" className="text-[13px] font-extrabold text-mt-cobre lg:text-[14px]">
                   {doisDigitos(s + 1)}
                 </span>
                 <h2
@@ -367,7 +367,7 @@ export default async function GuiaPage({ params }: PageProps) {
           {/* Só o sumário. A saída comercial fica uma vez, no fim da página:
               repetida aqui, o mesmo destino ganharia duas âncoras estruturais
               (`tests/guias-publicam-o-grafo`). */}
-          <div className="sticky top-24">
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
             <SumarioDoGuia secoes={guia.corpo.map((secao, i) => ({ ancora: ancoras[i], titulo: secao.titulo }))} />
           </div>
         </div>
@@ -397,18 +397,18 @@ export default async function GuiaPage({ params }: PageProps) {
             <h2 className="mt-titulo m-0 text-[26px] leading-[1.1] lg:text-[34px]">Continue neste tema</h2>
             <Link
               href="/guias"
-              className="mt-foco text-[12px] font-extrabold uppercase tracking-[.1em] text-mt-ink no-underline hover:text-mt-accent-hover"
+              className="mt-foco inline-flex min-h-11 items-center text-[12px] font-extrabold uppercase tracking-[.1em] text-mt-ink no-underline hover:text-mt-accent-hover"
             >
-              Todos os guias →
+              Todos os guias <span aria-hidden="true">&nbsp;→</span>
             </Link>
           </div>
           <p className="m-0 mt-2 text-[14px] text-mt-neutral-800">{tema.titulo}</p>
           <ul role="list" className="m-0 mt-6 grid list-none gap-0 border-t-2 border-mt-ink p-0 md:grid-cols-3">
             {continuar.map((outro) => (
-              <li key={outro.slug} className="border-b border-mt-regua-fina md:border-b-0 md:border-l md:first:border-l-0">
+              <li key={outro.slug} className="border-b border-mt-regua-fina md:border-b-0 md:border-l md:pl-6 md:pr-6 md:first:border-l-0 md:first:pl-0">
                 <Link
                   href={`/guias/${outro.slug}`}
-                  className="mt-foco group flex h-full flex-col gap-2 py-6 no-underline md:px-6 md:first:pl-0"
+                  className="mt-foco group flex h-full flex-col gap-2 py-6 no-underline"
                 >
                   <span className="text-[19px] font-extrabold leading-tight text-mt-ink group-hover:text-mt-accent-hover lg:text-[22px]">
                     {outro.titulo}
@@ -426,16 +426,16 @@ export default async function GuiaPage({ params }: PageProps) {
         <div className="grid gap-4 md:grid-cols-2">
           <Link
             href={guia.saida.href}
-            className="mt-foco group flex flex-col gap-2 bg-mt-accent p-6 text-mt-inverso no-underline hover:bg-mt-accent-hover"
+            className="mt-foco group flex flex-col gap-2 bg-mt-accent-hover p-6 text-mt-inverso no-underline hover:opacity-90"
           >
-            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">{guia.saida.rotulo} →</span>
+            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">{guia.saida.rotulo} <span aria-hidden="true">→</span></span>
             <span className="text-[14px] leading-relaxed lg:text-[15px]">{guia.saida.apoio}</span>
           </Link>
           <Link
             href="/estoque"
             className="mt-foco group flex flex-col gap-2 p-6 text-mt-inverso no-underline shadow-[inset_0_0_0_2px_var(--mt-inverso-regua)] hover:shadow-[inset_0_0_0_2px_var(--mt-inverso-texto)]"
           >
-            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">Ver o estoque →</span>
+            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">Ver o estoque <span aria-hidden="true">→</span></span>
             <span className="text-[14px] leading-relaxed text-mt-inverso-suave lg:text-[15px]">
               O que entrou depois da perícia. O laudo é só pedir ao vendedor, a qualquer tempo.
             </span>

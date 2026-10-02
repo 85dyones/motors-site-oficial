@@ -797,9 +797,16 @@ p {
     background: var(--mt-accent);
     transform-origin: 0 50%;
     transform: scaleX(0);
-    animation: mt-progresso-de-leitura linear both;
+    /* Duração simbólica: o Firefox ignora animação presa à rolagem com
+       duração zero. Quem manda no avanço é a rolagem. */
+    animation: mt-progresso-de-leitura 1ms linear both;
     animation-timeline: scroll(root block);
     pointer-events: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-progresso-de-leitura {
+    display: none;
   }
 }
 @keyframes mt-progresso-de-leitura {

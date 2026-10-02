@@ -47,7 +47,7 @@ export default function SumarioDoGuia({ secoes }: { secoes: { ancora: string; ti
                   ativa ? "border-mt-accent font-extrabold text-mt-ink" : "border-transparent text-mt-neutral-700"
                 }`}
               >
-                <span aria-hidden="true" className={`text-[12px] font-extrabold ${ativa ? "text-mt-accent-hover" : ""}`}>
+                <span aria-hidden="true" className={`text-[12px] font-extrabold ${ativa ? "text-mt-cobre" : ""}`}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 {secao.titulo}

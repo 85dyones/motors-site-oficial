@@ -99,13 +99,13 @@ export default function GuiasComBusca({
         aria-pressed={ativo}
         onClick={() => setTema(valor)}
         className={`mt-foco flex min-h-11 cursor-pointer flex-col items-start gap-1.5 border-0 border-b border-mt-regua-fina px-[18px] py-4 text-left lg:border-b-0 lg:border-l lg:px-5 lg:py-6 ${
-          ativo ? "bg-mt-ink text-mt-bg" : "bg-transparent text-mt-ink hover:bg-mt-surface"
+          ativo ? "bg-mt-inverso-fundo text-mt-inverso" : "bg-transparent text-mt-ink hover:bg-mt-surface"
         }`}
       >
         {numero !== undefined && (
           <span
             aria-hidden="true"
-            className={`text-[12px] font-extrabold tracking-[.08em] ${ativo ? "text-mt-accent-inverso" : "text-mt-accent-hover"}`}
+            className={`text-[12px] font-extrabold tracking-[.08em] ${ativo ? "text-mt-accent-inverso" : "text-mt-cobre"}`}
           >
             {doisDigitos(numero)}
           </span>
@@ -154,18 +154,20 @@ export default function GuiasComBusca({
             </p>
           </div>
 
-          {entrada && (
+          {/* Some enquanto há busca digitada: no celular ele ficava entre o
+              campo e os resultados, e quem digitava não via nada mudar. */}
+          {entrada && visto.resultados === null && (
             <Link
               href={`/guias/${entrada.slug}`}
               className="mt-foco group flex w-full flex-col gap-3 bg-mt-bg p-6 text-mt-ink no-underline lg:max-w-[440px] lg:p-7"
             >
-              <span className="text-[11px] font-extrabold uppercase tracking-[.14em] text-mt-accent-hover">
+              <span className="text-[11px] font-extrabold uppercase tracking-[.14em] text-mt-cobre">
                 Comece por aqui
               </span>
               <span className="mt-titulo text-[24px] leading-[1.1] lg:text-[30px]">{entrada.titulo}</span>
               <span className="text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">{entrada.descricao}</span>
               <span className="mt-1 text-[12px] font-extrabold uppercase tracking-[.1em] text-mt-ink group-hover:text-mt-accent-hover">
-                Ler o guia →
+                Ler o guia <span aria-hidden="true">→</span>
               </span>
             </Link>
           )}
@@ -177,7 +179,7 @@ export default function GuiasComBusca({
         <div
           role="group"
           aria-label="Filtrar por tema"
-          className="grid border-b-2 border-mt-regua lg:grid-flow-col lg:auto-cols-fr"
+          className="grid grid-cols-2 border-b-2 border-mt-regua lg:grid-flow-col lg:auto-cols-fr lg:grid-cols-none"
         >
           {botaoDoTema("Todos os temas", null, `${totalDeGuias} guias`)}
           {grupos.map((g) =>
