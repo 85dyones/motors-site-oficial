@@ -39,6 +39,9 @@ describe("as listagens de estoque revalidam juntas", () => {
     expect(revalidateDe("src/app/seminovos-curitiba/page.tsx")).toBe(estoque);
     expect(revalidateDe("src/app/seminovos-bacacheri/page.tsx")).toBe(estoque);
     expect(revalidateDe("src/app/seminovos-boa-vista/page.tsx")).toBe(estoque);
+    expect(revalidateDe("src/app/seminovos-colombo/page.tsx")).toBe(estoque);
+    expect(revalidateDe("src/app/seminovos-pinhais/page.tsx")).toBe(estoque);
+    expect(revalidateDe("src/app/seminovos-almirante-tamandare/page.tsx")).toBe(estoque);
     expect(revalidateDe("src/app/page.tsx")).toBe(estoque);
   });
 

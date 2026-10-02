@@ -51,7 +51,7 @@ describe("as páginas geo existem e se acham", () => {
   });
 });
 
-/** Todos os pares de páginas, cada um uma vez. Com três páginas são três. */
+/** Todos os pares de páginas, cada um uma vez. Com seis páginas são quinze. */
 const PARES = PAGINAS_GEO.flatMap((a, i) => PAGINAS_GEO.slice(i + 1).map((b) => [a, b] as const));
 
 describe("cada página diz coisa própria — não é doorway", () => {
