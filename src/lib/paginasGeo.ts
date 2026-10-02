@@ -149,8 +149,8 @@ export const PAGINAS_GEO: PaginaGeo[] = [
     titulo: "Seminovos no Bacacheri",
     tituloSeo: "Seminovos no Bacacheri, Curitiba | Motors Store",
     descricao:
-      `Loja de carros seminovos no Bacacheri, em Curitiba: ${ENDERECO}. Perícia cautelar ` +
-      "independente em todo o estoque, avaliação do seu usado e financiamento.",
+      `Seminovos no Bacacheri, perto de Santa Cândida, em Curitiba: ${ENDERECO}. Perícia ` +
+      "cautelar independente, avaliação do seu usado e financiamento.",
     paragrafos: [
       `A loja fica no próprio bairro: ${ENDERECO}, Bacacheri. Quem mora aqui não precisa ` +
         "atravessar a cidade para ver carro: dá para passar no fim da tarde, olhar o veículo com " +
@@ -179,6 +179,8 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "estoque, e a conversa é sobre esses três.",
       "### Chegando à loja",
       "- De fora do bairro, a referência mais fácil é a Linha Verde.\n" +
+        "- De Santa Cândida, basta descer a Avenida Paraná no sentido Centro: são poucos " +
+        "quilômetros.\n" +
         "- De dentro, a Avenida Erasto Gaertner e a Avenida Paraná chegam em poucos minutos.\n" +
         "- Boa Vista, Atuba, Cabral, Tarumã, Santa Cândida e Bairro Alto ficam a menos de dez " +
         "minutos de carro na maior parte do dia.",
@@ -194,6 +196,12 @@ export const PAGINAS_GEO: PaginaGeo[] = [
           "De Boa Vista, Atuba, Cabral, Tarumã, Santa Cândida ou Bairro Alto, o caminho mais " +
           "direto é pela Avenida Erasto Gaertner ou pela Avenida Paraná. Quem vem de mais longe " +
           "costuma pegar a Linha Verde.",
+      },
+      {
+        pergunta: "Moro em Santa Cândida. A loja fica no meu caminho?",
+        resposta:
+          "Fica, para quem desce para o Centro. A Avenida Paraná sai de Santa Cândida e passa " +
+          "perto da loja, a poucos quilômetros dali.",
       },
       {
         pergunta: "Tem estacionamento na loja?",
@@ -240,21 +248,25 @@ export const PAGINAS_GEO: PaginaGeo[] = [
      *   · a garagem de prédio: rampa e vaga se testam no próprio test drive.
      *     O dono confirmou em 02/10 que a loja faz isso nessa região.
      *
-     * Uma página para os dois bairros, e não duas: o caminho e o argumento são
+     * O Ahú entrou nesta página em 02/10, por decisão do dono: é vizinho do
+     * Cabral, o caminho e o argumento são os mesmos, e uma página só para ele
+     * repetiria esta e passaria do limite de seis.
+     *
+     * Uma página para os bairros, e não uma para cada: o caminho e o argumento são
      * os mesmos, e duas páginas com o nome trocado seriam a doorway que o
      * comentário do topo proíbe.
      */
     slug: "seminovos-boa-vista",
-    nome: "Boa Vista e Cabral",
-    titulo: "Seminovos no Boa Vista e no Cabral",
-    tituloSeo: "Seminovos no Boa Vista e no Cabral, Curitiba | Motors Store",
+    nome: "Boa Vista, Cabral e Ahú",
+    titulo: "Seminovos no Boa Vista, no Cabral e no Ahú",
+    tituloSeo: "Seminovos no Boa Vista, Cabral e Ahú, Curitiba | Motors Store",
     descricao:
-      `Loja de carros seminovos ao lado do Boa Vista, em Curitiba: ${ENDERECO}. Perícia ` +
-      "cautelar independente em todo o estoque, avaliação do seu usado e financiamento.",
+      `Seminovos ao lado do Boa Vista, perto do Cabral e do Ahú, em Curitiba: ${ENDERECO}. ` +
+      "Perícia cautelar independente, avaliação do seu usado e financiamento.",
     paragrafos: [
       `A Motors Store fica na ${ENDERECO}, perto da Avenida Paraná e ao lado do Boa Vista. ` +
-        "Para quem mora no Boa Vista ou no Cabral, dá para ver o carro depois do trabalho e " +
-        "voltar no sábado com a família.",
+        "Para quem mora no Boa Vista, no Cabral ou no Ahú, dá para ver o carro depois do " +
+        "trabalho e voltar no sábado com a família.",
       "### O que olhar num carro que só rodou no bairro",
       "Carro de quem mora e trabalha perto roda pouco, e quilometragem baixa é boa notícia " +
         "quando a manutenção acompanhou o tempo. Confira:\n" +
@@ -267,9 +279,10 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       "Se o seu prédio tem rampa íngreme ou vaga apertada, a proximidade resolve a dúvida " +
         "antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
         "para ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
-      "### Como chegar do Cabral e do Boa Vista",
+      "### Como chegar do Cabral, do Ahú e do Boa Vista",
       "- Do Cabral: siga pela Avenida Paraná no sentido Boa Vista. São poucos " +
         "quilômetros.\n" +
+        "- Do Ahú: o Cabral é o bairro vizinho. Dali, o caminho é o mesmo.\n" +
         "- Do Boa Vista: a loja fica no bairro ao lado, o Bacacheri, perto da Avenida Paraná.\n" +
         `- No mapa: procure por Motors Store ou pelo endereço, ${ENDERECO}.`,
     ],
@@ -287,8 +300,14 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Posso passar pela minha garagem no test drive?",
         resposta:
-          "Pode, combinando antes com o vendedor. Para quem mora no Boa Vista ou no Cabral o " +
-          "desvio é curto, e é o jeito de saber se o carro passa na rampa e cabe na vaga.",
+          "Pode, combinando antes com o vendedor. Para quem mora no Boa Vista, no Cabral ou " +
+          "no Ahú o desvio é curto, e é o jeito de saber se o carro passa na rampa e cabe na " +
+          "vaga.",
+      },
+      {
+        pergunta: "A loja fica longe do Ahú?",
+        resposta:
+          "Não. O Ahú é vizinho do Cabral, e dali são poucos quilômetros pela Avenida Paraná.",
       },
       {
         pergunta: "Carro com pouca quilometragem, usado só no bairro, é melhor compra?",
