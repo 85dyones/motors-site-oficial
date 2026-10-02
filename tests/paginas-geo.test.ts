@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { segmentarComLinks } from "../src/lib/linksNoTexto";
 
 /**
- * As duas páginas de cidade e bairro — e a linha que separa uma delas de uma
+ * As páginas de cidade e bairro — e a linha que separa uma delas de uma
  * página doorway.
  *
  * O arquivo que elas moram já escreve o risco: *"não transformar isto num
@@ -214,5 +214,30 @@ describe("as páginas de região não ficam órfãs (02/10/2026)", () => {
     // Na própria página do bairro o termo não vira link para ela mesma.
     const naPropria = segmentarComLinks("A loja fica no Bacacheri.", "/seminovos-bacacheri", new Set());
     expect(naPropria.some((x) => x.href === "/seminovos-bacacheri")).toBe(false);
+  });
+});
+
+describe("um link por destino também nos chips de região", () => {
+  it("a página que já linka o Bacacheri no texto não repete o chip", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { default: PaginaDeEstoque } = await import("../src/components/modernist/PaginaDeEstoque");
+    for (const p of PAGINAS_GEO) {
+      const html = renderToStaticMarkup(
+        createElement(PaginaDeEstoque, {
+          trilha: [{ rotulo: "Home", href: "/" }],
+          titulo: p.titulo,
+          veiculos: [],
+          introducao: p.paragrafos,
+          faq: p.faq,
+          caminho: `/${p.slug}`,
+          blocos: [{ titulo: "Outras regiões", links: outrasRegioes(p.slug) }],
+        }),
+      );
+      for (const outra of PAGINAS_GEO.filter((x) => x.slug !== p.slug)) {
+        const vezes = html.split(`href="/${outra.slug}"`).length - 1;
+        expect(vezes, `${p.slug} → ${outra.slug}`).toBe(1);
+      }
+    }
   });
 });
