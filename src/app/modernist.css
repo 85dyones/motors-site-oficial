@@ -779,3 +779,31 @@ p {
   }
 }
 
+
+/* — progresso de leitura do guia (02/10/2026) —
+   Uma barra fina no topo da tela que cresce com a rolagem. Só CSS: a animação
+   é presa à rolagem da página. Navegador sem `animation-timeline` não mostra
+   a barra, e ninguém perde nada. */
+.mt-progresso-de-leitura {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  .mt-progresso-de-leitura {
+    display: block;
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 60;
+    height: 3px;
+    background: var(--mt-accent);
+    transform-origin: 0 50%;
+    transform: scaleX(0);
+    animation: mt-progresso-de-leitura linear both;
+    animation-timeline: scroll(root block);
+    pointer-events: none;
+  }
+}
+@keyframes mt-progresso-de-leitura {
+  to {
+    transform: scaleX(1);
+  }
+}

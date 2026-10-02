@@ -272,7 +272,7 @@ describe("a página do guia", () => {
 
   it("a abertura sai em corpo maior, e só ela", async () => {
     const h = await html();
-    const maiores = h.match(/<p class="[^"]*text-\[18px\][^"]*">[\s\S]*?<\/p>/g) ?? [];
+    const maiores = h.match(/<p class="[^"]*text-\[20px\][^"]*">[\s\S]*?<\/p>/g) ?? [];
     expect(maiores).toHaveLength(1);
     expect(maiores[0]).toContain("A abertura responde ao título.");
   });
