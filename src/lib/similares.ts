@@ -113,13 +113,16 @@ export function escolherSimilares(atual: Veiculo, estoque: Veiculo[], limite = 3
 /**
  * A carroceria do repasse no vocabulário do feed do estoque (`CARROCERIAS`
  * em `classificacaoVeiculo.ts`; o feed normaliza para "Hatch", "Sedan",
- * "SUV", "Picape"). "outro" não tem par e não ganha bônus.
+ * "SUV", "Picape"). "outro" não tem par e não ganha bônus. A moto do repasse
+ * busca moto no estoque, e o carro busca carro — o mesmo corte de
+ * `ehMotocicleta` que a ficha do estoque faz.
  */
 export const TIPO_NO_FEED: Record<CarroceriaDoRepasse, string> = {
   hatch: "Hatch",
   seda: "Sedan",
   suv: "SUV",
   picape: "Picape",
+  moto: "Motocicleta",
   outro: "",
 };
 
@@ -136,7 +139,7 @@ export function parecidosDoRepasse(
 ): Veiculo[] {
   const conta = contaDoRepasse(r);
   return vizinhosPorPreco(
-    { id: null, preco: conta.fipe ?? conta.voceGasta, tipo: r.carroceria ? TIPO_NO_FEED[r.carroceria] : "", moto: false },
+    { id: null, preco: conta.fipe ?? conta.voceGasta, tipo: r.carroceria ? TIPO_NO_FEED[r.carroceria] : "", moto: r.carroceria === "moto" },
     estoque,
     limite,
   );

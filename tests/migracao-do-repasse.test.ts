@@ -43,7 +43,9 @@ describe("migração do repasse", () => {
   });
 
   it("carroceria e faixa do banco são as do código", () => {
-    expect(entreAspas(capturar(/carroceria\s+in\s*\(([^)]*)\)/i))).toEqual([...CARROCERIAS_DO_REPASSE]);
+    // A fundação nasceu sem a moto; 20261002120000 alargou a restrição, e
+    // tests/migracao-do-repasse-moto.test.ts confere a lista de hoje.
+    expect(entreAspas(capturar(/carroceria\s+in\s*\(([^)]*)\)/i))).toEqual(CARROCERIAS_DO_REPASSE.filter((c) => c !== "moto"));
     expect(entreAspas(capturar(/faixa\s+in\s*\(([^)]*)\)/i))).toEqual(FAIXAS_DO_REPASSE.map((f) => f.id));
   });
 

@@ -57,6 +57,10 @@ describe("parecidosDoRepasse", () => {
     expect(ids).not.toContain("caro");
   });
 
+  it("a moto do repasse busca moto no estoque, e só moto", () => {
+    expect(parecidosDoRepasse(repasseDeTeste({ carroceria: "moto" }), ESTOQUE, 10).map((v) => v.id)).toEqual(["moto"]);
+  });
+
   it("sem FIPE, mede pelo que você gasta", () => {
     const semFipe = repasseDeTeste({ fipe_valor: null });
     // Você gasta = 36.900 + 2.020 = 38.920 → banda 27.244–54.488: o Kwid Intense sai.

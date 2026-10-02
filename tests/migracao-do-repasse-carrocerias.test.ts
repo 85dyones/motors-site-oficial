@@ -24,7 +24,9 @@ describe("migração: as carrocerias da lista", () => {
     );
     expect(trecho, "não achei a restrição inscrito_carrocerias_da_lista").not.toBeNull();
     const valores = [...trecho![1].matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
-    expect(valores).toEqual([...CARROCERIAS_DO_REPASSE]);
+    // Sem a moto: ela entrou em 20261002120000, que reescreve esta mesma
+    // restrição (tests/migracao-do-repasse-moto.test.ts confere).
+    expect(valores).toEqual(CARROCERIAS_DO_REPASSE.filter((c) => c !== "moto"));
   });
 
   it("o que o formulário oferece cabe na restrição", () => {

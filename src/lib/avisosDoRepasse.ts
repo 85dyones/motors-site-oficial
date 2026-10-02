@@ -11,7 +11,8 @@
  *     lojista, e CNPJ não conferido ainda não é lojista para a loja;
  *   - depois do switch "abrir para todos": os mesmos lojistas e quem compra
  *     para usar cuja faixa casa com o preço à vista e cuja carroceria casa
- *     (faixa ou carroceria em branco casam com qualquer carro).
+ *     (faixa ou carroceria em branco casam com qualquer carro; a moto só
+ *     casa com quem a marcou).
  */
 import { validaRepasse, type RecusaDoPainel } from "./edicaoDoRepasse";
 import type { Perfil } from "./permissoes";
@@ -94,7 +95,10 @@ export function inscritosQueCombinam(
         (i) =>
           i.trilha === "consumidor" &&
           (i.faixa === null || i.faixa === faixa) &&
-          (i.carrocerias.length === 0 || (r.carroceria !== null && i.carrocerias.includes(r.carroceria))),
+          // A lista vazia é qualquer carro: a moto só vai para quem a marcou.
+          (i.carrocerias.length === 0
+            ? r.carroceria !== "moto"
+            : r.carroceria !== null && i.carrocerias.includes(r.carroceria)),
       );
 
   const ordem = (c: CombinaComORepasse) => (c.avisado ? 2 : 0) + (c.inscrito.trilha === "lojista" ? 0 : 1);
@@ -122,7 +126,8 @@ export function mensagemDeAvisoDoRepasse(
   // e a mensagem não pode afirmar o que já deixou de ser fato.
   let abertura: string;
   if (inscrito.trilha !== "lojista") {
-    abertura = `Entrou no Repasse Motors um carro que combina com o que você procura: ${carro}.`;
+    const umVeiculo = r.carroceria === "moto" ? "uma moto" : "um carro";
+    abertura = `Entrou no Repasse Motors ${umVeiculo} que combina com o que você procura: ${carro}.`;
   } else if (soParaLojistas(r)) {
     abertura = `Repasse Motors, aviso para lojistas antes do site: ${carro}.`;
   } else {
