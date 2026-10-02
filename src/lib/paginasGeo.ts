@@ -241,14 +241,13 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "quem mora no Boa Vista ou no Cabral, dá para vir de ônibus, ver o carro depois do " +
         "trabalho e voltar no sábado com a família.",
       "### O que olhar num carro que só rodou no bairro",
-      "Carro de quem mora e trabalha perto roda pouco e quase sempre em trajeto curto, com o " +
-        "motor ainda frio. Quilometragem baixa é boa notícia quando a manutenção acompanhou o " +
-        "tempo. Confira:\n" +
-        "- Bateria e partida. Trajeto curto não dá tempo de recarregar a bateria.\n" +
-        "- A data da última troca de óleo. Em carro que roda pouco, o óleo vence pelo tempo " +
-        "antes de vencer pela quilometragem.\n" +
-        "- Embreagem e freios, que trabalham mais no anda e para do que em estrada.\n" +
-        "- Escapamento. A água da condensação que nunca chega a evaporar acelera a ferrugem.",
+      "Carro de quem mora e trabalha perto roda pouco, e quilometragem baixa é boa notícia " +
+        "quando a manutenção acompanhou o tempo. Confira:\n" +
+        "- A data da última troca de óleo. Em carro que roda pouco, a troca se faz pelo " +
+        "calendário, não pela quilometragem.\n" +
+        "- Bateria e partida, com o motor frio.\n" +
+        "- Embreagem e freios, que trabalham mais na cidade do que em estrada.\n" +
+        "- Pneus, pela data de fabricação além do desgaste.",
       "### A rampa e a vaga do seu prédio",
       "Se o seu prédio tem rampa íngreme ou vaga apertada, a proximidade resolve a dúvida " +
         "antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
