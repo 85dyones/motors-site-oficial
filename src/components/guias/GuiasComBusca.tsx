@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { filtrarGuias, type GrupoNaBusca, type GuiaNaBusca } from "../../lib/buscaDeGuias";
 
 /**
@@ -31,12 +31,21 @@ export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
   const [consulta, setConsulta] = useState("");
   const [tema, setTema] = useState<string | null>(null);
   const idDoCampo = useId();
+  const idDaAjuda = useId();
+  const campo = useRef<HTMLInputElement>(null);
 
   const visto = useMemo(() => filtrarGuias(grupos, { consulta, tema }), [grupos, consulta, tema]);
-  const filtrando = consulta.trim() !== "" || tema !== null;
+  const filtrando = visto.resultados !== null || tema !== null;
+  // O botão que chama isto some da tela ao ser usado: o foco volta ao campo,
+  // em vez de cair no começo da página.
   const limpar = () => {
     setConsulta("");
     setTema(null);
+    campo.current?.focus();
+  };
+  const tirarOTema = () => {
+    setTema(null);
+    campo.current?.focus();
   };
 
   const botaoDoTema = (rotulo: string, valor: string | null) => {
@@ -62,16 +71,22 @@ export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
         <label htmlFor={idDoCampo} className="mt-rotulo block">
           Buscar nos guias
         </label>
-        {/* 16px no campo: abaixo disso o iPhone dá zoom na página ao focar. */}
+        <p id={idDaAjuda} className="m-0 mt-1 text-[13px] text-mt-neutral-800">
+          Digite a sua dúvida ou escolha um tema.
+        </p>
+        {/* 16px no campo: abaixo disso o iPhone dá zoom na página ao focar.
+            44px de altura: o alvo de toque do resto do site. */}
         <input
+          ref={campo}
           id={idDoCampo}
           type="search"
           value={consulta}
           onChange={(e) => setConsulta(e.target.value)}
-          placeholder="Digite a sua dúvida: laudo, troca, financiamento"
+          placeholder="Ex.: laudo, troca, financiamento"
+          aria-describedby={idDaAjuda}
           autoComplete="off"
           enterKeyHint="search"
-          className="mt-campo-caixa mt-foco mt-2 w-full max-w-[680px] text-[16px]"
+          className="mt-campo-caixa mt-foco mt-2 min-h-11 w-full max-w-[680px] text-[16px]"
         />
         {grupos.length > 1 && (
           <div role="group" aria-label="Filtrar por tema" className="mt-4 flex flex-wrap gap-1.5">
@@ -99,9 +114,20 @@ export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
       {visto.total === 0 && (
         <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
           <p className="m-0 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800">
-            Nenhum guia trata disso ainda. Tente outra palavra, ou mande a dúvida para a loja.
+            {tema
+              ? "Nenhum guia deste tema trata disso. Procure nos outros temas, ou mande a dúvida para a loja."
+              : "Nenhum guia trata disso ainda. Tente outra palavra, ou mande a dúvida para a loja."}
           </p>
           <div className="mt-4 flex flex-wrap gap-1.5">
+            {tema && (
+              <button
+                type="button"
+                onClick={tirarOTema}
+                className="mt-foco min-h-11 cursor-pointer border border-mt-regua px-3 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink hover:border-mt-accent"
+              >
+                Buscar em todos os temas
+              </button>
+            )}
             <button
               type="button"
               onClick={limpar}
