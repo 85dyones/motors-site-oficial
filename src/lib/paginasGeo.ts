@@ -200,8 +200,8 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Moro em Santa Cândida. A loja fica no meu caminho?",
         resposta:
-          "Fica, para quem desce para o Centro. A Avenida Paraná sai de Santa Cândida e passa " +
-          "perto da loja, a poucos quilômetros dali.",
+          "Fica, para quem desce para o Centro. A Avenida Paraná liga Santa Cândida ao Cabral " +
+          "e passa perto da loja, a poucos quilômetros do bairro.",
       },
       {
         pergunta: "Tem estacionamento na loja?",
