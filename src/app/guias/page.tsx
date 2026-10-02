@@ -8,6 +8,8 @@ import { grafoDoIndiceDeGuias } from "../../lib/schemaGuia";
 import { NOME_DA_SECAO } from "../../lib/guias";
 import { cabecalhoDosGuias } from "../../lib/secaoDeGuias";
 import { agruparGuias } from "../../lib/guiasNoSite";
+import { apoioDaBusca } from "../../lib/buscaDeGuias";
+import GuiasComBusca from "../../components/guias/GuiasComBusca";
 
 const CAMINHO = "/guias";
 
@@ -94,32 +96,20 @@ export default async function GuiasPage() {
         </p>
       </div>
 
-      {grupos.map((grupo) => (
-        <section key={grupo.titulo} className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-          <h2 className="mt-titulo m-0 text-[22px] lg:text-[28px]">{grupo.titulo}</h2>
-          {grupo.resumo && (
-            <p className="m-0 mt-2 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800">
-              {grupo.resumo}
-            </p>
-          )}
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {grupo.guias.map((guia) => (
-              <Link
-                key={guia.slug}
-                href={`/guias/${guia.slug}`}
-                className="mt-foco flex flex-col gap-2 border border-mt-regua p-5 no-underline hover:border-mt-accent"
-              >
-                <span className="mt-titulo text-[18px] text-mt-ink lg:text-[20px]">
-                  {guia.titulo}
-                </span>
-                <span className="text-[13px] leading-relaxed text-mt-neutral-800">
-                  {guia.descricao}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ))}
+      {/* A lista com busca por tema e por dúvida digitada (02/10). O índice de
+          busca é montado aqui, no servidor; o corpo dos guias não vai junto. */}
+      <GuiasComBusca
+        grupos={grupos.map((grupo) => ({
+          titulo: grupo.titulo,
+          resumo: grupo.resumo,
+          guias: grupo.guias.map((guia) => ({
+            slug: guia.slug,
+            titulo: guia.titulo,
+            descricao: guia.descricao,
+            apoio: apoioDaBusca(guia),
+          })),
+        }))}
+      />
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
         <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Depois de ler</h2>
