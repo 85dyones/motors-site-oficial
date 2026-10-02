@@ -423,27 +423,23 @@ export default async function GuiaPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* A saída comercial. Guia sem destino é conteúdo que não devolve nada. */}
-      <section className="bg-mt-inverso-fundo px-[18px] py-10 text-mt-inverso lg:px-10 lg:py-14">
+      {/* A saída comercial. Guia sem destino é conteúdo que não devolve nada.
+          Mesma faixa clara do índice (aprovada pelo dono em 02/10): o rodapé do
+          site já é escuro, e uma faixa escura colada nele virava um bloco só. */}
+      <section className="border-t-2 border-mt-regua bg-mt-surface px-[18px] py-10 lg:flex lg:items-center lg:justify-between lg:gap-10 lg:px-10 lg:py-14">
+        <div className="max-w-[560px]">
+          <h2 className="mt-titulo m-0 text-[28px] lg:text-[40px]">Depois de ler</h2>
+          <p className="m-0 mt-3 text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">{guia.saida.apoio}</p>
+        </div>
         {/* Quando a saída do guia JÁ é o estoque, o segundo botão levaria ao
             mesmo lugar (visto pelo dono em 02/10): fica um só. */}
-        <div className={`grid gap-4 ${saidaEhOEstoque ? "max-w-[720px]" : "md:grid-cols-2"}`}>
-          <Link
-            href={guia.saida.href}
-            className="mt-foco group flex flex-col gap-2 bg-mt-accent-hover p-6 text-mt-inverso no-underline hover:opacity-90"
-          >
-            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">{guia.saida.rotulo} <span aria-hidden="true">→</span></span>
-            <span className="text-[14px] leading-relaxed lg:text-[15px]">{guia.saida.apoio}</span>
+        <div className="mt-5 flex flex-wrap gap-2 lg:mt-0 lg:justify-end">
+          <Link href={guia.saida.href} className="mt-foco mt-btn mt-btn-primario uppercase">
+            {guia.saida.rotulo}
           </Link>
           {!saidaEhOEstoque && (
-            <Link
-              href="/estoque"
-              className="mt-foco group flex flex-col gap-2 p-6 text-mt-inverso no-underline shadow-[inset_0_0_0_2px_var(--mt-inverso-regua)] hover:shadow-[inset_0_0_0_2px_var(--mt-inverso-texto)]"
-            >
-              <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">Ver o estoque <span aria-hidden="true">→</span></span>
-              <span className="text-[14px] leading-relaxed text-mt-inverso-suave lg:text-[15px]">
-                O que entrou depois da perícia. O laudo é só pedir ao vendedor, a qualquer tempo.
-              </span>
+            <Link href="/estoque" className="mt-foco mt-btn mt-btn-contorno uppercase">
+              Ver o estoque
             </Link>
           )}
         </div>
