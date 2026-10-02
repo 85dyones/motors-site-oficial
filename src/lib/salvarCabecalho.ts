@@ -148,7 +148,7 @@ export async function salvarCabecalho(
         exigeRecarga: true,
         texto:
           "Enviei o texto e o servidor aceitou, mas não consegui confirmar o que ficou gravado. " +
-          "Recarregue a página antes de editar de novo — o que está no ar pode ser o texto novo.",
+          "Abra esta tela de novo antes de editar — o que está no ar pode ser o texto novo.",
       };
     }
 
@@ -202,7 +202,7 @@ export async function voltarAoPadrao(): Promise<ResultadoDoSalvamento> {
       return {
         ok: false,
         texto:
-          "Não apaguei nada — a seção pode já estar no texto padrão, ou a gravação foi recusada. Recarregue para ver o que está no ar.",
+          "Não apaguei nada — a seção pode já estar no texto padrão, ou a gravação foi recusada. Abra esta tela de novo para ver o que está no ar.",
         exigeRecarga: true,
       };
     }

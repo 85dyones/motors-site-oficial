@@ -314,14 +314,14 @@ describe("o botão está ligado na função que grava", () => {
       botao("Salvar cabeçalho").click();
     });
 
-    expect(container.textContent).toContain("Recarregue a página");
+    expect(container.textContent).toContain("Abra esta tela de novo");
     expect(container.textContent).not.toContain("no texto padrão");
     // O que a pessoa digitou continua ali.
     expect(campo("Título da aba").value).toBe("Novo título");
     // E a tela para de afirmar que leu: o Voltar ao padrão trava e o aviso
     // aparece. Sem isso, o botão de apagar seguiria liberado sobre uma leitura
     // que a própria tela acabou de admitir que não confere — e a frase
-    // "Recarregue a página" vem da lib, não deste estado.
+    // "Abra esta tela de novo" vem da lib, não deste estado.
     expect(botao("Voltar ao padrão").disabled, "não dá para apagar sobre leitura velha").toBe(
       true,
     );

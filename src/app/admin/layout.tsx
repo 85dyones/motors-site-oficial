@@ -5,6 +5,7 @@ import SidebarNav from "../../components/admin/SidebarNav";
 import AdminLayoutClientWrapper from "../../components/admin/AdminLayoutClientWrapper";
 import { papelPadraoPorEmail } from "../../lib/papelPadrao";
 import { ehInvestidor, perfisDe } from "../../lib/permissoes";
+import { scriptDaRecargaDoPainel } from "../../lib/recargaDoPainel";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,11 @@ export default async function AdminLayout({
   };
 
   return (
-    <AdminLayoutClientWrapper
+    <>
+      {/* Recarregou o painel: volta para a Visão geral. Antes do conteúdo, para
+          rodar antes de a tela pintar. Ver `lib/recargaDoPainel.ts`. */}
+      <script dangerouslySetInnerHTML={{ __html: scriptDaRecargaDoPainel() }} />
+      <AdminLayoutClientWrapper
       role={role}
       fullName={fullName}
       roleLabel={getRoleLabel(role)}
@@ -73,5 +78,6 @@ export default async function AdminLayout({
     >
       {children}
     </AdminLayoutClientWrapper>
+    </>
   );
 }

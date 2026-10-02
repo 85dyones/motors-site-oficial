@@ -44,7 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const repasse = data ? repasseDoPainelDaLinha(data as Record<string, unknown>) : null;
     if (!repasse) {
       return NextResponse.json(
-        { error: "O carro mudou de situação enquanto você decidia. Recarregue a página." },
+        { error: "O carro mudou de situação enquanto você decidia. Abra esta tela de novo." },
         { status: 409 },
       );
     }
