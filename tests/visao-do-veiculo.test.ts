@@ -92,7 +92,6 @@ describe("a visão é só leitura", () => {
     const html = await visao(carro(), ["comercial"]);
     for (const trecho of [
       "BMW X1",
-      "sDrive20i GP",
       "2017/2018",
       "45.000 km",
       "ABC1D23",
@@ -110,9 +109,26 @@ describe("a visão é só leitura", () => {
     }
   });
 
+  it("o nome sai na grafia da casa, e não como o cadastro guarda (02/10)", async () => {
+    const html = await visao(
+      carro({ marca: "chevrolet", modelo: "vectra hatch gt-x 2.0 8v 4p", versao: "hatch gt-x 2.0 8v 4p", cambio: "manual", cor: "branco" }),
+      ["comercial"],
+    );
+    expect(html).toMatch(/<h1[^>]*>Chevrolet Vectra/);
+    expect(html).not.toContain("chevrolet vectra");
+    expect(html).not.toMatch(/<dd[^>]*>chevrolet<\/dd>/);
+    expect(html).not.toMatch(/<dd[^>]*>manual<\/dd>/);
+  });
+
   it("campo vazio é 'Não informado', e não uma afirmação sobre o carro", async () => {
     const html = await visao(carro({ motor: null, placa: null }), ["comercial"]);
     expect(html).toContain("Não informado");
+  });
+
+  it("rascunho sem marca, modelo nem versão: nada de 'Sem Marca' ou 'Padrão' inventado", async () => {
+    const html = await visao(carro({ marca: null, modelo: null, versao: null, estado_cadastro: "rascunho" }), ["comercial"]);
+    expect(html).toMatch(/<h1[^>]*>Veículo 8453942<\/h1>/);
+    expect(html).not.toMatch(/Sem Marca|Sem Modelo|Padrão/);
   });
 });
 
