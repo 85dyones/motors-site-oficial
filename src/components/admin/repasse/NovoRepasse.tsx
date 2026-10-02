@@ -56,6 +56,7 @@ const ROTULO_DA_CARROCERIA: Record<(typeof CARROCERIAS_DO_REPASSE)[number], stri
   seda: "Sedã",
   suv: "SUV",
   picape: "Picape",
+  moto: "Moto",
   outro: "Outro",
 };
 

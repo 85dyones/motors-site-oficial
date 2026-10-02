@@ -44,8 +44,12 @@ export const FORM_DA_LISTA_LOJISTA = "form-lista-repasse-lojista";
 export const FORM_DO_EXAME = "form-exame-repasse";
 export const FORM_DO_WHATSAPP = "form-whatsapp-repasse";
 
-/** As quatro que o formulário oferece; "Tanto faz" é a lista vazia (decisão 9). */
-export const CARROCERIAS_DA_LISTA = ["hatch", "seda", "suv", "picape"] as const satisfies readonly CarroceriaDoRepasse[];
+/**
+ * As que o formulário oferece; "Qualquer carro" (antes "Tanto faz") é a lista
+ * vazia (decisão 9). A moto entrou em 02/10, e só casa com quem a marcou: a
+ * lista vazia é qualquer CARRO (`inscritosQueCombinam`).
+ */
+export const CARROCERIAS_DA_LISTA = ["hatch", "seda", "suv", "picape", "moto"] as const satisfies readonly CarroceriaDoRepasse[];
 export type CarroceriaDaLista = (typeof CARROCERIAS_DA_LISTA)[number];
 
 /** O texto que a equipe lê no Kanban (decisão 10): sem CNPJ, faixa nem tipos. */

@@ -292,7 +292,9 @@ describe("o carro do estoque, como o seletor do repasse o recebe", () => {
     expect(de("SUV")).toBe("suv");
     expect(de("suv")).toBe("suv");
     expect(de("Picape")).toBe("picape");
-    expect(de("Motocicleta")).toBe("outro");
+    // A moto tem a dela desde 02/10, como no estoque.
+    expect(de("Motocicleta")).toBe("moto");
+    expect(de("MOTOCICLETA")).toBe("moto");
     expect(de("Van")).toBe("outro");
     // Sem tipo no cadastro, nada é inventado: a pessoa escolhe.
     expect(de(null)).toBeNull();

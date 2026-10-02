@@ -29,7 +29,12 @@ export const SITUACOES_DO_REPASSE = [
 ] as const;
 export type SituacaoDoRepasse = (typeof SITUACOES_DO_REPASSE)[number];
 
-export const CARROCERIAS_DO_REPASSE = ["hatch", "seda", "suv", "picape", "outro"] as const;
+/**
+ * A moto entrou em 02/10 ("Moto deve ter sua categoria, assim como no
+ * estoque", dono) — migração 20261002120000_repasse_moto.sql, que alarga a
+ * restrição do carro e a da lista com esta mesma lista.
+ */
+export const CARROCERIAS_DO_REPASSE = ["hatch", "seda", "suv", "picape", "moto", "outro"] as const;
 export type CarroceriaDoRepasse = (typeof CARROCERIAS_DO_REPASSE)[number];
 
 /** As faixas do formulário da lista. Mínimo incluso, teto excluso; `max: null` = sem teto. */

@@ -61,6 +61,16 @@ describe("quem combina", () => {
     ]);
   });
 
+  it("a moto só vai para quem marcou moto: a lista vazia é qualquer carro", () => {
+    const motoAberta = repasseDeTeste({ situacao: "publicado", lojistas_desde: ISO, aberto_ao_publico_em: ISO, carroceria: "moto" });
+    const querMoto = inscrito({ id: "c-5", faixa: "30-50", carrocerias: ["moto"] });
+    const combinam = inscritosQueCombinam(motoAberta, [...TODOS, querMoto], new Set()).combinam.map((c) => c.inscrito.id);
+    // O lojista conferido continua recebendo tudo; a lista vazia (c-4) sai.
+    expect(combinam).toEqual(["l-1", "c-5"]);
+    // E quem marcou moto não recebe carro.
+    expect(inscritosQueCombinam(ABERTO, [querMoto], new Set()).combinam).toEqual([]);
+  });
+
   it("carro que não está publicado não tem quem avisar", () => {
     expect(ids(repasseDeTeste({ situacao: "reservado", lojistas_desde: ISO, reservado_em: ISO }))).toEqual([]);
     expect(ids(repasseDeTeste({ situacao: "rascunho" }))).toEqual([]);
@@ -116,6 +126,13 @@ describe("a mensagem", () => {
       const texto = mensagemDeAvisoDoRepasse(r, { nome: "Ana", trilha: "consumidor" }, url);
       expect(texto).toContain("Entrou no Repasse Motors um carro que combina com o que você procura: Renault Kwid Zen 1.0 2021.");
     }
+  });
+
+  it("para moto, a mensagem diz moto", () => {
+    const moto = repasseDeTeste({ situacao: "publicado", lojistas_desde: ISO, aberto_ao_publico_em: ISO, carroceria: "moto", modelo: "CG 160", versao: "Fan" });
+    expect(mensagemDeAvisoDoRepasse(moto, { nome: "Ana", trilha: "consumidor" }, url)).toContain(
+      "Entrou no Repasse Motors uma moto que combina com o que você procura:",
+    );
   });
 
   it("acima da FIPE, a mensagem não fala em diferença", () => {

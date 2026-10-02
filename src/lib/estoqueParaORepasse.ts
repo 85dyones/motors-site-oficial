@@ -113,9 +113,10 @@ function modeloEVersao(linha: Record<string, unknown>): { modelo: string | null;
 }
 
 /**
- * Hatch → hatch, Sedan → seda, SUV → suv, Picape → picape (o vocabulário de
- * `TIPO_NO_FEED`, lido ao contrário). Outro tipo escrito (Motocicleta, Van)
- * vira "outro"; tipo em branco fica nulo — sem dado, a pessoa escolhe.
+ * Hatch → hatch, Sedan → seda, SUV → suv, Picape → picape, Motocicleta → moto
+ * (o vocabulário de `TIPO_NO_FEED`, lido ao contrário; a moto tem a dela desde
+ * 02/10, como no estoque). Outro tipo escrito (Van, Perua) vira "outro"; tipo
+ * em branco fica nulo — sem dado, a pessoa escolhe.
  */
 export function carroceriaDoTipo(tipo: unknown): CarroceriaDoRepasse | null {
   const t = texto(tipo)?.toLowerCase();

@@ -461,8 +461,9 @@ export const LISTA_DO_REPASSE = {
   whatsapp: "WHATSAPP",
   whatsappExemplo: "(41) 90000-0000",
   faixa: "QUANTO QUER GASTAR",
-  tipo: "TIPO DE CARRO",
-  tantoFaz: "Tanto faz",
+  tipo: "TIPO DE VEÍCULO",
+  // "Qualquer carro", e não "Tanto faz": a lista vazia não recebe moto (02/10).
+  tantoFaz: "Qualquer carro",
   cnpj: "CNPJ",
   cnpjExemplo: "00.000.000/0000-00",
   lojaCidade: "LOJA E CIDADE",
@@ -488,6 +489,7 @@ export const NOME_DA_CARROCERIA: Record<CarroceriaDoRepasse, { rotulo: string; n
   seda: { rotulo: "Sedã", nome: "sedã", genero: "m" },
   suv: { rotulo: "SUV", nome: "SUV", genero: "m" },
   picape: { rotulo: "Picape", nome: "picape", genero: "f" },
+  moto: { rotulo: "Moto", nome: "moto", genero: "f" },
   outro: { rotulo: "Outro", nome: "carro", genero: "m" },
 };
 
@@ -791,7 +793,7 @@ export const ERROS_DO_REPASSE = {
   nome: "Escreva o seu nome.",
   whatsapp: "Informe um WhatsApp com DDD.",
   faixa: "Escolha quanto quer gastar.",
-  carroceria: "Escolha os tipos de carro da lista.",
+  carroceria: "Escolha os tipos de veículo da lista.",
   cnpj: "Confira o CNPJ: os números não fecham.",
   loja: "Escreva o nome da loja e a cidade.",
   carro: "Não achamos este carro no repasse.",

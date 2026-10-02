@@ -262,6 +262,9 @@ describe("o texto que depende do dado", () => {
     expect(pagina.textoDaConfirmacao({ faixa: null, carrocerias: [], comLote: false })).toBe(
       "Quando entrar um carro, ele chega no seu WhatsApp.",
     );
+    expect(pagina.textoDaConfirmacao({ faixa: "ate-30", carrocerias: ["moto"], comLote: false })).toBe(
+      "Quando entrar uma moto até R$ 30 mil, ela chega no seu WhatsApp.",
+    );
   });
 
   it("o card mostra o detalhe de leilão e sinistro até 60 caracteres, e acima disso só 'consta'", () => {
