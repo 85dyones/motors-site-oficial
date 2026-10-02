@@ -1,14 +1,14 @@
 {
-  "_leia": "Lote de 02/10/2026: textos próprios para os hubs que já aparecem no Search Console (bmw seminovo, peugeot 2008 seminovo, citroen seminovo, hb20/hyundai, tiguan, polo, voyage, kwid) e hoje saem com o texto gerado. Escritos com o humanizer na forma escaneável (chamada, abertura, \"### subtítulo\", lista, fechamento). AINDA NÃO GRAVADO em `textos_de_hub`: espera a aprovação do dono. Depois de aprovado, cada item entra em `textos-de-hub-humanizados.json` e vira linha nova na tabela (insert, não update).",
+  "_leia": "Lote de 02/10/2026: textos próprios para os hubs que já aparecem no Search Console (bmw seminovo, peugeot 2008 seminovo, citroen seminovo, hb20/hyundai, tiguan, polo, voyage, kwid) e hoje saem com o texto gerado. Escritos com o humanizer na forma escaneável (chamada, abertura, \"### subtítulo\", lista, fechamento). Aprovado pelo dono em 02/10/2026, com a regra de informar sem argumentar contra o carro, e gravado em `textos_de_hub` como linhas novas (insert, não update).",
   "textos": [
     {
       "caminho": "/carros/bmw",
       "titulo": null,
       "paragrafos": [
-        "BMW usada: o histórico de revisões vale mais que o ano",
-        "Um BMW usado custa bem menos que um novo e entrega o mesmo motor, o mesmo acabamento e a mesma segurança. A manutenção segue a tabela da marca, e por isso o melhor negócio é o exemplar com as revisões em dia.",
+        "BMW usada: comece pelo histórico de revisões",
+        "Um BMW usado custa bem menos que um novo e mantém o motor, o acabamento e a segurança da marca. A manutenção segue a tabela da marca, e por isso o melhor negócio é o exemplar com as revisões em dia.",
         "### O que conferir num BMW usado",
-        "Antes de fechar, confira:\n- Histórico de revisões, com nota. É o que mais pesa no valor do carro.\n- Motor seco por baixo e ponteiro de temperatura estável depois do test drive.\n- Pneus. Muitos modelos usam pneu run flat e não trazem estepe; veja o estado dos quatro.\n- Toda a eletrônica: central, sensores, câmera, vidros e bancos elétricos.",
+        "Antes de fechar, confira:\n- Histórico de revisões, com nota. Pesa no valor do carro.\n- Motor seco por baixo e ponteiro de temperatura estável depois do test drive.\n- Pneus. Muitos modelos usam pneu run flat e não trazem estepe; veja o estado dos quatro.\n- Toda a eletrônica: central, sensores, câmera, vidros e bancos elétricos.",
         "Nenhum carro é anunciado antes da perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Se você já tem um modelo em vista, mande o ano e a versão, e a gente conta como é a manutenção dele."
       ]
     },
@@ -30,7 +30,7 @@
         "Peugeot 2008 usado: o câmbio muda conforme o ano",
         "O 2008 é um SUV compacto com porte de hatch: dirige leve e estaciona fácil. A escolha se decide no conjunto de motor e câmbio, que mudou ao longo dos anos, e na versão THP, turbo, que anda bem mais.",
         "### O que conferir num 2008 usado",
-        "Na visita, confira:\n- Câmbio automático. Nos primeiros anos ele tinha quatro marchas e depois passou a seis; a geração nova, de motor 1.0 turbo, usa CVT. Confirme qual é o do carro e avalie as trocas a frio.\n- Na versão THP, que é turbo com injeção direta, o histórico de óleo no prazo.\n- Parte elétrica: central multimídia, vidros, sensores e ar-condicionado digital.\n- Teto panorâmico, se houver. Veja a cortina e sinais de infiltração.",
+        "Na visita, confira:\n- Câmbio automático. Nos primeiros anos ele tinha quatro marchas e depois passou a seis; a geração nova, de motor 1.0 turbo, usa CVT. Confirme qual é o do carro e avalie as trocas a frio.\n- Na versão THP, que é turbo com injeção direta, o histórico de óleo no prazo.\n- Parte elétrica: central multimídia, vidros, sensores e ar-condicionado digital.\n- Teto panorâmico, se houver. Veja a cortina e a vedação.",
         "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Se não houver 2008 no estoque hoje, diga o que procura, e a loja busca."
       ]
     },
@@ -39,7 +39,7 @@
       "titulo": null,
       "paragrafos": [
         "Citroën usado entrega mais carro pelo mesmo dinheiro",
-        "O Citroën usado costuma custar menos que os rivais de maior volume e trazer mais equipamento pelo mesmo preço. A mecânica é a mesma da Peugeot, o que ajuda na oferta de peças e de oficinas.",
+        "O Citroën usado costuma custar menos que os rivais de maior volume e trazer mais equipamento pelo mesmo preço. A mecânica é a mesma da Peugeot, o que ajuda na oferta de peças.",
         "### O que conferir num Citroën usado",
         "Confira com calma:\n- Parte elétrica, item por item: vidros, travas, painel, central e sensores.\n- Câmbio automático, com as trocas avaliadas a frio e a quente.\n- Suspensão dianteira e coxins, sem ruído em piso irregular.\n- Se as revisões acompanharam a quilometragem.",
         "Nenhum carro é anunciado antes da perícia independente, e o laudo fica com o vendedor, que mostra a quem pedir. Pergunte pelo histórico de manutenção antes de vir. Se não houver Citroën no estoque hoje, diga o que procura, e a loja busca."
@@ -50,7 +50,7 @@
       "titulo": null,
       "paragrafos": [
         "Hyundai usado: HB20 e Creta de um lado, o resto da linha do outro",
-        "A linha da Hyundai tem dois perfis. O HB20 e o Creta são carros de volume, com peça fácil e boa revenda. Os de menor volume, como i30, Tucson, ix35 e Santa Fe, entregam mais conforto e espaço, com peças menos comuns que as dos dois primeiros.",
+        "A linha da Hyundai tem dois perfis. O HB20 e o Creta são carros de volume, com peça fácil e boa revenda. Os de menor volume, como i30, Tucson, ix35 e Santa Fe, entregam mais conforto, com peças menos comuns que as dos dois primeiros.",
         "### O que conferir num Hyundai usado",
         "Na visita, confira:\n- Histórico de troca de óleo no prazo, que é o que conserva o motor turbo.\n- Câmbio automático em arrancada e em rampa.\n- Nos modelos de menor volume, o histórico de manutenção, que mostra como o carro foi cuidado.\n- Central multimídia e ar-condicionado.",
         "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor para quem pedir. Diga no WhatsApp qual modelo te interessa, e a gente manda as fotos reais e o laudo antes de você se deslocar."
@@ -63,7 +63,7 @@
         "Tiguan usada: a primeira geração e a Allspace são carros diferentes",
         "A Tiguan vendida até 2017 é um SUV médio de cinco lugares, quase sempre com motor 2.0 turbo e tração integral. A Allspace, que veio depois, é maior e pode levar sete pessoas. Nas duas, o histórico de manutenção com nota é o que valoriza o carro.",
         "### O que conferir numa Tiguan usada",
-        "Antes de fechar, confira:\n- Histórico de óleo do motor TSI, com as trocas no prazo.\n- Câmbio. A 2.0 da primeira geração usa automático convencional; a 1.4 e a Allspace, dupla embreagem. Teste em manobra, rampa e trânsito lento.\n- Tração integral: pergunte pela troca de óleo do sistema no histórico.\n- Teto solar panorâmico, se houver. Veja abertura, ruído e sinais de infiltração.",
+        "Antes de fechar, confira:\n- Histórico de óleo do motor TSI, com as trocas no prazo.\n- Câmbio. A 2.0 da primeira geração usa automático convencional; a 1.4 e a Allspace, dupla embreagem. Teste em manobra, rampa e trânsito lento.\n- Tração integral: pergunte pela troca de óleo do sistema no histórico.\n- Teto solar panorâmico, se houver. Veja abertura, ruído e vedação.",
         "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Mande o ano que te interessa, e a gente diz qual versão é e envia o laudo. Se não houver Tiguan no estoque hoje, diga o que procura, e a loja busca."
       ]
     },
@@ -85,7 +85,7 @@
         "Voyage usado: sedã simples, de mecânica conhecida",
         "O Voyage é o sedã do Gol: mesma mecânica, peça em qualquer autopeça e porta-malas grande. Por isso é escolha comum de quem roda muito, e o registro das revisões diz mais sobre o carro que o ano ou a quilometragem.",
         "### O que conferir num Voyage usado",
-        "Na visita, confira:\n- Se a quilometragem combina com o desgaste do volante, dos pedais e do banco do motorista.\n- Embreagem e câmbio. Pergunte se é manual, automatizado I-Motion ou o automático de seis marchas dos últimos anos do 1.6, e dirija para sentir as trocas.\n- Suspensão traseira e assoalho do porta-malas.\n- Ar-condicionado e vidros elétricos.",
+        "Na visita, confira:\n- Estado do volante, dos pedais e do banco do motorista.\n- Embreagem e câmbio. Pergunte se é manual, automatizado I-Motion ou o automático de seis marchas dos últimos anos do 1.6, e dirija para sentir as trocas.\n- Suspensão traseira e assoalho do porta-malas.\n- Ar-condicionado e vidros elétricos.",
         "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor; é só pedir. Se não houver Voyage no estoque hoje, diga o que procura, e a loja busca."
       ]
     },
@@ -94,10 +94,10 @@
       "titulo": null,
       "paragrafos": [
         "Kwid usado: carro de cidade, barato de rodar",
-        "O Kwid a combustão é pequeno, leve e alto do chão, com motor 1.0 de três cilindros e câmbio manual. Gasta pouco com combustível e peça, cabe em vaga apertada e passa com folga por lombada e valeta.",
+        "O Kwid a combustão é pequeno, leve e alto do chão, com motor 1.0 de três cilindros e câmbio manual. Gasta pouco com combustível e peça, cabe em vaga apertada e passa bem por lombada e valeta.",
         "### O que conferir num Kwid usado",
-        "Na visita, confira:\n- Embreagem e câmbio, com engates macios.\n- Buchas e amortecedores, sem ruído em piso irregular.\n- Ar-condicionado gelando e vidros elétricos funcionando.\n- Registro das revisões. Se o carro veio de locadora ou de aplicativo, ele costuma existir e conta a vida do carro.",
-        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Venha dirigir no trânsito do fim da tarde, que é onde ele vai passar a maior parte da vida. Se não houver Kwid no estoque hoje, diga o que procura, e a loja busca."
+        "Na visita, confira:\n- Embreagem e câmbio, com engates macios.\n- Buchas e amortecedores, sem ruído em piso irregular.\n- Ar-condicionado gelando e, se houver, vidros elétricos funcionando.\n- Registro das revisões, que conta a vida do carro.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Venha dirigir no trânsito do fim da tarde, que é onde ele se sai melhor. Se não houver Kwid no estoque hoje, diga o que procura, e a loja busca."
       ]
     }
   ]

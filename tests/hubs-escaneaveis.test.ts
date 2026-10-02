@@ -93,8 +93,8 @@ const { textos } = JSON.parse(
   readFileSync(join(__dirname, "..", "conteudo-seo", "textos-de-hub-humanizados.json"), "utf8"),
 ) as { textos: Texto[] };
 
-// O lote que espera a aprovação do dono (02/10/2026) passa pela mesma régua
-// antes de ser gravado.
+// O lote aprovado pelo dono em 02/10/2026 (hubs com procura no Search
+// Console) passa pela mesma régua.
 const { textos: loteProcura } = JSON.parse(
   readFileSync(join(__dirname, "..", "conteudo-seo", "textos-de-hub-lote-procura.json"), "utf8"),
 ) as { textos: Texto[] };

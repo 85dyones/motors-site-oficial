@@ -220,10 +220,13 @@ export const PAGINAS_GEO: PaginaGeo[] = [
      *   · o caminho pela Avenida Paraná, sem citar ônibus nem terminal. O dono
      *     pediu (02/10): transporte data o texto, porque o estoque e o público
      *     mudam. A página fala da facilidade do acesso, e só;
-     *   · o "o que olhar" é o do carro de trajeto curto, que é o uso de quem
+     *   · o "o que olhar" é o do carro que rodou pouco, que é o uso de quem
      *     mora e trabalha nesses bairros (Curitiba fala de maresia e partida
-     *     fria; o Bacacheri, do que a proximidade deixa conferir);
+     *     fria; o Bacacheri, do que a proximidade deixa conferir). Diz o que
+     *     conferir sem listar desgaste: o dono pediu que o texto informe sem
+     *     argumentar contra o carro (02/10);
      *   · a garagem de prédio: rampa e vaga se testam no próprio test drive.
+     *     O dono confirmou em 02/10 que a loja faz isso nessa região.
      *
      * Uma página para os dois bairros, e não duas: o caminho e o argumento são
      * os mesmos, e duas páginas com o nome trocado seriam a doorway que o
@@ -253,7 +256,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
         "para ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
       "### Como chegar do Cabral e do Boa Vista",
-      "- Do Cabral: siga pela Avenida Paraná no sentido do bairro. São cerca de dois " +
+      "- Do Cabral: siga pela Avenida Paraná no sentido Boa Vista. São poucos " +
         "quilômetros.\n" +
         "- Do Boa Vista: a loja fica no bairro ao lado, o Bacacheri, perto da Avenida Paraná.\n" +
         `- No mapa: procure por Motors Store ou pelo endereço, ${ENDERECO}.`,
@@ -267,7 +270,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "A loja fica longe do Cabral?",
         resposta:
-          "Não. Pela Avenida Paraná são cerca de dois quilômetros, sem passar pelo Centro.",
+          "Não. Pela Avenida Paraná são poucos quilômetros, sem passar pelo Centro.",
       },
       {
         pergunta: "Posso passar pela minha garagem no test drive?",
