@@ -340,10 +340,10 @@ export const PAGINAS_GEO: PaginaGeo[] = [
     ],
     faq: [
       {
-        pergunta: "A Motors Store tem loja em Colombo?",
+        pergunta: "Para quem vem de Colombo, a loja fica antes ou depois do trevo do Atuba?",
         resposta:
-          `Não. A loja fica em Curitiba, na ${ENDERECO}, no Bacacheri, a menos de meia hora de ` +
-          "Colombo pela Estrada da Ribeira ou pela Rodovia da Uva.",
+          "Depois. Passando o trevo você já está em Curitiba, e o Bacacheri fica a um trecho " +
+          `curto dali, na ${ENDERECO}.`,
       },
       {
         pergunta: "Vocês entregam o carro em Colombo?",
@@ -370,7 +370,8 @@ export const PAGINAS_GEO: PaginaGeo[] = [
      * Pinhais (02/10/2026). Próprio desta: a divisa pelo Bairro Alto, e a
      * troca (trazer o usado na mesma viagem e o que deixar à mão). A lista é
      * conselho a quem vende, e não descrição do processo da loja: a Avaliação
-     * Express segue dita como em `paginasInstitucionais.ts`.
+     * Express segue o fluxo de `paginasInstitucionais.ts` (formulário, retorno
+     * pelo WhatsApp, valor aprovado).
      */
     slug: "seminovos-pinhais",
     nome: "Pinhais",
