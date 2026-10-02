@@ -93,12 +93,23 @@ const { textos } = JSON.parse(
   readFileSync(join(__dirname, "..", "conteudo-seo", "textos-de-hub-humanizados.json"), "utf8"),
 ) as { textos: Texto[] };
 
+// O lote que espera a aprovação do dono (02/10/2026) passa pela mesma régua
+// antes de ser gravado.
+const { textos: loteProcura } = JSON.parse(
+  readFileSync(join(__dirname, "..", "conteudo-seo", "textos-de-hub-lote-procura.json"), "utf8"),
+) as { textos: Texto[] };
+
 describe("os 31 textos da loja na forma escaneável", () => {
   it("são os 31 caminhos", () => {
     expect(textos).toHaveLength(31);
   });
 
-  for (const { caminho, paragrafos: p } of textos) {
+  it("o lote novo não repete caminho que já tem texto", () => {
+    const jaTem = new Set(textos.map((t) => t.caminho));
+    expect(loteProcura.filter((t) => jaTem.has(t.caminho))).toEqual([]);
+  });
+
+  for (const { caminho, paragrafos: p } of [...textos, ...loteProcura]) {
     it(caminho, () => {
       expect(p.length).toBeGreaterThanOrEqual(4);
       expect(p[0].startsWith("###"), "p[0] é a chamada").toBe(false);

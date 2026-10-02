@@ -20,8 +20,6 @@ import { PAGINAS_GEO, CAMINHOS_GEO, acharPaginaGeo } from "../src/lib/paginasGeo
  * cada página diz coisa própria, e cada uma ensina alguma coisa.
  */
 
-const curitiba = acharPaginaGeo("seminovos-curitiba")!;
-const bacacheri = acharPaginaGeo("seminovos-bacacheri")!;
 
 /** As palavras de uma página, sem as curtas que toda frase tem. */
 const palavras = (p: (typeof PAGINAS_GEO)[number]) =>
@@ -50,16 +48,26 @@ describe("as duas páginas geo existem e se acham", () => {
   });
 });
 
+/** Todos os pares de páginas, cada um uma vez. Com três páginas são três. */
+const PARES = PAGINAS_GEO.flatMap((a, i) => PAGINAS_GEO.slice(i + 1).map((b) => [a, b] as const));
+
 describe("cada página diz coisa própria — não é doorway", () => {
-  it("menos de metade do vocabulário é compartilhado", () => {
+  it("menos de metade do vocabulário é compartilhado, em todo par", () => {
     // Duas páginas sobre a mesma loja compartilham vocabulário de propósito
     // ("perícia", "estoque", "financiamento"). O que não pode é a maior parte
     // do texto ser a mesma com o nome do bairro trocado.
-    const a = palavras(curitiba);
-    const b = palavras(bacacheri);
-    const comuns = [...a].filter((w) => b.has(w)).length;
-    const proporcao = comuns / Math.min(a.size, b.size);
-    expect(proporcao, `${comuns} palavras em comum`).toBeLessThan(0.5);
+    //
+    // Até 02/10/2026 a medida era só Curitiba × Bacacheri, pelos nomes. Com a
+    // terceira página ela passou a valer para qualquer par: a quarta entra na
+    // régua sem ninguém lembrar de acrescentá-la aqui.
+    expect(PARES.length).toBeGreaterThanOrEqual(3);
+    for (const [x, y] of PARES) {
+      const a = palavras(x);
+      const b = palavras(y);
+      const comuns = [...a].filter((w) => b.has(w)).length;
+      const proporcao = comuns / Math.min(a.size, b.size);
+      expect(proporcao, `${x.slug} × ${y.slug}: ${comuns} palavras em comum`).toBeLessThan(0.5);
+    }
   });
 
   it("nenhum parágrafo é PARECIDO com o de outra página", () => {
@@ -86,23 +94,27 @@ describe("cada página diz coisa própria — não é doorway", () => {
         else acc.push(p);
         return acc;
       }, []);
-    for (const b of blocos(bacacheri.paragrafos)) {
-      const daqui = termos(b);
-      for (const c of blocos(curitiba.paragrafos)) {
-        const dali = termos(c);
-        const comuns = [...daqui].filter((w) => dali.has(w)).length;
-        const razao = comuns / Math.min(daqui.size, dali.size);
-        expect(razao, `"${b.slice(0, 50)}…" ≈ "${c.slice(0, 50)}…"`).toBeLessThan(0.45);
+    for (const [x, y] of PARES) {
+      for (const b of blocos(x.paragrafos)) {
+        const daqui = termos(b);
+        for (const c of blocos(y.paragrafos)) {
+          const dali = termos(c);
+          const comuns = [...daqui].filter((w) => dali.has(w)).length;
+          const razao = comuns / Math.min(daqui.size, dali.size);
+          expect(razao, `${x.slug} "${b.slice(0, 50)}…" ≈ ${y.slug} "${c.slice(0, 50)}…"`).toBeLessThan(0.45);
+        }
       }
     }
   });
 
-  it("nenhuma pergunta do FAQ se repete entre as duas", () => {
+  it("nenhuma pergunta do FAQ se repete entre páginas", () => {
     // `FAQPage` duplicado em duas URLs do mesmo site é sinal contraditório: as
     // duas pedem a mesma resposta direta na busca, e o Google escolhe uma.
-    const daCuritiba = new Set(curitiba.faq.map((f) => f.pergunta.toLowerCase()));
-    for (const f of bacacheri.faq) {
-      expect(daCuritiba.has(f.pergunta.toLowerCase()), f.pergunta).toBe(false);
+    for (const [x, y] of PARES) {
+      const daX = new Set(x.faq.map((f) => f.pergunta.toLowerCase()));
+      for (const f of y.faq) {
+        expect(daX.has(f.pergunta.toLowerCase()), `${x.slug} × ${y.slug}: ${f.pergunta}`).toBe(false);
+      }
     }
   });
 });

@@ -6,7 +6,7 @@ import { getCachedSettings } from "../lib/settings";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../lib/hubsDeEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDePerguntas, schemaDeTrilha } from "../lib/schemaListagem";
 import { schemaDaLoja, schemaDoSite } from "../lib/schemaLoja";
-import type { PaginaGeo } from "../lib/paginasGeo";
+import { PAGINAS_GEO, type PaginaGeo } from "../lib/paginasGeo";
 
 /**
  * O corpo das duas páginas geográficas.
@@ -58,6 +58,17 @@ export default async function PaginaGeoView({ pagina }: { pagina: PaginaGeo }) {
         blocos={[
           { titulo: "Por carroceria", links: carrocerias.map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })) },
           { titulo: "Por marca", links: marcas.map((m) => ({ rotulo: m.nome, href: `/carros/${m.slug}`, total: m.veiculos.length })) },
+          // As páginas de região se apontam entre si (02/10/2026). Até aqui
+          // nenhuma página do site linkava para elas: só o sitemap as
+          // anunciava, e o Search Console mostrava `/seminovos-bacacheri` como
+          // "detectada, mas não indexada".
+          {
+            titulo: "Outras regiões",
+            links: PAGINAS_GEO.filter((p) => p.slug !== pagina.slug).map((p) => ({
+              rotulo: p.nome,
+              href: `/${p.slug}`,
+            })),
+          },
         ]}
         guias={
           pagina.slug === "seminovos-curitiba"

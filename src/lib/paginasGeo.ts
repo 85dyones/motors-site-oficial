@@ -2,7 +2,7 @@ import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque"
 import { ALCANCE_DA_ENTREGA } from "./paginasInstitucionais";
 
 /**
- * As duas páginas de bairro/cidade — e por que são só duas.
+ * As páginas de bairro/cidade — e por que são poucas (três desde 02/10/2026).
  *
  * O plano de aquisição (§2.2.2) pede páginas geográficas como P0: o comprador
  * de Curitiba pesquisa por bairro e por eixo viário, não por cidade, e o site
@@ -28,7 +28,7 @@ import { ALCANCE_DA_ENTREGA } from "./paginasInstitucionais";
 
 export interface PaginaGeo {
   /** Segmento único da URL — a pasta em `src/app` tem o mesmo nome. */
-  slug: "seminovos-curitiba" | "seminovos-bacacheri";
+  slug: "seminovos-curitiba" | "seminovos-bacacheri" | "seminovos-boa-vista";
   /** Como aparece no `<h1>` e na trilha. */
   nome: string;
   tituloSeo: string;
@@ -206,6 +206,88 @@ export const PAGINAS_GEO: PaginaGeo[] = [
           "Compramos. A Avaliação Express devolve uma proposta pelo WhatsApp e vale tanto " +
           "para troca quanto para venda direta. Nem todo carro avaliado entra no estoque, e " +
           "quando não entra a gente diz por quê.",
+      },
+    ],
+  },
+  {
+    /**
+     * A terceira (02/10/2026), pedida pelo dono: Boa Vista e Cabral, os dois
+     * bairros colados no Bacacheri pela Avenida Paraná.
+     *
+     * O risco declarado era repetir a página do Bacacheri. O que esta tem de
+     * próprio, e as outras duas não dizem:
+     *   · a loja fica a poucos minutos a pé do Terminal Boa Vista (medido no
+     *     mapa: cerca de 220 m em linha reta), então dá para vir de ônibus e
+     *     voltar dirigindo;
+     *   · o "o que olhar" é o do carro de trajeto curto, que é o uso de quem
+     *     mora e trabalha nesses bairros (Curitiba fala de maresia e partida
+     *     fria; o Bacacheri, do que a proximidade deixa conferir);
+     *   · a garagem de prédio: rampa e vaga se testam no próprio test drive.
+     *
+     * Uma página para os dois bairros, e não duas: o caminho e o argumento são
+     * os mesmos, e duas páginas com o nome trocado seriam a doorway que o
+     * comentário do topo proíbe.
+     */
+    slug: "seminovos-boa-vista",
+    nome: "Boa Vista e Cabral",
+    titulo: "Seminovos no Boa Vista e no Cabral",
+    tituloSeo: "Seminovos no Boa Vista e no Cabral, Curitiba | Motors Store",
+    descricao:
+      `Loja de carros seminovos perto do Terminal Boa Vista, em Curitiba: ${ENDERECO}. Perícia ` +
+      "cautelar independente em todo o estoque, avaliação do seu usado e financiamento.",
+    paragrafos: [
+      `A Motors Store fica na ${ENDERECO}, a poucos minutos a pé do Terminal Boa Vista. Quem ` +
+        "mora no Boa Vista ou no Cabral chega pela Avenida Paraná, de carro ou de ônibus, e " +
+        "quem fecha negócio volta para casa dirigindo.",
+      "### O que olhar num carro que só rodou no bairro",
+      "Carro de quem mora e trabalha perto roda pouco e quase sempre em trajeto curto, com o " +
+        "motor ainda frio. O hodômetro baixo esconde esse uso. Confira:\n" +
+        "- Bateria e partida. Trajeto curto não dá tempo de recarregar a bateria.\n" +
+        "- A data da última troca de óleo. Em carro que roda pouco, o óleo vence pelo tempo " +
+        "antes de vencer pela quilometragem.\n" +
+        "- Embreagem e freios, que trabalham mais no anda e para do que em estrada.\n" +
+        "- Escapamento. A água da condensação que nunca chega a evaporar acelera a ferrugem.",
+      "### A rampa e a vaga do seu prédio",
+      "Muito prédio do Cabral e do Boa Vista tem rampa íngreme e vaga apertada. Como a loja " +
+        "é perto, combine com o vendedor para o test drive passar pela sua garagem: dá para " +
+        "ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
+      "### Como chegar do Cabral e do Boa Vista",
+      "- Do Cabral: pela Avenida Paraná, no sentido do bairro, até a altura do Terminal Boa " +
+        "Vista. São pouco mais de dois quilômetros desde o Terminal Cabral.\n" +
+        "- Do Boa Vista: a loja fica a poucos minutos a pé do terminal, já no Bacacheri.\n" +
+        "- De ônibus: as linhas da Avenida Paraná que param no Terminal Boa Vista deixam você " +
+        "perto da loja.",
+    ],
+    faq: [
+      {
+        pergunta: "A Motors Store fica no Boa Vista ou no Bacacheri?",
+        resposta:
+          `No Bacacheri, na ${ENDERECO}, a poucos minutos a pé do Terminal Boa Vista.`,
+      },
+      {
+        pergunta: "Dá para ir de ônibus do Cabral até a loja?",
+        resposta:
+          "Dá. As linhas da Avenida Paraná que saem do Terminal Cabral e param no Terminal Boa " +
+          "Vista deixam você a poucos minutos a pé da loja.",
+      },
+      {
+        pergunta: "Posso passar pela minha garagem no test drive?",
+        resposta:
+          "Pode, combinando antes com o vendedor. Para quem mora no Boa Vista ou no Cabral o " +
+          "desvio é curto, e é o jeito de saber se o carro passa na rampa e cabe na vaga.",
+      },
+      {
+        pergunta: "Carro com pouca quilometragem, usado só no bairro, é melhor compra?",
+        resposta:
+          "Depende de como foi mantido. Trajeto curto com motor frio gasta bateria, óleo e " +
+          "escapamento de um jeito que o hodômetro não mostra. Peça a data das trocas de óleo " +
+          "junto com a quilometragem.",
+      },
+      {
+        pergunta: "Dá para ver o carro no sábado?",
+        resposta:
+          `Dá. A loja abre ${HORARIO}. Avisando antes pelo WhatsApp, o veículo já fica ` +
+          "separado para o test drive.",
       },
     ],
   },
