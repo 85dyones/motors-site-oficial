@@ -141,6 +141,8 @@ export default async function GuiaPage({ params }: PageProps) {
   const doisDigitos = (n: number) => String(n).padStart(2, "0");
   const tema = temaDoGuia(guia.slug);
   const minutos = minutosDeLeitura(guia);
+  // Sem a barra final e sem parâmetros: "/estoque/" e "/estoque?x" são o mesmo destino.
+  const saidaEhOEstoque = guia.saida.href.split(/[?#]/)[0].replace(/\/+$/, "") === "/estoque";
 
   // "Continue lendo": os próximos do mesmo tema, e só os que estão no ar. A
   // lista vem do banco para trazer a descrição; se essa leitura falhar, o guia
@@ -423,7 +425,9 @@ export default async function GuiaPage({ params }: PageProps) {
 
       {/* A saída comercial. Guia sem destino é conteúdo que não devolve nada. */}
       <section className="bg-mt-inverso-fundo px-[18px] py-10 text-mt-inverso lg:px-10 lg:py-14">
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Quando a saída do guia JÁ é o estoque, o segundo botão levaria ao
+            mesmo lugar (visto pelo dono em 02/10): fica um só. */}
+        <div className={`grid gap-4 ${saidaEhOEstoque ? "max-w-[720px]" : "md:grid-cols-2"}`}>
           <Link
             href={guia.saida.href}
             className="mt-foco group flex flex-col gap-2 bg-mt-accent-hover p-6 text-mt-inverso no-underline hover:opacity-90"
@@ -431,15 +435,17 @@ export default async function GuiaPage({ params }: PageProps) {
             <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">{guia.saida.rotulo} <span aria-hidden="true">→</span></span>
             <span className="text-[14px] leading-relaxed lg:text-[15px]">{guia.saida.apoio}</span>
           </Link>
-          <Link
-            href="/estoque"
-            className="mt-foco group flex flex-col gap-2 p-6 text-mt-inverso no-underline shadow-[inset_0_0_0_2px_var(--mt-inverso-regua)] hover:shadow-[inset_0_0_0_2px_var(--mt-inverso-texto)]"
-          >
-            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">Ver o estoque <span aria-hidden="true">→</span></span>
-            <span className="text-[14px] leading-relaxed text-mt-inverso-suave lg:text-[15px]">
-              O que entrou depois da perícia. O laudo é só pedir ao vendedor, a qualquer tempo.
-            </span>
-          </Link>
+          {!saidaEhOEstoque && (
+            <Link
+              href="/estoque"
+              className="mt-foco group flex flex-col gap-2 p-6 text-mt-inverso no-underline shadow-[inset_0_0_0_2px_var(--mt-inverso-regua)] hover:shadow-[inset_0_0_0_2px_var(--mt-inverso-texto)]"
+            >
+              <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">Ver o estoque <span aria-hidden="true">→</span></span>
+              <span className="text-[14px] leading-relaxed text-mt-inverso-suave lg:text-[15px]">
+                O que entrou depois da perícia. O laudo é só pedir ao vendedor, a qualquer tempo.
+              </span>
+            </Link>
+          )}
         </div>
       </section>
     </div>
