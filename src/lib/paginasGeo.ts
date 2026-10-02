@@ -2,7 +2,7 @@ import type { PerguntaFrequente } from "../components/modernist/PaginaDeEstoque"
 import { ALCANCE_DA_ENTREGA } from "./paginasInstitucionais";
 
 /**
- * As duas páginas de bairro/cidade — e por que são só duas.
+ * As páginas de bairro/cidade — e por que são poucas (três desde 02/10/2026).
  *
  * O plano de aquisição (§2.2.2) pede páginas geográficas como P0: o comprador
  * de Curitiba pesquisa por bairro e por eixo viário, não por cidade, e o site
@@ -28,7 +28,7 @@ import { ALCANCE_DA_ENTREGA } from "./paginasInstitucionais";
 
 export interface PaginaGeo {
   /** Segmento único da URL — a pasta em `src/app` tem o mesmo nome. */
-  slug: "seminovos-curitiba" | "seminovos-bacacheri";
+  slug: "seminovos-curitiba" | "seminovos-bacacheri" | "seminovos-boa-vista";
   /** Como aparece no `<h1>` e na trilha. */
   nome: string;
   tituloSeo: string;
@@ -209,7 +209,104 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       },
     ],
   },
+  {
+    /**
+     * A terceira (02/10/2026): Boa Vista e Cabral, os dois bairros colados no
+     * Bacacheri pela Avenida Paraná. Escolha do dono em 02/10, entre Colombo,
+     * Pinhais, São José dos Pinhais e esta.
+     *
+     * O risco declarado era repetir a página do Bacacheri. O que esta tem de
+     * próprio, e as outras duas não dizem:
+     *   · o caminho pela Avenida Paraná, sem citar ônibus nem terminal. O dono
+     *     pediu (02/10): transporte data o texto, porque o estoque e o público
+     *     mudam. A página fala da facilidade do acesso, e só;
+     *   · o "o que olhar" é o do carro que rodou pouco, que é o uso de quem
+     *     mora e trabalha nesses bairros (Curitiba fala de maresia e partida
+     *     fria; o Bacacheri, do que a proximidade deixa conferir). Diz o que
+     *     conferir sem listar desgaste: o dono pediu que o texto informe sem
+     *     argumentar contra o carro (02/10);
+     *   · a garagem de prédio: rampa e vaga se testam no próprio test drive.
+     *     O dono confirmou em 02/10 que a loja faz isso nessa região.
+     *
+     * Uma página para os dois bairros, e não duas: o caminho e o argumento são
+     * os mesmos, e duas páginas com o nome trocado seriam a doorway que o
+     * comentário do topo proíbe.
+     */
+    slug: "seminovos-boa-vista",
+    nome: "Boa Vista e Cabral",
+    titulo: "Seminovos no Boa Vista e no Cabral",
+    tituloSeo: "Seminovos no Boa Vista e no Cabral, Curitiba | Motors Store",
+    descricao:
+      `Loja de carros seminovos ao lado do Boa Vista, em Curitiba: ${ENDERECO}. Perícia ` +
+      "cautelar independente em todo o estoque, avaliação do seu usado e financiamento.",
+    paragrafos: [
+      `A Motors Store fica na ${ENDERECO}, perto da Avenida Paraná e ao lado do Boa Vista. ` +
+        "Para quem mora no Boa Vista ou no Cabral, dá para ver o carro depois do trabalho e " +
+        "voltar no sábado com a família.",
+      "### O que olhar num carro que só rodou no bairro",
+      "Carro de quem mora e trabalha perto roda pouco, e quilometragem baixa é boa notícia " +
+        "quando a manutenção acompanhou o tempo. Confira:\n" +
+        "- A data da última troca de óleo. Em carro que roda pouco, a troca se faz pelo " +
+        "calendário, não pela quilometragem.\n" +
+        "- Bateria e partida, com o motor frio.\n" +
+        "- Embreagem e freios, que trabalham mais na cidade do que em estrada.\n" +
+        "- Pneus, pela data de fabricação além do desgaste.",
+      "### A rampa e a vaga do seu prédio",
+      "Se o seu prédio tem rampa íngreme ou vaga apertada, a proximidade resolve a dúvida " +
+        "antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
+        "para ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
+      "### Como chegar do Cabral e do Boa Vista",
+      "- Do Cabral: siga pela Avenida Paraná no sentido Boa Vista. São poucos " +
+        "quilômetros.\n" +
+        "- Do Boa Vista: a loja fica no bairro ao lado, o Bacacheri, perto da Avenida Paraná.\n" +
+        `- No mapa: procure por Motors Store ou pelo endereço, ${ENDERECO}.`,
+    ],
+    faq: [
+      {
+        pergunta: "A Motors Store fica no Boa Vista ou no Bacacheri?",
+        resposta:
+          `No Bacacheri, na ${ENDERECO}, perto da Avenida Paraná e ao lado do Boa Vista.`,
+      },
+      {
+        pergunta: "A loja fica longe do Cabral?",
+        resposta:
+          "Não. Pela Avenida Paraná são poucos quilômetros, sem passar pelo Centro.",
+      },
+      {
+        pergunta: "Posso passar pela minha garagem no test drive?",
+        resposta:
+          "Pode, combinando antes com o vendedor. Para quem mora no Boa Vista ou no Cabral o " +
+          "desvio é curto, e é o jeito de saber se o carro passa na rampa e cabe na vaga.",
+      },
+      {
+        pergunta: "Carro com pouca quilometragem, usado só no bairro, é melhor compra?",
+        resposta:
+          "É, quando a manutenção acompanhou o tempo. Peça a data das trocas de óleo junto " +
+          "com a quilometragem: em carro que roda pouco, a troca se faz pelo calendário.",
+      },
+      {
+        pergunta: "Dá para ver o carro no sábado?",
+        resposta:
+          `Dá. A loja abre ${HORARIO}. Avisando antes pelo WhatsApp, o veículo já fica ` +
+          "separado para o test drive.",
+      },
+    ],
+  },
 ];
+
+/**
+ * Os links de uma página de região para as outras (02/10/2026).
+ *
+ * O rótulo é o título da página ("Seminovos em Curitiba"), e não o nome solto
+ * do lugar: é a âncora que diz para onde o link leva, e são os únicos links
+ * que essas páginas trocam entre si.
+ */
+export function outrasRegioes(slug: PaginaGeo["slug"]): { rotulo: string; href: string }[] {
+  return PAGINAS_GEO.filter((p) => p.slug !== slug).map((p) => ({
+    rotulo: p.titulo,
+    href: `/${p.slug}`,
+  }));
+}
 
 export function acharPaginaGeo(slug: string): PaginaGeo | null {
   return PAGINAS_GEO.find((p) => p.slug === slug) ?? null;

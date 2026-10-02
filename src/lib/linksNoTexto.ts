@@ -208,6 +208,15 @@ export const TERMOS_COM_DESTINO: DestinoNoTexto[] = [
   { termo: "de cada dez que avaliamos, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
   { termo: "de cada dez carros que a loja avalia, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
   { termo: "de cada dez que a Motors Store avalia, três entram", href: "/guias/o-que-reprova-pericia-cautelar" },
+
+  // O bairro da loja (02/10/2026). As páginas de região só eram anunciadas
+  // pelo sitemap: nenhuma página do site linkava para elas, e o Search Console
+  // mostrava `/seminovos-bacacheri` como "detectada, mas não indexada". Os
+  // textos de hub, os guias e os FAQs dizem "Estamos no Bacacheri" e "showroom
+  // do Bacacheri"; a página do bairro é a que responde onde fica e como
+  // chegar. Dela saem os links para as outras regiões (`PaginaGeoView`).
+  // "Curitiba" continua de fora, pela razão do topo desta lista.
+  { termo: "Bacacheri", href: "/seminovos-bacacheri" },
 ];
 
 export interface SegmentoDeTexto {

@@ -127,6 +127,7 @@ describe("a régua de page_type tem uma fonte só, lida de dois lugares", () => 
     "/privacidade",
     "/garantia",
     "/seminovos-bacacheri",
+    "/seminovos-boa-vista",
     "/seminovos-curitiba",
     "/carros/jeep",
     "/carros/jeep/renegade",

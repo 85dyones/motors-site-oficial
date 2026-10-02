@@ -557,6 +557,11 @@ export default function PaginaDeEstoque({
             classificou o estoque, "Modelos" numa marca recém-chegada. Mesma
             regra que a home já aplica às faixas de reputação e Instagram. */}
         {blocos
+          // O destino que o TEXTO da página já linkou não volta como chip: é a
+          // mesma régua dos cards de guia (um link por destino). Vale para o
+          // bloco "Outras regiões", em que "Bacacheri" no texto já leva à
+          // página do bairro (02/10/2026).
+          .map((bloco) => ({ ...bloco, links: bloco.links.filter((l) => !destinosDoTexto.has(l.href)) }))
           .filter((bloco) => bloco.links.length > 0)
           .map((bloco) => (
           <section key={bloco.titulo} className="border-t-2 border-mt-regua py-6">

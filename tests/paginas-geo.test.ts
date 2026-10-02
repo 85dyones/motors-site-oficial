@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { PAGINAS_GEO, CAMINHOS_GEO, acharPaginaGeo } from "../src/lib/paginasGeo";
+import { PAGINAS_GEO, CAMINHOS_GEO, acharPaginaGeo, outrasRegioes } from "../src/lib/paginasGeo";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { segmentarComLinks } from "../src/lib/linksNoTexto";
 
 /**
- * As duas páginas de cidade e bairro — e a linha que separa uma delas de uma
+ * As páginas de cidade e bairro — e a linha que separa uma delas de uma
  * página doorway.
  *
  * O arquivo que elas moram já escreve o risco: *"não transformar isto num
@@ -20,8 +23,6 @@ import { PAGINAS_GEO, CAMINHOS_GEO, acharPaginaGeo } from "../src/lib/paginasGeo
  * cada página diz coisa própria, e cada uma ensina alguma coisa.
  */
 
-const curitiba = acharPaginaGeo("seminovos-curitiba")!;
-const bacacheri = acharPaginaGeo("seminovos-bacacheri")!;
 
 /** As palavras de uma página, sem as curtas que toda frase tem. */
 const palavras = (p: (typeof PAGINAS_GEO)[number]) =>
@@ -35,8 +36,8 @@ const palavras = (p: (typeof PAGINAS_GEO)[number]) =>
       .filter((w) => w.length > 4),
   );
 
-describe("as duas páginas geo existem e se acham", () => {
-  it("são exatamente duas, e o sitemap anuncia as duas", () => {
+describe("as páginas geo existem e se acham", () => {
+  it("são de duas a seis, e o sitemap anuncia todas", () => {
     // O limite prático do §2.2.2 é seis, e cada uma custa texto de verdade.
     // Passar de duas sem esta trava falhar significa que alguém escreveu a
     // terceira à mão — que é o caminho certo. Passar dos seis, não.
@@ -50,16 +51,26 @@ describe("as duas páginas geo existem e se acham", () => {
   });
 });
 
+/** Todos os pares de páginas, cada um uma vez. Com três páginas são três. */
+const PARES = PAGINAS_GEO.flatMap((a, i) => PAGINAS_GEO.slice(i + 1).map((b) => [a, b] as const));
+
 describe("cada página diz coisa própria — não é doorway", () => {
-  it("menos de metade do vocabulário é compartilhado", () => {
+  it("menos de metade do vocabulário é compartilhado, em todo par", () => {
     // Duas páginas sobre a mesma loja compartilham vocabulário de propósito
     // ("perícia", "estoque", "financiamento"). O que não pode é a maior parte
     // do texto ser a mesma com o nome do bairro trocado.
-    const a = palavras(curitiba);
-    const b = palavras(bacacheri);
-    const comuns = [...a].filter((w) => b.has(w)).length;
-    const proporcao = comuns / Math.min(a.size, b.size);
-    expect(proporcao, `${comuns} palavras em comum`).toBeLessThan(0.5);
+    //
+    // Até 02/10/2026 a medida era só Curitiba × Bacacheri, pelos nomes. Com a
+    // terceira página ela passou a valer para qualquer par: a quarta entra na
+    // régua sem ninguém lembrar de acrescentá-la aqui.
+    expect(PARES.length).toBeGreaterThanOrEqual(3);
+    for (const [x, y] of PARES) {
+      const a = palavras(x);
+      const b = palavras(y);
+      const comuns = [...a].filter((w) => b.has(w)).length;
+      const proporcao = comuns / Math.min(a.size, b.size);
+      expect(proporcao, `${x.slug} × ${y.slug}: ${comuns} palavras em comum`).toBeLessThan(0.5);
+    }
   });
 
   it("nenhum parágrafo é PARECIDO com o de outra página", () => {
@@ -86,29 +97,33 @@ describe("cada página diz coisa própria — não é doorway", () => {
         else acc.push(p);
         return acc;
       }, []);
-    for (const b of blocos(bacacheri.paragrafos)) {
-      const daqui = termos(b);
-      for (const c of blocos(curitiba.paragrafos)) {
-        const dali = termos(c);
-        const comuns = [...daqui].filter((w) => dali.has(w)).length;
-        const razao = comuns / Math.min(daqui.size, dali.size);
-        expect(razao, `"${b.slice(0, 50)}…" ≈ "${c.slice(0, 50)}…"`).toBeLessThan(0.45);
+    for (const [x, y] of PARES) {
+      for (const b of blocos(x.paragrafos)) {
+        const daqui = termos(b);
+        for (const c of blocos(y.paragrafos)) {
+          const dali = termos(c);
+          const comuns = [...daqui].filter((w) => dali.has(w)).length;
+          const razao = comuns / Math.min(daqui.size, dali.size);
+          expect(razao, `${x.slug} "${b.slice(0, 50)}…" ≈ ${y.slug} "${c.slice(0, 50)}…"`).toBeLessThan(0.45);
+        }
       }
     }
   });
 
-  it("nenhuma pergunta do FAQ se repete entre as duas", () => {
+  it("nenhuma pergunta do FAQ se repete entre páginas", () => {
     // `FAQPage` duplicado em duas URLs do mesmo site é sinal contraditório: as
     // duas pedem a mesma resposta direta na busca, e o Google escolhe uma.
-    const daCuritiba = new Set(curitiba.faq.map((f) => f.pergunta.toLowerCase()));
-    for (const f of bacacheri.faq) {
-      expect(daCuritiba.has(f.pergunta.toLowerCase()), f.pergunta).toBe(false);
+    for (const [x, y] of PARES) {
+      const daX = new Set(x.faq.map((f) => f.pergunta.toLowerCase()));
+      for (const f of y.faq) {
+        expect(daX.has(f.pergunta.toLowerCase()), `${x.slug} × ${y.slug}: ${f.pergunta}`).toBe(false);
+      }
     }
   });
 });
 
 describe("cada página ENSINA alguma coisa — a régua de autoridade", () => {
-  it("as duas trazem verificação mecânica concreta, não só rota e horário", () => {
+  it("todas trazem verificação mecânica concreta, não só rota e horário", () => {
     // O parágrafo "o que olhar" é o que o relatório dos hubs chama de
     // autoridade: *"o parágrafo que só quem mexe com carro escreve"*. Sem ele
     // a página vira folheto de endereço — e folheto de endereço é o que uma
@@ -137,7 +152,7 @@ describe("cada página ENSINA alguma coisa — a régua de autoridade", () => {
     }
   });
 
-  it("o endereço é o mesmo nas duas — NAP divergente é o pior erro de SEO local", () => {
+  it("o endereço é o mesmo em todas — NAP divergente é o pior erro de SEO local", () => {
     // A divergência de NAP do §0.5.6 já apareceu neste site uma vez, entre o
     // rótulo do rodapé e o link do WhatsApp. Duas páginas geo com endereços
     // diferentes seria a mesma falha, num lugar onde ela custa mais.
@@ -172,5 +187,57 @@ describe("o texto geo não põe o repasse no lugar do carro recusado (spec 2026-
     const curitiba = PAGINAS_GEO.find((p) => p.slug === "seminovos-curitiba");
     expect(curitiba, "a página de Curitiba").toBeDefined();
     expect(curitiba!.paragrafos[0]).toMatch(/de cada dez veículos avaliados, três entram\.$/);
+  });
+});
+
+describe("as páginas de região não ficam órfãs (02/10/2026)", () => {
+  // Até aqui só o sitemap as anunciava, e o Search Console mostrava
+  // `/seminovos-bacacheri` como "detectada, mas não indexada".
+  it("cada uma linka para todas as outras, com o título como âncora", () => {
+    for (const p of PAGINAS_GEO) {
+      const links = outrasRegioes(p.slug);
+      expect(links.map((l) => l.href).sort()).toEqual(
+        PAGINAS_GEO.filter((x) => x.slug !== p.slug).map((x) => `/${x.slug}`).sort(),
+      );
+      for (const l of links) expect(l.rotulo).toMatch(/^Seminovos /);
+    }
+  });
+
+  it("a página desenha esse bloco", () => {
+    const fonte = readFileSync(join(__dirname, "..", "src", "components", "PaginaGeoView.tsx"), "utf8");
+    expect(fonte).toMatch(/titulo: "Outras regiões", links: outrasRegioes\(pagina\.slug\)/);
+  });
+
+  it("o resto do site entra por \"Bacacheri\": o termo leva à página do bairro", () => {
+    const partes = segmentarComLinks("Estamos no Bacacheri e aceitamos seu usado na troca.", "/carros/ford/ka", new Set());
+    expect(partes.find((x) => x.href === "/seminovos-bacacheri")?.texto).toBe("Bacacheri");
+    // Na própria página do bairro o termo não vira link para ela mesma.
+    const naPropria = segmentarComLinks("A loja fica no Bacacheri.", "/seminovos-bacacheri", new Set());
+    expect(naPropria.some((x) => x.href === "/seminovos-bacacheri")).toBe(false);
+  });
+});
+
+describe("um link por destino também nos chips de região", () => {
+  it("a página que já linka o Bacacheri no texto não repete o chip", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { default: PaginaDeEstoque } = await import("../src/components/modernist/PaginaDeEstoque");
+    for (const p of PAGINAS_GEO) {
+      const html = renderToStaticMarkup(
+        createElement(PaginaDeEstoque, {
+          trilha: [{ rotulo: "Home", href: "/" }],
+          titulo: p.titulo,
+          veiculos: [],
+          introducao: p.paragrafos,
+          faq: p.faq,
+          caminho: `/${p.slug}`,
+          blocos: [{ titulo: "Outras regiões", links: outrasRegioes(p.slug) }],
+        }),
+      );
+      for (const outra of PAGINAS_GEO.filter((x) => x.slug !== p.slug)) {
+        const vezes = html.split(`href="/${outra.slug}"`).length - 1;
+        expect(vezes, `${p.slug} → ${outra.slug}`).toBe(1);
+      }
+    }
   });
 });

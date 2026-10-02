@@ -38,6 +38,7 @@ describe("as listagens de estoque revalidam juntas", () => {
     const estoque = revalidateDe("src/app/estoque/page.tsx");
     expect(revalidateDe("src/app/seminovos-curitiba/page.tsx")).toBe(estoque);
     expect(revalidateDe("src/app/seminovos-bacacheri/page.tsx")).toBe(estoque);
+    expect(revalidateDe("src/app/seminovos-boa-vista/page.tsx")).toBe(estoque);
     expect(revalidateDe("src/app/page.tsx")).toBe(estoque);
   });
 
