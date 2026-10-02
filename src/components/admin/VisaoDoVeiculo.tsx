@@ -146,9 +146,21 @@ export default function VisaoDoVeiculo({
   // correção de modelo e versão do painel): o cadastro guarda tudo em
   // minúsculas e com a versão colada no modelo, e era assim que a visão
   // mostrava ("chevrolet vectra hatch gt-x 2.0 8v 4p", conferido em 02/10).
+  //
+  // O mapper preenche o que falta ("Sem Marca", "Sem Modelo", versão
+  // "Padrão"), porque o site não pode sair com buraco. Aqui o buraco é
+  // informação: o valor mapeado só entra quando o cadastro tem o campo, e o
+  // que está vazio segue "Não informado".
   const exibido = mapVeiculoDbToVeiculo(v);
-  const { modelo, versao } = modeloEVersaoParaExibir(exibido.modelo, exibido.versao);
-  const nome = [exibido.marca, modelo].filter(Boolean).join(" ") || `Veículo ${v.id}`;
+  const tem = (...campos: Array<string | null | undefined>) => campos.some((c) => Boolean(c?.trim()));
+  const marca = tem(v.marca) ? exibido.marca : "";
+  const par = modeloEVersaoParaExibir(
+    tem(v.modelo, v.modelo_override) ? exibido.modelo : "",
+    tem(v.versao, v.versao_override) ? exibido.versao : "",
+  );
+  const modelo = par.modelo;
+  const versao = par.versao;
+  const nome = [marca, modelo].filter(Boolean).join(" ") || `Veículo ${v.id}`;
 
   const checklist = checklistDoVeiculo(v, { totalDeFotos: fotos.length, podeVerCusto });
   const concluidos = checklist.filter((c) => c.ok).length;
@@ -173,7 +185,7 @@ export default function VisaoDoVeiculo({
       : null;
 
   const carro: Array<[string, string]> = [
-    ["Marca", texto(exibido.marca)],
+    ["Marca", texto(marca)],
     ["Modelo", modelo || NAO_INFORMADO],
     ["Versão", versao || NAO_INFORMADO],
     ["Ano (fabricação/modelo)", [v.ano_fabricacao, v.ano].filter(Boolean).join("/") || NAO_INFORMADO],

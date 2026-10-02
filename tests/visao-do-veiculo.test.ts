@@ -124,6 +124,12 @@ describe("a visão é só leitura", () => {
     const html = await visao(carro({ motor: null, placa: null }), ["comercial"]);
     expect(html).toContain("Não informado");
   });
+
+  it("rascunho sem marca, modelo nem versão: nada de 'Sem Marca' ou 'Padrão' inventado", async () => {
+    const html = await visao(carro({ marca: null, modelo: null, versao: null, estado_cadastro: "rascunho" }), ["comercial"]);
+    expect(html).toMatch(/<h1[^>]*>Veículo 8453942<\/h1>/);
+    expect(html).not.toMatch(/Sem Marca|Sem Modelo|Padrão/);
+  });
 });
 
 describe("as portas do editor valem aqui", () => {
