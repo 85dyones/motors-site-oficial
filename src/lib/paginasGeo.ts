@@ -249,8 +249,11 @@ export const PAGINAS_GEO: PaginaGeo[] = [
      *     O dono confirmou em 02/10 que a loja faz isso nessa região.
      *
      * O Ahú entrou nesta página em 02/10, por decisão do dono: é vizinho do
-     * Cabral, o caminho e o argumento são os mesmos, e uma página só para ele
-     * repetiria esta e passaria do limite de seis.
+     * Cabral, e uma página só para ele repetiria esta e passaria do limite de
+     * seis. Os caminhos do Ahú (Cabral e Avenida Paraná; Rua Holanda até a Rua
+     * Canadá; Rua Nazaré até a Ernesto Piazzetta) são os que o dono ditou. O
+     * test drive pela garagem NÃO vale para o Ahú (dono, 02/10): a seção e a
+     * pergunta dizem Boa Vista e Cabral.
      *
      * Uma página para os bairros, e não uma para cada: o caminho e o argumento são
      * os mesmos, e duas páginas com o nome trocado seriam a doorway que o
@@ -276,13 +279,14 @@ export const PAGINAS_GEO: PaginaGeo[] = [
         "- Embreagem e freios, que trabalham mais na cidade do que em estrada.\n" +
         "- Pneus, pela data de fabricação além do desgaste.",
       "### A rampa e a vaga do seu prédio",
-      "Se o seu prédio tem rampa íngreme ou vaga apertada, a proximidade resolve a dúvida " +
-        "antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
+      "No Boa Vista e no Cabral, se o seu prédio tem rampa íngreme ou vaga apertada, a " +
+        "proximidade resolve a dúvida antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
         "para ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
       "### Como chegar do Cabral, do Ahú e do Boa Vista",
       "- Do Cabral: siga pela Avenida Paraná no sentido Boa Vista. São poucos " +
         "quilômetros.\n" +
-        "- Do Ahú: o Cabral é o bairro vizinho. Dali, o caminho é o mesmo.\n" +
+        "- Do Ahú: pelo Cabral e pela Avenida Paraná, pela Rua Holanda até a Rua Canadá, ou " +
+        "pela Rua Nazaré até a Rua Ernesto Piazzetta.\n" +
         "- Do Boa Vista: a loja fica no bairro ao lado, o Bacacheri, perto da Avenida Paraná.\n" +
         `- No mapa: procure por Motors Store ou pelo endereço, ${ENDERECO}.`,
     ],
@@ -300,14 +304,14 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Posso passar pela minha garagem no test drive?",
         resposta:
-          "Pode, combinando antes com o vendedor. Para quem mora no Boa Vista, no Cabral ou " +
-          "no Ahú o desvio é curto, e é o jeito de saber se o carro passa na rampa e cabe na " +
-          "vaga.",
+          "Pode, combinando antes com o vendedor. Para quem mora no Boa Vista ou no Cabral o " +
+          "desvio é curto, e é o jeito de saber se o carro passa na rampa e cabe na vaga.",
       },
       {
         pergunta: "A loja fica longe do Ahú?",
         resposta:
-          "Não. O Ahú é vizinho do Cabral, e dali são poucos quilômetros pela Avenida Paraná.",
+          "Não. São poucos quilômetros, pelo Cabral e pela Avenida Paraná, pela Rua Holanda " +
+          "até a Rua Canadá, ou pela Rua Nazaré.",
       },
       {
         pergunta: "Carro com pouca quilometragem, usado só no bairro, é melhor compra?",
