@@ -99,24 +99,24 @@ export default async function GuiasPage() {
           <>
             <nav
               aria-label="Trilha"
-              className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-inverso-suave"
+              className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
             >
-              <Link href="/" className="mt-foco text-mt-inverso-suave no-underline hover:text-mt-inverso">
+              <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
                 HOME
               </Link>
               {" / "}
-              <span className="uppercase text-mt-inverso">{NOME_DA_SECAO}</span>
+              <span className="uppercase text-mt-ink">{NOME_DA_SECAO}</span>
             </nav>
 
             <h1 className="mt-display m-0 mt-4 text-[44px] lg:text-[88px]">{NOME_DA_SECAO}</h1>
-            <p className="m-0 mt-5 max-w-[620px] text-[15px] leading-relaxed text-mt-inverso lg:text-[18px]">
+            <p className="m-0 mt-5 max-w-[620px] text-[15px] leading-relaxed text-mt-neutral-800 lg:text-[18px]">
               {cabecalho.resumo}
             </p>
           </>
         }
       />
 
-      <section className="bg-mt-inverso-fundo px-[18px] py-10 text-mt-inverso lg:flex lg:items-center lg:justify-between lg:gap-10 lg:px-10 lg:py-14">
+      <section className="bg-mt-surface px-[18px] py-10 lg:flex lg:items-center lg:justify-between lg:gap-10 lg:px-10 lg:py-14">
         <h2 className="mt-titulo m-0 text-[28px] lg:text-[40px]">Depois de ler</h2>
         <div className="mt-5 flex flex-wrap gap-2 lg:mt-0">
           {[
@@ -128,9 +128,7 @@ export default async function GuiasPage() {
               key={link.href}
               href={link.href}
               className={`mt-foco mt-btn uppercase ${
-                link.principal
-                  ? "mt-btn-primario"
-                  : "bg-transparent text-mt-inverso shadow-[inset_0_0_0_2px_var(--mt-inverso-regua)] hover:shadow-[inset_0_0_0_2px_var(--mt-inverso-texto)]"
+                link.principal ? "mt-btn-primario" : "mt-btn-contorno"
               }`}
             >
               {link.rotulo}
