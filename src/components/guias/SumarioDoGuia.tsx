@@ -17,19 +17,31 @@ export default function SumarioDoGuia({ secoes }: { secoes: { ancora: string; ti
     const titulos = secoes
       .map((s) => document.getElementById(s.ancora))
       .filter((el): el is HTMLElement => el !== null);
-    if (!titulos.length || typeof IntersectionObserver === "undefined") return;
+    if (!titulos.length) return;
 
     // A seção atual é a última cujo título já passou do terço de cima da tela.
+    // Pela rolagem, e não por IntersectionObserver: num salto (âncora, Page
+    // Down, tecla End) o título pula a faixa observada sem cruzá-la, e o
+    // observador não avisa. Conferido na prévia em 02/10.
+    let pedido = 0;
     const conferir = () => {
+      pedido = 0;
       const limite = window.innerHeight * 0.35;
       let escolhida: string | null = null;
       for (const el of titulos) if (el.getBoundingClientRect().top <= limite) escolhida = el.id;
       setAtual(escolhida);
     };
-    const observador = new IntersectionObserver(conferir, { rootMargin: "0px 0px -65% 0px", threshold: [0, 1] });
-    titulos.forEach((el) => observador.observe(el));
+    const aoRolar = () => {
+      if (!pedido) pedido = requestAnimationFrame(conferir);
+    };
+    window.addEventListener("scroll", aoRolar, { passive: true });
+    window.addEventListener("resize", aoRolar);
     conferir();
-    return () => observador.disconnect();
+    return () => {
+      window.removeEventListener("scroll", aoRolar);
+      window.removeEventListener("resize", aoRolar);
+      if (pedido) cancelAnimationFrame(pedido);
+    };
   }, [secoes]);
 
   return (
