@@ -7,7 +7,7 @@ import { blocoJsonLd } from "../../lib/schemaListagem";
 import { grafoDoIndiceDeGuias } from "../../lib/schemaGuia";
 import { NOME_DA_SECAO } from "../../lib/guias";
 import { cabecalhoDosGuias } from "../../lib/secaoDeGuias";
-import { agruparGuias } from "../../lib/guiasNoSite";
+import { GUIA_DE_ENTRADA, agruparGuias } from "../../lib/guiasNoSite";
 import { apoioDaBusca } from "../../lib/buscaDeGuias";
 import GuiasComBusca from "../../components/guias/GuiasComBusca";
 
@@ -72,57 +72,66 @@ export default async function GuiasPage() {
      publicação, e a procedência, que é o que só esta loja escreve, já estava
      no fim e descia a cada guia novo. O `ItemList` segue a mesma ordem da tela. */
   const grupos = agruparGuias(guias);
+  const gruposNaBusca = grupos.map((grupo) => ({
+    titulo: grupo.titulo,
+    resumo: grupo.resumo,
+    guias: grupo.guias.map((guia) => ({
+      slug: guia.slug,
+      titulo: guia.titulo,
+      descricao: guia.descricao,
+      apoio: apoioDaBusca(guia),
+    })),
+  }));
   const grafo = grafoDoIndiceDeGuias({ guias: grupos.flatMap((g) => g.guias), empresa: companySettings });
 
   return (
     <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: blocoJsonLd(grafo) }} />
 
-      <div className="px-[18px] pt-8 lg:px-10 lg:pt-11">
-        <nav
-          aria-label="Trilha"
-          className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600"
-        >
-          <Link href="/" className="mt-foco text-mt-neutral-600 no-underline hover:text-mt-ink">
-            HOME
-          </Link>
-          {" / "}
-          <span className="uppercase text-mt-ink">{NOME_DA_SECAO}</span>
-        </nav>
-
-        <h1 className="mt-titulo m-0 mt-3 text-[36px] lg:text-[56px]">{NOME_DA_SECAO}</h1>
-        <p className="m-0 mt-4 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
-          {cabecalho.resumo}
-        </p>
-      </div>
-
       {/* A lista com busca por tema e por dúvida digitada (02/10). O índice de
-          busca é montado aqui, no servidor; o corpo dos guias não vai junto. */}
+          busca é montado aqui, no servidor; o corpo dos guias não vai junto.
+          A trilha, o `<h1>` e o resumo entram prontos, como `abertura`: o
+          componente é de cliente, e este trecho não precisa ser. */}
       <GuiasComBusca
-        grupos={grupos.map((grupo) => ({
-          titulo: grupo.titulo,
-          resumo: grupo.resumo,
-          guias: grupo.guias.map((guia) => ({
-            slug: guia.slug,
-            titulo: guia.titulo,
-            descricao: guia.descricao,
-            apoio: apoioDaBusca(guia),
-          })),
-        }))}
+        grupos={gruposNaBusca}
+        entrada={gruposNaBusca.flatMap((g) => g.guias).find((g) => g.slug === GUIA_DE_ENTRADA)}
+        abertura={
+          <>
+            <nav
+              aria-label="Trilha"
+              className="mt-trilha text-[11px] font-semibold tracking-[.16em] text-mt-inverso-suave"
+            >
+              <Link href="/" className="mt-foco text-mt-inverso-suave no-underline hover:text-mt-inverso">
+                HOME
+              </Link>
+              {" / "}
+              <span className="uppercase text-mt-inverso">{NOME_DA_SECAO}</span>
+            </nav>
+
+            <h1 className="mt-display m-0 mt-4 text-[44px] lg:text-[88px]">{NOME_DA_SECAO}</h1>
+            <p className="m-0 mt-5 max-w-[620px] text-[15px] leading-relaxed text-mt-inverso lg:text-[18px]">
+              {cabecalho.resumo}
+            </p>
+          </>
+        }
       />
 
-      <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-        <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Depois de ler</h2>
-        <div className="mt-4 flex flex-wrap gap-1.5">
+      <section className="bg-mt-inverso-fundo px-[18px] py-10 text-mt-inverso lg:flex lg:items-center lg:justify-between lg:gap-10 lg:px-10 lg:py-14">
+        <h2 className="mt-titulo m-0 text-[28px] lg:text-[40px]">Depois de ler</h2>
+        <div className="mt-5 flex flex-wrap gap-2 lg:mt-0">
           {[
-            { rotulo: "Ver o estoque", href: "/estoque" },
-            { rotulo: "Garantia", href: "/garantia" },
-            { rotulo: "Avaliação Express", href: "/avaliacao" },
+            { rotulo: "Ver o estoque", href: "/estoque", principal: true },
+            { rotulo: "Garantia", href: "/garantia", principal: false },
+            { rotulo: "Avaliação Express", href: "/avaliacao", principal: false },
           ].map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="mt-foco border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
+              className={`mt-foco mt-btn uppercase ${
+                link.principal
+                  ? "mt-btn-primario"
+                  : "bg-transparent text-mt-inverso shadow-[inset_0_0_0_2px_var(--mt-inverso-regua)] hover:shadow-[inset_0_0_0_2px_var(--mt-inverso-texto)]"
+              }`}
             >
               {link.rotulo}
             </Link>

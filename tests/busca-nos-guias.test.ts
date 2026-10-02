@@ -181,7 +181,7 @@ describe("a página", () => {
     expect(html).toMatch(/<label[^>]*>Buscar nos guias<\/label>/);
     expect(html).toMatch(/type="search"/);
     // 44 px de alvo de toque, e a instrução escrita fora do placeholder.
-    expect(html).toMatch(/<input[^>]*class="[^"]*min-h-11/);
+    expect(html).toMatch(/<input[^>]*class="[^"]*min-h-1[14]/);
     expect(html).toContain("Digite a sua dúvida ou escolha um tema.");
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain("Vender e trocar");

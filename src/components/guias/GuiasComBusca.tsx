@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { filtrarGuias, type GrupoNaBusca, type GuiaNaBusca } from "../../lib/buscaDeGuias";
 
 /**
@@ -12,22 +12,61 @@ import { filtrarGuias, type GrupoNaBusca, type GuiaNaBusca } from "../../lib/bus
  * esconde, no navegador, o que não interessa a quem digitou. Sem JavaScript, e
  * para o Google, a página é o índice completo de antes.
  *
+ * O desenho é o de 02/10/2026 (aprovado pelo dono no mesmo dia): abertura
+ * escura com a busca e um guia de entrada, os temas como atalho e filtro, e
+ * cada tema com os guias em linhas.
+ *
  * A regra de quem entra na lista mora em `lib/buscaDeGuias.ts`.
  */
 
-function CartaoDoGuia({ guia }: { guia: GuiaNaBusca }) {
+/** Dois dígitos: 1 vira "01". É o número de ordem do tema e do guia na lista. */
+const doisDigitos = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * Um guia como LINHA, e não como caixa (redesenho de 02/10/2026). Com 26 caixas
+ * de mesmo peso a página não tinha por onde começar a ler; em linha, o título
+ * manda e a descrição apoia.
+ */
+function LinhaDoGuia({ guia, ordem }: { guia: GuiaNaBusca; ordem: number }) {
   return (
-    <Link
-      href={`/guias/${guia.slug}`}
-      className="mt-foco flex flex-col gap-2 border border-mt-regua p-5 no-underline hover:border-mt-accent"
-    >
-      <span className="mt-titulo text-[18px] text-mt-ink lg:text-[20px]">{guia.titulo}</span>
-      <span className="text-[13px] leading-relaxed text-mt-neutral-800">{guia.descricao}</span>
-    </Link>
+    <li className="border-b border-mt-regua-fina">
+      <Link
+        href={`/guias/${guia.slug}`}
+        className="mt-foco group flex items-start gap-4 py-5 no-underline lg:gap-6"
+      >
+        <span aria-hidden="true" className="w-7 shrink-0 pt-1 text-[12px] font-extrabold text-mt-neutral-600">
+          {doisDigitos(ordem)}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <span className="text-[18px] font-extrabold leading-tight text-mt-ink group-hover:text-mt-accent-hover lg:text-[22px]">
+            {guia.titulo}
+          </span>
+          <span className="max-w-[640px] text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
+            {guia.descricao}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="shrink-0 pt-0.5 text-[20px] font-bold text-mt-neutral-600 transition-transform group-hover:translate-x-1 group-hover:text-mt-accent motion-reduce:transition-none"
+        >
+          →
+        </span>
+      </Link>
+    </li>
   );
 }
 
-export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
+export default function GuiasComBusca({
+  grupos,
+  abertura,
+  entrada,
+}: {
+  grupos: GrupoNaBusca[];
+  /** A trilha, o `<h1>` e o resumo, renderizados no servidor pela página. */
+  abertura?: ReactNode;
+  /** O guia de "Comece por aqui". Sem ele, a abertura fica só com a busca. */
+  entrada?: GuiaNaBusca;
+}) {
   const [consulta, setConsulta] = useState("");
   const [tema, setTema] = useState<string | null>(null);
   const idDoCampo = useId();
@@ -36,6 +75,9 @@ export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
 
   const visto = useMemo(() => filtrarGuias(grupos, { consulta, tema }), [grupos, consulta, tema]);
   const filtrando = visto.resultados !== null || tema !== null;
+  const totalDeGuias = grupos.reduce((soma, g) => soma + g.guias.length, 0);
+  // O número do tema é o da ordem do índice inteiro: filtrar não renumera.
+  const numeroDoTema = (titulo: string) => grupos.findIndex((g) => g.titulo === titulo) + 1;
   // O botão que chama isto some da tela ao ser usado: o foco volta ao campo,
   // em vez de cair no começo da página.
   const limpar = () => {
@@ -48,7 +90,7 @@ export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
     campo.current?.focus();
   };
 
-  const botaoDoTema = (rotulo: string, valor: string | null) => {
+  const botaoDoTema = (rotulo: string, valor: string | null, apoio: string, numero?: number) => {
     const ativo = tema === valor;
     return (
       <button
@@ -56,63 +98,116 @@ export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
         type="button"
         aria-pressed={ativo}
         onClick={() => setTema(valor)}
-        className={`mt-foco min-h-11 cursor-pointer border px-3 text-[11px] font-extrabold uppercase tracking-[.06em] ${
-          ativo ? "border-mt-ink bg-mt-ink text-mt-bg" : "border-mt-regua text-mt-ink hover:border-mt-accent"
+        className={`mt-foco flex min-h-11 cursor-pointer flex-col items-start gap-1.5 border-0 border-b border-mt-regua-fina px-[18px] py-4 text-left lg:border-b-0 lg:border-l lg:px-5 lg:py-6 ${
+          ativo ? "bg-mt-inverso-fundo text-mt-inverso" : "bg-transparent text-mt-ink hover:bg-mt-surface"
         }`}
       >
-        {rotulo}
+        {numero !== undefined && (
+          <span
+            aria-hidden="true"
+            className={`text-[12px] font-extrabold tracking-[.08em] ${ativo ? "text-mt-accent-inverso" : "text-mt-cobre"}`}
+          >
+            {doisDigitos(numero)}
+          </span>
+        )}
+        <span className="text-[15px] font-extrabold leading-tight lg:text-[17px]">{rotulo}</span>
+        <span className={`text-[12px] ${ativo ? "text-mt-inverso-suave" : "text-mt-neutral-600"}`}>{apoio}</span>
       </button>
     );
   };
 
   return (
     <>
-      <div role="search" className="border-t-2 border-mt-regua px-[18px] py-6 lg:px-10">
-        <label htmlFor={idDoCampo} className="mt-rotulo block">
-          Buscar nos guias
-        </label>
-        <p id={idDaAjuda} className="m-0 mt-1 text-[13px] text-mt-neutral-800">
-          Digite a sua dúvida ou escolha um tema.
-        </p>
-        {/* 16px no campo: abaixo disso o iPhone dá zoom na página ao focar.
-            44px de altura: o alvo de toque do resto do site. */}
-        <input
-          ref={campo}
-          id={idDoCampo}
-          type="search"
-          value={consulta}
-          onChange={(e) => setConsulta(e.target.value)}
-          placeholder="Ex.: laudo, troca, financiamento"
-          aria-describedby={idDaAjuda}
-          autoComplete="off"
-          enterKeyHint="search"
-          className="mt-campo-caixa mt-foco mt-2 min-h-11 w-full max-w-[680px] text-[16px]"
-        />
-        {grupos.length > 1 && (
-          <div role="group" aria-label="Filtrar por tema" className="mt-4 flex flex-wrap gap-1.5">
-            {botaoDoTema("Todos os temas", null)}
-            {grupos.map((g) => botaoDoTema(g.titulo, g.titulo))}
+      {/* A abertura escura: título, busca e a porta de entrada. */}
+      <div className="bg-mt-inverso-fundo px-[18px] pb-10 pt-8 text-mt-inverso lg:px-10 lg:pb-14 lg:pt-11">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:gap-12">
+          <div className="flex min-w-0 flex-1 flex-col">
+            {abertura}
+            <div role="search" className="mt-7 max-w-[620px]">
+              <label
+                htmlFor={idDoCampo}
+                className="block text-[11px] font-extrabold uppercase tracking-[.14em] text-mt-inverso-suave"
+              >
+                Buscar nos guias
+              </label>
+              <p id={idDaAjuda} className="m-0 mt-1 text-[13px] text-mt-inverso-suave">
+                Digite a sua dúvida ou escolha um tema.
+              </p>
+              {/* 16px no campo: abaixo disso o iPhone dá zoom na página ao focar.
+                  44px de altura: o alvo de toque do resto do site. */}
+              <input
+                ref={campo}
+                id={idDoCampo}
+                type="search"
+                value={consulta}
+                onChange={(e) => setConsulta(e.target.value)}
+                placeholder="Ex.: laudo, troca, financiamento"
+                aria-describedby={idDaAjuda}
+                autoComplete="off"
+                enterKeyHint="search"
+                className="mt-foco mt-2 min-h-14 w-full rounded-none border-0 bg-mt-bg px-4 text-[16px] text-mt-ink placeholder:text-mt-neutral-600 lg:text-[17px]"
+              />
+            </div>
+            <p className="m-0 mt-5 text-[13px] text-mt-inverso-suave">
+              <strong className="text-mt-inverso">{totalDeGuias}</strong> guias publicados em{" "}
+              <strong className="text-mt-inverso">{grupos.length}</strong> temas
+            </p>
           </div>
-        )}
-        {/* Só fala quando há filtro: sem ele, o leitor de tela não precisa
-            ouvir a contagem do índice inteiro ao abrir a página. */}
-        <p role="status" className="m-0 mt-3 min-h-[1.25rem] text-[12px] text-mt-neutral-800">
-          {filtrando ? (visto.total === 1 ? "1 guia encontrado" : `${visto.total} guias encontrados`) : ""}
-        </p>
+
+          {/* Some enquanto há busca digitada: no celular ele ficava entre o
+              campo e os resultados, e quem digitava não via nada mudar. */}
+          {entrada && visto.resultados === null && (
+            <Link
+              href={`/guias/${entrada.slug}`}
+              className="mt-foco group flex w-full flex-col gap-3 bg-mt-bg p-6 text-mt-ink no-underline lg:max-w-[440px] lg:p-7"
+            >
+              <span className="text-[11px] font-extrabold uppercase tracking-[.14em] text-mt-cobre">
+                Comece por aqui
+              </span>
+              <span className="mt-titulo text-[24px] leading-[1.1] lg:text-[30px]">{entrada.titulo}</span>
+              <span className="text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">{entrada.descricao}</span>
+              <span className="mt-1 text-[12px] font-extrabold uppercase tracking-[.1em] text-mt-ink group-hover:text-mt-accent-hover">
+                Ler o guia <span aria-hidden="true">→</span>
+              </span>
+            </Link>
+          )}
+        </div>
       </div>
 
+      {/* Os temas: atalho e filtro ao mesmo tempo. */}
+      {grupos.length > 1 && (
+        <div
+          role="group"
+          aria-label="Filtrar por tema"
+          className="grid grid-cols-2 border-b-2 border-mt-regua lg:grid-flow-col lg:auto-cols-fr lg:grid-cols-none"
+        >
+          {botaoDoTema("Todos os temas", null, `${totalDeGuias} guias`)}
+          {grupos.map((g) =>
+            botaoDoTema(g.titulo, g.titulo, g.guias.length === 1 ? "1 guia" : `${g.guias.length} guias`, numeroDoTema(g.titulo)),
+          )}
+        </div>
+      )}
+      {/* Só fala quando há filtro: sem ele, o leitor de tela não precisa
+          ouvir a contagem do índice inteiro ao abrir a página. */}
+      <p
+        role="status"
+        className={`m-0 px-[18px] text-[12px] text-mt-neutral-800 lg:px-10 ${filtrando ? "pt-5" : "sr-only"}`}
+      >
+        {filtrando ? (visto.total === 1 ? "1 guia encontrado" : `${visto.total} guias encontrados`) : ""}
+      </p>
+
       {visto.resultados !== null && visto.resultados.length > 0 && (
-        <section aria-label="Resultados da busca" className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-          <div className="grid gap-4 md:grid-cols-2">
-            {visto.resultados.map((guia) => (
-              <CartaoDoGuia key={guia.slug} guia={guia} />
+        <section aria-label="Resultados da busca" className="px-[18px] pb-10 pt-4 lg:px-10">
+          <ol role="list" className="m-0 max-w-[900px] list-none border-t-2 border-mt-ink p-0">
+            {visto.resultados.map((guia, i) => (
+              <LinhaDoGuia key={guia.slug} guia={guia} ordem={i + 1} />
             ))}
-          </div>
+          </ol>
         </section>
       )}
 
       {visto.total === 0 && (
-        <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
+        <section className="px-[18px] py-8 lg:px-10">
           <p className="m-0 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800">
             {tema
               ? "Nenhum guia deste tema trata disso. Procure nos outros temas, ou mande a dúvida para a loja."
@@ -145,17 +240,29 @@ export default function GuiasComBusca({ grupos }: { grupos: GrupoNaBusca[] }) {
         </section>
       )}
 
+      {/* Cada tema: número, título e resumo à esquerda; os guias em linhas à
+          direita. No celular, um embaixo do outro. */}
       {visto.grupos.map((grupo) => (
-        <section key={grupo.titulo} className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-          <h2 className="mt-titulo m-0 text-[22px] lg:text-[28px]">{grupo.titulo}</h2>
-          {grupo.resumo && (
-            <p className="m-0 mt-2 max-w-[680px] text-[14px] leading-relaxed text-mt-neutral-800">{grupo.resumo}</p>
-          )}
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {grupo.guias.map((guia) => (
-              <CartaoDoGuia key={guia.slug} guia={guia} />
-            ))}
+        <section
+          key={grupo.titulo}
+          className="border-b-2 border-mt-regua px-[18px] py-10 lg:grid lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:gap-x-14 lg:px-10 lg:py-16"
+        >
+          <div className="lg:sticky lg:top-24 lg:self-start">
+            {numeroDoTema(grupo.titulo) > 0 && (
+              <p aria-hidden="true" className="mt-display m-0 text-[56px] text-mt-accent lg:text-[88px]">
+                {doisDigitos(numeroDoTema(grupo.titulo))}
+              </p>
+            )}
+            <h2 className="mt-titulo m-0 mt-3 text-[26px] leading-[1.05] lg:text-[34px]">{grupo.titulo}</h2>
+            {grupo.resumo && (
+              <p className="m-0 mt-3 text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">{grupo.resumo}</p>
+            )}
           </div>
+          <ol role="list" className="m-0 mt-6 list-none border-t-2 border-mt-ink p-0 lg:mt-0">
+            {grupo.guias.map((guia, i) => (
+              <LinhaDoGuia key={guia.slug} guia={guia} ordem={i + 1} />
+            ))}
+          </ol>
         </section>
       ))}
     </>

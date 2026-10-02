@@ -15,7 +15,9 @@ import {
   iniciaisDoAutor,
   mesmoDiaEmCuritiba,
 } from "../../../lib/assinaturaDoGuia";
-import { ancorasDasSecoes, blocosDaSecao } from "../../../lib/blocosDoGuia";
+import { ancorasDasSecoes, blocosDaSecao, minutosDeLeitura } from "../../../lib/blocosDoGuia";
+import { proximosNoTema, temaDoGuia } from "../../../lib/guiasNoSite";
+import SumarioDoGuia from "../../../components/guias/SumarioDoGuia";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -136,6 +138,23 @@ export default async function GuiaPage({ params }: PageProps) {
   // corpo. Sem isto, o guia linkaria para ele mesmo — âncora que não leva a
   // lugar nenhum e sinal interno falso para o rastreador.
   const linkar = criarLinkador(`/guias/${slug}`);
+  const doisDigitos = (n: number) => String(n).padStart(2, "0");
+  const tema = temaDoGuia(guia.slug);
+  const minutos = minutosDeLeitura(guia);
+
+  // "Continue lendo": os próximos do mesmo tema, e só os que estão no ar. A
+  // lista vem do banco para trazer a descrição; se essa leitura falhar, o guia
+  // abre sem o bloco, em vez de cair por causa de um enfeite.
+  const seguintes = proximosNoTema(guia.slug);
+  let continuar: { slug: string; titulo: string; descricao: string }[] = [];
+  if (seguintes.length) {
+    try {
+      const publicados = await listarGuiasPublicados();
+      continuar = seguintes.flatMap((s) => publicados.filter((g) => g.slug === s && g.slug !== guia.slug));
+    } catch {
+      continuar = [];
+    }
+  }
   const ancoras = ancorasDasSecoes(guia.corpo.map((secao) => secao.titulo));
 
   const comLinks = (texto: string, chave: string) =>
@@ -156,6 +175,9 @@ export default async function GuiaPage({ params }: PageProps) {
   return (
     <div className="flex flex-col bg-mt-bg font-modernist text-mt-ink">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: blocoJsonLd(grafo) }} />
+      {/* Quanto do guia já foi lido. É só CSS (`animation-timeline: scroll()`):
+          onde o navegador não tem isso, a barra não aparece. */}
+      <div aria-hidden="true" className="mt-progresso-de-leitura" />
 
       <div className="px-[18px] pt-8 lg:px-10 lg:pt-11">
         <nav
@@ -183,10 +205,16 @@ export default async function GuiaPage({ params }: PageProps) {
           <span className="uppercase text-mt-ink">{guia.titulo}</span>
         </nav>
 
-        <h1 className="mt-titulo m-0 mt-3 max-w-[900px] text-[32px] lg:text-[52px] lg:leading-[1.05]">
+        {tema && (
+          <p className="m-0 mt-5 flex flex-wrap items-center gap-2.5 text-[11px] font-extrabold uppercase tracking-[.14em]">
+            <span className="bg-mt-ink px-2.5 py-1.5 text-mt-bg">Tema {doisDigitos(tema.numero)}</span>
+            <span className="text-mt-cobre">{tema.titulo}</span>
+          </p>
+        )}
+        <h1 className="mt-display m-0 mt-4 max-w-[980px] text-[34px] leading-[1] lg:text-[64px]">
           {guia.titulo}
         </h1>
-        <p className="m-0 mt-4 max-w-[680px] text-[15px] leading-relaxed text-mt-neutral-800 lg:text-[16px]">
+        <p className="m-0 mt-5 max-w-[760px] text-[17px] leading-[1.5] text-mt-neutral-800 lg:text-[21px]">
           {guia.descricao}
         </p>
         {/* Bloco de autor (tarefa 4.11 da revisão de UI, 30/09). Até ali era
@@ -198,7 +226,7 @@ export default async function GuiaPage({ params }: PageProps) {
             não. As duas continuam no `Article` do JSON-LD. */}
         {/* O autor aparece mesmo se a data vier inválida do banco; só a data
             some. */}
-        <div className="mt-6 flex flex-col gap-3 pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-7 flex flex-col gap-3 border-t border-mt-regua-fina pb-6 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <span
               aria-hidden="true"
@@ -221,19 +249,24 @@ export default async function GuiaPage({ params }: PageProps) {
           </div>
           {/* No celular a data desce e alinha com o texto do autor (40 px
               do monograma + 12 de vão), e não com a borda do monograma. */}
-          {(atualizadoEm || publicadoEm) && (
-            <p className="m-0 pl-[52px] text-[13px] text-mt-neutral-700 sm:pl-0">
-              {atualizadoEm ? (
-                <>
-                  Atualizado em <time dateTime={guia.atualizadoEm}>{atualizadoEm}</time>
-                </>
-              ) : (
-                <>
-                  Publicado em <time dateTime={guia.publicadoEm}>{publicadoEm}</time>
-                </>
-              )}
+          <div className="flex flex-wrap gap-x-6 gap-y-1 pl-[52px] text-[13px] text-mt-neutral-700 sm:pl-0">
+            {(atualizadoEm || publicadoEm) && (
+              <p className="m-0">
+                {atualizadoEm ? (
+                  <>
+                    Atualizado em <time dateTime={guia.atualizadoEm}>{atualizadoEm}</time>
+                  </>
+                ) : (
+                  <>
+                    Publicado em <time dateTime={guia.publicadoEm}>{publicadoEm}</time>
+                  </>
+                )}
+              </p>
+            )}
+            <p className="m-0">
+              <strong className="text-mt-ink">{minutos} min</strong> de leitura
             </p>
-          )}
+          </div>
         </div>
       </div>
 
@@ -247,7 +280,7 @@ export default async function GuiaPage({ params }: PageProps) {
           · Lista e subtítulo quando o texto marca (`lib/blocosDoGuia.ts`).
           · Corpo de 16/17px, e não 14/15px.
       */}
-      <div className="border-t-2 border-mt-regua px-[18px] py-8 lg:grid lg:grid-cols-[minmax(0,680px)_minmax(200px,260px)] lg:gap-x-16 lg:px-10">
+      <div className="border-t-2 border-mt-regua px-[18px] py-8 lg:grid lg:grid-cols-[minmax(0,720px)_minmax(240px,320px)] lg:gap-x-20 lg:px-10 lg:py-14">
         <details className="mb-8 border border-mt-regua-fina lg:hidden">
           <summary className="cursor-pointer px-4 py-3 text-[11px] font-extrabold uppercase tracking-[.16em] text-mt-ink">
             Neste guia · {guia.corpo.length} partes
@@ -270,10 +303,20 @@ export default async function GuiaPage({ params }: PageProps) {
 
         <article className="min-w-0 lg:col-start-1 lg:row-start-1">
           {guia.corpo.map((secao, s) => (
-            <section key={ancoras[s]} className="pb-10 last:pb-0">
-              <h2 id={ancoras[s]} className="mt-titulo m-0 text-[22px] lg:text-[28px]">
-                {secao.titulo}
-              </h2>
+            <section key={ancoras[s]} className="pb-12 last:pb-0 lg:pb-16">
+              {/* O número fica FORA do `<h2>`: o título que o leitor de tela e
+                  o rastreador leem continua sendo só o título. */}
+              <div className="flex items-baseline gap-3 border-t-2 border-mt-ink pt-4 lg:gap-4">
+                <span aria-hidden="true" className="text-[13px] font-extrabold text-mt-cobre lg:text-[14px]">
+                  {doisDigitos(s + 1)}
+                </span>
+                <h2
+                  id={ancoras[s]}
+                  className="mt-titulo m-0 scroll-mt-24 text-[26px] leading-[1.1] lg:text-[34px]"
+                >
+                  {secao.titulo}
+                </h2>
+              </div>
               {blocosDaSecao(secao.paragrafos).map((bloco, b) => {
                 const chave = `${ancoras[s]}-${b}`;
                 if (bloco.tipo === "separador") {
@@ -281,7 +324,7 @@ export default async function GuiaPage({ params }: PageProps) {
                 }
                 if (bloco.tipo === "subtitulo") {
                   return (
-                    <h3 key={chave} className="m-0 mt-7 text-[17px] font-extrabold leading-snug text-mt-ink lg:text-[19px]">
+                    <h3 key={chave} className="m-0 mt-8 text-[19px] font-extrabold leading-snug text-mt-ink lg:text-[23px]">
                       {bloco.texto}
                     </h3>
                   );
@@ -294,7 +337,7 @@ export default async function GuiaPage({ params }: PageProps) {
                       {bloco.itens.map((item, i) => (
                         <li
                           key={`${chave}-${i}`}
-                          className="relative mt-2.5 pl-5 text-[16px] leading-[1.7] text-mt-neutral-800 before:absolute before:left-0 before:top-[.72em] before:h-[6px] before:w-[6px] before:bg-mt-accent before:content-[''] lg:text-[17px]"
+                          className="relative mt-3 pl-6 text-[17px] leading-[1.65] text-mt-neutral-800 before:absolute before:left-0 before:top-[.66em] before:h-[7px] before:w-[7px] before:bg-mt-accent before:content-[''] lg:text-[19px]"
                         >
                           {comLinks(item, `${chave}-${i}`)}
                         </li>
@@ -308,8 +351,8 @@ export default async function GuiaPage({ params }: PageProps) {
                     key={chave}
                     className={
                       abertura
-                        ? "m-0 mt-4 text-[18px] leading-[1.6] text-mt-ink lg:text-[20px]"
-                        : "m-0 mt-4 text-[16px] leading-[1.7] text-mt-neutral-800 lg:text-[17px]"
+                        ? "m-0 mt-5 text-[20px] leading-[1.5] text-mt-ink lg:text-[24px]"
+                        : "m-0 mt-5 text-[17px] leading-[1.65] text-mt-neutral-800 lg:text-[19px]"
                     }
                   >
                     {comLinks(bloco.texto, chave)}
@@ -321,62 +364,79 @@ export default async function GuiaPage({ params }: PageProps) {
         </article>
 
         <div className="hidden lg:col-start-2 lg:row-start-1 lg:block">
-          <nav aria-label="Neste guia" className="sticky top-24 border-l-2 border-mt-regua pl-5">
-            <p className="m-0 text-[11px] font-extrabold uppercase tracking-[.16em] text-mt-ink">Neste guia</p>
-            <ol role="list" className="m-0 mt-3 list-none p-0">
-              {guia.corpo.map((secao, i) => (
-                <li key={ancoras[i]} className="py-1.5">
-                  <a
-                    href={`#${ancoras[i]}`}
-                    className="mt-foco text-[13px] leading-snug text-mt-neutral-700 no-underline hover:text-mt-accent"
-                  >
-                    {secao.titulo}
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </nav>
+          {/* Só o sumário. A saída comercial fica uma vez, no fim da página:
+              repetida aqui, o mesmo destino ganharia duas âncoras estruturais
+              (`tests/guias-publicam-o-grafo`). */}
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto">
+            <SumarioDoGuia secoes={guia.corpo.map((secao, i) => ({ ancora: ancoras[i], titulo: secao.titulo }))} />
+          </div>
         </div>
       </div>
 
-      <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-        <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Perguntas frequentes</h2>
-        {/* As MESMAS strings que o `FAQPage` publica. O link entra no render,
-            nunca na string — texto marcado tem que bater com o visível. */}
-        <dl className="m-0 mt-4 max-w-[720px]">
-          {guia.faq.map((item) => (
-            <div key={item.pergunta} className="border-b border-mt-regua-fina py-4">
-              <dt className="text-[14px] font-extrabold text-mt-ink">{item.pergunta}</dt>
-              <dd className="m-0 mt-1.5 text-[13px] leading-relaxed text-mt-neutral-800">
-                {comLinks(item.resposta, item.pergunta)}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      <section className="border-t-2 border-mt-regua px-[18px] py-10 lg:px-10 lg:py-14">
+        <div className="max-w-[720px]">
+          <h2 className="mt-titulo m-0 text-[26px] leading-[1.1] lg:text-[34px]">Perguntas frequentes</h2>
+          {/* As MESMAS strings que o `FAQPage` publica. O link entra no render,
+              nunca na string — texto marcado tem que bater com o visível. */}
+          <dl className="m-0 mt-6 border-t-2 border-mt-ink">
+            {guia.faq.map((item) => (
+              <div key={item.pergunta} className="border-b border-mt-regua-fina py-5">
+                <dt className="text-[17px] font-extrabold leading-snug text-mt-ink lg:text-[20px]">{item.pergunta}</dt>
+                <dd className="m-0 mt-2 text-[15px] leading-[1.65] text-mt-neutral-800 lg:text-[17px]">
+                  {comLinks(item.resposta, item.pergunta)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
 
+      {continuar.length > 0 && tema && (
+        <section className="border-t-2 border-mt-regua px-[18px] py-10 lg:px-10 lg:py-14">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="mt-titulo m-0 text-[26px] leading-[1.1] lg:text-[34px]">Continue neste tema</h2>
+            <Link
+              href="/guias"
+              className="mt-foco inline-flex min-h-11 items-center text-[12px] font-extrabold uppercase tracking-[.1em] text-mt-ink no-underline hover:text-mt-accent-hover"
+            >
+              Todos os guias <span aria-hidden="true">&nbsp;→</span>
+            </Link>
+          </div>
+          <p className="m-0 mt-2 text-[14px] text-mt-neutral-800">{tema.titulo}</p>
+          <ul role="list" className="m-0 mt-6 grid list-none gap-0 border-t-2 border-mt-ink p-0 md:grid-cols-3">
+            {continuar.map((outro) => (
+              <li key={outro.slug} className="border-b border-mt-regua-fina md:border-b-0 md:border-l md:pl-6 md:pr-6 md:first:border-l-0 md:first:pl-0">
+                <Link
+                  href={`/guias/${outro.slug}`}
+                  className="mt-foco group flex h-full flex-col gap-2 py-6 no-underline"
+                >
+                  <span className="text-[19px] font-extrabold leading-tight text-mt-ink group-hover:text-mt-accent-hover lg:text-[22px]">
+                    {outro.titulo}
+                  </span>
+                  <span className="text-[14px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">{outro.descricao}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* A saída comercial. Guia sem destino é conteúdo que não devolve nada. */}
-      <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-10">
-        <div className="flex flex-wrap gap-1.5">
+      <section className="bg-mt-inverso-fundo px-[18px] py-10 text-mt-inverso lg:px-10 lg:py-14">
+        <div className="grid gap-4 md:grid-cols-2">
           <Link
             href={guia.saida.href}
-            className="mt-foco flex max-w-[420px] flex-col gap-2 border border-mt-regua p-4 no-underline hover:border-mt-accent"
+            className="mt-foco group flex flex-col gap-2 bg-mt-accent-hover p-6 text-mt-inverso no-underline hover:opacity-90"
           >
-            <span className="text-[12px] font-extrabold uppercase tracking-[.06em] text-mt-ink">
-              {guia.saida.rotulo}
-            </span>
-            <span className="text-[12px] leading-relaxed text-mt-neutral-800">
-              {guia.saida.apoio}
-            </span>
+            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">{guia.saida.rotulo} <span aria-hidden="true">→</span></span>
+            <span className="text-[14px] leading-relaxed lg:text-[15px]">{guia.saida.apoio}</span>
           </Link>
           <Link
             href="/estoque"
-            className="mt-foco flex max-w-[420px] flex-col gap-2 border border-mt-regua p-4 no-underline hover:border-mt-accent"
+            className="mt-foco group flex flex-col gap-2 p-6 text-mt-inverso no-underline shadow-[inset_0_0_0_2px_var(--mt-inverso-regua)] hover:shadow-[inset_0_0_0_2px_var(--mt-inverso-texto)]"
           >
-            <span className="text-[12px] font-extrabold uppercase tracking-[.06em] text-mt-ink">
-              Ver o estoque
-            </span>
-            <span className="text-[12px] leading-relaxed text-mt-neutral-800">
+            <span className="text-[20px] font-extrabold leading-tight lg:text-[24px]">Ver o estoque <span aria-hidden="true">→</span></span>
+            <span className="text-[14px] leading-relaxed text-mt-inverso-suave lg:text-[15px]">
               O que entrou depois da perícia. O laudo é só pedir ao vendedor, a qualquer tempo.
             </span>
           </Link>

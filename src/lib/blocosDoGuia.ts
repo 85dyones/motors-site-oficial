@@ -121,3 +121,20 @@ export function ancorasDasSecoes(titulos: string[]): string[] {
     return vez === 1 ? base : `${base}-${vez}`;
   });
 }
+
+/**
+ * Minutos de leitura do guia, para o cabeçalho (02/10/2026). Conta as palavras
+ * do corpo e das perguntas, a 200 por minuto, e arredonda para cima: prometer
+ * menos tempo do que a leitura leva é pior do que prometer mais.
+ */
+export function minutosDeLeitura(guia: {
+  corpo: { titulo: string; paragrafos: string[] }[];
+  faq: { pergunta: string; resposta: string }[];
+}): number {
+  const texto = [
+    ...guia.corpo.flatMap((s) => [s.titulo, ...s.paragrafos]),
+    ...guia.faq.flatMap((f) => [f.pergunta, f.resposta]),
+  ].join(" ");
+  const palavras = texto.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(palavras / 200));
+}

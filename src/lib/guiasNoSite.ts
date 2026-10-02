@@ -76,6 +76,14 @@ export const GRUPOS_DE_GUIAS: readonly GrupoNoIndice[] = [
 
 export const TITULO_DE_OUTROS_GUIAS = "Outros guias";
 
+/**
+ * O guia de "Comece por aqui", na abertura do índice (redesenho de 02/10/2026).
+ * É o que traz o dado da operação: quantos carros a loja avaliou e quantos
+ * comprou. Escolha editorial, escrita aqui; se o guia sair do ar, a abertura
+ * fica só com a busca, sem card vazio.
+ */
+export const GUIA_DE_ENTRADA = "o-que-reprova-pericia-cautelar";
+
 interface GuiaConhecido {
   titulo: string;
   grupo: GrupoDeGuias;
@@ -322,6 +330,27 @@ export function grupoDoGuia(slug: string): GrupoDeGuias | null {
  * dentro de cada um, na ordem de `GUIAS_CONHECIDOS`. O que o painel publicou e
  * esta lista ainda não conhece fecha o índice, na ordem em que chegou.
  */
+/** O tema de um guia, com o número que ele tem no índice. `null` em guia que
+ *  ainda não está em `GUIAS_CONHECIDOS`. */
+export function temaDoGuia(slug: string): { numero: number; titulo: string } | null {
+  const id = GUIAS_CONHECIDOS[slug]?.grupo;
+  const posicao = GRUPOS_DE_GUIAS.findIndex((g) => g.id === id);
+  return posicao < 0 ? null : { numero: posicao + 1, titulo: GRUPOS_DE_GUIAS[posicao].titulo };
+}
+
+/**
+ * Os guias que continuam a leitura: os seguintes do MESMO tema, na ordem do
+ * índice, dando a volta no fim da lista. Nunca o próprio guia. Devolve slugs;
+ * quem chama confere se estão publicados.
+ */
+export function proximosNoTema(slug: string, quantos = 3): string[] {
+  const grupo = GUIAS_CONHECIDOS[slug]?.grupo;
+  if (!grupo) return [];
+  const doTema = Object.keys(GUIAS_CONHECIDOS).filter((s) => GUIAS_CONHECIDOS[s].grupo === grupo);
+  const aqui = doTema.indexOf(slug);
+  return [...doTema.slice(aqui + 1), ...doTema.slice(0, aqui)].slice(0, quantos);
+}
+
 export function agruparGuias<T extends { slug: string }>(
   guias: readonly T[],
 ): { titulo: string; resumo?: string; guias: T[] }[] {
