@@ -13,7 +13,8 @@ import { ddmmEmCuritiba } from "../../lib/horarioDaLoja";
 import { PERFIS_DE_USO } from "../../lib/perfisDeUso";
 import { podeGravarCampo, type Perfil } from "../../lib/permissoes";
 import { descontoPct, precoEfetivo, temPromocao } from "../../lib/precoPromocional";
-import { getVeiculoPdpUrl } from "../../lib/supabase";
+import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
+import { getVeiculoPdpUrl, mapVeiculoDbToVeiculo } from "../../lib/supabase";
 import { podeEditarOVeiculo } from "../../lib/veiculoNoPainel";
 
 /**
@@ -141,9 +142,13 @@ export default function VisaoDoVeiculo({
   const podeVerCusto = podeGravarCampo(perfis, "preco_compra");
   const estado = normalizarEstadoCadastro(v.estado_cadastro);
   const fotos = fotosDoVeiculo(v.whatsapp_images, v.web_full_images);
-  const modelo = v.modelo_override?.trim() || v.modelo || "";
-  const versao = v.versao_override?.trim() || v.versao || "";
-  const nome = [v.marca, modelo].filter(Boolean).join(" ") || `Veículo ${v.id}`;
+  // Os nomes saem do mesmo mapper da tabela e do site (grafia da casa, e a
+  // correção de modelo e versão do painel): o cadastro guarda tudo em
+  // minúsculas e com a versão colada no modelo, e era assim que a visão
+  // mostrava ("chevrolet vectra hatch gt-x 2.0 8v 4p", conferido em 02/10).
+  const exibido = mapVeiculoDbToVeiculo(v);
+  const { modelo, versao } = modeloEVersaoParaExibir(exibido.modelo, exibido.versao);
+  const nome = [exibido.marca, modelo].filter(Boolean).join(" ") || `Veículo ${v.id}`;
 
   const checklist = checklistDoVeiculo(v, { totalDeFotos: fotos.length, podeVerCusto });
   const concluidos = checklist.filter((c) => c.ok).length;
@@ -164,18 +169,18 @@ export default function VisaoDoVeiculo({
   // Carro publicado que a régua tira da vitrine não tem página para abrir.
   const urlNoSite =
     estado === "publicado" && bloqueios.length === 0 && v.marca && modelo
-      ? getVeiculoPdpUrl({ id: String(v.id), marca: v.marca, modelo, versao, tipo: v.tipo })
+      ? getVeiculoPdpUrl(exibido)
       : null;
 
   const carro: Array<[string, string]> = [
-    ["Marca", texto(v.marca)],
+    ["Marca", texto(exibido.marca)],
     ["Modelo", modelo || NAO_INFORMADO],
     ["Versão", versao || NAO_INFORMADO],
     ["Ano (fabricação/modelo)", [v.ano_fabricacao, v.ano].filter(Boolean).join("/") || NAO_INFORMADO],
     ["Quilometragem", v.quilometragem != null ? `${v.quilometragem.toLocaleString("pt-BR")} km` : NAO_INFORMADO],
-    ["Câmbio", texto(v.cambio)],
-    ["Combustível", texto(v.combustivel)],
-    ["Cor", texto(v.cor)],
+    ["Câmbio", texto(exibido.cambio)],
+    ["Combustível", texto(exibido.combustivel)],
+    ["Cor", texto(exibido.cor)],
     ["Cor interna", texto(v.cor_interna)],
     ["Motor", texto(v.motor)],
     ["Placa", texto(v.placa)],
@@ -217,7 +222,7 @@ export default function VisaoDoVeiculo({
 
   return (
     <div className="flex w-full max-w-4xl flex-col gap-8">
-      <div className="flex flex-col gap-4 border-b-2 border-mt-regua pb-5">
+      <div className="flex flex-col gap-4">
         <div>
           <Link
             href="/admin/estoque"
