@@ -12,9 +12,9 @@ import { filtrarGuias, type GrupoNaBusca, type GuiaNaBusca } from "../../lib/bus
  * esconde, no navegador, o que não interessa a quem digitou. Sem JavaScript, e
  * para o Google, a página é o índice completo de antes.
  *
- * O desenho é o de 02/10/2026 (aprovado pelo dono no mesmo dia): abertura
- * escura com a busca e um guia de entrada, os temas como atalho e filtro, e
- * cada tema com os guias em linhas.
+ * O desenho é o de 02/10/2026 (aprovado pelo dono no mesmo dia): abertura com
+ * a busca e um guia de entrada, os temas como atalho e filtro, e cada tema com
+ * os guias em linhas. As cores são as da marca: papel, grafite e cobre.
  *
  * A regra de quem entra na lista mora em `lib/buscaDeGuias.ts`.
  */
@@ -99,7 +99,7 @@ export default function GuiasComBusca({
         aria-pressed={ativo}
         onClick={() => setTema(valor)}
         className={`mt-foco flex min-h-11 cursor-pointer flex-col items-start gap-1.5 border-0 border-b border-mt-regua-fina px-[18px] py-4 text-left lg:border-b-0 lg:border-l lg:px-5 lg:py-6 ${
-          ativo ? "bg-mt-surface text-mt-ink shadow-[inset_0_3px_0_var(--mt-accent)]" : "bg-transparent text-mt-ink hover:bg-mt-surface"
+          ativo ? "bg-mt-surface text-mt-ink shadow-[inset_0_4px_0_var(--mt-accent)]" : "bg-transparent text-mt-ink hover:bg-mt-surface"
         }`}
       >
         {numero !== undefined && (
@@ -251,6 +251,8 @@ export default function GuiasComBusca({
           className="border-b-2 border-mt-regua px-[18px] py-10 lg:grid lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:gap-x-14 lg:px-10 lg:py-16"
         >
           <div className="lg:sticky lg:top-24 lg:self-start">
+            {/* O número é enfeite (`aria-hidden`, repete a ordem do `<h2>`), e por
+                isso pode usar o cobre do logo, que no papel fica em 2,7:1. */}
             {numeroDoTema(grupo.titulo) > 0 && (
               <p aria-hidden="true" className="mt-display m-0 text-[56px] text-mt-cobre-marca lg:text-[88px]">
                 {doisDigitos(numeroDoTema(grupo.titulo))}
