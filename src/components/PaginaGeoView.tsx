@@ -15,7 +15,8 @@ import { outrasRegioes, type PaginaGeo } from "../lib/paginasGeo";
  * inteiro de uma página feita para ranquear (ver `PaginaDeEstoque`).
  *
  * As rotas são pastas estáticas (`/seminovos-curitiba`,
- * `/seminovos-bacacheri`, `/seminovos-boa-vista`) e não uma rota dinâmica de raiz. Um `[geo]` no topo
+ * `/seminovos-bacacheri`, `/seminovos-boa-vista` e as três cidades do
+ * entorno) e não uma rota dinâmica de raiz. Um `[geo]` no topo
  * de `src/app` capturaria todo caminho desconhecido do site — `/qualquer-coisa`
  * responderia 200 — e transformaria um erro de link em página indexável.
  */
