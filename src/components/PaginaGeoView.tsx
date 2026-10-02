@@ -6,16 +6,16 @@ import { getCachedSettings } from "../lib/settings";
 import { hubsDeCarroceria, hubsDeMarca, recortesDoEstoque } from "../lib/hubsDeEstoque";
 import { blocoJsonLd, schemaDeListagem, schemaDePerguntas, schemaDeTrilha } from "../lib/schemaListagem";
 import { schemaDaLoja, schemaDoSite } from "../lib/schemaLoja";
-import { PAGINAS_GEO, type PaginaGeo } from "../lib/paginasGeo";
+import { outrasRegioes, type PaginaGeo } from "../lib/paginasGeo";
 
 /**
- * O corpo das duas páginas geográficas.
+ * O corpo das páginas geográficas.
  *
  * Server component: a grade precisa estar no HTML servido, que é o ponto
  * inteiro de uma página feita para ranquear (ver `PaginaDeEstoque`).
  *
- * As rotas são duas pastas estáticas (`/seminovos-curitiba`,
- * `/seminovos-bacacheri`) e não uma rota dinâmica de raiz. Um `[geo]` no topo
+ * As rotas são pastas estáticas (`/seminovos-curitiba`,
+ * `/seminovos-bacacheri`, `/seminovos-boa-vista`) e não uma rota dinâmica de raiz. Um `[geo]` no topo
  * de `src/app` capturaria todo caminho desconhecido do site — `/qualquer-coisa`
  * responderia 200 — e transformaria um erro de link em página indexável.
  */
@@ -58,17 +58,10 @@ export default async function PaginaGeoView({ pagina }: { pagina: PaginaGeo }) {
         blocos={[
           { titulo: "Por carroceria", links: carrocerias.map((c) => ({ rotulo: c.nome, href: `/estoque/${c.slug}`, total: c.veiculos.length })) },
           { titulo: "Por marca", links: marcas.map((m) => ({ rotulo: m.nome, href: `/carros/${m.slug}`, total: m.veiculos.length })) },
-          // As páginas de região se apontam entre si (02/10/2026). Até aqui
-          // nenhuma página do site linkava para elas: só o sitemap as
-          // anunciava, e o Search Console mostrava `/seminovos-bacacheri` como
-          // "detectada, mas não indexada".
-          {
-            titulo: "Outras regiões",
-            links: PAGINAS_GEO.filter((p) => p.slug !== pagina.slug).map((p) => ({
-              rotulo: p.nome,
-              href: `/${p.slug}`,
-            })),
-          },
+          // As páginas de região se apontam entre si (02/10/2026). A entrada
+          // vinda do resto do site é o termo "Bacacheri" do linkador
+          // (`lib/linksNoTexto.ts`), que leva à página do bairro.
+          { titulo: "Outras regiões", links: outrasRegioes(pagina.slug) },
         ]}
         guias={
           pagina.slug === "seminovos-curitiba"

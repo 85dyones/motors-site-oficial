@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { PAGINAS_GEO, CAMINHOS_GEO, acharPaginaGeo } from "../src/lib/paginasGeo";
+import { PAGINAS_GEO, CAMINHOS_GEO, acharPaginaGeo, outrasRegioes } from "../src/lib/paginasGeo";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { segmentarComLinks } from "../src/lib/linksNoTexto";
 
 /**
  * As duas páginas de cidade e bairro — e a linha que separa uma delas de uma
@@ -33,8 +36,8 @@ const palavras = (p: (typeof PAGINAS_GEO)[number]) =>
       .filter((w) => w.length > 4),
   );
 
-describe("as duas páginas geo existem e se acham", () => {
-  it("são exatamente duas, e o sitemap anuncia as duas", () => {
+describe("as páginas geo existem e se acham", () => {
+  it("são de duas a seis, e o sitemap anuncia todas", () => {
     // O limite prático do §2.2.2 é seis, e cada uma custa texto de verdade.
     // Passar de duas sem esta trava falhar significa que alguém escreveu a
     // terceira à mão — que é o caminho certo. Passar dos seis, não.
@@ -120,7 +123,7 @@ describe("cada página diz coisa própria — não é doorway", () => {
 });
 
 describe("cada página ENSINA alguma coisa — a régua de autoridade", () => {
-  it("as duas trazem verificação mecânica concreta, não só rota e horário", () => {
+  it("todas trazem verificação mecânica concreta, não só rota e horário", () => {
     // O parágrafo "o que olhar" é o que o relatório dos hubs chama de
     // autoridade: *"o parágrafo que só quem mexe com carro escreve"*. Sem ele
     // a página vira folheto de endereço — e folheto de endereço é o que uma
@@ -149,7 +152,7 @@ describe("cada página ENSINA alguma coisa — a régua de autoridade", () => {
     }
   });
 
-  it("o endereço é o mesmo nas duas — NAP divergente é o pior erro de SEO local", () => {
+  it("o endereço é o mesmo em todas — NAP divergente é o pior erro de SEO local", () => {
     // A divergência de NAP do §0.5.6 já apareceu neste site uma vez, entre o
     // rótulo do rodapé e o link do WhatsApp. Duas páginas geo com endereços
     // diferentes seria a mesma falha, num lugar onde ela custa mais.
@@ -184,5 +187,32 @@ describe("o texto geo não põe o repasse no lugar do carro recusado (spec 2026-
     const curitiba = PAGINAS_GEO.find((p) => p.slug === "seminovos-curitiba");
     expect(curitiba, "a página de Curitiba").toBeDefined();
     expect(curitiba!.paragrafos[0]).toMatch(/de cada dez veículos avaliados, três entram\.$/);
+  });
+});
+
+describe("as páginas de região não ficam órfãs (02/10/2026)", () => {
+  // Até aqui só o sitemap as anunciava, e o Search Console mostrava
+  // `/seminovos-bacacheri` como "detectada, mas não indexada".
+  it("cada uma linka para todas as outras, com o título como âncora", () => {
+    for (const p of PAGINAS_GEO) {
+      const links = outrasRegioes(p.slug);
+      expect(links.map((l) => l.href).sort()).toEqual(
+        PAGINAS_GEO.filter((x) => x.slug !== p.slug).map((x) => `/${x.slug}`).sort(),
+      );
+      for (const l of links) expect(l.rotulo).toMatch(/^Seminovos /);
+    }
+  });
+
+  it("a página desenha esse bloco", () => {
+    const fonte = readFileSync(join(__dirname, "..", "src", "components", "PaginaGeoView.tsx"), "utf8");
+    expect(fonte).toMatch(/titulo: "Outras regiões", links: outrasRegioes\(pagina\.slug\)/);
+  });
+
+  it("o resto do site entra por \"Bacacheri\": o termo leva à página do bairro", () => {
+    const partes = segmentarComLinks("Estamos no Bacacheri e aceitamos seu usado na troca.", "/carros/ford/ka", new Set());
+    expect(partes.find((x) => x.href === "/seminovos-bacacheri")?.texto).toBe("Bacacheri");
+    // Na própria página do bairro o termo não vira link para ela mesma.
+    const naPropria = segmentarComLinks("A loja fica no Bacacheri.", "/seminovos-bacacheri", new Set());
+    expect(naPropria.some((x) => x.href === "/seminovos-bacacheri")).toBe(false);
   });
 });

@@ -211,8 +211,9 @@ export const PAGINAS_GEO: PaginaGeo[] = [
   },
   {
     /**
-     * A terceira (02/10/2026), pedida pelo dono: Boa Vista e Cabral, os dois
-     * bairros colados no Bacacheri pela Avenida Paraná.
+     * A terceira (02/10/2026): Boa Vista e Cabral, os dois bairros colados no
+     * Bacacheri pela Avenida Paraná. Escolha do dono em 02/10, entre Colombo,
+     * Pinhais, São José dos Pinhais e esta.
      *
      * O risco declarado era repetir a página do Bacacheri. O que esta tem de
      * próprio, e as outras duas não dizem:
@@ -236,21 +237,22 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       `Loja de carros seminovos perto do Terminal Boa Vista, em Curitiba: ${ENDERECO}. Perícia ` +
       "cautelar independente em todo o estoque, avaliação do seu usado e financiamento.",
     paragrafos: [
-      `A Motors Store fica na ${ENDERECO}, a poucos minutos a pé do Terminal Boa Vista. Quem ` +
-        "mora no Boa Vista ou no Cabral chega pela Avenida Paraná, de carro ou de ônibus, e " +
-        "quem fecha negócio volta para casa dirigindo.",
+      `A Motors Store fica na ${ENDERECO}, a poucos minutos a pé do Terminal Boa Vista. Para ` +
+        "quem mora no Boa Vista ou no Cabral, dá para vir de ônibus, ver o carro depois do " +
+        "trabalho e voltar no sábado com a família.",
       "### O que olhar num carro que só rodou no bairro",
       "Carro de quem mora e trabalha perto roda pouco e quase sempre em trajeto curto, com o " +
-        "motor ainda frio. O hodômetro baixo esconde esse uso. Confira:\n" +
+        "motor ainda frio. Quilometragem baixa é boa notícia quando a manutenção acompanhou o " +
+        "tempo. Confira:\n" +
         "- Bateria e partida. Trajeto curto não dá tempo de recarregar a bateria.\n" +
         "- A data da última troca de óleo. Em carro que roda pouco, o óleo vence pelo tempo " +
         "antes de vencer pela quilometragem.\n" +
         "- Embreagem e freios, que trabalham mais no anda e para do que em estrada.\n" +
         "- Escapamento. A água da condensação que nunca chega a evaporar acelera a ferrugem.",
       "### A rampa e a vaga do seu prédio",
-      "Muito prédio do Cabral e do Boa Vista tem rampa íngreme e vaga apertada. Como a loja " +
-        "é perto, combine com o vendedor para o test drive passar pela sua garagem: dá para " +
-        "ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
+      "Se o seu prédio tem rampa íngreme ou vaga apertada, a proximidade resolve a dúvida " +
+        "antes da compra. Combine com o vendedor para o test drive passar pela sua garagem: dá " +
+        "para ver se o carro entra, se raspa na rampa e se a porta abre dentro da vaga.",
       "### Como chegar do Cabral e do Boa Vista",
       "- Do Cabral: pela Avenida Paraná, no sentido do bairro, até a altura do Terminal Boa " +
         "Vista. São pouco mais de dois quilômetros desde o Terminal Cabral.\n" +
@@ -279,9 +281,9 @@ export const PAGINAS_GEO: PaginaGeo[] = [
       {
         pergunta: "Carro com pouca quilometragem, usado só no bairro, é melhor compra?",
         resposta:
-          "Depende de como foi mantido. Trajeto curto com motor frio gasta bateria, óleo e " +
-          "escapamento de um jeito que o hodômetro não mostra. Peça a data das trocas de óleo " +
-          "junto com a quilometragem.",
+          "É, quando a manutenção acompanhou o tempo. Trajeto curto com motor frio gasta " +
+          "bateria, óleo e escapamento mesmo rodando pouco, então peça a data das trocas de " +
+          "óleo junto com a quilometragem.",
       },
       {
         pergunta: "Dá para ver o carro no sábado?",
@@ -292,6 +294,20 @@ export const PAGINAS_GEO: PaginaGeo[] = [
     ],
   },
 ];
+
+/**
+ * Os links de uma página de região para as outras (02/10/2026).
+ *
+ * O rótulo é o título da página ("Seminovos em Curitiba"), e não o nome solto
+ * do lugar: é a âncora que diz para onde o link leva, e são os únicos links
+ * que essas páginas trocam entre si.
+ */
+export function outrasRegioes(slug: PaginaGeo["slug"]): { rotulo: string; href: string }[] {
+  return PAGINAS_GEO.filter((p) => p.slug !== slug).map((p) => ({
+    rotulo: p.titulo,
+    href: `/${p.slug}`,
+  }));
+}
 
 export function acharPaginaGeo(slug: string): PaginaGeo | null {
   return PAGINAS_GEO.find((p) => p.slug === slug) ?? null;

@@ -68,6 +68,7 @@ describe("tipo da página", () => {
     ["/carros/jeep/renegade/s-t270/jeep-renegade-s-t270-7977579", "vehicle_detail"],
     ["/destaques/baixa-quilometragem", "highlight"],
     ["/seminovos-bacacheri", "geo"],
+    ["/seminovos-boa-vista", "geo"],
     ["/seminovos-curitiba", "geo"],
     ["/avaliacao", "appraisal"],
     ["/carro-perfeito", "advisor"],
