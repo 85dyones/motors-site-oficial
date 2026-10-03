@@ -22,7 +22,9 @@ import { ehStaff } from "./permissoes";
  *   2. **Só para a equipe.** A leitura pede um `PasseDaEquipe`, que só sai de
  *      `passeDaEquipe(perfil)` com o perfil lido pela SESSÃO de quem chama.
  *      Cliente da Garagem e investidor são `authenticated` sem ser equipe, e
- *      sem passe não há leitura.
+ *      sem passe não há leitura. Perfil DESATIVADO também não tem passe: a
+ *      sessão de quem saiu da loja pode seguir viva, e `ehStaff` não olha
+ *      `is_active`. No banco, `is_staff()` olha, e a RLS já dava zero a ele.
  *   3. **A porta de cada rota não muda.** O 401, o 403 e a matriz A17 seguem
  *      sendo decididos com o cliente da sessão, antes de chegar aqui.
  *
@@ -51,13 +53,15 @@ export interface PasseDaEquipe {
 const PASSE = Object.freeze({}) as PasseDaEquipe;
 
 /**
- * O passe para os agregados da loja, ou `null` para quem não é da equipe.
- * `perfil` é a linha de `profiles` lida com a sessão de quem chama.
+ * O passe para os agregados da loja, ou `null` para quem não é da equipe ou
+ * está desativado. `perfil` é a linha de `profiles` lida com a sessão de quem
+ * chama, e precisa trazer `is_active`: só `true` vale. Coluna ausente do
+ * `select` conta como desativado, que é o lado seguro do esquecimento.
  */
 export function passeDaEquipe(
-  perfil: { role?: string | null; papeis?: string[] | null } | null | undefined,
+  perfil: { role?: string | null; papeis?: string[] | null; is_active?: boolean | null } | null | undefined,
 ): PasseDaEquipe | null {
-  return perfil && ehStaff(perfil) ? PASSE : null;
+  return perfil && perfil.is_active === true && ehStaff(perfil) ? PASSE : null;
 }
 
 function consultaBase(colunas: string) {

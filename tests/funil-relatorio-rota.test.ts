@@ -117,7 +117,8 @@ beforeEach(() => {
   pedidosDoServico = [];
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
   CLIENTE.from.mockImplementation((tabela: string) => {
-    if (tabela === "profiles") return consulta(() => autor);
+    // Perfil ativo: o passe da leitura da loja exige `is_active`.
+    if (tabela === "profiles") return consulta(() => ({ is_active: true, ...autor }));
     if (tabela === "leads") {
       // A RLS por escopo: a sessão só lê o que o escopo de quem pede alcança.
       const visao = visaoDeLeads(autor.papeis, autor.full_name);

@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, papeis, full_name")
+      .select("role, papeis, full_name, is_active")
       .eq("id", user.id)
       .single();
     // Cliente da Garagem é authenticated sem ser staff; normalizar sem

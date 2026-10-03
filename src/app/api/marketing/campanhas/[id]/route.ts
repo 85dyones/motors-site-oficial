@@ -77,7 +77,7 @@ export async function GET(
     // É número da LOJA: para a equipe sai da chave de serviço, só a coluna
     // `utm_campaign` (a RLS de `leads` por escopo, 20261003130000, zeraria a
     // conta para o Marketing). Quem não é da equipe segue na leitura da sessão.
-    const { data: profile } = await supabase.from("profiles").select("role, papeis").eq("id", user.id).maybeSingle();
+    const { data: profile } = await supabase.from("profiles").select("role, papeis, is_active").eq("id", user.id).maybeSingle();
     const passe = passeDaEquipe(profile);
     const leadsRes = passe
       ? await lerLeadsDaLoja<{ utm_campaign: string | null }>(passe, ["utm_campaign"], (c) =>

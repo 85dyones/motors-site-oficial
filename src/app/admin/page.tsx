@@ -74,7 +74,7 @@ export default async function AdminVisaoGeralPage() {
     data: { user: quemAbriu },
   } = await supabase.auth.getUser();
   const { data: perfilDeQuemAbriu } = quemAbriu
-    ? await supabase.from("profiles").select("role, papeis, full_name").eq("id", quemAbriu.id).maybeSingle()
+    ? await supabase.from("profiles").select("role, papeis, full_name, is_active").eq("id", quemAbriu.id).maybeSingle()
     : { data: null };
   const visaoDeQuemAbriu = visaoDeLeads(perfisDe(perfilDeQuemAbriu), perfilDeQuemAbriu?.full_name);
 

@@ -315,7 +315,7 @@ beforeEach(() => {
       // A primeira leitura é o perfil de quem chama; a outra, a lista de atendentes.
       return consulta(tabela, (p) =>
         p.eq.id
-          ? { role: papel, papeis: [papel], full_name: EU }
+          ? { role: papel, papeis: [papel], full_name: EU, is_active: true }
           : [{ full_name: EU, role: "comercial", papeis: ["comercial"] }],
       );
     }

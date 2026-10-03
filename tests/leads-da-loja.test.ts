@@ -41,25 +41,28 @@ const { leadNoEscopo, visaoDeLeads } = await import("../src/lib/escopoDeLeads");
 const { janelaDeDias } = await import("../src/lib/midiaSync");
 const { resumoDeMidia } = await import("../src/lib/midiaResumo");
 const gerenciar = await import("../src/app/api/leads/gerenciar/route");
+const relatorio = await import("../src/app/api/funil/relatorio/route");
 const campanhas = await import("../src/app/api/marketing/campanhas/route");
 const campanha = await import("../src/app/api/marketing/campanhas/[id]/route");
 
 const PESSOAL = /nome|telefone|email|mensagem|desfecho_nota|responsavel|\*/;
 
 /** Quem está logado; `null` é sem sessão. */
-let autor: { role: string; papeis: string[]; full_name: string } | null;
+let autor: { role: string; papeis: string[]; full_name: string; is_active?: boolean | null } | null;
 let banco: Record<string, Linha[]>;
 /** Os `select` que cada cliente recebeu, por tabela. */
 let pedidos: { sessao: Array<[string, string]>; servico: Array<[string, string]> };
 
-const MARKETING = { role: "marketing", papeis: ["marketing"], full_name: "Mari" };
-const FINANCEIRO = { role: "financeiro", papeis: ["financeiro"], full_name: "Fabi" };
-const ANA = { role: "comercial", papeis: ["comercial"], full_name: "Ana" };
-const GESTOR = { role: "gestor", papeis: ["gestor"], full_name: "Gil" };
-const ADMIN = { role: "admin", papeis: ["admin"], full_name: "Dono" };
+const MARKETING = { role: "marketing", papeis: ["marketing"], full_name: "Mari", is_active: true };
+const FINANCEIRO = { role: "financeiro", papeis: ["financeiro"], full_name: "Fabi", is_active: true };
+const ANA = { role: "comercial", papeis: ["comercial"], full_name: "Ana", is_active: true };
+const GESTOR = { role: "gestor", papeis: ["gestor"], full_name: "Gil", is_active: true };
+const ADMIN = { role: "admin", papeis: ["admin"], full_name: "Dono", is_active: true };
 /** Cliente da Garagem: `authenticated`, e não é equipe. */
-const CLIENTE_DA_GARAGEM = { role: "cliente", papeis: [], full_name: "Zé" };
+const CLIENTE_DA_GARAGEM = { role: "cliente", papeis: [], full_name: "Zé", is_active: true };
 const EQUIPE = [ADMIN, GESTOR, ANA, MARKETING, FINANCEIRO];
+/** Saíram da loja: o perfil foi desativado, e a sessão segue viva. */
+const DESATIVADOS = EQUIPE.map((p) => ({ ...p, is_active: false }));
 
 /**
  * Um construtor de consulta do supabase-js em memória. Os filtros que as rotas
@@ -168,7 +171,8 @@ beforeEach(() => {
     if (tabela === "profiles") return consulta(autor ? [{ id: "u1", ...autor }] : [], anotar);
     if (tabela === "leads") {
       // A RLS da migração: a sessão só lê o que o escopo de quem pede alcança.
-      const visao = visaoDeLeads(autor?.papeis ?? [], autor?.full_name);
+      // Perfil desativado: nenhum (`escopo_de_leads()` devolve 'nenhum').
+      const visao = visaoDeLeads(autor?.is_active === true ? autor.papeis : [], autor?.full_name);
       return consulta(
         banco.leads.filter((l) => leadNoEscopo(visao, l.responsavel as string | null)),
         anotar,
@@ -207,7 +211,7 @@ describe("lerLeadsDaLoja — a leitura com a chave de serviço", () => {
   it("o passe só sai para quem é da equipe", () => {
     for (const quem of EQUIPE) expect(passeDaEquipe(quem), quem.role).not.toBeNull();
     expect(passeDaEquipe(CLIENTE_DA_GARAGEM)).toBeNull();
-    expect(passeDaEquipe({ role: "investidor", papeis: [] })).toBeNull();
+    expect(passeDaEquipe({ role: "investidor", papeis: [], is_active: true })).toBeNull();
     expect(passeDaEquipe(null)).toBeNull();
     expect(passeDaEquipe(undefined)).toBeNull();
   });
@@ -250,6 +254,83 @@ describe("lerLeadsDaLoja — a leitura com a chave de serviço", () => {
     chaveDeServico = false;
     const r = await lerLeadsDaLoja(passeDaEquipe(MARKETING)!, ["situacao"]);
     expect(r).toEqual({ data: null, error: { message: "SUPABASE_SERVICE_ROLE_KEY is not defined" } });
+  });
+});
+
+describe("perfil desativado com a sessão ainda viva — sem leitura da loja", () => {
+  it("o passe exige `is_active === true`: falso, nulo e ausente não passam", () => {
+    for (const quem of EQUIPE) {
+      const semAColuna = { role: quem.role, papeis: quem.papeis, full_name: quem.full_name };
+      expect(passeDaEquipe({ ...quem, is_active: false }), quem.role).toBeNull();
+      expect(passeDaEquipe({ ...quem, is_active: null }), quem.role).toBeNull();
+      // O `select` que esqueceu a coluna: desativado, e não ativo.
+      expect(passeDaEquipe(semAColuna), quem.role).toBeNull();
+      expect(passeDaEquipe({ ...quem, is_active: "true" as never }), quem.role).toBeNull();
+    }
+  });
+
+  it("todo caminho pede `is_active` ao ler o perfil pela sessão", async () => {
+    const pedidosDePerfil = async (chamar: () => Promise<unknown>) => {
+      pedidos.sessao = [];
+      await chamar();
+      return pedidos.sessao.filter(([tabela]) => tabela === "profiles").map(([, colunas]) => colunas);
+    };
+    const caminhos: Array<[string, () => Promise<unknown>]> = [
+      ["gerenciar", () => gerenciar.GET(new Request("http://x/api/leads/gerenciar") as never)],
+      ["relatorio", () => relatorio.GET({ nextUrl: new URL("http://x/api/funil/relatorio") } as never)],
+      ["campanhas", () => campanhas.GET({ nextUrl: new URL("http://x/api/marketing/campanhas") } as never)],
+      ["campanha", () => campanha.GET({} as never, { params: Promise.resolve({ id: "c-meta" }) })],
+    ];
+    for (const [caso, chamar] of caminhos) {
+      const perfis = await pedidosDePerfil(chamar);
+      expect(perfis.length, caso).toBeGreaterThan(0);
+      expect(perfis[0], caso).toContain("is_active");
+    }
+    const ler = (...partes: string[]) => readFileSync(join(process.cwd(), ...partes), "utf-8");
+    expect(ler("src", "app", "admin", "estoque", "page.tsx")).toContain('.select("role, papeis, is_active")');
+    expect(ler("src", "app", "admin", "page.tsx")).toContain('.select("role, papeis, full_name, is_active")');
+  });
+
+  it("relatório do funil: 403 para qualquer papel desativado, e a chave de serviço nem é chamada", async () => {
+    for (const quem of DESATIVADOS) {
+      autor = quem;
+      const r = await relatorio.GET({ nextUrl: new URL("http://x/api/funil/relatorio") } as never);
+      expect(r.status, quem.role).toBe(403);
+      expect(await r.json(), quem.role).toEqual({ error: "Acesso restrito à equipe" });
+    }
+    expect(SERVICO.from).not.toHaveBeenCalled();
+  });
+
+  it("contagem do Marketing no kanban: 403, sem leitura da loja", async () => {
+    for (const quem of DESATIVADOS.filter((p) => p.role === "marketing" || p.role === "financeiro")) {
+      autor = quem;
+      const r = await gerenciar.GET(new Request("http://x/api/leads/gerenciar") as never);
+      expect(r.status, quem.role).toBe(403);
+      expect(await r.json(), quem.role).not.toHaveProperty("total");
+    }
+    expect(SERVICO.from).not.toHaveBeenCalled();
+  });
+
+  it("leads por campanha: fica na sessão, como quem não é da equipe, e a RLS dá zero", async () => {
+    for (const quem of DESATIVADOS) {
+      autor = quem;
+      const lista = await (await campanhas.GET({ nextUrl: new URL("http://x/api/marketing/campanhas?dias=7") } as never)).json();
+      expect(lista.campanhas.map((c: Linha) => c.leadsBanco), quem.role).toEqual([0, 0]);
+      expect(lista.leadsSemCampanha, quem.role).toBe(0);
+      const uma = await (await campanha.GET({} as never, { params: Promise.resolve({ id: "c-meta" }) })).json();
+      expect(uma.leadsBanco, quem.role).toBe(0);
+    }
+    expect(SERVICO.from).not.toHaveBeenCalled();
+  });
+
+  it("cartão de mídia da Visão geral: sem passe, fica na sessão", async () => {
+    for (const quem of DESATIVADOS) {
+      autor = quem;
+      const r = await resumoDeMidia(SESSAO as never, passeDaEquipe(quem));
+      expect(r?.meta.leadsBanco, quem.role).toBe(0);
+      expect(r?.google.leadsBanco, quem.role).toBe(0);
+    }
+    expect(SERVICO.from).not.toHaveBeenCalled();
   });
 });
 
@@ -468,7 +549,7 @@ describe("as páginas do painel — pela fonte", () => {
   });
 
   it("a Visão geral dá ao cartão de mídia o passe do perfil da sessão, e a fila de novos segue no escopo", () => {
-    const perfil = visaoGeral.indexOf('await supabase.from("profiles").select("role, papeis, full_name")');
+    const perfil = visaoGeral.indexOf('await supabase.from("profiles").select("role, papeis, full_name, is_active")');
     const midia = visaoGeral.indexOf("await resumoDeMidia(supabase, passeDaEquipe(perfilDeQuemAbriu))");
     expect(perfil).toBeGreaterThan(-1);
     expect(midia).toBeGreaterThan(perfil);

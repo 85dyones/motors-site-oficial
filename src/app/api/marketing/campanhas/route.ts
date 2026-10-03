@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     // Só para decidir de onde sai a contagem de leads; a porta da rota é a de
     // cima e não muda.
-    const { data: profile } = await supabase.from("profiles").select("role, papeis").eq("id", user.id).maybeSingle();
+    const { data: profile } = await supabase.from("profiles").select("role, papeis, is_active").eq("id", user.id).maybeSingle();
     const passe = passeDaEquipe(profile);
 
     const pedido = Number(request.nextUrl.searchParams.get("dias"));

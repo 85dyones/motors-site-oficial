@@ -105,7 +105,7 @@ export default async function AdminEstoquePage() {
   } = await supabase.auth.getUser();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, papeis")
+    .select("role, papeis, is_active")
     .eq("id", user!.id)
     .single();
   const podeCriar = podeFazer(perfisDe(profile), "Publicar ou despublicar veículo") === "faz";
