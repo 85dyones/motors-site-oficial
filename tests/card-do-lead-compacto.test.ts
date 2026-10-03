@@ -20,6 +20,8 @@ describe("o card do lead", () => {
     const resumo = fonte.slice(inicio, detalhe);
     expect(detalhe).toBeGreaterThan(inicio);
     expect(resumo).toContain('{l.responsavel || "Sem responsável"}');
+    expect(resumo).toContain("{l.interesse}");
+    expect(resumo).toContain("{!expandido && (l.etiquetas ?? []).length > 0 && (");
     expect(resumo).toContain("{espera(l.created_at, agora)}");
     // O aviso de lead parado é o que mais pede ação: fica à vista, fechado.
     expect(resumo).toContain("{aviso} há {formatarPrazo(minutosParado(l, agora))}");
