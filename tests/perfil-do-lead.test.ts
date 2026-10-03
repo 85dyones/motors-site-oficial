@@ -79,15 +79,34 @@ vi.mock("../src/lib/supabase-server", () => ({
         const q = {
           select: () => q,
           eq: () => q,
-          single: async () => ({ data: { role: "comercial", papeis: ["comercial"] }, error: null }),
+          single: async () => ({
+            data: { role: "comercial", papeis: ["comercial"], full_name: "Ana" },
+            error: null,
+          }),
         };
         return q;
       }
       if (tabela === "leads") {
+        // O vendedor só mexe no lead dele (`escopoDeLeads`, 03/10/2026): antes
+        // de gravar, a rota lê o responsável do lead. Este é da Ana.
+        const alvo = {
+          eq: () => alvo,
+          maybeSingle: async () => ({ data: { responsavel: "Ana" }, error: null }),
+        };
         return {
+          select: () => alvo,
           update: (campos: Record<string, unknown>) => {
             gravacoesDoPainel.push(campos);
-            return { eq: async () => ({ error: null }) };
+            // A rota encadeia o `eq("id")` e o filtro do escopo antes de
+            // aguardar (`comEscopoDeLeads`).
+            const gravado = {
+              eq: () => gravado,
+              neq: () => gravado,
+              not: () => gravado,
+              then: (ok: (r: { error: null }) => unknown, falha?: (e: unknown) => unknown) =>
+                Promise.resolve({ error: null }).then(ok, falha),
+            };
+            return gravado;
           },
         };
       }

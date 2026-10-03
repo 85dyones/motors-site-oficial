@@ -17,9 +17,9 @@ export const metadata = {
  */
 export default async function RepassePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, perfis, repasse, urlDaFicha } = await abrirCarroNoPainel(id);
+  const { supabase, perfis, visao, repasse, urlDaFicha } = await abrirCarroNoPainel(id);
   const [{ pedidos, contatos }, { inscritos, avisados }] = await Promise.all([
-    lerLeadsDoCarro(supabase, repasse.id),
+    lerLeadsDoCarro(supabase, repasse.id, visao),
     lerQuemAvisar(supabase, repasse, perfis),
   ]);
 

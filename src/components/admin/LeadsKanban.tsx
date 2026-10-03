@@ -170,6 +170,9 @@ export default function LeadsKanban() {
   const [etapas, setEtapas] = useState<EtapaDoFunil[]>(ETAPAS_PADRAO);
   const [motivos, setMotivos] = useState<MotivoDoFunil[]>([]);
   const [podeConfigurar, setPodeConfigurar] = useState(false);
+  // Quem só enxerga os próprios leads (o vendedor) não precisa ler o próprio
+  // nome em cada card. A regra de quem vê o quê é do servidor (`escopoDeLeads`).
+  const [soOsMeus, setSoOsMeus] = useState(false);
   // As etiquetas (2026-09-25): as vistas nas conversas vêm com a fila; as
   // criadas na conta do Chatwoot vêm depois, numa leitura à parte, para a fila
   // não esperar a API. Guardadas separadas porque `carregar` renova a
@@ -277,6 +280,7 @@ export default function LeadsKanban() {
         setEtapas(d.etapas?.length ? ordenarEtapas(d.etapas) : ETAPAS_PADRAO);
         setMotivos(d.motivos ?? []);
         setPodeConfigurar(Boolean(d.podeConfigurar));
+        setSoOsMeus(d.escopo === "meus");
         setEtiquetasVistas(d.etiquetasDisponiveis ?? []);
         setEtiquetasEditaveis(Boolean(d.etiquetasEditaveis));
       }
@@ -1131,6 +1135,8 @@ export default function LeadsKanban() {
                             </ul>
                           )}
                           <div className="mt-2 flex items-center gap-1.5 text-[11px] text-mt-neutral-800">
+                            {!soOsMeus && (
+                            <>
                             <span
                               aria-hidden="true"
                               className={`flex h-5 w-5 shrink-0 items-center justify-center text-[9px] font-extrabold ${
@@ -1142,6 +1148,8 @@ export default function LeadsKanban() {
                               {l.responsavel ? iniciais(l.responsavel) : "—"}
                             </span>
                             <span className="min-w-0 truncate">{l.responsavel || "Sem responsável"}</span>
+                            </>
+                            )}
                             <span className="ml-auto shrink-0 tabular-nums text-mt-neutral-700">
                               {espera(l.created_at, agora)}
                             </span>

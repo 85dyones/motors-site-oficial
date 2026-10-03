@@ -354,8 +354,11 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   // recebe lead é a régua `recebeLead`, não esta linha.
   linha(
     "Ver e mover leads no kanban",
-    ["faz", "nao_ve", "nao_ve", "faz", "nao_ve", "faz"],
-    "Marketing vê só o volume agregado",
+    // Gestor entrou em 03/10/2026 (decisão do dono): vê os leads que já têm
+    // responsável. QUAIS leads cada perfil enxerga não cabe nesta linha, que é
+    // sim ou não: está em `lib/escopoDeLeads.ts`.
+    ["faz", "faz", "nao_ve", "faz", "nao_ve", "faz"],
+    "Admin vê todos; Gestor e SDR, os que têm responsável; Comercial, só os dele; Marketing, só o volume",
   ),
   linha(
     "Ver custo de aquisição e margem",

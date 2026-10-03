@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
+import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads } from "../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
   atendentesDoFluxo,
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, papeis")
+      .select("role, papeis, full_name")
       .eq("id", user.id)
       .single();
     // Cliente da Garagem é authenticated sem ser staff; normalizar sem
@@ -60,6 +61,8 @@ export async function GET(request: NextRequest) {
     }
     const perfil = perfisDe(profile);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
+    // Quais leads esta pessoa enxerga (regra de 03/10/2026, `escopoDeLeads`).
+    const visao = visaoDeLeads(perfil, profile?.full_name);
 
     // ------------------------------------------------------------------------
     // `?ref=` — a busca pela referência que o cliente leu na mensagem
@@ -105,6 +108,9 @@ export async function GET(request: NextRequest) {
     // que não roda por visitante. O padrão, e por que ele é o inverso exato de
     // `refCurta`, está em `padraoDaRef`.
     if (ref) consulta = consulta.ilike("ag_uid", padraoDaRef(ref));
+    // O escopo vale para a fila E para a busca por referência. Marketing fica
+    // de fora do filtro: ele só recebe a contagem, e a contagem é da loja.
+    if (podeVer) consulta = comEscopoDeLeads(consulta, visao);
     const { data, error } = await consulta;
 
     if (error) {
@@ -118,7 +124,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const leads = data ?? [];
+    // O banco já filtrou pelo escopo; esta segunda passada só tira o caso que
+    // ele não enxerga (responsável só com espaços), para a fila não oferecer
+    // um lead que a escrita recusaria.
+    const leads = podeVer ? (data ?? []).filter((l) => leadNoEscopo(visao, l.responsavel)) : (data ?? []);
 
     // Marketing enxerga volume, não pessoas — regra da matriz A17.
     if (!podeVer) {
@@ -244,6 +253,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       leads,
+      // A tela usa para decidir o que mostrar: quem só vê os próprios leads
+      // não precisa do nome do responsável em cada card.
+      escopo: visao.escopo,
       atendentes,
       etapas: ordenarEtapas((etapasBanco.data ?? []) as EtapaDoFunil[]),
       motivos: (motivosBanco.data ?? []) as MotivoDoFunil[],
@@ -308,7 +320,7 @@ export async function PATCH(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, papeis")
+      .select("role, papeis, full_name")
       .eq("id", user.id)
       .single();
     if (!ehStaff(profile)) {
@@ -334,6 +346,23 @@ export async function PATCH(request: NextRequest) {
     } = body;
     if (!id) {
       return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
+    }
+
+    // Só se mexe no lead que se enxerga. 404, e não 403: para quem não vê o
+    // lead, ele não existe, e a resposta não confirma o contrário.
+    const visaoDoAutor = visaoDeLeads(perfisDoAutor, profile?.full_name);
+    if (visaoDoAutor.escopo !== "todos") {
+      const { data: alvo, error: erroDoAlvo } = await supabase
+        .from("leads")
+        .select("responsavel")
+        .eq("id", id)
+        .maybeSingle();
+      // Leitura que falhou não é "lead não encontrado": a tela diria ao
+      // vendedor que o lead sumiu quando foi o banco que não respondeu.
+      if (erroDoAlvo) return NextResponse.json({ error: erroDoAlvo.message }, { status: 500 });
+      if (!alvo || !leadNoEscopo(visaoDoAutor, alvo.responsavel)) {
+        return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+      }
     }
 
     // "Falei com o cliente" — o clique no WhatsApp do card. Vai por RPC porque
@@ -380,7 +409,13 @@ export async function PATCH(request: NextRequest) {
 
     const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     if (situacao !== undefined) atualizacao.situacao = situacao;
-    if (responsavel !== undefined) atualizacao.responsavel = responsavel;
+    // Aparado: a validação acima já apara para comparar, e o nome gravado com
+    // espaço sobrando não casaria com o `full_name` de ninguém — o vendedor
+    // receberia o lead e não o veria.
+    if (responsavel !== undefined) {
+      // Só espaços é "sem dono", e sem dono se grava nulo: um jeito só de dizer.
+      atualizacao.responsavel = typeof responsavel === "string" ? responsavel.trim() || null : responsavel;
+    }
     if (observacoes !== undefined) atualizacao.observacoes = observacoes;
 
     // O que o consultor ofereceu e o que a loja pagou pelo carro avaliado
@@ -489,7 +524,9 @@ export async function PATCH(request: NextRequest) {
       responsavel.trim() !== "";
     const resgatesAntes = passaComoSdr ? await contarPassagensCreditadas(supabase, id) : null;
 
-    const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
+    // O escopo vai também na escrita: se o lead mudou de dono entre a leitura
+    // do guarda e este ponto, a gravação não alcança linha nenhuma.
+    const { error } = await comEscopoDeLeads(supabase.from("leads").update(atualizacao).eq("id", id), visaoDoAutor);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
