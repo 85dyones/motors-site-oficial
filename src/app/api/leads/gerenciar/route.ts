@@ -413,7 +413,8 @@ export async function PATCH(request: NextRequest) {
     // espaço sobrando não casaria com o `full_name` de ninguém — o vendedor
     // receberia o lead e não o veria.
     if (responsavel !== undefined) {
-      atualizacao.responsavel = typeof responsavel === "string" ? responsavel.trim() : responsavel;
+      // Só espaços é "sem dono", e sem dono se grava nulo: um jeito só de dizer.
+      atualizacao.responsavel = typeof responsavel === "string" ? responsavel.trim() || null : responsavel;
     }
     if (observacoes !== undefined) atualizacao.observacoes = observacoes;
 
