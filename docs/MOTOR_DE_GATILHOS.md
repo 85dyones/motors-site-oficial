@@ -31,11 +31,56 @@ executa.
 | `elegibilidade_em_risco` | §4.2 nº 7 | régua vencida | imediato · D+7 · D+21, e o 3º passo marca `em_risco` | sim (§4.3, texto do manual) |
 | `boas_vindas` | — (transacional) | ato: venda fechada | uma vez por veículo | sim — a ratificar |
 | `revisao_verificada` | — (transacional) | ato: carimbo da loja | uma vez por revisão | sim — a ratificar |
+| `pedido_de_avaliacao` | — (pedido do dono, 2026-10-03) | pós-venda: avaliação da loja no Google | uma vez por **cliente** (não por veículo), de D+3 a D+30 da `data_venda`; só venda de 03/10/2026 em diante | **não** |
 | `revisao_programada` | §4.2 nº 1 | janela §1.5 | D−15 · D−3 · D+7, ou antecipado por KM −800 | **não** |
 
-Prioridade em colisão (§4.4): risco < boas-vindas < verificada < lembrete —
-número menor atende primeiro, risco de perda vem antes de tudo, sempre. Um
-cliente com vários gatilhos no dia recebe **um**.
+Prioridade em colisão (§4.4): risco (10) < boas-vindas (15) < verificada (25)
+< pedido de avaliação (40) < lembrete (60) — número menor atende primeiro,
+risco de perda vem antes de tudo, sempre. Um cliente com vários gatilhos no
+dia recebe **um**.
+
+### `pedido_de_avaliacao` (2026-10-03)
+
+O único gatilho que não é do Ciclo: fala com **todo comprador** registrado em
+`veiculos_vendidos`, com ou sem adesão ao programa. As decisões, todas do dono:
+
+- **Quando:** do 3º ao 30º dia depois da `data_venda`. Venda com mais de 30
+  dias não recebe mais o pedido.
+- **Uma vez por cliente**, não por veículo. Quem comprou dois carros recebe um
+  pedido, pela venda mais recente. `falha_envio` não conta como pedido feito.
+- **Quem:** todo comprador com WhatsApp consentido. A mensagem é de WhatsApp;
+  a regra de canal é a mesma dos outros gatilhos (ver os pontos em aberto (b)
+  e (c)).
+- **Não é isento** da janela de 21 dias, nem de domingo, horário, quarentena
+  ou colisão.
+- **Corte da base histórica:** só venda com `data_venda >= 2026-10-03`. O
+  corte é uma linha da consulta, sem backfill em `eventos_ciclo`.
+- **Passo único**, prioridade 40. O contexto que o banco entrega é
+  `{ data_venda }`; nome, placa, marca e modelo saem pelas colunas da fila.
+
+O texto mora em `pedidoDeAvaliacao()` (`src/lib/ciclo/motor.ts`) e o link em
+`LINK_DE_AVALIACAO_NO_GOOGLE` (`src/lib/schemaLoja.ts`), montado a partir do
+`place_id`. Regras do dono para o texto, travadas em `tests/ciclo-motor.test.ts`:
+não pede nota, não condiciona o pedido a ter gostado, não oferece nada em
+troca, não vende, e não cita o programa (quem recebe pode não ter aderido).
+
+> **Três pontos em aberto, para o dono decidir** (nenhum foi resolvido no
+> código; o comportamento descrito é o que sai hoje):
+>
+> - **(a) Quem aderiu ao Ciclo quase não recebe o pedido.** A boas-vindas sai
+>   primeiro (prioridade 15, isenta) e conta como contato. Como o pedido não é
+>   isento, ele fica suprimido por `janela_de_21_dias` até o 21º dia depois da
+>   boas-vindas: só sai entre D+21 e D+30, ou não sai (basta um domingo, outro
+>   contato ou uma falha nesse intervalo curto).
+> - **(b) Comprador sem Ciclo só entra se houver consentimento gravado.** A
+>   fila exige `clientes.consentimento_canais.whatsapp = true`. Se o fechamento
+>   de uma venda sem adesão não marca WhatsApp como canal consentido, esse
+>   comprador aparece todo dia em `suprimidos` como `sem_canal_consentido` e
+>   nunca recebe.
+> - **(c) Quem só consentiu e-mail entra na fila com `canal: "email"`.** O
+>   texto é de WhatsApp e o transporte de e-mail não existe: o orquestrador
+>   registra `falha_envio`, a vez volta, e a linha se repete a cada dia até o
+>   D+30 (uma linha por dia em `eventos_ciclo`, que é append-only).
 
 Os demais gatilhos do §4.2 ficam de fora por falta de matéria-prima, não de
 esqueleto: seguro e garantia dependem de `apolices_seguro`/`contratos_ciclo`
@@ -179,8 +224,17 @@ Por que **um** orquestrador e não um workflow por gatilho: a deduplicação do
 §4.4 acontece dentro de **uma** chamada da fila. Chamadas separadas por
 gatilho não se veem — e como boas-vindas é isenta da janela de 21 dias, um
 cliente com dois gatilhos receberia duas mensagens no mesmo dia. Boas-vindas,
-lembrete de revisão, risco e revisão verificada são **linhas da mesma fila**,
-não fluxos separados.
+lembrete de revisão, risco, revisão verificada e pedido de avaliação são
+**linhas da mesma fila**, não fluxos separados.
+
+Por isso o `pedido_de_avaliacao` (2026-10-03) **não deve pedir mudança no
+n8n**: o corpo que o orquestrador manda está registrado como
+`{"reservar": true}`, sem `gatilhos` (`docs/HANDOFF_ALIAS_DA_VERCEL.md`), então
+o gatilho novo chega pela mesma chamada assim que a migração for aplicada e o
+deploy estiver no ar. ⚠️ O JSON do orquestrador não está no repositório: isso
+é o que os documentos dizem, não uma leitura do workflow vivo. Conferir o
+corpo do nó HTTP no n8n antes de aplicar a migração; se houver filtro
+`gatilhos`, o nome novo precisa entrar nele.
 
 Escolhas herdadas dos incidentes deste repositório: cadeia linear, sem fan-out
 paralelo (ordem de ramo é geometria do canvas); todo nó HTTP com
@@ -246,9 +300,21 @@ entra às 6h e o orquestrador continua às 9h.
 - O botão da **conformidade diária segue manual** (pendência já conhecida);
   este pacote não criou cron para ela.
 
+- **`pedido_de_avaliacao` tem três pontos em aberto** (adesão ao Ciclo,
+  consentimento de quem não aderiu, canal e-mail): ver a nota na seção do
+  gatilho, acima.
+
 ## Registro de aplicação
 
 Migração `20260814180000_motor_de_gatilhos.sql` aplicada em produção em
 2026-08-15 via session pooler (mesmo runbook do `supabase/README.md`; sem
 livro-razão `schema_migrations`, como as anteriores). Ensaiada antes em
 transação revertida, com a autoconferência passando contra o banco real.
+
+Migração `20261003131500_pedido_de_avaliacao.sql` (o gatilho
+`pedido_de_avaliacao`): **ainda não aplicada em produção** em 2026-10-03. O
+código que a acompanha (texto da mensagem, nome aceito no filtro da rota)
+pode ir ao ar antes dela sem efeito: enquanto a função do banco não devolver o
+gatilho, nada muda na fila. A ordem inversa não manda mensagem errada, mas é
+ruidosa: com a migração aplicada e o deploy antigo no ar, a rota não tem texto
+para o gatilho, devolve a vez (`falha_envio`) e ninguém recebe.
