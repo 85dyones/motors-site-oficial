@@ -95,9 +95,12 @@ const { textos } = JSON.parse(
 
 // O lote aprovado pelo dono em 02/10/2026 (hubs com procura no Search
 // Console) passa pela mesma régua.
-const { textos: loteProcura } = JSON.parse(
-  readFileSync(join(__dirname, "..", "conteudo-seo", "textos-de-hub-lote-procura.json"), "utf8"),
-) as { textos: Texto[] };
+// O segundo lote (03/10/2026) entra na mesma lista.
+const loteProcura = ["textos-de-hub-lote-procura.json", "textos-de-hub-lote-procura-2.json"].flatMap(
+  (arquivo) =>
+    (JSON.parse(readFileSync(join(__dirname, "..", "conteudo-seo", arquivo), "utf8")) as { textos: Texto[] })
+      .textos,
+);
 
 describe("os 31 textos da loja na forma escaneável", () => {
   it("são os 31 caminhos", () => {
@@ -107,6 +110,7 @@ describe("os 31 textos da loja na forma escaneável", () => {
   it("o lote novo não repete caminho que já tem texto", () => {
     const jaTem = new Set(textos.map((t) => t.caminho));
     expect(loteProcura.filter((t) => jaTem.has(t.caminho))).toEqual([]);
+    expect(new Set(loteProcura.map((t) => t.caminho)).size).toBe(loteProcura.length);
   });
 
   for (const { caminho, paragrafos: p } of [...textos, ...loteProcura]) {
