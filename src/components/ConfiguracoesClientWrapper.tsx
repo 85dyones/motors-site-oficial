@@ -39,6 +39,7 @@ import type {
  * lembrar é o tipo de coisa que deixa uma aba acessível pela URL e invisível
  * na navegação.
  */
+import { ABAS_DO_SITE, ehAbaDoSite } from "../lib/abasDeConfiguracao";
 const ABAS = [
   "destaques",
   "aparencia",
@@ -99,7 +100,11 @@ export default function ConfiguracoesClientWrapper({
   // A aba padrão era `estoque`, que virou tela própria (`/admin/estoque`) em
   // 2026-08-08. Sem ela, quem chega em /admin/configuracoes sem `?tab=` cai
   // nos destaques rápidos, a primeira da lista.
-  const [activeTab, setActiveTab] = useState<AbaConfiguracoes>("destaques");
+  // Nasce já na aba da URL: com "destaques" fixo, abrir `?tab=empresa` direto
+  // desenhava a barra de abas do site e a tirava em seguida.
+  const [activeTab, setActiveTab] = useState<AbaConfiguracoes>(() =>
+    tabParam && ABAS.includes(tabParam) ? tabParam : "destaques",
+  );
   const [loading, setLoading] = useState(true);
 
   // Synchronize state with URL search param changes
@@ -891,6 +896,30 @@ export default function ConfiguracoesClientWrapper({
             As alterações valem no site em tempo real assim que salvas.
           </p>
         </section>
+
+        {/* As abas de conteúdo do site. No trilho elas são uma entrada só
+            ("Configurações do site"); a troca acontece aqui. As abas do grupo
+            Sistema não mostram esta barra. */}
+        {ehAbaDoSite(activeTab) && (
+          <nav aria-label="Configurações do site" className="-mt-2 flex flex-wrap gap-1.5">
+            {ABAS_DO_SITE.map((aba) => {
+              const ativa = activeTab === aba.id;
+              return (
+                <button
+                  key={aba.id}
+                  type="button"
+                  aria-current={ativa ? "page" : undefined}
+                  onClick={() => handleTabChange(aba.id)}
+                  className={`mt-foco min-h-11 cursor-pointer border px-3 text-[11px] font-extrabold uppercase tracking-[.06em] ${
+                    ativa ? "border-mt-ink bg-mt-ink text-mt-bg" : "border-mt-regua text-mt-ink hover:border-mt-accent"
+                  }`}
+                >
+                  {aba.rotulo}
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Tab Content */}
         {loading ? (
