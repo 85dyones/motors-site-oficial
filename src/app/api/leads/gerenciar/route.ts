@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
-import { comEscopoDeLeads, escopoDeLeads, leadNoEscopo } from "../../../../lib/escopoDeLeads";
+import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads } from "../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
   atendentesDoFluxo,
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const perfil = perfisDe(profile);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
     // Quais leads esta pessoa enxerga (regra de 03/10/2026, `escopoDeLeads`).
-    const visao = { escopo: escopoDeLeads(perfil), meuNome: profile?.full_name ?? null };
+    const visao = visaoDeLeads(perfil, profile?.full_name);
 
     // ------------------------------------------------------------------------
     // `?ref=` — a busca pela referência que o cliente leu na mensagem
@@ -350,7 +350,7 @@ export async function PATCH(request: NextRequest) {
 
     // Só se mexe no lead que se enxerga. 404, e não 403: para quem não vê o
     // lead, ele não existe, e a resposta não confirma o contrário.
-    const visaoDoAutor = { escopo: escopoDeLeads(perfisDoAutor), meuNome: profile?.full_name ?? null };
+    const visaoDoAutor = visaoDeLeads(perfisDoAutor, profile?.full_name);
     if (visaoDoAutor.escopo !== "todos") {
       const { data: alvo, error: erroDoAlvo } = await supabase
         .from("leads")
@@ -409,7 +409,12 @@ export async function PATCH(request: NextRequest) {
 
     const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     if (situacao !== undefined) atualizacao.situacao = situacao;
-    if (responsavel !== undefined) atualizacao.responsavel = responsavel;
+    // Aparado: a validação acima já apara para comparar, e o nome gravado com
+    // espaço sobrando não casaria com o `full_name` de ninguém — o vendedor
+    // receberia o lead e não o veria.
+    if (responsavel !== undefined) {
+      atualizacao.responsavel = typeof responsavel === "string" ? responsavel.trim() : responsavel;
+    }
     if (observacoes !== undefined) atualizacao.observacoes = observacoes;
 
     // O que o consultor ofereceu e o que a loja pagou pelo carro avaliado
@@ -518,7 +523,9 @@ export async function PATCH(request: NextRequest) {
       responsavel.trim() !== "";
     const resgatesAntes = passaComoSdr ? await contarPassagensCreditadas(supabase, id) : null;
 
-    const { error } = await supabase.from("leads").update(atualizacao).eq("id", id);
+    // O escopo vai também na escrita: se o lead mudou de dono entre a leitura
+    // do guarda e este ponto, a gravação não alcança linha nenhuma.
+    const { error } = await comEscopoDeLeads(supabase.from("leads").update(atualizacao).eq("id", id), visaoDoAutor);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

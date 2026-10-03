@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { leadNoEscopo, visaoDeLeads } from "../../../../lib/escopoDeLeads";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, papeis")
+      .select("role, papeis, full_name")
       .eq("id", user.id)
       .single();
     if (!ehStaff(profile)) {
@@ -51,6 +52,10 @@ export async function GET(request: NextRequest) {
     }
     const perfis = perfisDe(profile);
     const vePessoas = podeFazer(perfis, "Ver e mover leads no kanban") === "faz";
+    // O recorte por vendedor e as notas livres seguem o escopo de leads
+    // (03/10/2026): o vendedor lê as notas e o desempenho DELE, e não os dos
+    // colegas. Os gráficos agregados acima continuam sendo da loja.
+    const visao = visaoDeLeads(perfis, profile?.full_name);
     const veGerencial = podeFazer(perfis, "Ver relatórios gerenciais e DRE") === "faz";
 
     const p = request.nextUrl.searchParams;
@@ -137,6 +142,7 @@ export async function GET(request: NextRequest) {
       // devolveria, pela porta lateral, exatamente o que o resto do relatório
       // toma o cuidado de não mostrar.
       resposta.observacoes = leads
+        .filter((l) => leadNoEscopo(visao, l.responsavel))
         .filter((l) => l.desfecho !== "descartado")
         .filter((l) => (l.desfecho_nota ?? "").trim())
         .sort(
@@ -162,6 +168,7 @@ export async function GET(request: NextRequest) {
         // porque um `else` que engole tudo que não é ganho é exatamente como
         // o descarte viraria perda de novo, em silêncio.
         if (l.desfecho === "descartado") continue;
+        if (!leadNoEscopo(visao, l.responsavel)) continue;
 
         const quem = l.responsavel?.trim() || "Sem responsável";
         const atual = porVendedor.get(quem) ?? { ganhos: 0, perdidos: 0, valor: 0 };

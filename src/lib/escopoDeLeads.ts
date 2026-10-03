@@ -40,6 +40,16 @@ export function escopoDeLeads(perfis: readonly string[]): EscopoDeLeads {
   return "nenhum";
 }
 
+/**
+ * A visão de quem está logado, a partir do perfil. O nome vai APARADO: o
+ * rodízio grava `trim(full_name)` em `responsavel`, e um espaço sobrando no
+ * perfil faria o vendedor não achar nenhum lead dele.
+ */
+export function visaoDeLeads(perfis: readonly string[], fullName: string | null | undefined): VisaoDeLeads {
+  const nome = typeof fullName === "string" ? fullName.trim() : "";
+  return { escopo: escopoDeLeads(perfis), meuNome: nome || null };
+}
+
 const temTexto = (v: string | null | undefined): v is string => typeof v === "string" && v.trim() !== "";
 
 /** O lead está à vista desta pessoa? */

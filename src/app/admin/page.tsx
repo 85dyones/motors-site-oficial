@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
-import { comEscopoDeLeads, escopoDeLeads } from "../../lib/escopoDeLeads";
+import { comEscopoDeLeads, visaoDeLeads } from "../../lib/escopoDeLeads";
 import { perfisDe } from "../../lib/permissoes";
 import { getEstoque } from "../../lib/supabase";
 import { disponiveisDe } from "../../lib/regrasEstoque";
@@ -79,13 +79,10 @@ export default async function AdminVisaoGeralPage() {
   const { data: perfilDeQuemAbriu } = quemAbriu
     ? await supabase.from("profiles").select("role, papeis, full_name").eq("id", quemAbriu.id).maybeSingle()
     : { data: null };
-  const visaoDeLeads = {
-    escopo: escopoDeLeads(perfisDe(perfilDeQuemAbriu)),
-    meuNome: perfilDeQuemAbriu?.full_name ?? null,
-  };
+  const visaoDeQuemAbriu = visaoDeLeads(perfisDe(perfilDeQuemAbriu), perfilDeQuemAbriu?.full_name);
   const { data: leadsNovos } = await comEscopoDeLeads(
     supabase.from("leads").select("id, nome, interesse, canal, created_at").eq("situacao", "novo"),
-    visaoDeLeads,
+    visaoDeQuemAbriu,
   )
     .order("created_at", { ascending: false })
     .limit(6);

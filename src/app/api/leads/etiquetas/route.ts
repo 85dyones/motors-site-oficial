@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
-import { escopoDeLeads, leadNoEscopo, type VisaoDeLeads } from "../../../../lib/escopoDeLeads";
+import { leadNoEscopo, visaoDeLeads, type VisaoDeLeads } from "../../../../lib/escopoDeLeads";
 import { configDoChatwoot, lerEtiquetasDaConta } from "../../../../lib/etiquetasDoChatwoot";
 import { ETIQUETAS_DA_PASSAGEM, mesmaEtiqueta } from "../../../../lib/etiquetas";
 import { editarEtiquetasDoLead, etiquetasConhecidas } from "../../../../lib/etiquetasDoLead";
@@ -37,7 +37,7 @@ async function sessaoQueMoveLead() {
   if (podeFazer(perfisDe(profile), "Ver e mover leads no kanban") !== "faz") {
     return { supabase, visao: semVisao, recusa: NextResponse.json({ error: "Seu perfil não mexe em leads" }, { status: 403 }) };
   }
-  const visao: VisaoDeLeads = { escopo: escopoDeLeads(perfisDe(profile)), meuNome: profile?.full_name ?? null };
+  const visao = visaoDeLeads(perfisDe(profile), profile?.full_name);
   return { supabase, visao, recusa: null };
 }
 

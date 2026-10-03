@@ -12,6 +12,7 @@
  * não encontrado antes do banco; sem sessão, login; quem não é da equipe volta
  * para a home; carro que não existe, não encontrado.
  */
+import { comEscopoDeLeads, visaoDeLeads, type VisaoDeLeads } from "./escopoDeLeads";
 import { notFound, redirect } from "next/navigation";
 import { COLUNAS_DO_INSCRITO, inscritoDaLinha, type InscritoDoRepasse } from "./avisosDoRepasse";
 import { validaRepasse } from "./edicaoDoRepasse";
@@ -35,6 +36,8 @@ type Sessao = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 export interface CarroNoPainel {
   supabase: Sessao;
   perfis: Perfil[];
+  /** Quais leads do carro esta pessoa enxerga. */
+  visao: VisaoDeLeads;
   repasse: RepasseDoPainel;
   /** A ficha pública, com o domínio: vai na mensagem de aviso e no "Ver no site". */
   urlDaFicha: string;
@@ -48,7 +51,7 @@ export async function abrirCarroNoPainel(id: string): Promise<CarroNoPainel> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: profile } = await supabase.from("profiles").select("role, papeis").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("role, papeis, full_name").eq("id", user.id).single();
   const origem = profile ?? papelPadraoPorEmail(user.email);
   if (!ehStaff(origem)) redirect("/");
   const perfis = perfisDe(origem);
@@ -57,7 +60,10 @@ export async function abrirCarroNoPainel(id: string): Promise<CarroNoPainel> {
   const repasse = data ? repasseDoPainelDaLinha(data as Record<string, unknown>) : null;
   if (!repasse) notFound();
 
-  return { supabase, perfis, repasse, urlDaFicha: urlDoSite(`${CAMINHO_DO_REPASSE}/${repasse.slug}`) };
+  // Quais leads deste carro a pessoa enxerga (`escopoDeLeads`, 03/10/2026).
+  const visao = visaoDeLeads(perfis, profile && "full_name" in profile ? (profile.full_name as string | null) : null);
+
+  return { supabase, perfis, visao, repasse, urlDaFicha: urlDoSite(`${CAMINHO_DO_REPASSE}/${repasse.slug}`) };
 }
 
 /**
@@ -92,13 +98,16 @@ export const LIMITE_POR_CANAL = 50;
 export async function lerLeadsDoCarro(
   supabase: Sessao,
   id: string,
+  visao: VisaoDeLeads,
 ): Promise<{ pedidos: LeadDoCarroNaTela[] | null; contatos: LeadDoCarroNaTela[] | null }> {
+  // Com o escopo de quem abriu (03/10/2026): até ali a tela do carro mostrava
+  // nome e telefone dos leads dele a qualquer perfil da equipe, inclusive os
+  // leads dos colegas e os novos sem responsável.
   const doCanal = (canal: string) =>
-    supabase
-      .from("leads")
-      .select(COLUNAS_DOS_LEADS_DO_CARRO)
-      .eq("repasse_id", id)
-      .eq("canal", canal)
+    comEscopoDeLeads(
+      supabase.from("leads").select(COLUNAS_DOS_LEADS_DO_CARRO).eq("repasse_id", id).eq("canal", canal),
+      visao,
+    )
       .order("created_at", { ascending: false })
       .limit(LIMITE_POR_CANAL);
   const [exame, whatsapp, etapas, motivos] = await Promise.all([
