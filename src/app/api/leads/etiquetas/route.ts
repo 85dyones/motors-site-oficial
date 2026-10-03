@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
+import { escopoDeLeads, leadNoEscopo, type VisaoDeLeads } from "../../../../lib/escopoDeLeads";
 import { configDoChatwoot, lerEtiquetasDaConta } from "../../../../lib/etiquetasDoChatwoot";
 import { ETIQUETAS_DA_PASSAGEM, mesmaEtiqueta } from "../../../../lib/etiquetas";
 import { editarEtiquetasDoLead, etiquetasConhecidas } from "../../../../lib/etiquetasDoLead";
@@ -21,21 +22,23 @@ export const dynamic = "force-dynamic";
 
 async function sessaoQueMoveLead() {
   const supabase = await createServerSupabaseClient();
+  const semVisao: VisaoDeLeads = { escopo: "nenhum", meuNome: null };
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { supabase, recusa: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
+  if (!user) return { supabase, visao: semVisao, recusa: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, papeis")
+    .select("role, papeis, full_name")
     .eq("id", user.id)
     .single();
   if (!ehStaff(profile)) {
-    return { supabase, recusa: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
+    return { supabase, visao: semVisao, recusa: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
   }
   if (podeFazer(perfisDe(profile), "Ver e mover leads no kanban") !== "faz") {
-    return { supabase, recusa: NextResponse.json({ error: "Seu perfil não mexe em leads" }, { status: 403 }) };
+    return { supabase, visao: semVisao, recusa: NextResponse.json({ error: "Seu perfil não mexe em leads" }, { status: 403 }) };
   }
-  return { supabase, recusa: null };
+  const visao: VisaoDeLeads = { escopo: escopoDeLeads(perfisDe(profile)), meuNome: profile?.full_name ?? null };
+  return { supabase, visao, recusa: null };
 }
 
 /**
@@ -75,12 +78,20 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { supabase, recusa } = await sessaoQueMoveLead();
+    const { supabase, visao, recusa } = await sessaoQueMoveLead();
     if (recusa) return recusa;
 
     const body = await request.json().catch(() => null);
     const id = typeof body?.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "id é obrigatório" }, { status: 400 });
+
+    // Só se etiqueta o lead que se enxerga (`escopoDeLeads`, 03/10/2026).
+    if (visao.escopo !== "todos") {
+      const { data: alvo } = await supabase.from("leads").select("responsavel").eq("id", id).maybeSingle();
+      if (!alvo || !leadNoEscopo(visao, alvo.responsavel)) {
+        return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+      }
+    }
 
     const r = await editarEtiquetasDoLead(supabase, id, body, configDoChatwoot());
     if (!r.ok) return NextResponse.json({ error: r.erro }, { status: r.status });
