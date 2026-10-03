@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { bancoDeTeste, sessaoDeTeste, type Banco } from "./bancoDoRepasseDeTeste";
+import { bancoDeTeste, casaComOsFiltros, sessaoDeTeste, type Banco } from "./bancoDoRepasseDeTeste";
 import { fotoDeTeste, linhaDoBancoDeTeste } from "./repasseDeTeste";
 import { emReais, type Repasse } from "../src/lib/repasse";
 import type { Perfil } from "../src/lib/permissoes";
@@ -285,6 +285,10 @@ describe("os leads do carro", () => {
   });
 
   beforeEach(() => {
+    // Quem abre é o Admin: desde 03/10/2026 só ele vê, no mesmo carro, o lead
+    // de qualquer vendedor e o lead sem responsável, que é o que estas listas
+    // têm. O recorte por perfil está no bloco seguinte.
+    entrarComo(["admin"]);
     carro({ situacao: "publicado", lojistas_desde: ISO, aberto_ao_publico_em: ISO });
     banco.leituras.funil_etapas = { data: ETAPAS, error: null };
     banco.leituras.funil_motivos = { data: MOTIVOS, error: null };
@@ -356,9 +360,7 @@ describe("os leads do carro", () => {
     const noBanco = [...zap, exame].map((l) => ({ ...l, repasse_id: ID }));
     // O banco de verdade: filtra, ordena do mais novo e corta no limite.
     banco.responderLeitura("leads", (c) => {
-      const casa = (l: Record<string, unknown>) =>
-        c.filtros.every(([coluna, valor]) => (Array.isArray(valor) ? valor.includes(l[coluna]) : l[coluna] === valor));
-      const ordem = noBanco.filter(casa).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+      const ordem = noBanco.filter((l) => casaComOsFiltros(l, c.filtros)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
       return { data: c.limite ? ordem.slice(0, c.limite) : ordem, error: null };
     });
     const exames = semTags(secao(await abrir(), "pedidos-de-exame"));
@@ -387,6 +389,89 @@ describe("os leads do carro", () => {
     expect(zap).not.toContain("Nenhum contato pelo WhatsApp");
     expect(log).toHaveBeenCalledWith(expect.stringContaining("[Repasse no painel]"), expect.stringContaining("desfecho does not exist"));
     log.mockRestore();
+  });
+});
+
+describe("os leads do carro, pelo escopo de quem abre (03/10)", () => {
+  /** O nome que `sessaoDeTeste` dá a quem entra. */
+  const EU = "Pessoa da Equipe";
+  const lead = (id: string, nome: string, canal: string, responsavel: string | null) => ({
+    id,
+    nome,
+    canal,
+    responsavel,
+    repasse_id: ID,
+    telefone: "5541997372165",
+    interesse: null,
+    created_at: "2026-09-24T15:00:00Z",
+    situacao: "novo",
+    desfecho: null,
+    desfecho_motivo: null,
+  });
+  const NO_BANCO = [
+    lead("e-meu", "Exame Meu", "repasse-exame", EU),
+    lead("e-colega", "Exame Da Colega", "repasse-exame", "Carla Vendas"),
+    lead("e-novo", "Exame Sem Dono", "repasse-exame", null),
+    lead("w-meu", "Zap Meu", "repasse-whatsapp", EU),
+    lead("w-colega", "Zap Da Colega", "repasse-whatsapp", "Carla Vendas"),
+    lead("w-vazio", "Zap Sem Dono", "repasse-whatsapp", ""),
+    // De outro carro: não entra para ninguém.
+    { ...lead("e-outro", "Exame De Outro Carro", "repasse-exame", EU), repasse_id: "outro-carro" },
+  ];
+  const TODOS = ["Exame Meu", "Exame Da Colega", "Exame Sem Dono", "Zap Meu", "Zap Da Colega", "Zap Sem Dono"];
+
+  /** Abre o carro como o perfil, com um banco que obedece aos filtros da consulta. */
+  async function nomesNaTela(papeis: string[]) {
+    entrarComo(papeis);
+    carro({ situacao: "publicado", lojistas_desde: ISO, aberto_ao_publico_em: ISO });
+    banco.responderLeitura("leads", (c) => ({ data: NO_BANCO.filter((l) => casaComOsFiltros(l, c.filtros)), error: null }));
+    const h = await abrir();
+    const t = semTags(secao(h, "pedidos-de-exame")) + semTags(secao(h, "contatos-pelo-whatsapp"));
+    return { t, vistos: [...TODOS, "Exame De Outro Carro"].filter((nome) => t.includes(nome)) };
+  }
+  const filtrosDosLeads = () => banco.consultas.filter((c) => c.tabela === "leads").map((c) => c.filtros);
+
+  it("o vendedor só recebe os leads dele daquele carro", async () => {
+    const { vistos } = await nomesNaTela(["comercial"]);
+    expect(vistos).toEqual(["Exame Meu", "Zap Meu"]);
+    // O recorte vai na consulta, depois do carro e do canal, nas duas leituras.
+    expect(filtrosDosLeads()).toEqual([
+      [["repasse_id", ID], ["canal", "repasse-exame"], ["responsavel", EU]],
+      [["repasse_id", ID], ["canal", "repasse-whatsapp"], ["responsavel", EU]],
+    ]);
+  });
+
+  it.each([[["sdr"]], [["gestor"]], [["comercial", "sdr"]]])("%j não recebe o lead sem responsável", async (papeis) => {
+    const { vistos } = await nomesNaTela(papeis);
+    expect(vistos).toEqual(["Exame Meu", "Exame Da Colega", "Zap Meu", "Zap Da Colega"]);
+    expect(filtrosDosLeads()[0]).toEqual([
+      ["repasse_id", ID],
+      ["canal", "repasse-exame"],
+      ["responsavel:not.is", null],
+      ["responsavel:neq", ""],
+    ]);
+  });
+
+  it.each([[["marketing"]], [["financeiro"]]])("%j recebe as duas listas vazias", async (papeis) => {
+    const { t, vistos } = await nomesNaTela(papeis);
+    expect(vistos).toEqual([]);
+    expect(t).toContain("Nenhum pedido de exame para este carro ainda.");
+    expect(t).toContain("Nenhum contato pelo WhatsApp para este carro ainda.");
+    // Nem o nome de quem abriu serve de chave: quem não vê lead não vê os "dele".
+    for (const filtros of filtrosDosLeads()) {
+      expect(filtros).toHaveLength(3);
+      expect(filtros[2][0]).toBe("responsavel");
+      expect(filtros[2][1]).not.toBe(EU);
+    }
+  });
+
+  it("o Admin recebe todos, sem filtro de responsável", async () => {
+    const { vistos } = await nomesNaTela(["admin"]);
+    expect(vistos).toEqual(TODOS);
+    expect(filtrosDosLeads()).toEqual([
+      [["repasse_id", ID], ["canal", "repasse-exame"]],
+      [["repasse_id", ID], ["canal", "repasse-whatsapp"]],
+    ]);
   });
 });
 

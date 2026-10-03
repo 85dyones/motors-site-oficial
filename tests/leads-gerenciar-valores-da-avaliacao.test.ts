@@ -43,6 +43,27 @@ function consulta(dado: unknown): Consulta {
   return q;
 }
 
+/**
+ * O que `update()` devolve. A rota encadeia o `eq("id")` e os filtros do
+ * escopo (`comEscopoDeLeads`: `eq`, `neq`, `not`) e só então aguarda.
+ */
+interface Gravado {
+  eq: () => Gravado;
+  neq: () => Gravado;
+  not: () => Gravado;
+  then: (ok: (r: { error: null }) => unknown, falha?: (e: unknown) => unknown) => Promise<unknown>;
+}
+
+function gravado(): Gravado {
+  const q: Gravado = {
+    eq: () => q,
+    neq: () => q,
+    not: () => q,
+    then: (ok, falha) => Promise.resolve({ error: null }).then(ok, falha),
+  };
+  return q;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   gravacoes = [];
@@ -59,7 +80,7 @@ beforeEach(() => {
           consulta(responsavelDoLead === undefined ? null : { responsavel: responsavelDoLead }),
         update: (campos: Record<string, unknown>) => {
           gravacoes.push(campos);
-          return { eq: async () => ({ error: null }) };
+          return gravado();
         },
       };
     }

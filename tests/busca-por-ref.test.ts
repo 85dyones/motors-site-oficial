@@ -178,6 +178,9 @@ type Linha = Record<string, unknown>;
 interface Pedido {
   tabela: string;
   eq: Record<string, unknown>;
+  /** `neq(coluna, valor)` e `not(coluna, "is", null)`: o escopo de leads. */
+  neq: Array<[string, unknown]>;
+  naoNulo: string[];
   em: Record<string, unknown[]>;
   ilike: Array<[string, string]>;
   ordem?: { coluna: string; crescente: boolean };
@@ -200,7 +203,7 @@ function consulta(
   ler: (p: Pedido) => unknown,
   falhar: (p: Pedido) => { code: string; message: string } | null = () => null,
 ) {
-  const p: Pedido = { tabela, eq: {}, em: {}, ilike: [] };
+  const p: Pedido = { tabela, eq: {}, neq: [], naoNulo: [], em: {}, ilike: [] };
   pedidos.push(p);
   const resposta = () => {
     const erro = falhar(p);
@@ -210,6 +213,15 @@ function consulta(
     select: () => q,
     eq: (coluna: string, valor: unknown) => {
       p.eq[coluna] = valor;
+      return q;
+    },
+    neq: (coluna: string, valor: unknown) => {
+      p.neq.push([coluna, valor]);
+      return q;
+    },
+    not: (coluna: string, operador: string, valor: unknown) => {
+      if (operador !== "is" || valor !== null) throw new Error(`not ${operador}: o dublê não conhece`);
+      p.naoNulo.push(coluna);
       return q;
     },
     in: (coluna: string, valores: unknown[]) => {
@@ -237,7 +249,11 @@ function consulta(
 
 /** A ordem do SQL: filtra, ordena e SÓ ENTÃO corta. */
 function lerLeads(p: Pedido): Linha[] {
-  let linhas = LEADS.filter((l) => p.ilike.every(([coluna, padrao]) => casaIlike(padrao, l[coluna])));
+  let linhas = LEADS.filter((l) => p.ilike.every(([coluna, padrao]) => casaIlike(padrao, l[coluna])))
+    // O escopo de quem pede (03/10/2026), como o banco o aplicaria.
+    .filter((l) => Object.entries(p.eq).every(([coluna, valor]) => l[coluna] === valor))
+    .filter((l) => p.neq.every(([coluna, valor]) => l[coluna] != null && l[coluna] !== valor))
+    .filter((l) => p.naoNulo.every((coluna) => l[coluna] != null));
   if (p.ordem) {
     const { coluna, crescente } = p.ordem;
     // Comparação de bytes, e não `localeCompare`: as datas são ISO, e a ordem
@@ -250,11 +266,15 @@ function lerLeads(p: Pedido): Linha[] {
   return p.limite === undefined ? linhas : linhas.slice(0, p.limite);
 }
 
+/** Quem chama. O vendedor só acha o lead dele: os da fixture são todos dela. */
+const EU = "Ana Atendente";
+
 const lead = (id: string, ag_uid: string | null, created_at: string, extra: Linha = {}): Linha => ({
   id,
   nome: `Cliente ${id}`,
   telefone: "5541999990000",
   situacao: "novo",
+  responsavel: EU,
   ag_uid,
   created_at,
   desfecho: null,
@@ -290,8 +310,8 @@ beforeEach(() => {
       // A primeira leitura é o perfil de quem chama; a outra, a lista de atendentes.
       return consulta(tabela, (p) =>
         p.eq.id
-          ? { role: papel, papeis: [papel] }
-          : [{ full_name: "Ana Atendente", role: "comercial", papeis: ["comercial"] }],
+          ? { role: papel, papeis: [papel], full_name: EU }
+          : [{ full_name: EU, role: "comercial", papeis: ["comercial"] }],
       );
     }
     if (tabela === "leads") {
@@ -364,6 +384,30 @@ describe("GET /api/leads/gerenciar?ref= — a busca, executada", () => {
 
     const busca = await (await chamar("?ref=0DCB1CDC")).json();
     expect(ids(busca)).toEqual(["antigo"]);
+  });
+
+  it("a busca obedece ao escopo: a mesma referência no lead de outro, ou sem responsável, não vem (03/10)", async () => {
+    LEADS.push(
+      lead("da-colega", UUID, "2026-09-14T12:00:00.000Z", { responsavel: "Bia Vendas" }),
+      lead("sem-dono", UUID, "2026-09-15T12:00:00.000Z", { responsavel: null }),
+      lead("so-espacos", UUID, "2026-09-16T12:00:00.000Z", { responsavel: "   " }),
+    );
+    const achados = async (quem: string) => {
+      papel = quem;
+      const corpo = await (await chamar("?ref=0DCB1CDC")).json();
+      return { escopo: corpo.escopo, ids: [...ids(corpo)].sort() };
+    };
+
+    expect(await achados("comercial")).toEqual({ escopo: "meus", ids: ["mesmo-1", "mesmo-2"] });
+    // SDR e Gestor: os que têm responsável. O "só espaços" passa pelo banco e
+    // cai na segunda passada da rota.
+    for (const quem of ["sdr", "gestor"]) {
+      expect(await achados(quem), quem).toEqual({ escopo: "designados", ids: ["da-colega", "mesmo-1", "mesmo-2"] });
+    }
+    expect(await achados("admin")).toEqual({
+      escopo: "todos",
+      ids: ["da-colega", "mesmo-1", "mesmo-2", "sem-dono", "so-espacos"],
+    });
   });
 
   it("quem fica no agregado recebe 403 — e a tabela de leads nem é lida", async () => {

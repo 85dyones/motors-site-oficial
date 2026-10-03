@@ -97,7 +97,16 @@ vi.mock("../src/lib/supabase-server", () => ({
           select: () => alvo,
           update: (campos: Record<string, unknown>) => {
             gravacoesDoPainel.push(campos);
-            return { eq: async () => ({ error: null }) };
+            // A rota encadeia o `eq("id")` e o filtro do escopo antes de
+            // aguardar (`comEscopoDeLeads`).
+            const gravado = {
+              eq: () => gravado,
+              neq: () => gravado,
+              not: () => gravado,
+              then: (ok: (r: { error: null }) => unknown, falha?: (e: unknown) => unknown) =>
+                Promise.resolve({ error: null }).then(ok, falha),
+            };
+            return gravado;
           },
         };
       }

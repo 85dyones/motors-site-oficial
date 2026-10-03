@@ -54,6 +54,13 @@ let lead: { situacao: string; canal: string | null; responsavel: string | null }
 let autor: { role: string; papeis: string[]; full_name: string };
 /** O que a rota mandou gravar em `leads`, na ordem. */
 let gravacoes: Record<string, unknown>[];
+/**
+ * Os filtros de cada gravação, na ordem das `gravacoes`: o `eq("id")` e os do
+ * escopo, que `comEscopoDeLeads` encadeia no `update` (`eq`, `neq`, `not`).
+ */
+let filtrosDasGravacoes: string[][];
+/** A leitura do escopo (`select("responsavel")`) falha com este erro. */
+let erroDoEscopo: { message: string } | null;
 /** As tabelas lidas depois da checagem de permissão. */
 let lidas: string[];
 /**
@@ -66,18 +73,45 @@ let idProcurado: unknown;
 let idDoEscopo: unknown;
 
 /** Um construtor de consulta do supabase-js: encadeia, e resolve no fim. */
-function consulta(resolver: (filtros: Record<string, unknown>) => unknown) {
+function consulta(
+  resolver: (filtros: Record<string, unknown>) => unknown,
+  falhar: () => { message: string } | null = () => null,
+) {
   const filtros: Record<string, unknown> = {};
+  const resposta = () => {
+    const erro = falhar();
+    return erro ? { data: null, error: erro } : { data: resolver(filtros), error: null };
+  };
   const q: any = {
     select: () => q,
     eq: (coluna: string, valor: unknown) => {
       filtros[coluna] = valor;
       return q;
     },
-    single: async () => ({ data: resolver(filtros), error: null }),
-    maybeSingle: async () => ({ data: resolver(filtros), error: null }),
-    then: (ok: any, falha: any) =>
-      Promise.resolve({ data: resolver(filtros), error: null }).then(ok, falha),
+    single: async () => resposta(),
+    maybeSingle: async () => resposta(),
+    then: (ok: any, falha: any) => Promise.resolve(resposta()).then(ok, falha),
+  };
+  return q;
+}
+
+/** O que `update()` devolve: aceita os filtros encadeados e resolve no `await`. */
+interface Gravacao {
+  eq: (coluna: string, valor: unknown) => Gravacao;
+  neq: (coluna: string, valor: unknown) => Gravacao;
+  not: (coluna: string, operador: string, valor: unknown) => Gravacao;
+  then: (ok: (r: { error: null }) => unknown, falha?: (e: unknown) => unknown) => Promise<unknown>;
+}
+
+function gravacao(campos: Record<string, unknown>): Gravacao {
+  const filtros: string[] = [];
+  gravacoes.push(campos);
+  filtrosDasGravacoes.push(filtros);
+  const q: Gravacao = {
+    eq: (coluna: string, valor: unknown) => (filtros.push(`${coluna} = ${String(valor)}`), q),
+    neq: (coluna: string, valor: unknown) => (filtros.push(`${coluna} <> '${String(valor)}'`), q),
+    not: (coluna: string, operador: string, valor: unknown) => (filtros.push(`${coluna} not ${operador} ${String(valor)}`), q),
+    then: (ok, falha) => Promise.resolve({ error: null }).then(ok, falha),
   };
   return q;
 }
@@ -87,6 +121,8 @@ beforeEach(() => {
   lead = { situacao: "proposta", canal: "Formulário Contato", responsavel: "Ana" };
   autor = { role: "comercial", papeis: ["comercial"], full_name: "Ana" };
   gravacoes = [];
+  filtrosDasGravacoes = [];
+  erroDoEscopo = null;
   lidas = [];
   idProcurado = undefined;
   idDoEscopo = undefined;
@@ -108,20 +144,20 @@ beforeEach(() => {
     if (tabela === "leads") {
       return {
         select: (colunas?: string) =>
-          consulta((f) => {
-            // A leitura do escopo pede só o responsável; a do desfecho, a
-            // etapa e o canal.
-            if (colunas === "responsavel") {
-              idDoEscopo = f.id;
-              return lead && { responsavel: lead.responsavel };
-            }
-            idProcurado = f.id;
-            return lead;
-          }),
-        update: (campos: Record<string, unknown>) => {
-          gravacoes.push(campos);
-          return { eq: async () => ({ error: null }) };
-        },
+          consulta(
+            (f) => {
+              // A leitura do escopo pede só o responsável; a do desfecho, a
+              // etapa e o canal.
+              if (colunas === "responsavel") {
+                idDoEscopo = f.id;
+                return lead && { responsavel: lead.responsavel };
+              }
+              idProcurado = f.id;
+              return lead;
+            },
+            () => (colunas === "responsavel" ? erroDoEscopo : null),
+          ),
+        update: gravacao,
       };
     }
     throw new Error(`tabela inesperada: ${tabela}`);
@@ -312,5 +348,79 @@ describe("PATCH /api/leads/gerenciar — só se mexe no lead que se enxerga (03/
     expect(r.status).toBe(200);
     expect(gravacoes[0]).toMatchObject({ responsavel: "Ana" });
     expect(idDoEscopo).toBeUndefined();
+  });
+
+  it("leitura do escopo que falhou: 500 com a mensagem do banco, e não 404; nada é gravado", async () => {
+    erroDoEscopo = { message: "connection reset" };
+    for (const quem of [autor, SDR, GESTOR]) {
+      autor = quem;
+      const r = await chamar({ observacoes: "oi", contato: "whatsapp" });
+      expect(r.status, quem.role).toBe(500);
+      expect(await r.json(), quem.role).toEqual({ error: "connection reset" });
+    }
+    expect(gravacoes).toEqual([]);
+    expect(CLIENTE.rpc).not.toHaveBeenCalled();
+  });
+
+  it("o `update` leva o filtro do escopo de quem grava, além do id", async () => {
+    // Se o lead mudou de dono entre a leitura do guarda e a gravação, o
+    // `update` não alcança linha nenhuma.
+    const filtrosDe = async (quem: typeof autor) => {
+      autor = quem;
+      filtrosDasGravacoes = [];
+      expect((await chamar({ observacoes: "oi" })).status, quem.role).toBe(200);
+      expect(filtrosDasGravacoes, quem.role).toHaveLength(1);
+      return filtrosDasGravacoes[0];
+    };
+
+    expect(await filtrosDe(autor)).toEqual([`id = ${ID}`, "responsavel = Ana"]);
+    for (const quem of [SDR, GESTOR]) {
+      expect(await filtrosDe(quem)).toEqual([`id = ${ID}`, "responsavel not is null", "responsavel <> ''"]);
+    }
+    expect(await filtrosDe(ADMIN)).toEqual([`id = ${ID}`]);
+  });
+
+  it("o filtro da gravação é o do dono de ANTES: a Ana passando o lead para a Bia", async () => {
+    const r = await chamar({ responsavel: "Bia" });
+    expect(r.status).toBe(200);
+    expect(gravacoes[0]).toMatchObject({ responsavel: "Bia" });
+    expect(filtrosDasGravacoes[0]).toEqual([`id = ${ID}`, "responsavel = Ana"]);
+  });
+
+  it("o nome do perfil com espaço sobrando ainda acha o lead, e filtra pelo nome aparado", async () => {
+    autor = { role: "comercial", papeis: ["comercial"], full_name: "  Ana " };
+    const r = await chamar({ observacoes: "oi" });
+    expect(r.status).toBe(200);
+    expect(filtrosDasGravacoes[0]).toEqual([`id = ${ID}`, "responsavel = Ana"]);
+  });
+});
+
+describe("PATCH /api/leads/gerenciar — o responsável é gravado aparado (03/10)", () => {
+  it('"  Bia  " é gravado como "Bia"', async () => {
+    // Com espaço sobrando o nome não casaria com o `full_name` de ninguém: a
+    // Bia receberia o lead e não o veria.
+    const r = await chamar({ responsavel: "  Bia  " });
+    expect(r.status).toBe(200);
+    expect(gravacoes).toHaveLength(1);
+    expect(gravacoes[0].responsavel).toBe("Bia");
+  });
+
+  it('"  Ana  " também, por quem distribui', async () => {
+    autor = { role: "admin", papeis: ["admin"], full_name: "Dono" };
+    lead = { situacao: "novo", canal: "Formulário Contato", responsavel: null };
+    const r = await chamar({ responsavel: "  Ana  " });
+    expect(r.status).toBe(200);
+    expect(gravacoes[0].responsavel).toBe("Ana");
+  });
+
+  it("aparado não é aceito às cegas: quem não é do Comercial segue recusado", async () => {
+    const r = await chamar({ responsavel: "  Igor Alves  " });
+    expect(r.status).toBe(422);
+    expect(gravacoes).toEqual([]);
+  });
+
+  it("tirar o dono continua gravando nulo", async () => {
+    await chamar({ responsavel: null });
+    expect(gravacoes[0].responsavel).toBeNull();
   });
 });

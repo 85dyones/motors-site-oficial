@@ -10,6 +10,11 @@ import { vi } from "vitest";
  * padrão para `update` devolve a linha lida com os valores novos por cima —
  * é o que o `.select("*").maybeSingle()` da rota recebe quando a corrida
  * não aconteceu.
+ *
+ * `neq` e `not` (o que `comEscopoDeLeads` encadeia desde 03/10/2026) entram
+ * nos mesmos `filtros`, com o operador no nome da coluna para não se
+ * confundirem com um `eq`: `["responsavel:neq", ""]` e
+ * `["responsavel:not.is", null]`. `casaComOsFiltros` lê os três.
  */
 export interface Resposta {
   data: unknown;
@@ -70,14 +75,21 @@ export function bancoDeTeste() {
         if (nome === "limit" && leitura) leitura.limite = Number(args[0]);
         // `in` também: "um canal OU outro" é filtro da consulta, e a prova de
         // que a página não lê o carro inteiro está nele.
-        if (nome === "eq" || nome === "is" || nome === "in") {
-          const filtro: [string, unknown] = [String(args[0]), args[1]];
+        const filtro: [string, unknown] | null =
+          nome === "eq" || nome === "is" || nome === "in"
+            ? [String(args[0]), args[1]]
+            : nome === "neq"
+              ? [`${String(args[0])}:neq`, args[1]]
+              : nome === "not"
+                ? [`${String(args[0])}:not.${String(args[1])}`, args[2]]
+                : null;
+        if (filtro) {
           if (escrita) escrita.filtros.push(filtro);
           else leitura?.filtros.push(filtro);
         }
         return q;
       };
-    for (const nome of ["select", "eq", "is", "in", "order", "limit", "like"]) q[nome] = encadeia(nome);
+    for (const nome of ["select", "eq", "neq", "not", "is", "in", "order", "limit", "like"]) q[nome] = encadeia(nome);
     q.single = async () => resolver();
     q.maybeSingle = async () => resolver();
     q.then = (ok: (r: Resposta) => unknown, falha?: (e: unknown) => unknown) => Promise.resolve(resolver()).then(ok, falha);
@@ -132,6 +144,22 @@ export function bancoDeTeste() {
 }
 
 export type Banco = ReturnType<typeof bancoDeTeste>;
+
+/**
+ * A linha passa pelos filtros anotados, como passaria no banco? Para o leitor
+ * que quer responder pela consulta (`responderLeitura`): igualdade, lista do
+ * `in`, `neq` e `not is null`.
+ */
+export function casaComOsFiltros(linha: Record<string, unknown>, filtros: Array<[string, unknown]>): boolean {
+  return filtros.every(([chave, valor]) => {
+    const [coluna, operador] = chave.split(":");
+    const tem = linha[coluna] ?? null;
+    if (operador === "neq") return tem !== null && tem !== valor;
+    if (operador === "not.is") return tem !== valor;
+    if (operador !== undefined) throw new Error(`filtro que o dublê não conhece: ${chave}`);
+    return Array.isArray(valor) ? valor.includes(tem) : tem === valor;
+  });
+}
 
 /**
  * O cliente de SESSÃO: `auth.getUser` e as leituras. Usa o mesmo banco do
