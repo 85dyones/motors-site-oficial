@@ -80,6 +80,26 @@ export function opcoesDoCard(
 }
 
 /**
+ * A opção vazia ("Sem responsável") do select de UM card (03/10/2026).
+ *
+ * Só o Administrador deixa um lead sem responsável; para os outros o select
+ * não oferece a opção, e a rota recusa com 403 quem a mandar assim mesmo.
+ *
+ *   · "oferece": quem pode tirar o dono a escolhe.
+ *   · "so-mostra": o lead está sem dono e quem olha não pode deixá-lo assim.
+ *     A opção aparece desabilitada, só para o select mostrar o valor que o
+ *     lead tem, em vez de exibir o primeiro nome da lista como se fosse o dono.
+ *   · "nao": o lead tem dono e quem olha não pode tirá-lo.
+ */
+export function opcaoSemResponsavel(
+  podeRemover: boolean,
+  atual: string | null,
+): "oferece" | "so-mostra" | "nao" {
+  if (podeRemover) return "oferece";
+  return atual && atual.trim() ? "nao" : "so-mostra";
+}
+
+/**
  * A fiação de `mover` — o que o gesto precisa saber e o que ele pode fazer.
  *
  * Recebida em vez de fechada por closure porque é o que torna o gesto

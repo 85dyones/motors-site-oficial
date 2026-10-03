@@ -318,12 +318,13 @@ describe("a passagem do SDR para o Comercial", () => {
     expect(banco.leads[0].responsavel).toBe("Bia");
   });
 
-  it("o SDR tirando o dono não é passagem", async () => {
+  it("o SDR não tira o dono (03/10): 403, o lead fica com quem estava e nada vai ao Chatwoot", async () => {
     banco.leads[0].responsavel = "Ana";
     const r = await patch({ responsavel: null });
-    expect(await r.json()).toEqual({ ok: true });
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ error: "Só um administrador pode deixar o lead sem responsável." });
     expect(chamadasAoChatwoot).toHaveLength(0);
-    expect(banco.leads[0].responsavel).toBeNull();
+    expect(banco.leads[0].responsavel).toBe("Ana");
   });
 
   it("o SDR mexendo em outra coisa do lead não etiqueta", async () => {

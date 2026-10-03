@@ -27,8 +27,9 @@ export function atendentesDoFluxo(perfis: PerfilDoFluxo[]): { nome: string }[] {
 }
 
 /**
- * `null` = aceito. Sem responsável é sempre aceito: tirar o dono não põe
- * ninguém de fora no fluxo. Nome que não é de ninguém do Comercial ativo é
+ * `null` = aceito. Sem responsável é sempre aceito AQUI: tirar o dono não põe
+ * ninguém de fora no fluxo. QUEM pode tirar o dono é outra régua, a de
+ * `podeRemoverResponsavel` (`lib/escopoDeLeads`): só o Administrador. Nome que não é de ninguém do Comercial ativo é
  * recusado — inclusive o nome antigo gravado no lead, que pode FICAR, mas não
  * pode ser escolhido de novo.
  */

@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { comEscopoDeLeads, escopoDeLeads, leadNoEscopo } from "../src/lib/escopoDeLeads";
+import {
+  AVISO_DE_RESPONSAVEL_OBRIGATORIO,
+  comEscopoDeLeads,
+  escopoDeLeads,
+  leadNoEscopo,
+  pedeLeadSemResponsavel,
+  podeRemoverResponsavel,
+  visaoDeLeads,
+} from "../src/lib/escopoDeLeads";
 import { podeFazer } from "../src/lib/permissoes";
 
 /**
@@ -71,6 +79,46 @@ describe("um lead está à vista?", () => {
 
   it("quem não vê lead não vê nenhum", () => {
     expect(leadNoEscopo({ escopo: "nenhum", meuNome: "Ana" }, "Ana")).toBe(false);
+  });
+});
+
+describe("quem deixa um lead sem responsável (03/10)", () => {
+  it("só o Administrador", () => {
+    expect(podeRemoverResponsavel({ escopo: "todos" })).toBe(true);
+    expect(podeRemoverResponsavel({ escopo: "designados" })).toBe(false);
+    expect(podeRemoverResponsavel({ escopo: "meus" })).toBe(false);
+    expect(podeRemoverResponsavel({ escopo: "nenhum" })).toBe(false);
+  });
+
+  it("por perfil: vendedor, SDR e Gestor não; Admin sim, em qualquer posição dos papéis", () => {
+    const pode = (papeis: string[]) => podeRemoverResponsavel(visaoDeLeads(papeis, "Fulano"));
+    expect(pode(["comercial"])).toBe(false);
+    expect(pode(["sdr"])).toBe(false);
+    expect(pode(["gestor"])).toBe(false);
+    expect(pode(["comercial", "sdr"])).toBe(false);
+    expect(pode(["marketing"])).toBe(false);
+    expect(pode([])).toBe(false);
+    expect(pode(["admin"])).toBe(true);
+    expect(pode(["comercial", "admin"])).toBe(true);
+  });
+
+  it("o que conta como pedir o lead sem responsável", () => {
+    // Não mandar o campo é não mexer nele.
+    expect(pedeLeadSemResponsavel(undefined)).toBe(false);
+    expect(pedeLeadSemResponsavel("Ana")).toBe(false);
+    expect(pedeLeadSemResponsavel("  Ana  ")).toBe(false);
+    expect(pedeLeadSemResponsavel(null)).toBe(true);
+    expect(pedeLeadSemResponsavel("")).toBe(true);
+    expect(pedeLeadSemResponsavel("   ")).toBe(true);
+    // O que nem texto é não é nome de ninguém: a trava vale.
+    expect(pedeLeadSemResponsavel(0)).toBe(true);
+    expect(pedeLeadSemResponsavel(false)).toBe(true);
+    expect(pedeLeadSemResponsavel([])).toBe(true);
+  });
+
+  it("a frase da recusa, sem travessão", () => {
+    expect(AVISO_DE_RESPONSAVEL_OBRIGATORIO).toBe("Só um administrador pode deixar o lead sem responsável.");
+    expect(AVISO_DE_RESPONSAVEL_OBRIGATORIO).not.toMatch(/[\u2013\u2014]/);
   });
 });
 

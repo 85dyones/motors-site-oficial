@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
-import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads } from "../../../../lib/escopoDeLeads";
+import {
+  AVISO_DE_RESPONSAVEL_OBRIGATORIO,
+  comEscopoDeLeads,
+  leadNoEscopo,
+  pedeLeadSemResponsavel,
+  podeRemoverResponsavel,
+  visaoDeLeads,
+} from "../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
   atendentesDoFluxo,
@@ -363,6 +370,14 @@ export async function PATCH(request: NextRequest) {
       if (!alvo || !leadNoEscopo(visaoDoAutor, alvo.responsavel)) {
         return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
       }
+    }
+
+    // Só o Administrador deixa um lead sem responsável (decisão do dono,
+    // 03/10/2026). Depois do guarda do escopo, para o lead que a pessoa não
+    // enxerga continuar sendo 404, e ANTES do registro de contato, que é a
+    // primeira escrita da rota: recusado, o pedido não grava nada.
+    if (pedeLeadSemResponsavel(responsavel) && !podeRemoverResponsavel(visaoDoAutor)) {
+      return NextResponse.json({ error: AVISO_DE_RESPONSAVEL_OBRIGATORIO }, { status: 403 });
     }
 
     // "Falei com o cliente" — o clique no WhatsApp do card. Vai por RPC porque

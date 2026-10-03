@@ -7,6 +7,9 @@
  *     responsável, não.
  *   · Comercial (vendedor): só os dele.
  *   · A busca por referência obedece à mesma regra.
+ *   · Só o Administrador deixa um lead sem responsável
+ *     (`podeRemoverResponsavel`). Os outros passam o lead adiante, a alguém do
+ *     Comercial, dentro do que enxergam.
  *
  * Até aqui Admin, Comercial e SDR recebiam a fila inteira: o vendedor via os
  * leads dos colegas. A regra vale no SERVIDOR (a rota filtra a consulta e
@@ -64,6 +67,31 @@ export function leadNoEscopo(visao: VisaoDeLeads, responsavel: string | null | u
     default:
       return false;
   }
+}
+
+/**
+ * Quem pode deixar um lead SEM responsável (decisão do dono, 03/10/2026): só o
+ * Administrador. Vendedor, SDR e Gestor passam o lead a outra pessoa do
+ * Comercial, mas não o devolvem à fila sem dono: o lead sem responsável some
+ * da vista dos três, e só o Admin o enxerga para distribuir de novo.
+ *
+ * A automação com chave de serviço (rodízio, webhook do Chatwoot, crons) não
+ * passa por aqui.
+ */
+export const AVISO_DE_RESPONSAVEL_OBRIGATORIO = "Só um administrador pode deixar o lead sem responsável.";
+
+export function podeRemoverResponsavel(visao: Pick<VisaoDeLeads, "escopo">): boolean {
+  return visao.escopo === "todos";
+}
+
+/**
+ * O pedido deixaria o lead sem responsável? `undefined` é "não mexe no campo".
+ * Todo o resto que não é um nome (nulo, vazio, só espaços, ou um valor que nem
+ * texto é) conta como retirada: na dúvida, a trava vale.
+ */
+export function pedeLeadSemResponsavel(responsavel: unknown): boolean {
+  if (responsavel === undefined) return false;
+  return typeof responsavel !== "string" || responsavel.trim() === "";
 }
 
 /** Um valor que nenhum `responsavel` tem: a rota só aceita nome de perfil. */
