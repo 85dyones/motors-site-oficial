@@ -1087,9 +1087,13 @@ export default function LeadsKanban() {
                             aria-expanded={expandido}
                             aria-controls={`lead-${l.id}`}
                             onClick={() => alternarCard(l.id)}
-                            className="mt-foco flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 border-0 bg-transparent p-0 text-left text-mt-ink"
+                            // Do tamanho do nome, e não da largura do card: o
+                            // que sobra à direita é por onde se pega o card
+                            // para arrastar (no Firefox, apertar um botão não
+                            // começa o arrasto do card em volta).
+                            className="mt-foco inline-flex min-h-11 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-mt-ink"
                           >
-                            <span className="text-[13px] font-extrabold tracking-[-.01em]">{l.nome}</span>
+                            <span className="min-w-0 break-words text-[13px] font-extrabold tracking-[-.01em]">{l.nome}</span>
                             <span aria-hidden="true" className="text-[14px] text-mt-cobre">
                               {expandido ? "–" : "+"}
                             </span>
