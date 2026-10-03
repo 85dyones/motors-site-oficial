@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { arquivoDaMigracaoViva, definicaoViva, migracaoViva } from "./migracaoViva";
 import {
   GATILHOS,
-  GATILHOS_ATIVOS,
+  GATILHOS_CONHECIDOS,
   MOTIVOS_DE_SUPRESSAO,
   mensagemDoGatilho,
   mensagemDaFilaDeVerificacao,
@@ -15,6 +15,7 @@ import {
   type Gatilho,
   type LinhaDaFila,
 } from "../src/lib/ciclo/motor";
+import { LINK_DE_AVALIACAO_NO_GOOGLE } from "../src/lib/schemaLoja";
 
 /**
  * O motor de gatilhos — manual v1.1 §4, §7.2 e §7.3.
@@ -41,6 +42,13 @@ const raiz = join(__dirname, "..");
  * `ciclo-venda-fechamento` já tinha caído uma vez.
  */
 const migracao = migracaoViva("montar_fila_de_gatilhos");
+/**
+ * Só o texto da FUNÇÃO viva, sem o cabeçalho nem a autoconferência do arquivo.
+ * Para as asserções negativas do `pedido_de_avaliacao` (2026-10-03): o arquivo
+ * dele repete, nos comentários e nos marcadores do aceite, justamente os nomes
+ * que a função não pode ter em certos lugares.
+ */
+const corpoDaFila = definicaoViva("montar_fila_de_gatilhos");
 const estimativa = migracaoViva("km_estimado");
 const carimbo = migracaoViva("carimbar_revisao");
 const corpoCarimbo = definicaoViva("carimbar_revisao");
@@ -144,10 +152,15 @@ function todasAsMensagens(): { gatilho: Gatilho; passo: number; texto: string }[
       km_registrado: 56800,
       dentro_da_janela: true,
     },
+    // O contexto que o SQL monta para este gatilho é só a data da venda; o
+    // resto (nome, placa, marca, modelo) sai pelas colunas da fila.
+    pedido_de_avaliacao: {
+      data_venda: "2026-10-03",
+    },
   };
 
   const saida: { gatilho: Gatilho; passo: number; texto: string }[] = [];
-  for (const gatilho of GATILHOS_ATIVOS) {
+  for (const gatilho of GATILHOS_CONHECIDOS) {
     for (let passo = 1; passo <= GATILHOS[gatilho].passos; passo++) {
       saida.push({
         gatilho,
@@ -356,7 +369,7 @@ describe("prioridade e cadência — o TS e o SQL contam a mesma história", () 
     expect(GATILHOS.elegibilidade_em_risco.prioridade).toBeLessThan(
       GATILHOS.revisao_programada.prioridade,
     );
-    for (const gatilho of GATILHOS_ATIVOS) {
+    for (const gatilho of GATILHOS_CONHECIDOS) {
       const { prioridade } = GATILHOS[gatilho];
       const noSql = new RegExp(`'${gatilho}'::text[^,]*,\\s*${prioridade}\\b`);
       expect(migracao, `${gatilho} com prioridade diferente no SQL`).toMatch(noSql);
@@ -384,7 +397,7 @@ describe("prioridade e cadência — o TS e o SQL contam a mesma história", () 
   });
 
   it("a isenção da janela de 21 dias é a mesma nos dois lados", () => {
-    const isentos = GATILHOS_ATIVOS.filter((g) => GATILHOS[g].isentoDaJanela).sort();
+    const isentos = GATILHOS_CONHECIDOS.filter((g) => GATILHOS[g].isentoDaJanela).sort();
     expect(isentos).toEqual(["boas_vindas", "elegibilidade_em_risco", "revisao_verificada"]);
     for (const gatilho of isentos) {
       // `[^)]` já atravessa quebra de linha — a lista do SQL é multilinha.
@@ -396,10 +409,240 @@ describe("prioridade e cadência — o TS e o SQL contam a mesma história", () 
     expect(migracao).not.toMatch(/not in \([^)]*'revisao_programada'/);
   });
 
+  it("o pedido de avaliação NÃO é isento da janela de 21 dias — no TS e no SQL", () => {
+    // Decisão do dono em 2026-10-03. É pedido de favor, não aviso de risco nem
+    // resposta a um ato do cliente: espera a janela como o lembrete de revisão.
+    expect(GATILHOS.pedido_de_avaliacao.isentoDaJanela).toBe(false);
+    expect(corpoDaFila).not.toMatch(/not in \([^)]*'pedido_de_avaliacao'/);
+    // A lista de isentos é a mesma de antes, com os mesmos três nomes.
+    expect(corpoDaFila).toContain(
+      "c.gatilho not in ('elegibilidade_em_risco', 'boas_vindas', 'revisao_verificada')",
+    );
+  });
+
   it("todo motivo de supressão que o SQL produz tem nome conhecido aqui", () => {
     for (const motivo of MOTIVOS_DE_SUPRESSAO) {
       expect(migracao, `motivo ausente no SQL: ${motivo}`).toContain(`'${motivo}'`);
     }
+  });
+});
+
+describe("o pedido de avaliação no Google — pedido do dono em 2026-10-03", () => {
+  const linha: LinhaDaFila = {
+    ...linhaBase,
+    gatilho: "pedido_de_avaliacao",
+    prioridade: 40,
+    passo: 1,
+    contexto: { data_venda: "2026-10-03" },
+  };
+  const texto = mensagemDoGatilho(linha);
+
+  /** O SQL sem os comentários `--`: o que o banco executa, não o que explica. */
+  const semComentarios = (sql: string) => sql.replace(/--.*$/gm, "");
+  /** Do nome de uma CTE até o nome da seguinte. */
+  const cte = (de: string, ate: string) => {
+    const inicio = corpoDaFila.indexOf(`${de} as (`);
+    const fim = corpoDaFila.indexOf(`${ate} as (`);
+    expect(inicio, `CTE ${de} ausente`).toBeGreaterThan(-1);
+    expect(fim, `CTE ${ate} não vem depois de ${de}`).toBeGreaterThan(inicio);
+    return semComentarios(corpoDaFila.slice(inicio, fim));
+  };
+
+  it("prioridade 40 nas duas camadas, entre a revisão verificada e o lembrete", () => {
+    expect(GATILHOS.pedido_de_avaliacao.prioridade).toBe(40);
+    expect(corpoDaFila).toContain(
+      "'pedido_de_avaliacao'::text as gatilho, 40 as prioridade, 1 as passo",
+    );
+    expect(GATILHOS.pedido_de_avaliacao.prioridade).toBeGreaterThan(
+      GATILHOS.revisao_verificada.prioridade,
+    );
+    expect(GATILHOS.pedido_de_avaliacao.prioridade).toBeLessThan(
+      GATILHOS.revisao_programada.prioridade,
+    );
+    // Um passo só: o pedido não tem cadência, sai uma vez por cliente.
+    expect(GATILHOS.pedido_de_avaliacao.passos).toBe(1);
+  });
+
+  it("a mensagem leva o link de avaliar, a placa, o modelo e o primeiro nome", () => {
+    expect(texto).toContain(LINK_DE_AVALIACAO_NO_GOOGLE);
+    expect(texto).toContain(
+      "https://search.google.com/local/writereview?placeid=ChIJv0CqvV3n3JQRquS50aBbm1c",
+    );
+    expect(texto).toContain("placa ABC1D23");
+    expect(texto).toContain("Onix");
+    expect(texto).toContain("Oi, José.");
+    expect(texto).not.toContain("Carlos");
+  });
+
+  it("o texto de base que o dono mandou, inteiro", () => {
+    // Comparação de valor: qualquer palavra trocada aqui muda o que um cliente
+    // real lê, e tem de passar por quem escreveu a regra.
+    const m = mensagemDoGatilho({
+      ...linha,
+      nome: "Marina Souza",
+      marca: "Renault",
+      modelo: "Kwid",
+    });
+    expect(m).toBe(
+      "Oi, Marina. Aqui é da Motors Store. O Renault Kwid, placa ABC1D23, já está com você há alguns dias, e a gente queria saber como foi a compra. Se puder contar em uma avaliação no Google, ajuda quem está procurando carro a conhecer a loja: https://search.google.com/local/writereview?placeid=ChIJv0CqvV3n3JQRquS50aBbm1c" +
+        "\n\nSe precisar de algo com o carro, é só chamar por aqui." +
+        "\n\nSe preferir não receber estes avisos, é só responder por aqui que a gente desliga.",
+    );
+  });
+
+  it("não pede nota, não oferece nada em troca e não vende", () => {
+    const minusculo = texto.toLowerCase();
+    for (const proibida of ["estrela", "nota", "brinde", "desconto", "sorteio"]) {
+      expect(minusculo, `a mensagem fala de "${proibida}"`).not.toContain(proibida);
+    }
+    // Nem condiciona o pedido a ter gostado.
+    expect(minusculo).not.toMatch(/se (você )?gostou|se ficou satisfeit/);
+  });
+
+  it("segue as regras de texto do dono: sem travessão, sem aspas curvas, sem pergunta", () => {
+    expect(texto).not.toMatch(/[—–]/);
+    expect(texto).not.toMatch(/[“”‘’]/);
+    // O único "?" é o da URL: a mensagem não faz pergunta nenhuma.
+    expect(texto.replace(LINK_DE_AVALIACAO_NO_GOOGLE, "")).not.toContain("?");
+  });
+
+  it("não fala do programa a quem pode não ter aderido", () => {
+    // É o único gatilho que alcança comprador sem Ciclo.
+    const minusculo = texto.toLowerCase();
+    expect(minusculo).not.toContain("motors ciclo");
+    expect(minusculo).not.toContain("diário de bordo");
+    expect(minusculo).not.toContain("procedência");
+  });
+
+  it("o artigo concorda com o modelo — a Saveiro, o Kwid", () => {
+    const de = (marca: string, modelo: string) =>
+      mensagemDoGatilho({ ...linha, marca, modelo });
+    expect(de("Renault", "Kwid")).toContain("O Renault Kwid, placa ABC1D23,");
+    expect(de("Volkswagen", "Saveiro")).toContain("A Volkswagen Saveiro, placa ABC1D23,");
+    // Com a versão colada no modelo, que é como a venda pode ter sido lançada.
+    expect(de("Fiat", "Strada Freedom CD 1.3")).toContain("A Fiat Strada Freedom CD 1.3, placa");
+    // E com a marca repetida dentro do modelo, que o feed também produz.
+    expect(de("Chevrolet", "Chevrolet S10 LTZ").startsWith("Oi, José. Aqui é da Motors Store. A ")).toBe(true);
+    // Modelo que ninguém previu cai no masculino, como no resto do site.
+    expect(de("BYD", "Dolphin")).toContain("O BYD Dolphin, placa ABC1D23,");
+  });
+
+  it("sem nome no cadastro, o cumprimento não sai com vírgula solta", () => {
+    const m = mensagemDoGatilho({ ...linha, nome: "" });
+    expect(m.startsWith("Oi. Aqui é da Motors Store.")).toBe(true);
+  });
+
+  it("a janela é de D+3 a D+30 da venda, só para venda de 03/10/2026 em diante", () => {
+    const g = cte("g_avaliacao", "unidos");
+    expect(g).toContain("b.data_venda >= date '2026-10-03'");
+    // Ancorado no fim da linha: `data_venda + 3` é prefixo de `+ 30`, `+ 31` e
+    // `+ 300`, e por substring a regra errada passava. As duas linhas inteiras,
+    // na ordem, e depois de cada número só espaço até o próximo `and`.
+    expect(g).toMatch(
+      /and v_hoje >= b\.data_venda \+ 3\s*\n\s*and v_hoje <= b\.data_venda \+ 30\s*\n\s*and not exists \(/,
+    );
+    // E são só essas duas contas com a data da venda: nenhum `or` reabre a janela.
+    expect(g.match(/b\.data_venda\s*[+-]/g) ?? []).toHaveLength(2);
+    expect(g).not.toMatch(/\bor\b/);
+    // O contexto que a mensagem recebe.
+    expect(g).toContain("'data_venda', b.data_venda");
+  });
+
+  it("a trava da janela pega a regra errada (3 por 30 ou 31, 30 por 300)", () => {
+    // A prova de que a âncora de cima morde: a mesma expressão, sobre o SQL
+    // com o número trocado, não casa.
+    const janela =
+      /and v_hoje >= b\.data_venda \+ 3\s*\n\s*and v_hoje <= b\.data_venda \+ 30\s*\n\s*and not exists \(/;
+    const g = cte("g_avaliacao", "unidos");
+    const trocas: [string, string][] = [
+      ["v_hoje >= b.data_venda + 3\n", "v_hoje >= b.data_venda + 30\n"],
+      ["v_hoje >= b.data_venda + 3\n", "v_hoje >= b.data_venda + 31\n"],
+      ["v_hoje <= b.data_venda + 30\n", "v_hoje <= b.data_venda + 300\n"],
+      ["v_hoje <= b.data_venda + 30\n", "v_hoje <= b.data_venda + 31\n"],
+    ];
+    for (const [certo, errado] of trocas) {
+      expect(g, `o SQL não tem "${certo.trim()}"`).toContain(certo);
+      expect(g.replace(certo, errado), `passou com "${errado.trim()}"`).not.toMatch(janela);
+    }
+  });
+
+  it("só sai por WhatsApp: sem WhatsApp consentido não cai para o e-mail", () => {
+    // Decisão do dono em 2026-10-03. O texto é de WhatsApp e não há transporte
+    // de e-mail: cair para o e-mail gravaria um `falha_envio` por dia em
+    // `eventos_ciclo` (append-only) até o D+30.
+    const canal = cte("com_canal", "classificado");
+    // O `when` do gatilho novo fica ENTRE o do WhatsApp e o do e-mail, colado
+    // nos dois: antes do WhatsApp calaria todo mundo, depois do e-mail não
+    // cortaria nada.
+    expect(canal).toMatch(
+      /<> ''\s+then 'whatsapp'\s+when f\.gatilho = 'pedido_de_avaliacao'\s+then null\s+when coalesce\(\(v\.canais->>'email'\)::boolean, false\)/,
+    );
+    // Um ramo de e-mail só, e ele continua lá para os quatro gatilhos do Ciclo.
+    expect(canal.match(/then 'email'/g) ?? []).toHaveLength(1);
+    // Nenhum outro gatilho é citado na decisão de canal.
+    expect(canal.match(/f\.gatilho/g) ?? []).toHaveLength(1);
+
+    // Quem fica de fora sai SUPRIMIDO, com motivo próprio, antes do geral.
+    const classificado = cte("classificado", "ordenado");
+    expect(classificado).toMatch(
+      /when c\.canal is null and c\.gatilho = 'pedido_de_avaliacao'\s+then 'sem_whatsapp_consentido'\s+when c\.canal is null\s+then 'sem_canal_consentido'/,
+    );
+    expect(MOTIVOS_DE_SUPRESSAO).toContain("sem_whatsapp_consentido");
+    expect(MOTIVOS_DE_SUPRESSAO).toContain("sem_canal_consentido");
+
+    // E suprimido não vira evento: a reserva só grava linha sem motivo.
+    expect(cte("reservado", "em_risco")).toContain("where p_reservar and m.sup is null");
+  });
+
+  it("todo motivo que o CASE da fila produz está na lista do TypeScript", () => {
+    // O sentido inverso do teste de cima ("todo motivo... tem nome conhecido
+    // aqui"): motivo novo no SQL sem nome no tipo `MotivoDeSupressao` chegaria
+    // à rota como texto que o tipo diz não existir.
+    const sql = semComentarios(corpoDaFila);
+    const produzidos = [...sql.matchAll(/then '(\w+)'\s+(?:when|else null\s+end as suprimido_por)/g)]
+      .map((m) => m[1])
+      .filter((m) => !["whatsapp", "email"].includes(m));
+    expect(produzidos.length).toBeGreaterThanOrEqual(4);
+    for (const motivo of [...produzidos, "colisao_prioridade"]) {
+      expect(MOTIVOS_DE_SUPRESSAO as readonly string[], `motivo sem nome no TS: ${motivo}`).toContain(motivo);
+    }
+  });
+
+  it("uma vez por cliente, e falha de envio não conta como pedido feito", () => {
+    const g = cte("g_avaliacao", "unidos");
+    expect(g).toContain("select distinct on (b.cliente_id)");
+    expect(g).toContain("where vq.cliente_id = b.cliente_id");
+    expect(g).toContain("and e.gatilho = 'pedido_de_avaliacao'");
+    expect(g).toContain("coalesce(e.desfecho, '') <> 'falha_envio'");
+  });
+
+  it("a base é todo comprador — sem `aderiu_ciclo`", () => {
+    const g = cte("g_avaliacao", "unidos");
+    expect(g).toContain("from compradores b");
+    expect(g).not.toMatch(/\bveic\b/);
+    expect(g).not.toContain("aderiu_ciclo");
+
+    const compradores = cte("compradores", "janelas");
+    expect(compradores).toContain("from public.veiculos_vendidos vv");
+    expect(compradores).not.toContain("aderiu_ciclo");
+    // Carro que saiu da Garagem continua de fora, como nos outros gatilhos.
+    expect(compradores).toContain("where vv.saiu_em is null");
+
+    // E o filtro de adesão segue existindo uma vez só, na base dos quatro
+    // gatilhos do Ciclo: alargar `veic` mandaria boas-vindas a quem não aderiu.
+    expect(semComentarios(corpoDaFila).match(/aderiu_ciclo/g) ?? []).toHaveLength(1);
+    expect(cte("veic", "compradores")).toContain("where vv.aderiu_ciclo");
+  });
+
+  it("a rota da fila deriva os nomes de GATILHOS, sem lista escrita à mão", () => {
+    expect(GATILHOS_CONHECIDOS).toContain("pedido_de_avaliacao");
+    // Conhecido não é ligado: quem a rota aceita e pede ao banco é
+    // `gatilhosAtivos()`, que depende da chave (ver `ciclo-motor-chave.test.ts`).
+    expect(rotaFilaMotor).toContain("const ativos = gatilhosAtivos();");
+    expect(rotaFilaMotor).toContain("!GATILHOS_CONHECIDOS.includes(g as Gatilho)");
+    expect(rotaFilaMotor).toContain("!ativos.includes(g as Gatilho)");
+    expect(rotaFilaMotor).toContain("gatilhos_validos: ativos");
+    expect(rotaFilaMotor).not.toContain('"boas_vindas"');
   });
 });
 
@@ -603,8 +846,13 @@ describe("a busca pela definição viva", () => {
     // 2026-08-20 copiou esse texto para dentro da migração vitalícia. Com a
     // busca sensível a maiúsculas, os dois arquivos ficam invisíveis e o
     // "vivo" devolvido é o de 14/08 — quatro dias e três correções atrás.
+    //
+    // 2026-10-03: a definição viva mudou de arquivo. A migração do
+    // `pedido_de_avaliacao` redefine a função inteira (copiada da de 20/08,
+    // também em caixa alta) com o quinto gatilho. Até então o nome fixado
+    // aqui era `20260820120000_plano_de_revisoes_vitalicio.sql`.
     expect(arquivoDaMigracaoViva("montar_fila_de_gatilhos")).toBe(
-      "20260820120000_plano_de_revisoes_vitalicio.sql",
+      "20261003131500_pedido_de_avaliacao.sql",
     );
     expect(migracao).toContain("CREATE OR REPLACE FUNCTION public.montar_fila_de_gatilhos");
     // E o que a busca ingênua devolveria não é a definição viva.

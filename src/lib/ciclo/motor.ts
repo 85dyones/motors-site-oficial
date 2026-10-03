@@ -1,4 +1,6 @@
 import { classificarJanela } from "./janela";
+import { O, generoDeModelo, type Genero } from "../generoDoVeiculo";
+import { LINK_DE_AVALIACAO_NO_GOOGLE } from "../schemaLoja";
 
 /**
  * O motor de gatilhos, do lado do texto — manual v1.1 §4, §7.2 e §7.3.
@@ -47,6 +49,19 @@ export const GATILHOS = {
     passos: 1,
     isentoDaJanela: true,
   },
+  /**
+   * Pedido do dono em 2026-10-03: avaliação da loja no Google, de D+3 a D+30
+   * da venda. Uma vez por CLIENTE, e o único gatilho que fala com todo
+   * comprador, e não só com quem aderiu ao Ciclo. A prioridade é a do SQL
+   * (`20261003131500_pedido_de_avaliacao.sql`).
+   */
+  pedido_de_avaliacao: {
+    prioridade: 40,
+    rotulo: "Pedido de avaliação no Google",
+    passos: 1,
+    /** Não é isento: um pedido de favor espera a janela como qualquer rotina. */
+    isentoDaJanela: false,
+  },
   /** §4.2 nº 1, cadência D−15 · D−3 · D+7 do §7.3. */
   revisao_programada: {
     prioridade: 60,
@@ -58,13 +73,55 @@ export const GATILHOS = {
 
 export type Gatilho = keyof typeof GATILHOS;
 
-export const GATILHOS_ATIVOS = Object.keys(GATILHOS) as Gatilho[];
+/**
+ * Todos os gatilhos que o código CONHECE (tem prioridade, cadência e texto).
+ * Conhecer não é disparar: quem a rota da fila aceita e pede ao banco é
+ * `gatilhosAtivos()`, logo abaixo.
+ */
+export const GATILHOS_CONHECIDOS = Object.keys(GATILHOS) as Gatilho[];
+
+/**
+ * A chave de desligar do `pedido_de_avaliacao` (revisão do PR #233, B3).
+ *
+ * O orquestrador do n8n pede a fila sem filtro (`{"reservar": true}`). Sem
+ * esta chave, aplicar a migração `20261003131500_pedido_de_avaliacao.sql`
+ * bastaria para o pedido sair sozinho, antes de o dono aprovar a mensagem e a
+ * base legal. Com ela, a migração pode ser aplicada e o gatilho continua
+ * parado até alguém ligar de propósito.
+ *
+ * NASCE DESLIGADA, e só o valor exato `ligado` liga. Ausente, vazia, `true`,
+ * `1`, `LIGADO`, `ligado ` com espaço: tudo desligado. Sem `trim` e sem
+ * `toLowerCase` de propósito: uma chave que libera mensagem a cliente não
+ * pode ligar por aproximação. Errar o valor deixa o gatilho parado, que é o
+ * lado seguro do erro.
+ */
+export const ENV_DO_PEDIDO_DE_AVALIACAO = "CICLO_PEDIDO_DE_AVALIACAO";
+export const VALOR_QUE_LIGA_O_PEDIDO_DE_AVALIACAO = "ligado";
+
+type Ambiente = Record<string, string | undefined>;
+
+export function pedidoDeAvaliacaoLigado(env: Ambiente = process.env): boolean {
+  return env[ENV_DO_PEDIDO_DE_AVALIACAO] === VALOR_QUE_LIGA_O_PEDIDO_DE_AVALIACAO;
+}
+
+/**
+ * Os gatilhos que o motor dispara AGORA: os conhecidos, menos os desligados
+ * por chave. É função, e não constante, para a env ser lida a cada requisição
+ * e não uma vez na carga do módulo.
+ */
+export function gatilhosAtivos(env: Ambiente = process.env): Gatilho[] {
+  const ligado = pedidoDeAvaliacaoLigado(env);
+  return GATILHOS_CONHECIDOS.filter((g) => g !== "pedido_de_avaliacao" || ligado);
+}
 
 /** Motivos de supressão que a fila devolve. Espelham o CASE da função SQL. */
 export const MOTIVOS_DE_SUPRESSAO = [
   "domingo",
   "fora_do_horario",
   "sem_canal_consentido",
+  // Só do `pedido_de_avaliacao`, que sai apenas por WhatsApp: cobre quem não
+  // consentiu canal nenhum e quem consentiu só e-mail.
+  "sem_whatsapp_consentido",
   "quarentena",
   "janela_de_21_dias",
   "colisao_prioridade",
@@ -114,11 +171,38 @@ export function primeiroNome(nome: string | null | undefined): string {
   return String(nome ?? "").trim().split(/\s+/)[0] ?? "";
 }
 
+/** "Chevrolet Onix" — marca e modelo como a venda os registrou. */
+function marcaEModelo(l: LinhaDaFila): string {
+  return [l.marca, l.modelo].filter(Boolean).join(" ").trim();
+}
+
 /** "Chevrolet Onix 2021, placa ABC1D23" — o dado específico do §7.2. */
 export function identificacaoDoVeiculo(l: LinhaDaFila): string {
-  const partes = [l.marca, l.modelo].filter(Boolean).join(" ").trim();
+  const partes = marcaEModelo(l);
   const ano = l.ano_modelo ? ` ${l.ano_modelo}` : "";
   return `${partes}${ano} (placa ${l.placa})`;
+}
+
+/**
+ * O gênero do veículo da linha: "o Renault Kwid", "a Volkswagen Saveiro".
+ *
+ * A regra é a de `lib/generoDoVeiculo.ts` — a mesma dos hubs e da ficha. O que
+ * muda é o dado: a fila não traz segmento nem carroceria, só marca e modelo,
+ * e o modelo de `veiculos_vendidos` pode vir com a versão colada ("Saveiro
+ * Robust CD"). Por isso a consulta é feita duas vezes: com o modelo inteiro
+ * (sem a marca na frente) e, se não for feminino, só com a primeira palavra.
+ *
+ * ⚠️ Sem segmento, moto sai no masculino, que é o default da regra. As
+ * mensagens anteriores a esta cravam "seu" para todo veículo e seguem assim.
+ */
+function generoDoVeiculoDaLinha(l: LinhaDaFila): Genero {
+  const marca = String(l.marca ?? "").trim();
+  let modelo = String(l.modelo ?? "").trim();
+  if (marca && modelo.toLowerCase().startsWith(marca.toLowerCase())) {
+    modelo = modelo.slice(marca.length).trim();
+  }
+  if (generoDeModelo(modelo) === "f") return "f";
+  return generoDeModelo(modelo.split(/\s+/)[0] ?? "");
 }
 
 /**
@@ -263,6 +347,30 @@ function revisaoVerificada(l: LinhaDaFila): string {
 }
 
 /**
+ * O pedido de avaliação no Google — texto do dono, de 2026-10-03.
+ *
+ * O que este texto NÃO faz, por regra dele: não pede nota, não condiciona o
+ * pedido a ter gostado, não oferece nada em troca e não vende. A única ação é
+ * o link; a segunda linha abre a porta para quem tem um problema com o carro
+ * falar com a loja em vez de escrever lá. Sem pergunta: o único "?" da
+ * mensagem é o da própria URL, e a trava de "uma pergunta por mensagem" conta
+ * caractere.
+ *
+ * Fala com quem pode não ter aderido ao Ciclo: por isso não cita o programa,
+ * o diário de bordo nem a procedência.
+ */
+function pedidoDeAvaliacao(l: LinhaDaFila): string {
+  const nome = primeiroNome(l.nome);
+  const veiculo = `${O(generoDoVeiculoDaLinha(l))} ${marcaEModelo(l)}, placa ${l.placa},`;
+
+  return juntar([
+    `Oi${nome ? `, ${nome}` : ""}. Aqui é da Motors Store. ${veiculo} já está com você há alguns dias, e a gente queria saber como foi a compra. Se puder contar em uma avaliação no Google, ajuda quem está procurando carro a conhecer a loja: ${LINK_DE_AVALIACAO_NO_GOOGLE}`,
+    "Se precisar de algo com o carro, é só chamar por aqui.",
+    SAIDA,
+  ]);
+}
+
+/**
  * O texto que vai para o cliente, pronto para o Evolution.
  *
  * Recebe a linha como o banco devolveu. Se o gatilho for desconhecido — porque
@@ -279,6 +387,8 @@ export function mensagemDoGatilho(l: LinhaDaFila): string {
       return elegibilidadeEmRisco(l);
     case "revisao_verificada":
       return revisaoVerificada(l);
+    case "pedido_de_avaliacao":
+      return pedidoDeAvaliacao(l);
     default:
       throw new Error(`Gatilho sem mensagem definida: ${(l as LinhaDaFila).gatilho}`);
   }

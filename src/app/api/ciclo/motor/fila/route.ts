@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "../../../../../lib/supabase-server";
 import { autorizarMotor } from "../../../../../lib/ciclo/autorizacaoDoMotor";
 import {
-  GATILHOS_ATIVOS,
+  GATILHOS_CONHECIDOS,
+  gatilhosAtivos,
   mensagemDoGatilho,
   type Gatilho,
   type LinhaDaFila,
@@ -43,18 +44,46 @@ export async function POST(request: Request) {
   const corpo = await request.json().catch(() => ({} as any));
   const reservar = corpo?.reservar === true;
 
+  // Os gatilhos ligados NESTA requisição. O `pedido_de_avaliacao` só entra
+  // com a chave `CICLO_PEDIDO_DE_AVALIACAO=ligado` (ver `lib/ciclo/motor.ts`).
+  const ativos = gatilhosAtivos();
+
   // Filtro opcional por gatilho: é o que permite ligar e desligar um fluxo do
   // n8n sem mexer nos outros. Nome desconhecido é erro, não silêncio — senão
   // um typo no workflow vira "hoje não tinha ninguém na fila".
-  let gatilhos: Gatilho[] | null = null;
+  //
+  // SEM filtro no corpo, a rota NÃO passa `null` ao banco: `p_gatilhos` nulo
+  // na função SQL quer dizer "todos os que a função conhece", e isso incluiria
+  // o gatilho desligado assim que a migração dele estivesse aplicada. Vai
+  // sempre a lista explícita dos ligados. O filtro do SQL (`filtrados`) vem
+  // antes do canal, da janela de 21 dias, da colisão de prioridade e da
+  // reserva: gatilho fora da lista não segura a vez de outro, não aparece em
+  // `suprimidos` e não grava evento.
+  let gatilhos: Gatilho[] = ativos;
   if (corpo?.gatilhos !== undefined && corpo?.gatilhos !== null) {
     const pedidos: string[] = Array.isArray(corpo.gatilhos) ? corpo.gatilhos : [corpo.gatilhos];
-    const invalidos = pedidos.filter((g) => !GATILHOS_ATIVOS.includes(g as Gatilho));
+    const invalidos = pedidos.filter((g) => !GATILHOS_CONHECIDOS.includes(g as Gatilho));
     if (invalidos.length > 0) {
       return NextResponse.json(
         {
           error: `Gatilho desconhecido: ${invalidos.join(", ")}.`,
-          gatilhos_validos: GATILHOS_ATIVOS,
+          gatilhos_validos: ativos,
+        },
+        { status: 422 },
+      );
+    }
+    // Gatilho conhecido, mas desligado por chave: 422 também, e não retirada
+    // em silêncio. Retirar transformaria `{"gatilhos": ["pedido_de_avaliacao"]}`
+    // numa lista vazia e a resposta seria uma fila de zero com 200 — o mesmo
+    // "hoje não tinha ninguém" que o 422 do typo existe para impedir. A
+    // mensagem é outra para quem lê a execução do n8n saber que o nome está
+    // certo e o que falta é a chave.
+    const desligados = pedidos.filter((g) => !ativos.includes(g as Gatilho));
+    if (desligados.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Gatilho desligado: ${desligados.join(", ")}.`,
+          gatilhos_validos: ativos,
         },
         { status: 422 },
       );
