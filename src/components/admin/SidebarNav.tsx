@@ -282,6 +282,12 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       return pathname.startsWith("/admin/estoque");
     }
 
+    // O carro de repasse (/admin/repasse/novo, /[id], /[id]/editar) continua
+    // dentro de "Carros de repasse". A lista de inscritos é item próprio.
+    if (href === "/admin/repasse") {
+      return pathname.startsWith("/admin/repasse") && !pathname.startsWith("/admin/repasse/inscritos");
+    }
+
     // A leitura de campanha (/admin/marketing/midia-paga/[id]) continua
     // dentro de "Mídia paga" no trilho.
     if (href === "/admin/marketing/midia-paga") {
@@ -322,10 +328,12 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
     }
   };
 
-  const veAVisaoGeral = menuGroups[0].roles.some((r) => perfis.includes(r));
+  // Pelo nome do grupo, e não pela posição: reordenar os grupos não pode
+  // mudar quem vê a porta do painel.
+  const veAVisaoGeral = (menuGroups.find((g) => g.title === "Geral")?.roles ?? []).some((r) => perfis.includes(r));
   const classeDoItem = (active: boolean) =>
     /* A marca do item ativo é uma régua de 3px encostada na borda do trilho. */
-    `mt-foco flex min-h-10 items-center border-l-[3px] pl-[17px] pr-5 text-[13px] no-underline transition-colors ${
+    `mt-foco flex min-h-11 items-center border-l-[3px] pl-[17px] pr-5 text-[13px] no-underline transition-colors ${
       active
         ? "border-mt-accent font-extrabold text-mt-inverso"
         : "border-transparent font-normal text-mt-inverso-suave hover:text-mt-inverso"
@@ -337,7 +345,7 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         <Link
           href="/admin"
           aria-current={pathname === "/admin" ? "page" : undefined}
-          className={`${classeDoItem(pathname === "/admin")} min-h-11 text-[14px]`}
+          className={`${classeDoItem(pathname === "/admin")} text-[14px]`}
         >
           Visão geral
         </Link>
@@ -345,8 +353,9 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
 
       {allowedGroups.map((group) => {
         const temAtivo = grupoTemAtivo(group);
-        // O grupo da tela atual abre sozinho; fechá-lo à mão continua valendo.
-        const aberto = escolhas[group.title] ?? temAtivo;
+        // O grupo da tela atual fica sempre aberto: fechado, ele esconderia o
+        // item em que a pessoa está. Os outros seguem a escolha guardada.
+        const aberto = temAtivo || (escolhas[group.title] ?? false);
         const idDaLista = `grupo-${group.title.toLowerCase()}`;
         return (
           <div key={group.title} className="border-t border-mt-inverso-regua-fina">
@@ -354,7 +363,13 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
               type="button"
               aria-expanded={aberto}
               aria-controls={idDaLista}
-              onClick={() => alternar(group.title, aberto)}
+              onClick={(e) => {
+                // No celular o trilho mora numa gaveta que fecha a qualquer
+                // clique dentro dela (`AdminLayoutClientWrapper`). Abrir um
+                // grupo não é navegar: o clique para aqui.
+                e.stopPropagation();
+                alternar(group.title, aberto);
+              }}
               className={`mt-foco flex min-h-11 w-full cursor-pointer items-center justify-between border-0 bg-transparent px-5 text-left text-[10px] font-extrabold uppercase tracking-[.16em] hover:text-mt-inverso ${
                 aberto || temAtivo ? "text-mt-inverso" : "text-mt-inverso-suave"
               }`}

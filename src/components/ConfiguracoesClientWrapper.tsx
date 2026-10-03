@@ -100,7 +100,11 @@ export default function ConfiguracoesClientWrapper({
   // A aba padrão era `estoque`, que virou tela própria (`/admin/estoque`) em
   // 2026-08-08. Sem ela, quem chega em /admin/configuracoes sem `?tab=` cai
   // nos destaques rápidos, a primeira da lista.
-  const [activeTab, setActiveTab] = useState<AbaConfiguracoes>("destaques");
+  // Nasce já na aba da URL: com "destaques" fixo, abrir `?tab=empresa` direto
+  // desenhava a barra de abas do site e a tirava em seguida.
+  const [activeTab, setActiveTab] = useState<AbaConfiguracoes>(() =>
+    tabParam && ABAS.includes(tabParam) ? tabParam : "destaques",
+  );
   const [loading, setLoading] = useState(true);
 
   // Synchronize state with URL search param changes

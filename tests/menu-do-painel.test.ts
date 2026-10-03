@@ -68,6 +68,30 @@ describe("o menu do painel", () => {
     expect(await menu(["admin"])).not.toContain("Administrativo");
   });
 
+  it("Visão geral é de quem vê o grupo Geral", async () => {
+    expect(await menu(["marketing"])).toContain(">Visão geral<");
+    expect(await menu(["sdr"])).not.toContain(">Visão geral<");
+  });
+
+  it("as telas de um carro de repasse acendem 'Carros de repasse' e abrem o grupo", async () => {
+    for (const rota of ["/admin/repasse/novo", "/admin/repasse/12", "/admin/repasse/12/editar"]) {
+      const html = await menu(["admin"], rota);
+      expect(html, rota).toMatch(/aria-current="page"[^>]*>Carros de repasse</);
+      expect(grupo(html, "repasse"), rota).not.toContain("hidden");
+    }
+    const inscritos = await menu(["admin"], "/admin/repasse/inscritos");
+    expect(inscritos).toMatch(/aria-current="page"[^>]*>Lista do repasse</);
+    expect(inscritos).not.toMatch(/aria-current="page"[^>]*>Carros de repasse</);
+  });
+
+  it("abrir um grupo não fecha a gaveta do celular, e o grupo da tela não fecha", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const fonte = readFileSync(join(__dirname, "..", "src", "components", "admin", "SidebarNav.tsx"), "utf8");
+    expect(fonte).toMatch(/e\.stopPropagation\(\);\s*alternar\(group\.title, aberto\)/);
+    expect(fonte).toContain("const aberto = temAtivo || (escolhas[group.title] ?? false);");
+  });
+
   it("a lista de abas do site é a mesma para o menu e para a tela", () => {
     expect(ABAS_DO_SITE.map((a) => a.id)).toEqual(["destaques", "aparencia", "sobre", "compartilhamento", "procedencia", "instagram"]);
     expect(ehAbaDoSite("aparencia")).toBe(true);
