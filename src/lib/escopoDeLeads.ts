@@ -69,6 +69,10 @@ interface Filtravel<T> {
  * Aplica o escopo a uma consulta em `leads`. O filtro vai para o BANCO: a fila
  * para em 500 linhas, e filtrar depois de ler cortaria os leads do vendedor
  * que ficaram atrás dos 500 mais novos da loja.
+ *
+ * O banco não sabe que um `responsavel` só com espaços é "sem responsável";
+ * `leadNoEscopo` sabe. Quem lista passa o resultado por `leadNoEscopo` também,
+ * para a fila e a escrita nunca discordarem sobre o mesmo lead.
  */
 export function comEscopoDeLeads<T>(consulta: T, visao: VisaoDeLeads): T {
   const q = consulta as unknown as Filtravel<T>;

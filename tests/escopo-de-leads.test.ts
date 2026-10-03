@@ -115,6 +115,8 @@ describe("as rotas aplicam a regra", () => {
     // Antes do registro de contato, que é a primeira escrita da rota.
     expect(guarda).toBeLessThan(fila.indexOf('supabase.rpc("registrar_contato_do_lead"'));
     expect(fila.slice(guarda, guarda + 200)).toContain("status: 404");
+    // Banco que não respondeu é 500, e não "lead não encontrado".
+    expect(fila).toContain("if (erroDoAlvo) return NextResponse.json({ error: erroDoAlvo.message }, { status: 500 });");
     expect(etiquetas).toContain("if (!alvo || !leadNoEscopo(visao, alvo.responsavel))");
     expect(etiquetas.indexOf("leadNoEscopo(visao, alvo.responsavel)")).toBeLessThan(
       etiquetas.indexOf("editarEtiquetasDoLead(supabase, id, body"),
@@ -123,6 +125,10 @@ describe("as rotas aplicam a regra", () => {
 
   it("a Visão geral não mostra lead novo a quem não o enxerga", () => {
     expect(visaoGeral).toMatch(/comEscopoDeLeads\(\s*supabase\.from\("leads"\)/);
+  });
+
+  it("a fila passa pela mesma régua da escrita (responsável só com espaços)", () => {
+    expect(fila).toContain("(data ?? []).filter((l) => leadNoEscopo(visao, l.responsavel))");
   });
 
   it("a tela recebe o escopo, e o vendedor não lê o próprio nome em cada card", () => {

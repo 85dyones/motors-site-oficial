@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
  * rota grava LÁ, pela API, e deixa no rastro do lead quem mudou o quê. A
  * lógica mora em `lib/etiquetasDoLead.ts`; aqui só a porta.
  *
- * A porta é a mesma do kanban: "Ver e mover leads no kanban" — Admin,
- * Comercial e SDR. Quem move o lead também etiqueta a conversa dele.
+ * A porta é a mesma do kanban: "Ver e mover leads no kanban" — Admin, Gestor,
+ * Comercial e SDR, cada um nos leads do seu escopo (`lib/escopoDeLeads.ts`). Quem move o lead também etiqueta a conversa dele.
  */
 
 async function sessaoQueMoveLead() {
@@ -87,7 +87,12 @@ export async function POST(request: NextRequest) {
 
     // Só se etiqueta o lead que se enxerga (`escopoDeLeads`, 03/10/2026).
     if (visao.escopo !== "todos") {
-      const { data: alvo } = await supabase.from("leads").select("responsavel").eq("id", id).maybeSingle();
+      const { data: alvo, error: erroDoAlvo } = await supabase
+        .from("leads")
+        .select("responsavel")
+        .eq("id", id)
+        .maybeSingle();
+      if (erroDoAlvo) return NextResponse.json({ error: erroDoAlvo.message }, { status: 500 });
       if (!alvo || !leadNoEscopo(visao, alvo.responsavel)) {
         return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
       }

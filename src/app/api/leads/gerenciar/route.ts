@@ -124,7 +124,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const leads = data ?? [];
+    // O banco já filtrou pelo escopo; esta segunda passada só tira o caso que
+    // ele não enxerga (responsável só com espaços), para a fila não oferecer
+    // um lead que a escrita recusaria.
+    const leads = podeVer ? (data ?? []).filter((l) => leadNoEscopo(visao, l.responsavel)) : (data ?? []);
 
     // Marketing enxerga volume, não pessoas — regra da matriz A17.
     if (!podeVer) {
@@ -349,7 +352,14 @@ export async function PATCH(request: NextRequest) {
     // lead, ele não existe, e a resposta não confirma o contrário.
     const visaoDoAutor = { escopo: escopoDeLeads(perfisDoAutor), meuNome: profile?.full_name ?? null };
     if (visaoDoAutor.escopo !== "todos") {
-      const { data: alvo } = await supabase.from("leads").select("responsavel").eq("id", id).maybeSingle();
+      const { data: alvo, error: erroDoAlvo } = await supabase
+        .from("leads")
+        .select("responsavel")
+        .eq("id", id)
+        .maybeSingle();
+      // Leitura que falhou não é "lead não encontrado": a tela diria ao
+      // vendedor que o lead sumiu quando foi o banco que não respondeu.
+      if (erroDoAlvo) return NextResponse.json({ error: erroDoAlvo.message }, { status: 500 });
       if (!alvo || !leadNoEscopo(visaoDoAutor, alvo.responsavel)) {
         return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
       }
