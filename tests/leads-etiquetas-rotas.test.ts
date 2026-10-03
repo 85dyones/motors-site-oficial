@@ -30,6 +30,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *
  * Banco em memória e Chatwoot falso (o `fetch` global): a rota é chamada de
  * verdade, com as funções de `lib/` que ela usa.
+ *
+ * Desde 03/10/2026 cada perfil só mexe no lead que enxerga (`escopoDeLeads`):
+ * o SDR, nos que já têm responsável; o vendedor, só nos dele. Por isso os dois
+ * leads da fixture já são da Bia — a passagem do SDR é da Bia para a Ana —, e
+ * o teste em que a Ana age começa por pôr o lead no nome dela. O terceiro
+ * lead, sem responsável, é o que só o Admin vê.
  */
 
 // ----------------------------------------------------------------------------
@@ -44,6 +50,8 @@ interface Erro {
 
 let banco: Record<string, Linha[]>;
 let falhas: Record<string, Erro | undefined>;
+/** Falha só da GRAVAÇÃO (`update`) na tabela; a leitura segue respondendo. */
+let falhasAoGravar: Record<string, Erro | undefined>;
 /** Tudo o que acontece, na ordem: gravação no banco, chamada ao Chatwoot, rpc. */
 let linhaDoTempo: string[];
 let usuario: string | null;
@@ -61,6 +69,8 @@ function consulta(tabela: string) {
     const falha = falhas[tabela];
     if (falha) return { data: null, error: falha };
     if (atualizacao) {
+      const falhaAoGravar = falhasAoGravar[tabela];
+      if (falhaAoGravar) return { data: null, error: falhaAoGravar };
       for (const l of linhas()) {
         Object.assign(l, atualizacao);
         if (tabela === "leads" && "responsavel" in atualizacao && gatilhoCredita) {
@@ -84,13 +94,28 @@ function consulta(tabela: string) {
     },
     order: () => q,
     limit: () => q,
-    ilike: () => q,
+    // Só o prefixo (`0DCB1CDC-%`) que a busca por referência monta.
+    ilike: (coluna: string, padrao: string) => {
+      const prefixo = padrao.replace(/%$/, "").toLowerCase();
+      filtros.push((l) => typeof l[coluna] === "string" && (l[coluna] as string).toLowerCase().startsWith(prefixo));
+      return q;
+    },
     eq: (coluna: string, valor: unknown) => {
       // `detalhe->>origem`, como o PostgREST lê um campo de jsonb.
       const [raiz, campo] = coluna.split("->>");
       filtros.push((l) =>
         campo === undefined ? l[coluna] === valor : (l[raiz] as Linha | undefined)?.[campo] === valor,
       );
+      return q;
+    },
+    neq: (coluna: string, valor: unknown) => {
+      filtros.push((l) => l[coluna] !== valor);
+      return q;
+    },
+    // Só o `not(coluna, "is", null)` que `comEscopoDeLeads` usa.
+    not: (coluna: string, operador: string, valor: unknown) => {
+      if (operador !== "is" || valor !== null) throw new Error(`not ${operador} ${String(valor)}: o dublê não conhece`);
+      filtros.push((l) => l[coluna] !== null && l[coluna] !== undefined);
       return q;
     },
     in: (coluna: string, valores: unknown[]) => {
@@ -164,13 +189,14 @@ const ENV_DO_CHATWOOT = {
 beforeEach(() => {
   usuario = "u-sdr";
   falhas = {};
+  falhasAoGravar = {};
   linhaDoTempo = [];
   rpcs = [];
   erroDoRpc = null;
   gatilhoCredita = true;
   statusDoChatwoot = null;
   chamadasAoChatwoot.length = 0;
-  conversas = { 4821: ["origem-site", "quer-comprar"], 100: ["antiga"] };
+  conversas = { 4821: ["origem-site", "quer-comprar"], 100: ["antiga"], 300: ["sem-dono"] };
   etiquetasDaConta = ["quer-comprar", "origem-site", "negociando"];
   banco = {
     profiles: [
@@ -180,15 +206,20 @@ beforeEach(() => {
       { id: "u-duplo", full_name: "Caio", role: "comercial", papeis: ["comercial", "sdr"], is_active: true },
       { id: "u-mkt", full_name: "Mari", role: "marketing", papeis: ["marketing"], is_active: true },
       { id: "u-cliente", full_name: "Cliente", role: "cliente", papeis: [], is_active: true },
+      { id: "u-gestor", full_name: "Gil", role: "gestor", papeis: ["gestor"], is_active: true },
+      { id: "u-admin", full_name: "Dono", role: "admin", papeis: ["admin"], is_active: true },
     ],
     leads: [
-      { id: "lead-1", nome: "Joana", situacao: "novo", responsavel: null, created_at: "2026-09-20T10:00:00Z" },
-      { id: "lead-sem-conversa", nome: "Pedro", situacao: "novo", responsavel: null, created_at: "2026-09-21T10:00:00Z" },
+      { id: "lead-1", nome: "Joana", situacao: "novo", responsavel: "Bia", created_at: "2026-09-20T10:00:00Z" },
+      { id: "lead-sem-conversa", nome: "Pedro", situacao: "novo", responsavel: "Bia", created_at: "2026-09-21T10:00:00Z" },
+      // O lead novo, que ninguém pegou: só o Admin o enxerga.
+      { id: "lead-novo", nome: "Rita", situacao: "novo", responsavel: null, created_at: "2026-09-22T10:00:00Z" },
     ],
     atendimentos: [
       // Duas conversas do mesmo lead: a mais recente (4821) é a do card.
       { lead_id: "lead-1", chatwoot_conversation_id: 100, iniciado_em: "2026-06-01T10:00:00", created_at: "2026-06-01T10:00:00", tags: ["antiga"] },
       { lead_id: "lead-1", chatwoot_conversation_id: 4821, iniciado_em: "2026-09-20T10:00:00", created_at: "2026-09-20T10:00:00", tags: ["origem-site", "Quer-Comprar"] },
+      { lead_id: "lead-novo", chatwoot_conversation_id: 300, iniciado_em: "2026-09-22T10:00:00", created_at: "2026-09-22T10:00:00", tags: ["sem-dono"] },
     ],
     funil_etapas: [],
     funil_motivos: [],
@@ -236,6 +267,7 @@ describe("a passagem do SDR para o Comercial", () => {
   });
 
   it("o Chatwoot só é chamado DEPOIS de a passagem estar gravada — e é conferido no fim", async () => {
+    expect(banco.leads[0].responsavel).toBe("Bia");
     await patch({ responsavel: "Ana" });
     expect(banco.leads[0].responsavel).toBe("Ana");
     expect(linhaDoTempo).toEqual(["update leads", "chatwoot GET", "chatwoot POST", "chatwoot GET"]);
@@ -252,6 +284,8 @@ describe("a passagem do SDR para o Comercial", () => {
     const d = await (await patch({ responsavel: "Ana" })).json();
     expect(d).toEqual({ ok: true });
     expect(chamadasAoChatwoot).toHaveLength(0);
+    // A passagem em si valeu: SDR e Comercial somados veem os designados.
+    expect(banco.leads[0].responsavel).toBe("Ana");
   });
 
   it("passagem que o gatilho não creditou (lead fresco): não etiqueta, e diz por quê", async () => {
@@ -277,6 +311,7 @@ describe("a passagem do SDR para o Comercial", () => {
 
   it("o Comercial passando entre si não mexe no Chatwoot", async () => {
     usuario = "u-ana";
+    banco.leads[0].responsavel = "Ana";
     const r = await patch({ responsavel: "Bia" });
     expect(await r.json()).toEqual({ ok: true });
     expect(chamadasAoChatwoot).toHaveLength(0);
@@ -288,10 +323,12 @@ describe("a passagem do SDR para o Comercial", () => {
     const r = await patch({ responsavel: null });
     expect(await r.json()).toEqual({ ok: true });
     expect(chamadasAoChatwoot).toHaveLength(0);
+    expect(banco.leads[0].responsavel).toBeNull();
   });
 
   it("o SDR mexendo em outra coisa do lead não etiqueta", async () => {
     await patch({ observacoes: "ligar amanhã" });
+    expect(banco.leads[0].observacoes).toBe("ligar amanhã");
     expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
@@ -299,14 +336,17 @@ describe("a passagem do SDR para o Comercial", () => {
     const r = await patch({ responsavel: "Mari" });
     expect(r.status).toBe(422);
     expect(chamadasAoChatwoot).toHaveLength(0);
-    expect(banco.leads[0].responsavel).toBeNull();
+    // Continua com quem estava.
+    expect(banco.leads[0].responsavel).toBe("Bia");
   });
 
   it("gravação da passagem falhou: nada vai ao Chatwoot", async () => {
-    falhas.leads = { message: "sem permissão" };
+    // Só o `update` falha: a leitura do escopo, que vem antes, acha o lead.
+    falhasAoGravar.leads = { message: "sem permissão" };
     const r = await patch({ responsavel: "Ana" });
     expect(r.status).toBe(500);
     expect(chamadasAoChatwoot).toHaveLength(0);
+    expect(banco.leads[0].responsavel).toBe("Bia");
   });
 
   it("Chatwoot fora do ar: a passagem vale e a resposta avisa", async () => {
@@ -386,6 +426,121 @@ describe("o GET da fila traz as etiquetas", () => {
   });
 });
 
+describe("o GET da fila obedece ao escopo de quem pede (03/10)", () => {
+  const fila = async (quem: string, busca = "") => {
+    usuario = quem;
+    const r = await gerenciar.GET(new Request(`http://x/api/leads/gerenciar${busca}`) as never);
+    expect(r.status).toBe(200);
+    const d = await r.json();
+    return { d, ids: ((d.leads ?? []) as Linha[]).map((l) => l.id).sort() };
+  };
+
+  it("o vendedor recebe só os dele", async () => {
+    banco.leads[0].responsavel = "Ana";
+    const ana = await fila("u-ana");
+    expect(ana.ids).toEqual(["lead-1"]);
+    expect(ana.d.escopo).toBe("meus");
+
+    const bia = await fila("u-bia");
+    expect(bia.ids).toEqual(["lead-sem-conversa"]);
+  });
+
+  it("vendedor sem lead nenhum recebe a fila vazia, e não a da loja", async () => {
+    const ana = await fila("u-ana");
+    expect(ana.ids).toEqual([]);
+    expect(ana.d.escopo).toBe("meus");
+  });
+
+  it("SDR e Gestor recebem os que têm responsável, e não o novo", async () => {
+    // Responsável vazio é sem responsável, como o nulo.
+    banco.leads.push({ id: "lead-vazio", nome: "Lia", situacao: "novo", responsavel: "", created_at: "2026-09-23T10:00:00Z" });
+    for (const quem of ["u-sdr", "u-gestor", "u-duplo"]) {
+      const { d, ids } = await fila(quem);
+      expect(ids, quem).toEqual(["lead-1", "lead-sem-conversa"]);
+      expect(d.escopo, quem).toBe("designados");
+      // Nem a etiqueta da conversa do lead que não se vê chega à tela.
+      expect(d.etiquetasDisponiveis, quem).not.toContain("sem-dono");
+    }
+  });
+
+  it("o Admin recebe todos, inclusive o sem responsável", async () => {
+    const { d, ids } = await fila("u-admin");
+    expect(ids).toEqual(["lead-1", "lead-novo", "lead-sem-conversa"]);
+    expect(d.escopo).toBe("todos");
+    expect(d.leads.find((l: Linha) => l.id === "lead-novo").etiquetas).toEqual(["sem-dono"]);
+  });
+
+  it("Marketing segue recebendo só a contagem, e ela é da loja inteira", async () => {
+    const { d } = await fila("u-mkt");
+    expect(d).toEqual({ somenteAgregado: true, total: 3, porSituacao: { novo: 3 } });
+  });
+
+  it("a busca por referência obedece à mesma regra", async () => {
+    // A referência é a do lead novo, sem responsável.
+    banco.leads[2].ag_uid = "0dcb1cdc-1111-4222-8333-444455556666";
+    const busca = "?ref=0DCB1CDC";
+
+    for (const quem of ["u-sdr", "u-gestor", "u-ana"]) {
+      const { d, ids } = await fila(quem, busca);
+      expect(ids, quem).toEqual([]);
+      expect(d.busca, quem).toEqual({ ref: "0DCB1CDC" });
+    }
+    expect((await fila("u-admin", busca)).ids).toEqual(["lead-novo"]);
+
+    // Dado à Bia, o SDR e ela passam a achar; a Ana, não.
+    banco.leads[2].responsavel = "Bia";
+    expect((await fila("u-sdr", busca)).ids).toEqual(["lead-novo"]);
+    expect((await fila("u-bia", busca)).ids).toEqual(["lead-novo"]);
+    expect((await fila("u-ana", busca)).ids).toEqual([]);
+  });
+});
+
+describe("PATCH /api/leads/gerenciar — fora do escopo, 404 e nada gravado (03/10)", () => {
+  const patchNo = (id: string, corpo: Linha) =>
+    gerenciar.PATCH(
+      new Request("http://x/api/leads/gerenciar", { method: "PATCH", body: JSON.stringify({ id, ...corpo }) }) as never,
+    );
+  const antes = () => JSON.stringify(banco.leads);
+
+  it("vendedor no lead de outro vendedor", async () => {
+    usuario = "u-ana";
+    const retrato = antes();
+    const r = await patch({ responsavel: "Ana", observacoes: "peguei", contato: "whatsapp" });
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: "Lead não encontrado" });
+    expect(antes()).toBe(retrato);
+    // Nem o banco, nem o registro de contato, nem o Chatwoot.
+    expect(linhaDoTempo).toEqual([]);
+  });
+
+  it("vendedor e SDR no lead sem responsável", async () => {
+    const retrato = antes();
+    for (const quem of ["u-ana", "u-sdr", "u-duplo"]) {
+      usuario = quem;
+      const r = await patchNo("lead-novo", { responsavel: "Ana" });
+      expect(r.status, quem).toBe(404);
+    }
+    expect(antes()).toBe(retrato);
+    expect(linhaDoTempo).toEqual([]);
+  });
+
+  it("gestor no lead com responsável passa — e, sem ser SDR, não etiqueta", async () => {
+    usuario = "u-gestor";
+    const r = await patch({ responsavel: "Ana" });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+    expect(banco.leads[0].responsavel).toBe("Ana");
+    expect(chamadasAoChatwoot).toHaveLength(0);
+  });
+
+  it("Admin distribui o lead novo", async () => {
+    usuario = "u-admin";
+    const r = await patchNo("lead-novo", { responsavel: "Bia" });
+    expect(r.status).toBe(200);
+    expect(banco.leads[2].responsavel).toBe("Bia");
+  });
+});
+
 describe("POST /api/leads/etiquetas — a edição no card", () => {
   it("põe a pedida sobre o que a conversa tem, e deixa o rastro do que entrou", async () => {
     const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
@@ -421,7 +576,9 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
       tipo: "etiqueta",
       detalhe: { origem: "passagem_do_sdr" },
     });
+    // O SDR passou para a Ana, e é ela quem edita o lead que agora é dela.
     usuario = "u-ana";
+    banco.leads[0].responsavel = "Ana";
     const d = await (await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).json();
     expect(conversas[4821]).toEqual(["origem-site", "quer-comprar", "negociando", "resgate", "reaquecido"]);
     expect(d.etiquetas).toEqual(conversas[4821]);
@@ -454,6 +611,7 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
     // que o card desenha (`atendimentos.tags`) ainda não.
     conversas[4821] = ["origem-site", "quer-comprar", "resgate", "reaquecido"];
     usuario = "u-ana";
+    banco.leads[0].responsavel = "Ana";
     const d = await (await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).json();
 
     expect(conversas[4821]).toEqual(["origem-site", "quer-comprar", "resgate", "reaquecido", "negociando"]);
@@ -557,9 +715,41 @@ describe("POST /api/leads/etiquetas — a edição no card", () => {
     expect((await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).status).toBe(200);
   });
 
-  it("o Comercial edita", async () => {
+  it("o Comercial edita o lead dele", async () => {
     usuario = "u-ana";
+    banco.leads[0].responsavel = "Ana";
     expect((await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).status).toBe(200);
+    expect(conversas[4821]).toContain("negociando");
+  });
+
+  it("o Comercial no lead de outro vendedor: 404, e nenhuma chamada ao Chatwoot", async () => {
+    usuario = "u-ana";
+    const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: "Lead não encontrado" });
+    expect(chamadasAoChatwoot).toHaveLength(0);
+    expect(rpcs).toHaveLength(0);
+    expect(conversas[4821]).toEqual(["origem-site", "quer-comprar"]);
+  });
+
+  it("lead sem responsável: SDR e Comercial levam 404; o Admin etiqueta", async () => {
+    for (const quem of ["u-sdr", "u-ana", "u-duplo", "u-gestor"]) {
+      usuario = quem;
+      const r = await postEtiquetas({ id: "lead-novo", incluir: ["negociando"] });
+      expect(r.status, quem).toBe(404);
+    }
+    expect(chamadasAoChatwoot).toHaveLength(0);
+    expect(conversas[300]).toEqual(["sem-dono"]);
+
+    usuario = "u-admin";
+    expect((await postEtiquetas({ id: "lead-novo", incluir: ["negociando"] })).status).toBe(200);
+    expect(conversas[300]).toEqual(["sem-dono", "negociando"]);
+  });
+
+  it("lead que não existe: o mesmo 404", async () => {
+    const r = await postEtiquetas({ id: "lead-fantasma", incluir: ["negociando"] });
+    expect(r.status).toBe(404);
+    expect(chamadasAoChatwoot).toHaveLength(0);
   });
 
   it.each([

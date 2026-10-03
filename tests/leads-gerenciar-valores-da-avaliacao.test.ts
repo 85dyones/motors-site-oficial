@@ -11,6 +11,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  *     preencheu, e um PATCH que o traga não o grava.
  *
  * Mesmo dublê de banco de `leads-gerenciar-desfecho.test.ts`, reduzido.
+ *
+ * Quem chama é a Ana, do Comercial, e o lead é dela: desde 03/10/2026 o
+ * vendedor só mexe no próprio lead (`escopoDeLeads`), e a rota lê o
+ * responsável antes de gravar. `responsavelDoLead` é o que essa leitura acha.
  */
 
 const CLIENTE = { auth: { getUser: vi.fn() }, from: vi.fn(), rpc: vi.fn() };
@@ -19,6 +23,8 @@ vi.mock("../src/lib/supabase-server", () => ({ createServerSupabaseClient: async
 const { PATCH } = await import("../src/app/api/leads/gerenciar/route");
 
 let gravacoes: Record<string, unknown>[];
+/** O responsável do lead no banco; `undefined` é o lead que não existe. */
+let responsavelDoLead: string | null | undefined;
 
 interface Consulta {
   select: () => Consulta;
@@ -40,12 +46,17 @@ function consulta(dado: unknown): Consulta {
 beforeEach(() => {
   vi.clearAllMocks();
   gravacoes = [];
+  responsavelDoLead = "Ana";
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
   CLIENTE.rpc.mockResolvedValue({ error: null });
   CLIENTE.from.mockImplementation((tabela: string) => {
-    if (tabela === "profiles") return consulta({ role: "comercial", papeis: ["comercial"] });
+    if (tabela === "profiles") {
+      return consulta({ role: "comercial", papeis: ["comercial"], full_name: "Ana" });
+    }
     if (tabela === "leads") {
       return {
+        select: () =>
+          consulta(responsavelDoLead === undefined ? null : { responsavel: responsavelDoLead }),
         update: (campos: Record<string, unknown>) => {
           gravacoes.push(campos);
           return { eq: async () => ({ error: null }) };
@@ -97,5 +108,14 @@ describe("PATCH — valores da avaliação", () => {
     const r = await chamar({ contato: "whatsapp", avaliacao_valor_ofertado: 50000 });
     expect(r.status).toBe(200);
     expect(gravacoes[0]).toMatchObject({ avaliacao_valor_ofertado: 50000 });
+  });
+
+  it("no lead de outro vendedor, 404: nem o valor nem o contato são gravados", async () => {
+    responsavelDoLead = "Bia";
+    const r = await chamar({ contato: "whatsapp", avaliacao_valor_ofertado: 50000 });
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: "Lead não encontrado" });
+    expect(gravacoes).toEqual([]);
+    expect(CLIENTE.rpc).not.toHaveBeenCalled();
   });
 });

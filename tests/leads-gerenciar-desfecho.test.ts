@@ -13,6 +13,10 @@ import { ETAPAS_PADRAO, ehTipoDeDesfecho, type MotivoDoFunil } from "../src/lib/
  *
  * O banco é um dublê em memória: um lead, as etapas da semente e uma lista de
  * motivos. Nada aqui abre conexão.
+ *
+ * Desde 03/10/2026 cada perfil só mexe no lead que enxerga (`escopoDeLeads`):
+ * quem chama, por padrão, é a Ana, do Comercial, e o lead é dela. O último
+ * bloco troca o autor e o responsável para provar a recusa fora do escopo.
  */
 
 const CLIENTE = { auth: { getUser: vi.fn() }, from: vi.fn(), rpc: vi.fn() };
@@ -37,20 +41,29 @@ const MOTIVOS: MotivoDoFunil[] = [
   motivo("spam", "descartado"),
 ];
 
-/** A equipe: só a Ana é do Comercial. */
+/** A equipe: Ana e Bia são do Comercial; o Igor, não. */
 const EQUIPE = [
   { full_name: "Ana", role: "comercial", papeis: ["comercial"], is_active: true },
+  { full_name: "Bia", role: "comercial", papeis: ["comercial"], is_active: true },
   { full_name: "Igor Alves", role: "admin", papeis: ["admin", "marketing"], is_active: true },
 ];
 
 /** O estado do banco que cada teste ajusta. */
-let lead: { situacao: string; canal: string | null } | null;
+let lead: { situacao: string; canal: string | null; responsavel: string | null } | null;
+/** O perfil de quem chama. */
+let autor: { role: string; papeis: string[]; full_name: string };
 /** O que a rota mandou gravar em `leads`, na ordem. */
 let gravacoes: Record<string, unknown>[];
 /** As tabelas lidas depois da checagem de permissão. */
 let lidas: string[];
-/** O `id` com que a rota procurou o lead. */
+/**
+ * O `id` com que a rota procurou o lead PARA O DESFECHO (`situacao, canal`).
+ * A leitura do escopo (`select("responsavel")`) acontece em toda chamada de
+ * quem não é Admin e não conta aqui: ela fica em `idDoEscopo`.
+ */
 let idProcurado: unknown;
+/** O `id` com que a rota procurou o lead para saber se ele está no escopo. */
+let idDoEscopo: unknown;
 
 /** Um construtor de consulta do supabase-js: encadeia, e resolve no fim. */
 function consulta(resolver: (filtros: Record<string, unknown>) => unknown) {
@@ -71,19 +84,19 @@ function consulta(resolver: (filtros: Record<string, unknown>) => unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  lead = { situacao: "proposta", canal: "Formulário Contato" };
+  lead = { situacao: "proposta", canal: "Formulário Contato", responsavel: "Ana" };
+  autor = { role: "comercial", papeis: ["comercial"], full_name: "Ana" };
   gravacoes = [];
   lidas = [];
   idProcurado = undefined;
+  idDoEscopo = undefined;
 
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
   CLIENTE.from.mockImplementation((tabela: string) => {
     if (tabela === "profiles") {
       // Com `eq("id")` é o perfil de quem chama; sem filtro é a equipe, que o
       // PATCH lê para recusar responsável fora do Comercial (2026-09-23).
-      return consulta((f) =>
-        f.id !== undefined ? { role: "comercial", papeis: ["comercial"] } : EQUIPE,
-      );
+      return consulta((f) => (f.id !== undefined ? autor : EQUIPE));
     }
     lidas.push(tabela);
     if (tabela === "funil_etapas") {
@@ -94,8 +107,14 @@ beforeEach(() => {
     }
     if (tabela === "leads") {
       return {
-        select: () =>
+        select: (colunas?: string) =>
           consulta((f) => {
+            // A leitura do escopo pede só o responsável; a do desfecho, a
+            // etapa e o canal.
+            if (colunas === "responsavel") {
+              idDoEscopo = f.id;
+              return lead && { responsavel: lead.responsavel };
+            }
             idProcurado = f.id;
             return lead;
           }),
@@ -154,7 +173,7 @@ describe("PATCH /api/leads/gerenciar — fechar o negócio exige motivo", () => 
   });
 
   it("o escopo é o do lead NO BANCO: avaliação aceita o motivo de quem vende e recusa o de quem compra", async () => {
-    lead = { situacao: "novo", canal: "Avaliação" };
+    lead = { situacao: "novo", canal: "Avaliação", responsavel: "Ana" };
 
     const deCompra = await chamar({ situacao: "perdido", desfecho_motivo: "credito_reprovado" });
     expect(deCompra.status).toBe(400);
@@ -181,9 +200,10 @@ describe("PATCH /api/leads/gerenciar — fechar o negócio exige motivo", () => 
 
   it("só na TRANSIÇÃO: o lead já fechado sem motivo continua editável", async () => {
     // Produção tem descartes fechados antes de a caixa perguntar o motivo.
-    lead = { situacao: "descartado", canal: null };
+    lead = { situacao: "descartado", canal: null, responsavel: "Ana" };
 
-    const outroCampo = await chamar({ responsavel: "Ana" });
+    // A Ana passa o lead dela para a Bia: outro campo, sem mudar de etapa.
+    const outroCampo = await chamar({ responsavel: "Bia" });
     expect(outroCampo.status).toBe(200);
 
     // Mesmo reenviando a etapa em que ele já está: não é mudança de etapa.
@@ -191,7 +211,7 @@ describe("PATCH /api/leads/gerenciar — fechar o negócio exige motivo", () => 
     expect(mesmaEtapa.status).toBe(200);
 
     expect(gravacoes).toHaveLength(2);
-    expect(gravacoes[0]).toMatchObject({ responsavel: "Ana" });
+    expect(gravacoes[0]).toMatchObject({ responsavel: "Bia" });
     expect(gravacoes[1]).toMatchObject({ situacao: "descartado", observacoes: "legado" });
     for (const g of gravacoes) expect(g).not.toHaveProperty("desfecho_motivo");
   });
@@ -215,5 +235,82 @@ describe("PATCH /api/leads/gerenciar — fechar o negócio exige motivo", () => 
     expect(gravacoes[0]).toMatchObject({ situacao: "em_contato" });
     expect(lidas.filter((t) => t !== "funil_etapas" && t !== "leads")).toEqual([]);
     expect(idProcurado, "leu o lead para uma etapa que não cobra nada").toBeUndefined();
+  });
+});
+
+describe("PATCH /api/leads/gerenciar — só se mexe no lead que se enxerga (03/10)", () => {
+  const SDR = { role: "sdr", papeis: ["sdr"], full_name: "Felipe" };
+  const GESTOR = { role: "gestor", papeis: ["gestor"], full_name: "Gil" };
+  const ADMIN = { role: "admin", papeis: ["admin"], full_name: "Dono" };
+
+  /** Fora do escopo: 404 com a frase de lead inexistente, e nenhuma escrita. */
+  const esperarRecusa = async (r: Response) => {
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: "Lead não encontrado" });
+    expect(gravacoes).toEqual([]);
+    expect(CLIENTE.rpc).not.toHaveBeenCalled();
+  };
+
+  it("vendedor no lead de outro vendedor: 404, e nada é gravado", async () => {
+    lead = { situacao: "proposta", canal: "Formulário Contato", responsavel: "Bia" };
+    // Com o clique de contato junto: o registro por RPC é a primeira escrita
+    // da rota, e a recusa tem de vir antes dela.
+    await esperarRecusa(await chamar({ situacao: "em_contato", observacoes: "é meu", contato: "whatsapp" }));
+    expect(idDoEscopo).toBe(ID);
+    // Nem para pegar o lead para si.
+    await esperarRecusa(await chamar({ responsavel: "Ana" }));
+  });
+
+  it("vendedor no lead sem responsável: 404", async () => {
+    for (const responsavel of [null, "", "   "]) {
+      lead = { situacao: "novo", canal: "Formulário Contato", responsavel };
+      await esperarRecusa(await chamar({ responsavel: "Ana" }));
+    }
+  });
+
+  it("SDR no lead sem responsável: 404", async () => {
+    autor = SDR;
+    for (const responsavel of [null, "", "   "]) {
+      lead = { situacao: "novo", canal: "Formulário Contato", responsavel };
+      await esperarRecusa(await chamar({ situacao: "em_contato" }));
+      await esperarRecusa(await chamar({ responsavel: "Ana" }));
+    }
+  });
+
+  it("lead que não existe: o mesmo 404 de quem está fora do escopo", async () => {
+    lead = null;
+    await esperarRecusa(await chamar({ observacoes: "oi" }));
+  });
+
+  it("gestor no lead com responsável: passa, e grava", async () => {
+    autor = GESTOR;
+    lead = { situacao: "proposta", canal: "Formulário Contato", responsavel: "Bia" };
+    const r = await chamar({ situacao: "em_contato", observacoes: "cobrar retorno" });
+    expect(r.status).toBe(200);
+    expect(gravacoes).toHaveLength(1);
+    expect(gravacoes[0]).toMatchObject({ situacao: "em_contato", observacoes: "cobrar retorno" });
+  });
+
+  it("gestor no lead sem responsável: 404", async () => {
+    autor = GESTOR;
+    lead = { situacao: "novo", canal: "Formulário Contato", responsavel: null };
+    await esperarRecusa(await chamar({ situacao: "em_contato" }));
+  });
+
+  it("SDR no lead que já tem responsável: passa", async () => {
+    autor = SDR;
+    lead = { situacao: "proposta", canal: "Formulário Contato", responsavel: "Bia" };
+    const r = await chamar({ observacoes: "ligar amanhã" });
+    expect(r.status).toBe(200);
+    expect(gravacoes[0]).toMatchObject({ observacoes: "ligar amanhã" });
+  });
+
+  it("Admin distribui o lead novo, sem responsável, e nem lê o escopo", async () => {
+    autor = ADMIN;
+    lead = { situacao: "novo", canal: "Formulário Contato", responsavel: null };
+    const r = await chamar({ responsavel: "Ana" });
+    expect(r.status).toBe(200);
+    expect(gravacoes[0]).toMatchObject({ responsavel: "Ana" });
+    expect(idDoEscopo).toBeUndefined();
   });
 });
