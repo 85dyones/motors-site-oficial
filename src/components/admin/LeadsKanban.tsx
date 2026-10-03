@@ -212,6 +212,17 @@ export default function LeadsKanban() {
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<string | null>(null);
   const [anotando, setAnotando] = useState<string | null>(null);
+  // Os cards abertos (03/10/2026, pedido do dono): fechado, o card mostra só
+  // o nome, o tempo de espera e o responsável; o resto aparece ao abrir. Com
+  // vinte cards inteiros por coluna, o quadro não cabia na tela.
+  const [abertos, setAbertos] = useState<ReadonlySet<string>>(new Set());
+  const alternarCard = (id: string) =>
+    setAbertos((antes) => {
+      const depois = new Set(antes);
+      if (depois.has(id)) depois.delete(id);
+      else depois.add(id);
+      return depois;
+    });
   const [fechando, setFechando] = useState<{ lead: Lead; etapa: EtapaDoFunil } | null>(null);
   const [vendoFechados, setVendoFechados] = useState(false);
 
@@ -1049,6 +1060,8 @@ export default function LeadsKanban() {
                         l.chatwoot_conversation_id,
                       );
                       const destino = destinoDaConversa(l.telefone, l.chatwoot_conversation_id);
+                      // Quem está anotando não perde o campo se o card fechar.
+                      const expandido = abertos.has(l.id) || anotando === l.id;
                       return (
                         <div
                           key={l.id}
@@ -1066,9 +1079,51 @@ export default function LeadsKanban() {
                             arrastando === l.id ? "opacity-40" : "cursor-grab"
                           }`}
                         >
-                          <div className="text-[13px] font-extrabold tracking-[-.01em]">
-                            {l.nome}
+                          {/* O resumo, sempre à vista: quem é, há quanto tempo
+                              espera e com quem está. O nome é o botão que abre
+                              o card. */}
+                          <button
+                            type="button"
+                            aria-expanded={expandido}
+                            aria-controls={`lead-${l.id}`}
+                            onClick={() => alternarCard(l.id)}
+                            className="mt-foco flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 border-0 bg-transparent p-0 text-left text-mt-ink"
+                          >
+                            <span className="text-[13px] font-extrabold tracking-[-.01em]">{l.nome}</span>
+                            <span aria-hidden="true" className="text-[14px] text-mt-cobre">
+                              {expandido ? "–" : "+"}
+                            </span>
+                          </button>
+                          <div className="flex items-center gap-1.5 text-[11px] text-mt-neutral-800">
+                            <span
+                              aria-hidden="true"
+                              className={`flex h-5 w-5 shrink-0 items-center justify-center text-[9px] font-extrabold ${
+                                l.responsavel
+                                  ? "bg-mt-ink text-mt-bg"
+                                  : "border border-dashed border-mt-regua text-mt-neutral-500"
+                              }`}
+                            >
+                              {l.responsavel ? iniciais(l.responsavel) : "—"}
+                            </span>
+                            <span className="min-w-0 truncate">{l.responsavel || "Sem responsável"}</span>
+                            <span className="ml-auto shrink-0 tabular-nums text-mt-neutral-700">
+                              {espera(l.created_at, agora)}
+                            </span>
                           </div>
+                          {aviso && (
+                            <div
+                              className={`mt-1 text-[10px] font-semibold uppercase tracking-[.08em] ${
+                                nivel === "atencao" ? "text-mt-neutral-700" : "text-mt-accent-800"
+                              }`}
+                            >
+                              {aviso} há {formatarPrazo(minutosParado(l, agora))}
+                            </div>
+                          )}
+
+                          {/* O resto do card. Fechado, continua no HTML
+                              (`hidden`): o que cada bloco guarda não se perde
+                              ao fechar e abrir. */}
+                          <div id={`lead-${l.id}`} hidden={!expandido} className="mt-2 border-t border-mt-regua-fina pt-2">
                           {l.interesse && (
                             <div className="mt-1 text-[11px] leading-snug text-mt-neutral-800">
                               {l.interesse}
@@ -1136,24 +1191,9 @@ export default function LeadsKanban() {
                             )
                           )}
 
-                          <div className="mt-2 flex items-center gap-2 border-t border-mt-regua-fina pt-2">
-                            <span className="text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
-                              {l.canal || "site"}
-                            </span>
-                            <span className="ml-auto text-[10px] tabular-nums text-mt-neutral-700">
-                              {espera(l.created_at, agora)}
-                            </span>
+                          <div className="mt-2 text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
+                            {l.canal || "site"}
                           </div>
-
-                          {aviso && (
-                            <div
-                              className={`mt-1.5 text-[10px] font-semibold uppercase tracking-[.08em] ${
-                                nivel === "atencao" ? "text-mt-neutral-700" : "text-mt-accent-800"
-                              }`}
-                            >
-                              {aviso} há {formatarPrazo(minutosParado(l, agora))}
-                            </div>
-                          )}
 
                           {/* O que substituiu o teto de rodízio. Decisão do
                               dono: o lead circula *"quantas se fizerem
@@ -1168,16 +1208,6 @@ export default function LeadsKanban() {
                           )}
 
                           <div className="mt-2 flex items-center gap-1.5">
-                            <span
-                              aria-hidden="true"
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center text-[9px] font-extrabold ${
-                                l.responsavel
-                                  ? "bg-mt-ink text-mt-bg"
-                                  : "border border-dashed border-mt-regua text-mt-neutral-500"
-                              }`}
-                            >
-                              {l.responsavel ? iniciais(l.responsavel) : "—"}
-                            </span>
                             <select
                               value={l.responsavel ?? ""}
                               onChange={(e) => salvar(l.id, { responsavel: e.target.value || null })}
@@ -1291,6 +1321,7 @@ export default function LeadsKanban() {
                               {e.rotulo}
                             </button>
                           ))}
+                          </div>
                         </div>
                       );
                     })}
