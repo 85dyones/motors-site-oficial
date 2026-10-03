@@ -52,7 +52,7 @@ beforeEach(async () => {
     if (url === "/api/leads/etiquetas") return responder({ etiquetas: [], daConta: true, faltamNaConta: [] });
     if (opcoes?.method === "PATCH") return responder({ ok: true });
     return responder({
-      leads: [lead("l1", "Joana"), lead("l2", "Pedro", { responsavel: "Ana" })],
+      leads: [lead("l1", "Joana", { etiquetas: ["origem-site"] }), lead("l2", "Pedro", { responsavel: "Ana" })],
       atendentes: [{ nome: "Ana" }],
       etapas: ETAPAS_PADRAO,
       motivos: [],
@@ -95,7 +95,9 @@ describe("o card do lead, na tela", () => {
     const card = botao("l1").closest("[draggable]")!;
     const resumo = card.textContent!.replace(detalhe("l1").textContent!, "");
     expect(resumo).toContain("Sem responsável");
-    expect(resumo).not.toContain("Renault Duster");
+    // O carro de interesse e as etiquetas ficam à vista, como no desenho.
+    expect(resumo).toContain("Renault Duster");
+    expect(resumo).toContain("origem-site");
     // O responsável do outro card aparece pelo nome.
     const resumoDoPedro = botao("l2").closest("[draggable]")!.textContent!.replace(detalhe("l2").textContent!, "");
     expect(resumoDoPedro).toContain("Ana");
@@ -107,7 +109,8 @@ describe("o card do lead, na tela", () => {
     await clicar(botao("l1"));
     expect(botao("l1").getAttribute("aria-expanded")).toBe("true");
     expect(detalhe("l1").hidden).toBe(false);
-    expect(detalhe("l1").textContent).toContain("Renault Duster");
+    // Aberto, o resumo das etiquetas dá lugar às etiquetas editáveis.
+    expect(container.querySelector('[aria-label="Etiquetas de Joana, resumo"]')).toBeNull();
     expect(container.querySelector('[aria-label="Responsável por Joana"]')!.closest("[hidden]")).toBeNull();
     expect(detalhe("l2").hidden).toBe(true);
 

@@ -212,8 +212,9 @@ export default function LeadsKanban() {
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<string | null>(null);
   const [anotando, setAnotando] = useState<string | null>(null);
-  // Os cards abertos (03/10/2026, pedido do dono): fechado, o card mostra só
-  // o nome, o tempo de espera e o responsável; o resto aparece ao abrir. Com
+  // Os cards abertos (03/10/2026, pedido do dono): fechado, o card é o do
+  // desenho aprovado (nome, carro de interesse e etiquetas) mais o tempo de
+  // espera e o responsável; o resto aparece ao abrir. Com
   // vinte cards inteiros por coluna, o quadro não cabia na tela.
   const [abertos, setAbertos] = useState<ReadonlySet<string>>(new Set());
   const alternarCard = (id: string) =>
@@ -1098,7 +1099,24 @@ export default function LeadsKanban() {
                               {expandido ? "–" : "+"}
                             </span>
                           </button>
-                          <div className="flex items-center gap-1.5 text-[11px] text-mt-neutral-800">
+                          {/* O carro de interesse e as etiquetas, como no card
+                              aprovado no desenho (03/10): é o que diferencia
+                              um lead do outro sem abrir. As etiquetas aqui são
+                              só leitura; editar é no card aberto, e por isso
+                              esta linha some quando ele abre. */}
+                          {l.interesse && (
+                            <div className="text-[12px] leading-snug text-mt-neutral-800">{l.interesse}</div>
+                          )}
+                          {!expandido && (l.etiquetas ?? []).length > 0 && (
+                            <ul role="list" aria-label={`Etiquetas de ${l.nome}, resumo`} className="m-0 mt-1.5 flex list-none flex-wrap gap-1 p-0">
+                              {(l.etiquetas ?? []).map((e) => (
+                                <li key={e} className="border border-mt-regua px-1.5 py-0.5 text-[10px] text-mt-neutral-800">
+                                  {e}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-mt-neutral-800">
                             <span
                               aria-hidden="true"
                               className={`flex h-5 w-5 shrink-0 items-center justify-center text-[9px] font-extrabold ${
@@ -1128,11 +1146,6 @@ export default function LeadsKanban() {
                               (`hidden`): o que cada bloco guarda não se perde
                               ao fechar e abrir. */}
                           <div id={`lead-${l.id}`} hidden={!expandido} className="mt-2 border-t border-mt-regua-fina pt-2">
-                          {l.interesse && (
-                            <div className="mt-1 text-[11px] leading-snug text-mt-neutral-800">
-                              {l.interesse}
-                            </div>
-                          )}
 
                           {/* As etiquetas da conversa (2026-09-25). Antes do
                               botão do Chatwoot: são o contexto de quem vai
