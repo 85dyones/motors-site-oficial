@@ -80,6 +80,9 @@ export const MOTIVOS_DE_SUPRESSAO = [
   "domingo",
   "fora_do_horario",
   "sem_canal_consentido",
+  // Só do `pedido_de_avaliacao`, que sai apenas por WhatsApp: cobre quem não
+  // consentiu canal nenhum e quem consentiu só e-mail.
+  "sem_whatsapp_consentido",
   "quarentena",
   "janela_de_21_dias",
   "colisao_prioridade",

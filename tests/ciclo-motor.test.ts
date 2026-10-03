@@ -535,10 +535,77 @@ describe("o pedido de avaliação no Google — pedido do dono em 2026-10-03", (
   it("a janela é de D+3 a D+30 da venda, só para venda de 03/10/2026 em diante", () => {
     const g = cte("g_avaliacao", "unidos");
     expect(g).toContain("b.data_venda >= date '2026-10-03'");
-    expect(g).toContain("v_hoje >= b.data_venda + 3");
-    expect(g).toContain("v_hoje <= b.data_venda + 30");
+    // Ancorado no fim da linha: `data_venda + 3` é prefixo de `+ 30`, `+ 31` e
+    // `+ 300`, e por substring a regra errada passava. As duas linhas inteiras,
+    // na ordem, e depois de cada número só espaço até o próximo `and`.
+    expect(g).toMatch(
+      /and v_hoje >= b\.data_venda \+ 3\s*\n\s*and v_hoje <= b\.data_venda \+ 30\s*\n\s*and not exists \(/,
+    );
+    // E são só essas duas contas com a data da venda: nenhum `or` reabre a janela.
+    expect(g.match(/b\.data_venda\s*[+-]/g) ?? []).toHaveLength(2);
+    expect(g).not.toMatch(/\bor\b/);
     // O contexto que a mensagem recebe.
     expect(g).toContain("'data_venda', b.data_venda");
+  });
+
+  it("a trava da janela pega a regra errada (3 por 30 ou 31, 30 por 300)", () => {
+    // A prova de que a âncora de cima morde: a mesma expressão, sobre o SQL
+    // com o número trocado, não casa.
+    const janela =
+      /and v_hoje >= b\.data_venda \+ 3\s*\n\s*and v_hoje <= b\.data_venda \+ 30\s*\n\s*and not exists \(/;
+    const g = cte("g_avaliacao", "unidos");
+    const trocas: [string, string][] = [
+      ["v_hoje >= b.data_venda + 3\n", "v_hoje >= b.data_venda + 30\n"],
+      ["v_hoje >= b.data_venda + 3\n", "v_hoje >= b.data_venda + 31\n"],
+      ["v_hoje <= b.data_venda + 30\n", "v_hoje <= b.data_venda + 300\n"],
+      ["v_hoje <= b.data_venda + 30\n", "v_hoje <= b.data_venda + 31\n"],
+    ];
+    for (const [certo, errado] of trocas) {
+      expect(g, `o SQL não tem "${certo.trim()}"`).toContain(certo);
+      expect(g.replace(certo, errado), `passou com "${errado.trim()}"`).not.toMatch(janela);
+    }
+  });
+
+  it("só sai por WhatsApp: sem WhatsApp consentido não cai para o e-mail", () => {
+    // Decisão do dono em 2026-10-03. O texto é de WhatsApp e não há transporte
+    // de e-mail: cair para o e-mail gravaria um `falha_envio` por dia em
+    // `eventos_ciclo` (append-only) até o D+30.
+    const canal = cte("com_canal", "classificado");
+    // O `when` do gatilho novo fica ENTRE o do WhatsApp e o do e-mail, colado
+    // nos dois: antes do WhatsApp calaria todo mundo, depois do e-mail não
+    // cortaria nada.
+    expect(canal).toMatch(
+      /<> ''\s+then 'whatsapp'\s+when f\.gatilho = 'pedido_de_avaliacao'\s+then null\s+when coalesce\(\(v\.canais->>'email'\)::boolean, false\)/,
+    );
+    // Um ramo de e-mail só, e ele continua lá para os quatro gatilhos do Ciclo.
+    expect(canal.match(/then 'email'/g) ?? []).toHaveLength(1);
+    // Nenhum outro gatilho é citado na decisão de canal.
+    expect(canal.match(/f\.gatilho/g) ?? []).toHaveLength(1);
+
+    // Quem fica de fora sai SUPRIMIDO, com motivo próprio, antes do geral.
+    const classificado = cte("classificado", "ordenado");
+    expect(classificado).toMatch(
+      /when c\.canal is null and c\.gatilho = 'pedido_de_avaliacao'\s+then 'sem_whatsapp_consentido'\s+when c\.canal is null\s+then 'sem_canal_consentido'/,
+    );
+    expect(MOTIVOS_DE_SUPRESSAO).toContain("sem_whatsapp_consentido");
+    expect(MOTIVOS_DE_SUPRESSAO).toContain("sem_canal_consentido");
+
+    // E suprimido não vira evento: a reserva só grava linha sem motivo.
+    expect(cte("reservado", "em_risco")).toContain("where p_reservar and m.sup is null");
+  });
+
+  it("todo motivo que o CASE da fila produz está na lista do TypeScript", () => {
+    // O sentido inverso do teste de cima ("todo motivo... tem nome conhecido
+    // aqui"): motivo novo no SQL sem nome no tipo `MotivoDeSupressao` chegaria
+    // à rota como texto que o tipo diz não existir.
+    const sql = semComentarios(corpoDaFila);
+    const produzidos = [...sql.matchAll(/then '(\w+)'\s+(?:when|else null\s+end as suprimido_por)/g)]
+      .map((m) => m[1])
+      .filter((m) => !["whatsapp", "email"].includes(m));
+    expect(produzidos.length).toBeGreaterThanOrEqual(4);
+    for (const motivo of [...produzidos, "colisao_prioridade"]) {
+      expect(MOTIVOS_DE_SUPRESSAO as readonly string[], `motivo sem nome no TS: ${motivo}`).toContain(motivo);
+    }
   });
 
   it("uma vez por cliente, e falha de envio não conta como pedido feito", () => {

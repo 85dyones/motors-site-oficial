@@ -48,9 +48,14 @@ O único gatilho que não é do Ciclo: fala com **todo comprador** registrado em
   dias não recebe mais o pedido.
 - **Uma vez por cliente**, não por veículo. Quem comprou dois carros recebe um
   pedido, pela venda mais recente. `falha_envio` não conta como pedido feito.
-- **Quem:** todo comprador com WhatsApp consentido. A mensagem é de WhatsApp;
-  a regra de canal é a mesma dos outros gatilhos (ver os pontos em aberto (b)
-  e (c)).
+- **Quem:** todo comprador com WhatsApp consentido (ver o ponto em aberto (b)).
+- **Só WhatsApp.** É o único gatilho que não cai para o e-mail: a mensagem é
+  de WhatsApp e o transporte de e-mail não existe. Quem não tem
+  `consentimento_canais.whatsapp = true` **e** telefone cadastrado não entra
+  na fila, mesmo com e-mail consentido: aparece em `suprimidos` com
+  `sem_whatsapp_consentido`, `canal` nulo, e **nenhum evento é gravado** em
+  `eventos_ciclo` (nem reserva, nem `falha_envio`). Os outros quatro gatilhos
+  seguem com a regra de antes: WhatsApp, senão e-mail.
 - **Não é isento** da janela de 21 dias, nem de domingo, horário, quarentena
   ou colisão.
 - **Corte da base histórica:** só venda com `data_venda >= 2026-10-03`. O
@@ -64,8 +69,10 @@ O texto mora em `pedidoDeAvaliacao()` (`src/lib/ciclo/motor.ts`) e o link em
 não pede nota, não condiciona o pedido a ter gostado, não oferece nada em
 troca, não vende, e não cita o programa (quem recebe pode não ter aderido).
 
-> **Três pontos em aberto, para o dono decidir** (nenhum foi resolvido no
-> código; o comportamento descrito é o que sai hoje):
+> **Dois pontos em aberto, para o dono decidir** (nenhum foi resolvido no
+> código; o comportamento descrito é o que sai hoje). O antigo ponto (c),
+> sobre quem só consentiu e-mail, deixou de existir: virou a regra "só
+> WhatsApp", acima.
 >
 > - **(a) Quem aderiu ao Ciclo quase não recebe o pedido.** A boas-vindas sai
 >   primeiro (prioridade 15, isenta) e conta como contato. Como o pedido não é
@@ -75,12 +82,8 @@ troca, não vende, e não cita o programa (quem recebe pode não ter aderido).
 > - **(b) Comprador sem Ciclo só entra se houver consentimento gravado.** A
 >   fila exige `clientes.consentimento_canais.whatsapp = true`. Se o fechamento
 >   de uma venda sem adesão não marca WhatsApp como canal consentido, esse
->   comprador aparece todo dia em `suprimidos` como `sem_canal_consentido` e
->   nunca recebe.
-> - **(c) Quem só consentiu e-mail entra na fila com `canal: "email"`.** O
->   texto é de WhatsApp e o transporte de e-mail não existe: o orquestrador
->   registra `falha_envio`, a vez volta, e a linha se repete a cada dia até o
->   D+30 (uma linha por dia em `eventos_ciclo`, que é append-only).
+>   comprador aparece todo dia em `suprimidos` como `sem_whatsapp_consentido`,
+>   do D+3 ao D+30, e nunca recebe. Não gera evento.
 
 Os demais gatilhos do §4.2 ficam de fora por falta de matéria-prima, não de
 esqueleto: seguro e garantia dependem de `apolices_seguro`/`contratos_ciclo`
@@ -89,8 +92,9 @@ inventa), equity mining depende de financiamento capturado, e **recompra está
 bloqueada pela regra 5 até o §1.4 abrir**.
 
 As regras que a fila aplica antes de entregar, na ordem em que suprimem:
-`domingo` / `fora_do_horario` (20h–8h) → `sem_canal_consentido` (opt-in por
-canal do §6.3-D; recusa nunca penaliza, só silencia) → `quarentena` (3 sem
+`domingo` / `fora_do_horario` (20h–8h) → `sem_whatsapp_consentido` (só no
+`pedido_de_avaliacao`, que não cai para o e-mail) / `sem_canal_consentido`
+(opt-in por canal do §6.3-D; recusa nunca penaliza, só silencia) → `quarentena` (3 sem
 resposta seguidos = 90 dias) → `janela_de_21_dias` → `colisao_prioridade`.
 Tudo que foi suprimido volta na resposta **com o motivo** — fila que descarta
 em silêncio não se audita.
@@ -296,13 +300,14 @@ entra às 6h e o orquestrador continua às 9h.
 - **Canal e-mail ainda não envia**: cliente só com consentimento de e-mail
   entra na fila com `canal: "email"`, o orquestrador registra `falha_envio` e
   segue. O dado de consentimento não se perde; o transporte é que não existe.
-  (SMTP/provedor de e-mail é decisão pendente.)
+  (SMTP/provedor de e-mail é decisão pendente.) Vale para os quatro gatilhos
+  do Ciclo. O `pedido_de_avaliacao` não passa por aqui: é só WhatsApp e, sem
+  ele, sai suprimido (`sem_whatsapp_consentido`) sem gravar evento.
 - O botão da **conformidade diária segue manual** (pendência já conhecida);
   este pacote não criou cron para ela.
 
-- **`pedido_de_avaliacao` tem três pontos em aberto** (adesão ao Ciclo,
-  consentimento de quem não aderiu, canal e-mail): ver a nota na seção do
-  gatilho, acima.
+- **`pedido_de_avaliacao` tem dois pontos em aberto** (adesão ao Ciclo e
+  consentimento de quem não aderiu): ver a nota na seção do gatilho, acima.
 
 ## Registro de aplicação
 

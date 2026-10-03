@@ -26,9 +26,14 @@
 --      pedido feito. Duas vendas elegíveis do mesmo cliente → uma linha só,
 --      a da venda mais recente.
 --   6. NÃO é isento da janela de 21 dias: a lista de isentos em
---      `classificado` segue com os mesmos três nomes. Domingo, horário, canal
---      consentido, quarentena e colisão por prioridade valem como para todos.
---   7. CONTEXTO: `data_venda`; nome, placa, marca, modelo e ano saem pelas
+--      `classificado` segue com os mesmos três nomes. Domingo, horário,
+--      quarentena e colisão por prioridade valem como para todos.
+--   7. SÓ WHATSAPP: a mensagem é de WhatsApp e não existe transporte de
+--      e-mail. Quem não tem WhatsApp consentido (com telefone) não entra na
+--      fila deste gatilho, nem pelo e-mail: sai como suprimido, com o motivo
+--      `sem_whatsapp_consentido`, e nenhum evento é gravado. Os quatro
+--      gatilhos do Ciclo seguem com a regra de antes (WhatsApp, senão e-mail).
+--   8. CONTEXTO: `data_venda`; nome, placa, marca, modelo e ano saem pelas
 --      colunas da fila, como na boas-vindas.
 --
 -- O que fica para depois desta migração (outra entrega): o nome novo na lista
@@ -66,12 +71,18 @@ create temp table _fila_antes on commit drop as
 -- o cabeçalho está em MAIÚSCULAS. Não normalizar o caso: a caixa é o rastro
 -- de que o texto saiu do banco e não foi redigitado.
 --
--- São QUATRO alterações sobre a fonte, e mais nenhuma:
+-- São SEIS alterações sobre a fonte, e mais nenhuma:
 --   a. a CTE `compradores`, nova, logo depois de `veic`;
 --   b. a CTE `g_avaliacao`, nova, antes de `unidos`;
 --   c. `union all select * from g_avaliacao` em `unidos`;
 --   d. `com_canal` troca `join veic v` por `join compradores v` — única linha
---      EXISTENTE que muda, e sem efeito para os quatro gatilhos do Ciclo.
+--      EXISTENTE que muda, e sem efeito para os quatro gatilhos do Ciclo;
+--   e. um `when` a mais no CASE do canal, entre o WhatsApp e o e-mail: o
+--      `pedido_de_avaliacao` não cai para o e-mail;
+--   f. um `when` a mais no CASE de `classificado`, antes do
+--      `sem_canal_consentido`: o motivo próprio do gatilho novo.
+-- As linhas novas de (e) e (f) só casam com `gatilho = 'pedido_de_avaliacao'`;
+-- as linhas vizinhas, que decidem os quatro gatilhos do Ciclo, não mudaram.
 -- `veic`, `janelas`, os quatro gatilhos, a classificação, a ordenação, a
 -- reserva e o `em_risco` estão byte a byte como na fonte.
 
@@ -322,8 +333,11 @@ begin
   --   · PRIORIDADE 40: perde para risco (10), boas-vindas (15) e revisão
   --     verificada (25); ganha do lembrete de revisão (60).
   --   · NÃO é isento da janela de 21 dias — repare que o nome não entra na
-  --     lista de isentos em `classificado`. Domingo, horário, canal
-  --     consentido, quarentena e colisão valem como para os outros.
+  --     lista de isentos em `classificado`. Domingo, horário, quarentena e
+  --     colisão valem como para os outros.
+  --   · SÓ WHATSAPP: o canal deste gatilho se decide em `com_canal`, que não
+  --     o deixa cair para o e-mail, e o motivo de quem fica de fora
+  --     (`sem_whatsapp_consentido`) sai em `classificado`.
   --   · CONTEXTO: no formato da boas-vindas. Nome, placa, marca, modelo e ano
   --     saem pelas colunas da fila (via `com_canal`); o contexto leva a data
   --     da venda.
@@ -359,12 +373,20 @@ begin
   ),
 
   -- ---- canal: opt-in por canal (§6.3 D). Sem consentimento, não sai. ----
+  -- O `pedido_de_avaliacao` é SÓ WhatsApp (decisão do dono, 2026-10-03): o
+  -- texto é de WhatsApp e não existe transporte de e-mail. Se caísse para o
+  -- e-mail, a reserva gravaria um evento por dia em `eventos_ciclo`
+  -- (append-only), todos terminando em `falha_envio`, até o D+30. O `when` do
+  -- meio corta esse caminho: sem WhatsApp consentido, o canal fica nulo e a
+  -- linha sai suprimida, sem evento. Para os quatro gatilhos do Ciclo o CASE
+  -- decide como antes — WhatsApp, senão e-mail.
   com_canal as (
     select f.*, v.cliente_id, v.nome, v.telefone_e164, v.email,
            v.placa, v.marca, v.modelo, v.ano_modelo,
            case
              when coalesce((v.canais->>'whatsapp')::boolean, false)
                   and coalesce(v.telefone_e164, '') <> '' then 'whatsapp'
+             when f.gatilho = 'pedido_de_avaliacao'       then null
              when coalesce((v.canais->>'email')::boolean, false)
                   and coalesce(v.email, '') <> ''         then 'email'
              else null
@@ -381,6 +403,13 @@ begin
     select c.*,
            case
              when v_relogio is not null then v_relogio
+             -- Motivo próprio do gatilho que só sai por WhatsApp: cobre quem
+             -- não consentiu canal nenhum e quem consentiu só e-mail. Quem
+             -- audita a fila vê um cliente com e-mail consentido e precisa
+             -- ler por que ele ficou de fora — `sem_canal_consentido` ali
+             -- pareceria erro.
+             when c.canal is null and c.gatilho = 'pedido_de_avaliacao'
+                                        then 'sem_whatsapp_consentido'
              when c.canal is null       then 'sem_canal_consentido'
 
              -- §4.3: três gatilhos consecutivos sem resposta → 90 dias parado.
@@ -473,7 +502,9 @@ comment on function public.montar_fila_de_gatilhos(timestamptz, boolean, text[])
   'serializada por advisory lock de transação. Desfecho falha_envio nunca '
   'conta como contato feito — regra 2 do CLAUDE.md. Desde 2026-10-03 inclui '
   'pedido_de_avaliacao: todo comprador (com ou sem Ciclo), uma vez por '
-  'cliente, de D+3 a D+30 da venda, só para venda de 2026-10-03 em diante.';
+  'cliente, de D+3 a D+30 da venda, só para venda de 2026-10-03 em diante, '
+  'e só por WhatsApp: sem WhatsApp consentido, sai suprimido como '
+  'sem_whatsapp_consentido e nenhum evento é gravado.';
 
 -- `create or replace` preserva os privilégios; repetir é o que garante o
 -- estado certo também num banco em que a função nasça por este arquivo.
@@ -570,8 +601,6 @@ begin
     'compradores as (',
     'from compradores b',
     'b.data_venda >= date ''2026-10-03''',
-    'v_hoje >= b.data_venda + 3',
-    'v_hoje <= b.data_venda + 30',
     'select distinct on (b.cliente_id)',
     'where vq.cliente_id = b.cliente_id',
     'and e.gatilho = ''pedido_de_avaliacao''',
@@ -584,13 +613,58 @@ begin
     end if;
   end loop;
 
+  --     A janela de D+3 a D+30, ANCORADA. Conferir por substring deixava
+  --     passar a regra errada: `b.data_venda + 3` é prefixo de `+ 30`, `+ 31`
+  --     e `+ 300`. A expressão exige as duas linhas inteiras, na ordem, e o
+  --     que vem depois de cada número — só espaço em branco até o próximo
+  --     `and`. Trocar 3 por 30/31, ou 30 por 300, não casa.
+  if v_depois !~ ('v_hoje >= b\.data_venda \+ 3\s+'
+                  || 'and v_hoje <= b\.data_venda \+ 30\s+'
+                  || 'and not exists \(') then
+    raise exception
+      'ACEITE FALHOU (janela): a janela do pedido_de_avaliacao não é exatamente de data_venda + 3 a data_venda + 30.';
+  end if;
+  --     E são só essas duas contas com a data da venda: uma terceira (um `or`
+  --     que reabrisse a janela) passaria pela expressão de cima.
+  v_qtd := (length(v_depois) - length(replace(v_depois, 'b.data_venda +', '')))
+           / length('b.data_venda +');
+  if v_qtd <> 2 then
+    raise exception
+      'ACEITE FALHOU (janela): "b.data_venda +" aparece % vez(es) (esperado 2: D+3 e D+30).', v_qtd;
+  end if;
+
   -- 2.5 NÃO é isento da janela de 21 dias: a lista de isentos é a mesma.
   if position('c.gatilho not in (''elegibilidade_em_risco'', ''boas_vindas'', ''revisao_verificada'')'
               in v_depois) = 0 then
     raise exception 'ACEITE FALHOU (21 dias): a lista de isentos da janela mudou.';
   end if;
 
-  -- 2.6 Só o service_role executa. A fila devolve nome, telefone e placa.
+  -- 2.6 SÓ WHATSAPP. O `when` do gatilho novo tem de estar ENTRE o do
+  --     WhatsApp e o do e-mail — antes do WhatsApp calaria todo mundo, depois
+  --     do e-mail não cortaria nada. A expressão exige as três linhas coladas,
+  --     nessa ordem; e o motivo próprio tem de vir antes do motivo geral.
+  if v_depois !~ ('<> ''''\s+then ''whatsapp''\s+'
+                  || 'when f\.gatilho = ''pedido_de_avaliacao''\s+then null\s+'
+                  || 'when coalesce\(\(v\.canais->>''email''\)::boolean, false\)') then
+    raise exception
+      'ACEITE FALHOU (canal): o pedido_de_avaliacao tem de parar no WhatsApp, sem cair para o e-mail.';
+  end if;
+  if v_depois !~ ('when c\.canal is null and c\.gatilho = ''pedido_de_avaliacao''\s+'
+                  || 'then ''sem_whatsapp_consentido''\s+'
+                  || 'when c\.canal is null\s+then ''sem_canal_consentido''') then
+    raise exception
+      'ACEITE FALHOU (canal): falta o motivo sem_whatsapp_consentido antes de sem_canal_consentido.';
+  end if;
+  --     A regra de canal dos quatro gatilhos do Ciclo segue com um ramo de
+  --     e-mail só, e ele continua existindo.
+  v_qtd := (length(v_depois) - length(replace(v_depois, 'then ''email''', '')))
+           / length('then ''email''');
+  if v_qtd <> 1 then
+    raise exception
+      'ACEITE FALHOU (canal): "then ''email''" aparece % vez(es) (esperado 1).', v_qtd;
+  end if;
+
+  -- 2.7 Só o service_role executa. A fila devolve nome, telefone e placa.
   if has_function_privilege('anon', c_assin, 'execute')
      or has_function_privilege('authenticated', c_assin, 'execute')
      or not has_function_privilege('service_role', c_assin, 'execute') then
