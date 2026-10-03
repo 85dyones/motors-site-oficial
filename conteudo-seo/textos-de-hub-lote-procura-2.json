@@ -1,5 +1,5 @@
 {
-  "_leia": "Segundo lote de textos próprios para hubs que estão no sitemap e ainda saem com o texto gerado (03/10/2026). Escolhidos pela procura dos modelos e das marcas. Mesma forma do primeiro lote (chamada, abertura, \"### subtítulo\", lista, fechamento) e mesma regra do dono: informar o que conferir sem argumentar contra o carro. AINDA NÃO GRAVADO em `textos_de_hub`: espera a aprovação do dono. A garantia da Chevrolet para a correia não entra no hub da Tracker sem decisão dele (regra de 21/09).",
+  "_leia": "Segundo lote de textos próprios para hubs que estão no sitemap e ainda saem com o texto gerado (03/10/2026). Escolhidos pela procura dos modelos e das marcas. Mesma forma do primeiro lote (chamada, abertura, \"### subtítulo\", lista, fechamento) e mesma regra do dono: informar o que conferir sem argumentar contra o carro. Aprovado pelo dono em 03/10/2026 e gravado em `textos_de_hub` como linhas novas. No mesmo dia ele decidiu que a garantia da Chevrolet para a correia entra também no hub da Tracker, com as condições na mesma frase.",
   "textos": [
     {
       "caminho": "/carros/honda/civic",
@@ -64,6 +64,7 @@
         "A Tracker vendida até 2019 vinha do México, com motor 1.8 aspirado e, depois, 1.4 turbo. A geração nacional, de 2020 em diante, é outro projeto: motor de três cilindros, 1.0 ou 1.2 turbo, e câmbio automático de seis marchas na maioria das versões.",
         "### O que conferir numa Tracker usada",
         "Na visita, confira:\n- Na geração nacional, o histórico de troca de óleo com o produto especificado no manual. A correia do motor trabalha banhada em óleo.\n- Câmbio automático em arrancada e em rampa.\n- Central multimídia e conexão com o celular.\n- Pneus e alinhamento.\n- Teto solar, se houver: abertura e vedação.",
+        "Na Tracker a partir de 2023, a correia banhada em óleo tem garantia da própria Chevrolet por 15 anos ou 240 mil quilômetros: ela começa depois da adesão, que é paga, de uma inspeção e de uma revisão, e só continua valendo se todas as revisões seguintes forem feitas na concessionária.",
         "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor; é só pedir. Diga no WhatsApp qual ano te interessa, e a gente conta qual motor é e manda as fotos reais."
       ]
     },

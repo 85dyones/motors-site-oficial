@@ -13,7 +13,8 @@ import { join } from "node:path";
  * guia é o sinal de que a garantia da marca voltou a aparecer fora do hub.
  *
  * E o outro lado, pedido do dono no mesmo dia: a garantia aparece no hub da
- * marca e no do Onix, com as condições na mesma frase. A adesão é paga, a
+ * marca e no do Onix (e, desde 03/10, no da Tracker), com as condições na
+ * mesma frase. A adesão é paga, a
  * garantia começa depois de inspeção e revisão, e só continua valendo com todas
  * as revisões seguintes feitas na concessionária. Prazo sem condição vira
  * promessa que a loja não pode cumprir, porque a garantia é da montadora.
@@ -60,18 +61,22 @@ describe("garantia da Chevrolet para a correia fica fora dos guias", () => {
 });
 
 describe("garantia da Chevrolet para a correia, nos hubs da marca", () => {
-  const hubs: { caminho: string; paragrafos: string[] }[] = JSON.parse(
-    readFileSync(join(PASTA, "textos-de-hub-humanizados.json"), "utf8"),
-  ).textos;
+  // Os lotes de procura entram na mesma leitura desde 03/10/2026, quando o
+  // dono decidiu que a garantia vale também no hub da Tracker.
+  const hubs: { caminho: string; paragrafos: string[] }[] = [
+    "textos-de-hub-humanizados.json",
+    "textos-de-hub-lote-procura.json",
+    "textos-de-hub-lote-procura-2.json",
+  ].flatMap((arquivo) => JSON.parse(readFileSync(join(PASTA, arquivo), "utf8")).textos);
   const frasesDoPrazo = (h: { paragrafos: string[] }) =>
     h.paragrafos
       .join(" ")
       .split(/(?<=[.!?])\s+/)
       .filter((f) => /240 mil quilômetros/.test(f));
 
-  it("aparece no hub da marca e no do Onix, e em nenhum outro", () => {
+  it("aparece no hub da marca, no do Onix e no da Tracker, e em nenhum outro", () => {
     const com = hubs.filter((h) => frasesDoPrazo(h).length > 0).map((h) => h.caminho);
-    expect(com.sort()).toEqual(["/carros/chevrolet", "/carros/chevrolet/onix"]);
+    expect(com.sort()).toEqual(["/carros/chevrolet", "/carros/chevrolet/onix", "/carros/chevrolet/tracker"]);
   });
 
   it("a frase do prazo traz a montadora, o ano e as condições", () => {
