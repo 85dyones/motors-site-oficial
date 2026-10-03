@@ -213,6 +213,10 @@ beforeEach(() => {
       { id: "u-cliente", full_name: "Cliente", role: "cliente", papeis: [], is_active: true },
       { id: "u-gestor", full_name: "Gil", role: "gestor", papeis: ["gestor"], is_active: true },
       { id: "u-admin", full_name: "Dono", role: "admin", papeis: ["admin"], is_active: true },
+      // Saiu da loja: perfil desativado, sessão ainda viva. Era Admin e SDR.
+      { id: "u-saiu", full_name: "Saulo", role: "admin", papeis: ["admin", "sdr"], is_active: false },
+      // Perfil antigo, sem a coluna preenchida: `!== true` também recusa.
+      { id: "u-sem-coluna", full_name: "Vera", role: "comercial", papeis: ["comercial"] },
     ],
     leads: [
       { id: "lead-1", nome: "Joana", situacao: "novo", responsavel: "Bia", created_at: "2026-09-20T10:00:00Z" },
@@ -544,6 +548,52 @@ describe("PATCH /api/leads/gerenciar — fora do escopo, 404 e nada gravado (03/
     const r = await patchNo("lead-novo", { responsavel: "Bia" });
     expect(r.status).toBe(200);
     expect(banco.leads[2].responsavel).toBe("Bia");
+  });
+});
+
+describe("perfil desativado não lê nem grava (03/10): a mesma régua de `sessaoDeLeads`", () => {
+  const RECUSA = { error: "Acesso restrito à equipe" };
+  const retrato = () => JSON.stringify([banco.leads, banco.atendimentos, conversas]);
+
+  for (const quem of ["u-saiu", "u-sem-coluna"]) {
+    it(`${quem}: o PATCH da fila responde 403 e não grava nada`, async () => {
+      usuario = quem;
+      const antes = retrato();
+      const r = await patch({ responsavel: "Bia", observacoes: "peguei", contato: "whatsapp" });
+      expect(r.status).toBe(403);
+      expect(await r.json()).toEqual(RECUSA);
+      expect(retrato()).toBe(antes);
+      expect(linhaDoTempo).toEqual([]);
+      expect(rpcs).toEqual([]);
+      expect(chamadasAoChatwoot).toHaveLength(0);
+    });
+
+    it(`${quem}: o POST e o GET das etiquetas respondem 403, sem tocar no Chatwoot`, async () => {
+      usuario = quem;
+      const antes = retrato();
+      const r = await postEtiquetas({ id: "lead-1", incluir: ["negociando"] });
+      expect(r.status).toBe(403);
+      expect(await r.json()).toEqual(RECUSA);
+      const g = await etiquetas.GET();
+      expect(g.status).toBe(403);
+      expect(await g.json()).toEqual(RECUSA);
+      expect(retrato()).toBe(antes);
+      expect(rpcs).toEqual([]);
+      expect(chamadasAoChatwoot).toHaveLength(0);
+    });
+
+    it(`${quem}: o GET da fila responde 403, sem fila`, async () => {
+      usuario = quem;
+      const r = await gerenciar.GET(new Request("http://x/api/leads/gerenciar") as never);
+      expect(r.status).toBe(403);
+      expect(await r.json()).toEqual(RECUSA);
+    });
+  }
+
+  it("contraprova: o mesmo pedido, de quem está ativo, passa", async () => {
+    usuario = "u-admin";
+    expect((await patch({ responsavel: "Ana" })).status).toBe(200);
+    expect((await postEtiquetas({ id: "lead-1", incluir: ["negociando"] })).status).toBe(200);
   });
 });
 

@@ -297,7 +297,7 @@ export function resumoDaBusca(
     frases.push(
       rastreios.size === 1
         ? `O rastreio é o mesmo nos ${total}: foi o mesmo aparelho que enviou mais de um formulário.`
-        : "Há rastreios diferentes com os mesmos oito primeiros caracteres — confira nome e telefone antes de responder.",
+        : "Há rastreios diferentes com os mesmos oito primeiros caracteres: confira nome e telefone antes de responder.",
     );
   }
 

@@ -1,45 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AVISO_DE_REF_INVALIDA,
-  SEM_DONO,
-  criarMover,
-  filtrarPorResponsavel,
-  iniciais,
-  normalizarRef,
-  opcoesDeResponsavel,
-  opcaoSemResponsavel,
-  opcoesDoCard,
-  resumoDaBusca,
-} from "../../lib/leadsKanban";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { SEM_DONO, criarMover, filtrarPorResponsavel, resumoDaBusca } from "../../lib/leadsKanban";
 import {
   ETAPAS_PADRAO,
-  destinosDoNegocio,
-  espera,
+  ehTipoDeDesfecho,
   etapasDoQuadro,
   formatarPrazo,
-  destinoDaConversa,
-  linkDeConversa,
-  mensagemParaCliente,
-  minutosParado,
   nivelDeEstagnacao,
-  ROTULO_DO_DESFECHO,
-  ehDescarte,
   ordenarEtapas,
-  seloDeRodizio,
   type EtapaDoFunil,
-  type LeadDoFunil,
   type MotivoDoFunil,
-  type NivelDeEstagnacao,
 } from "../../lib/funil";
+import { AVISO_DE_BUSCA_INVALIDA, filtroDaBusca } from "../../lib/gestaoDoLead";
+import {
+  AVISO_DE_LEAD_QUE_SAIU,
+  aoMudarAUrl,
+  aoMudarOEstado,
+  aoVoltarOuAvancar,
+  contarChips,
+  contarEscopos,
+  filtrarParados,
+  filtrarPorChip,
+  filtrarPorEscopo,
+  iniciarSincronia,
+  linhaDaBusca,
+  padroesDoFunil,
+  textoDoVazio,
+  urlDoFunil,
+  urlDoLead,
+  type ChipDoFunil,
+  type EstadoNaUrl,
+  type LeadDaFila,
+} from "../../lib/filaDoFunil";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
-import BlocoDaAvaliacao from "./BlocoDaAvaliacao";
-import BlocoDoPerfil from "./BlocoDoPerfil";
-import EtiquetasDoLead from "./EtiquetasDoLead";
-import { aplicarMudanca, ehEtiquetaDaPassagem, type MudancaDeEtiquetas } from "../../lib/etiquetas";
-import { podeRemoverResponsavel } from "../../lib/escopoDeLeads";
+import CardDoLead from "./CardDoLead";
+import ControlesDoFunil from "./ControlesDoFunil";
+import DetalheDoLead from "./DetalheDoLead";
+import FechadosDoFunil from "./FechadosDoFunil";
+import ListaDoDia from "./ListaDoDia";
 
 /**
  * Tela A8 do design doc — o funil de leads.
@@ -112,72 +113,82 @@ import { podeRemoverResponsavel } from "../../lib/escopoDeLeads";
  *   para a busca vazia;
  * - buscar limpa os filtros de responsável e de parados, que foram escolhidos
  *   para a fila e esconderiam justamente o lead procurado.
+ *
+ * ---------------------------------------------------------------------------
+ * 2026-10-03 — a gestão do lead (desenho em `docs/design/gestao_do_lead`)
+ * ---------------------------------------------------------------------------
+ * O card emagreceu e o lead ganhou um DETALHE. O que mudou nesta tela:
+ *
+ * - **O card é o do desenho** (`CardDoLead`): nome, interesse, última
+ *   interação, próximo passo, o link da conversa e as setas. Responsável,
+ *   anotação e desfecho foram para o detalhe (`DetalheDoLead`), que abre ao
+ *   clicar no card: gaveta em tela de 1024px ou mais, página abaixo disso.
+ * - **Uma busca só** (`?busca=` da rota): nome, telefone ou referência, com
+ *   pausa de digitação. Os três cuidados da busca por referência continuam: o
+ *   campo mora fora do ramo que some, a tela diz o que o servidor confirmou
+ *   (`buscaNaTela`), e buscar limpa o filtro que esconderia o lead achado.
+ * - **Escopo e vista** (`lib/filaDoFunil`): o Comercial puro só recebe os
+ *   leads dele, abre na Lista do dia e não tem o que alternar; quem vê a
+ *   equipe abre no Quadro, em "Equipe", e "Minha fila" são os leads com o nome
+ *   dele. Os chips "Atrasados" e "Hoje" contam sobre escopo e busca.
+ * - **O trilho de etapas clicável saiu**; a barra de slide e as setas ficam.
+ * - **A vista, o escopo e o lead aberto moram na URL** (`?vista=`, `?escopo=`,
+ *   `?lead=`), para o link e para o voltar do navegador. A tela a escreve com
+ *   `history.replaceState`: abrir um lead não vai ao servidor. A RECARGA da
+ *   tela continua levando à Visão geral (`lib/recargaDoPainel`).
+ * - **"Parados" e "Sem responsável"** voltaram como chips: o primeiro é o "só
+ *   os parados" de antes, para todos; o segundo é do Administrador, que é quem
+ *   enxerga o lead sem dono e o distribui. Ele força o Quadro: lead sem dono
+ *   não tem próximo passo, e não aparece na Lista do dia.
+ * - **Registro começado não se perde**: com algo escrito no detalhe, trocar de
+ *   card pergunta antes (a pergunta mora na gaveta).
+ * - **Reler a fila não desmonta a tela.** Só a primeira leitura mostra
+ *   "Carregando": com a busca ao digitar e a gaveta aberta, trocar a tela
+ *   inteira por um aviso apagaria o campo de busca e o que estava sendo
+ *   escrito no detalhe.
  */
 
-interface Lead extends LeadDoFunil {
-  telefone: string | null;
-  interesse: string | null;
-  canal: string | null;
-  responsavel: string | null;
-  observacoes: string | null;
-  /** `created_at`, não `criado_em`: a tabela é preexistente e já usava esse
-   *  nome — ver a nota na migração 20260807210000. */
-  created_at: string;
-  /** O rastreio do visitante. Gravado por `/api/leads` desde 2026-09-02; nulo
-   *  antes disso e em quem chegou sem rastreio. */
-  ag_uid?: string | null;
-  /** O retrato da /avaliacao e os valores da vistoria (migração
-   *  20260924190000). Ausentes antes dela e em lead que não é de avaliação —
-   *  quem lê é `BlocoDaAvaliacao`, que confere a forma. */
-  avaliacao?: unknown;
-  avaliacao_valor_ofertado?: number | string | null;
-  avaliacao_valor_pago?: number | string | null;
-  /** O perfil do Garagem Match Profiler (migração 20260925200000): as
-   *  respostas do cliente e os carros que o site mostrou. Ausente antes dela
-   *  e em lead de outro canal — quem lê é `BlocoDoPerfil`, que confere a
-   *  forma. Só leitura: o PATCH de `/api/leads/gerenciar` não o grava. */
-  perfil?: unknown;
-  /** As etiquetas da conversa do Chatwoot, como o n8n as espelhou em
-   *  `atendimentos.tags` (2026-09-25). Ausentes antes disso. */
-  etiquetas?: string[];
+/** A partir daqui a gaveta cabe ao lado do trilho do painel. */
+const CONSULTA_DA_GAVETA = "(min-width: 1024px)";
+
+function assinarLargura(aoMudar: () => void): () => void {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const consulta = window.matchMedia(CONSULTA_DA_GAVETA);
+  consulta.addEventListener("change", aoMudar);
+  return () => consulta.removeEventListener("change", aoMudar);
 }
 
-/** Telefone só com dígitos → (41) 99999-9999. */
-function formatarTelefone(t: string | null): string {
-  if (!t) return "";
-  const d = t.replace(/\D/g, "").replace(/^55/, "");
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return t;
+const telaLarga = () => typeof window.matchMedia !== "function" || window.matchMedia(CONSULTA_DA_GAVETA).matches;
+
+/** A pausa de digitação antes de a busca sair. */
+const PAUSA_DA_BUSCA_MS = 350;
+
+/** Leva o foco de volta a quem abriu o detalhe: o card, a linha da lista. */
+function focarQuemAbriu(id: string) {
+  const alvo = [...document.querySelectorAll<HTMLElement>("[data-abre-lead]")].find(
+    (el) => el.dataset.abreLead === id,
+  );
+  alvo?.focus();
 }
 
-/** A moldura do card, por nível de apodrecimento. Régua, nunca sombra. */
-const MOLDURA: Record<NivelDeEstagnacao, string> = {
-  ok: "border-mt-regua-fina bg-mt-surface",
-  atencao: "border-mt-regua-fina border-l-[3px] border-l-mt-neutral-600 bg-mt-surface",
-  estagnado: "border-mt-regua-fina border-l-[3px] border-l-mt-accent bg-mt-accent-100",
-  transferir: "border-mt-accent border-l-[3px] border-l-mt-accent bg-mt-accent-100",
-};
+interface BuscaNaTela {
+  termo?: string | null;
+  tipo?: "nome" | "telefone" | "ref";
+  ref?: string;
+}
 
-const AVISO: Record<NivelDeEstagnacao, string | null> = {
-  ok: null,
-  atencao: "esfriando",
-  estagnado: "parado",
-  transferir: "vai passar para outro vendedor",
-};
-
-export default function LeadsKanban() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [atendentes, setAtendentes] = useState<string[]>([]);
+export default function LeadsKanban({ meuNome = null }: { meuNome?: string | null }) {
+  const router = useRouter();
+  const [leads, setLeads] = useState<LeadDaFila[]>([]);
   const [etapas, setEtapas] = useState<EtapaDoFunil[]>(ETAPAS_PADRAO);
   const [motivos, setMotivos] = useState<MotivoDoFunil[]>([]);
   const [podeConfigurar, setPodeConfigurar] = useState(false);
   // Quem só enxerga os próprios leads (o vendedor) não precisa ler o próprio
-  // nome em cada card. A regra de quem vê o quê é do servidor (`escopoDeLeads`).
+  // nome em cada card, nem tem "Equipe" para alternar. A regra de quem vê o
+  // quê é do servidor (`escopoDeLeads`).
   const [soOsMeus, setSoOsMeus] = useState(false);
-  // Só o Administrador deixa um lead sem responsável (03/10/2026). Começa em
-  // `false`: até a fila chegar, a tela não oferece o que a rota recusaria.
-  const [podeTirarDono, setPodeTirarDono] = useState(false);
+  /** O `escopo` da rota: "todos" é o Administrador, o único que vê lead sem dono. */
+  const [escopoDoServidor, setEscopoDoServidor] = useState<string | null>(null);
   // As etiquetas (2026-09-25): as vistas nas conversas vêm com a fila; as
   // criadas na conta do Chatwoot vêm depois, numa leitura à parte, para a fila
   // não esperar a API. Guardadas separadas porque `carregar` renova a
@@ -188,62 +199,81 @@ export default function LeadsKanban() {
   // Das duas da passagem, as que não existem na conta do Chatwoot — gravadas
   // na conversa, mas invisíveis na tela de lá. Ver GET `/api/leads/etiquetas`.
   const [faltamNaConta, setFaltamNaConta] = useState<string[]>([]);
-  /**
-   * Os leads com escrita no Chatwoot em voo: etiqueta pelo card OU passagem
-   * de responsável (que o PATCH do SDR transforma em etiqueta). Enquanto um
-   * lead está aqui, o select de responsável e as etiquetas dele travam —
-   * duas escritas da mesma conversa ao mesmo tempo, a segunda grava por cima
-   * da primeira (revisão de 25/09: a passagem perdia resgate e reaquecido).
-   */
-  const [emVoo, setEmVoo] = useState<Record<string, boolean>>({});
+  const [primeiraCarga, setPrimeiraCarga] = useState(true);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  // O que deu certo pela metade: a passagem gravou, a etiqueta não chegou ao
-  // Chatwoot. Não é `erro` — o card não voltou atrás, e pintar de erro faria o
-  // SDR passar o lead de novo.
+  // O que deu certo pela metade: a gravação valeu e algo ao lado dela não.
+  // Não é `erro`: o card não voltou atrás.
   const [avisoDaGravacao, setAvisoDaGravacao] = useState("");
+  /** Leituras secundárias da fila que falharam (`avisos` da rota). */
+  const [avisosDaFila, setAvisosDaFila] = useState<string[]>([]);
   const [migracaoPendente, setMigracaoPendente] = useState(false);
   const [agregado, setAgregado] = useState<{ total: number; porSituacao: Record<string, number> } | null>(null);
 
-  const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  const [chip, setChip] = useState<ChipDoFunil | null>(null);
   const [soParados, setSoParados] = useState(false);
+  const [soSemDono, setSoSemDono] = useState(false);
+  /** Há registro começado no detalhe aberto (quem diz é o detalhe). */
+  const [rascunhoAberto, setRascunhoAberto] = useState(false);
+  /** O card que foi clicado com um registro começado em outro lead. */
+  const [trocaPendente, setTrocaPendente] = useState<string | null>(null);
 
-  // ── a busca pela referência ───────────────────────────────────────────
+  // ── a busca única ─────────────────────────────────────────────────────
   // Três estados, e não um, porque respondem a perguntas diferentes:
-  /** O que está escrito no campo — o código, o UUID ou a mensagem inteira. */
-  const [refDigitada, setRefDigitada] = useState("");
+  /** O que está escrito no campo. */
+  const [buscaDigitada, setBuscaDigitada] = useState("");
   /** O que a tela PEDIU ao servidor; `null` é a fila. É o que `carregar` lê. */
-  const [refPedida, setRefPedida] = useState<string | null>(null);
+  const [buscaPedida, setBuscaPedida] = useState<string | null>(null);
   /** O que o servidor CONFIRMOU: o que os `leads` na tela são. É o que ela diz. */
-  const [refNaTela, setRefNaTela] = useState<string | null>(null);
+  const [buscaNaTela, setBuscaNaTela] = useState<BuscaNaTela | null>(null);
 
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<string | null>(null);
-  const [anotando, setAnotando] = useState<string | null>(null);
-  // Os cards abertos (03/10/2026, pedido do dono): fechado, o card é o do
-  // desenho aprovado (nome, carro de interesse e etiquetas) mais o tempo de
-  // espera e o responsável; o resto aparece ao abrir. Com
-  // vinte cards inteiros por coluna, o quadro não cabia na tela.
-  const [abertos, setAbertos] = useState<ReadonlySet<string>>(new Set());
-  const alternarCard = (id: string) =>
-    setAbertos((antes) => {
-      const depois = new Set(antes);
-      if (depois.has(id)) depois.delete(id);
-      else depois.add(id);
-      return depois;
-    });
-  const [fechando, setFechando] = useState<{ lead: Lead; etapa: EtapaDoFunil } | null>(null);
+  const [fechando, setFechando] = useState<{ lead: LeadDaFila; etapa: EtapaDoFunil } | null>(null);
   const [vendoFechados, setVendoFechados] = useState(false);
+  /** Sobe quando o quadro grava algo no lead aberto: o detalhe relê. */
+  const [versaoDoAberto, setVersaoDoAberto] = useState(0);
 
   const trilho = useRef<HTMLDivElement>(null);
-  const colunas = useRef<Record<string, HTMLDivElement | null>>({});
   const [progresso, setProgresso] = useState(0);
   const [rolavel, setRolavel] = useState(false);
 
+  // ── a vista, o escopo e o lead aberto, em sincronia com a URL ─────────
+  // A tela reage no clique e escreve a URL com `history.replaceState` (sem ida
+  // ao servidor). A URL que muda por fora (um link, o voltar do navegador) é
+  // adotada. Ver `SincroniaComAUrl`.
+  const queryDaUrl = useSearchParams().toString();
+  const [sincronia, setSincronia] = useState(() => iniciarSincronia(queryDaUrl));
+  if (queryDaUrl !== sincronia.ultimaQuery) {
+    setSincronia(aoMudarAUrl(sincronia, queryDaUrl, typeof window === "undefined" ? queryDaUrl : window.location.search));
+  }
+  const naUrl = sincronia.estado;
+
+  const navegar = (parcial: Partial<EstadoNaUrl>) => {
+    const proxima = aoMudarOEstado(sincronia, parcial);
+    if (proxima === sincronia) return;
+    setSincronia(proxima);
+    window.history.replaceState(window.history.state, "", urlDoFunil(proxima.estado));
+  };
+
+  // O voltar e o avançar do navegador: vale o que a barra de endereços mostra.
+  useEffect(() => {
+    const aoVoltar = () => setSincronia((s) => aoVoltarOuAvancar(s, window.location.search));
+    window.addEventListener("popstate", aoVoltar);
+    return () => window.removeEventListener("popstate", aoVoltar);
+  }, []);
+
+  // A gaveta só existe em tela larga. Abaixo disso o detalhe é a página.
+  const largo = useSyncExternalStore(assinarLargura, telaLarga, () => true);
+  const leadNaGaveta = largo ? naUrl.lead : null;
+  useEffect(() => {
+    if (naUrl.lead && !largo) router.replace(urlDoLead(naUrl.lead));
+  }, [naUrl.lead, largo, router]);
+
   // O relógio só anda quando a tela repinta, e o kanban fica aberto o dia
   // inteiro no balcão. Sem este tique, um card que apodrece às 14h continua
-  // branco até alguém recarregar — e a cor que ninguém vê mudar não avisa
-  // nada. Um minuto é a menor unidade que a tela mostra.
+  // branco até alguém abrir a tela de novo — e a cor que ninguém vê mudar não
+  // avisa nada. Um minuto é a menor unidade que a tela mostra.
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setAgora(Date.now()), 60_000);
@@ -251,24 +281,30 @@ export default function LeadsKanban() {
   }, []);
 
   /**
-   * Lê a fila — ou, com `refPedida`, a busca. Sem parâmetro de propósito.
+   * Lê a fila — ou, com `buscaPedida`, a busca. Sem parâmetro de propósito.
    *
    * Quem chama é o botão Atualizar (`onClick={carregar}`), a falha de gravação
-   * e o efeito de montagem, e os três querem a mesma coisa: recarregar o que
-   * está pedido. Um parâmetro aqui receberia, do `onClick`, o `MouseEvent` —
-   * e a URL sairia com `ref=[object Object]`, que foi exatamente o defeito que
-   * a primeira versão desta busca (26/08) achou no próprio botão.
+   * e o efeito de montagem, e os três querem a mesma coisa: reler o que está
+   * pedido. Um parâmetro aqui receberia, do `onClick`, o `MouseEvent` — e a
+   * URL sairia com `busca=[object Object]`, o defeito que a primeira versão
+   * da busca (26/08) achou no próprio botão.
+   *
+   * `pedido` numera as leituras: com a busca ao digitar, a resposta de um
+   * termo antigo pode chegar depois da do novo, e não pode pintar por cima.
    */
+  const pedido = useRef(0);
   const carregar = useCallback(async () => {
+    const meu = ++pedido.current;
     setCarregando(true);
     setErro("");
     try {
       const res = await fetch(
-        refPedida
-          ? `/api/leads/gerenciar?ref=${encodeURIComponent(refPedida)}`
+        buscaPedida
+          ? `/api/leads/gerenciar?busca=${encodeURIComponent(buscaPedida)}`
           : "/api/leads/gerenciar",
       );
       const d = await res.json();
+      if (meu !== pedido.current) return;
       if (!res.ok) throw new Error(d.error || "Falha ao carregar leads");
       if (d.migracaoPendente) {
         setMigracaoPendente(true);
@@ -278,33 +314,36 @@ export default function LeadsKanban() {
         setLeads(d.leads ?? []);
         // Junto com os leads, e só quando eles chegam: se a busca falhar, a
         // tela continua mostrando — e dizendo — o que mostrava antes.
-        setRefNaTela(d.busca?.ref ?? null);
-        setAtendentes((d.atendentes ?? []).map((a: { nome: string }) => a.nome));
+        setBuscaNaTela(d.busca ?? null);
         // Sem `funil_etapas` no banco, o funil de sempre. Uma tela sem coluna
         // nenhuma faria os leads sumirem — ausência sem erro, de novo não.
         setEtapas(d.etapas?.length ? ordenarEtapas(d.etapas) : ETAPAS_PADRAO);
         setMotivos(d.motivos ?? []);
         setPodeConfigurar(Boolean(d.podeConfigurar));
         setSoOsMeus(d.escopo === "meus");
-        setPodeTirarDono(podeRemoverResponsavel({ escopo: d.escopo }));
+        setEscopoDoServidor(typeof d.escopo === "string" ? d.escopo : null);
         setEtiquetasVistas(d.etiquetasDisponiveis ?? []);
         setEtiquetasEditaveis(Boolean(d.etiquetasEditaveis));
+        setAvisosDaFila(Array.isArray(d.avisos) ? d.avisos : []);
       }
-    } catch (e: any) {
-      setErro(e.message);
+    } catch (e: unknown) {
+      if (meu === pedido.current) setErro(e instanceof Error ? e.message : "Falha ao carregar leads");
     } finally {
-      setCarregando(false);
+      if (meu === pedido.current) {
+        setCarregando(false);
+        setPrimeiraCarga(false);
+      }
     }
-  }, [refPedida]);
+  }, [buscaPedida]);
 
-  // Roda na montagem e a cada `refPedida` nova — é assim que buscar e voltar
+  // Roda na montagem e a cada `buscaPedida` nova — é assim que buscar e voltar
   // para a fila disparam a leitura.
   useEffect(() => {
     carregar();
   }, [carregar]);
 
   // As etiquetas criadas na conta do Chatwoot, uma vez, e só se dá para
-  // editar. Falhou, o select fica com as vistas nas conversas e as duas da
+  // editar. Falhou, o detalhe fica com as vistas nas conversas e as duas da
   // passagem — que é o que a rota devolve de qualquer jeito.
   useEffect(() => {
     if (!etiquetasEditaveis) return;
@@ -330,38 +369,48 @@ export default function LeadsKanban() {
     [etiquetasVistas, etiquetasDaConta],
   );
 
-  /**
-   * Pede uma referência, ou a fila com `null`.
-   *
-   * Pedir de novo o que já está pedido não muda estado nenhum — e sem mudança
-   * o efeito acima não roda. Por isso o mesmo pedido chama `carregar` direto:
-   * quem clica Buscar outra vez espera buscar outra vez, e o lead que não
-   * existia há um minuto pode ter acabado de chegar.
-   */
-  const pedir = useCallback(
-    (ref: string | null) => {
-      if (ref === refPedida) carregar();
-      else setRefPedida(ref);
-    },
-    [refPedida, carregar],
-  );
-
-  const buscarPorRef = () => {
-    const ref = normalizarRef(refDigitada);
-    if (!ref) {
-      // Recusa na tela, sem viagem: "nenhum lead com a referência 0DCB" faria o
-      // atendente achar que o lead não existe, quando faltam quatro letras.
-      setErro(AVISO_DE_REF_INVALIDA);
-      return;
+  // ── a busca: digitar, pausar, pedir ───────────────────────────────────
+  const aoBuscar = (valor: string) => {
+    setBuscaDigitada(valor);
+    if (filtroDaBusca(valor)) {
+      // Buscar limpa os filtros escolhidos para a fila, que esconderiam
+      // justamente o lead procurado.
+      setChip(null);
+      setSoParados(false);
+      setSoSemDono(false);
+    } else {
+      // Campo vazio ou termo curto demais: a tela volta para a fila.
+      setBuscaPedida(null);
     }
-    setFiltroResponsavel("");
-    setSoParados(false);
-    pedir(ref);
   };
 
-  const voltarParaFila = () => {
-    setRefDigitada("");
-    pedir(null);
+  useEffect(() => {
+    const termo = buscaDigitada.trim();
+    if (!termo || !filtroDaBusca(termo)) return;
+    const t = setTimeout(() => setBuscaPedida(termo), PAUSA_DA_BUSCA_MS);
+    return () => clearTimeout(t);
+  }, [buscaDigitada]);
+
+  /**
+   * Enter no campo: busca agora. Pedir de novo o que já está pedido não muda
+   * estado nenhum — e sem mudança o efeito de leitura não roda. Por isso o
+   * mesmo pedido chama `carregar` direto: o lead que não existia há um minuto
+   * pode ter acabado de chegar.
+   */
+  const enviarBusca = () => {
+    const termo = buscaDigitada.trim();
+    if (termo && !filtroDaBusca(termo)) {
+      setErro(AVISO_DE_BUSCA_INVALIDA);
+      return;
+    }
+    const pedir = termo || null;
+    if (pedir === buscaPedida) void carregar();
+    else setBuscaPedida(pedir);
+  };
+
+  const limparBusca = () => {
+    setBuscaDigitada("");
+    setBuscaPedida(null);
   };
 
   /**
@@ -379,48 +428,37 @@ export default function LeadsKanban() {
     [carregar],
   );
 
-  const voar = useCallback((id: string, noAr: boolean) => {
-    setEmVoo((atual) => {
-      const proximo = { ...atual };
-      if (noAr) proximo[id] = true;
-      else delete proximo[id];
-      return proximo;
-    });
-  }, []);
-
   /**
-   * Grava um campo do lead. Otimista: a tela reage na hora e recarrega do
-   * servidor se der errado — o inverso (esperar a rede) faz o card "pular"
-   * de volta e parecer que o clique não pegou.
+   * Grava um campo do lead. Otimista: a tela reage na hora e relê do servidor
+   * se der errado — o inverso (esperar a rede) faz o card "pular" de volta e
+   * parecer que o clique não pegou.
    */
   const salvar = useCallback(
-    async (
-      id: string,
-      campos: Record<string, unknown>,
-      // O banco só reinicia o relógio por etapa, dono, anotação ou desfecho
-      // (gatilho da 20260828160000). Para o resto — os valores da avaliação —
-      // a tela não pode mostrar um relógio que o banco não reiniciou.
-      { reiniciaORelogio = true }: { reiniciaORelogio?: boolean } = {},
-    ) => {
+    async (id: string, campos: Record<string, unknown>) => {
       // `contato` é uma AÇÃO, não um campo do lead: ele vai no corpo do PATCH
       // e não pode entrar no objeto local, senão o card passa a carregar uma
       // propriedade que nenhum tipo descreve e que a próxima leitura do
       // servidor não traz de volta.
-      const camposDoLead = { ...campos };
+      const camposDoLead: Record<string, unknown> = { ...campos };
       delete camposDoLead.contato;
-      // Trocar o dono pode escrever etiqueta no Chatwoot (a passagem do SDR).
-      const escreveNoChatwoot = "responsavel" in campos;
-      if (escreveNoChatwoot) voar(id, true);
+      if (typeof campos.situacao === "string") {
+        // O gatilho do banco carimba o desfecho na etapa terminal e o limpa ao
+        // sair dela. Refletir aqui é o que tira o lead fechado do quadro (e o
+        // reaberto da lista de Fechados) sem esperar a próxima leitura.
+        const tipo = etapas.find((e) => e.chave === campos.situacao)?.tipo;
+        camposDoLead.desfecho = ehTipoDeDesfecho(tipo) ? tipo : null;
+        camposDoLead.desfecho_em = ehTipoDeDesfecho(tipo) ? new Date().toISOString() : null;
+      }
       setLeads((atual) =>
         atual.map((l) =>
           l.id === id
             ? {
                 ...l,
-                ...(camposDoLead as Partial<Lead>),
+                ...(camposDoLead as Partial<LeadDaFila>),
                 // O toque humano reinicia o relógio no banco (gatilho da
                 // migração 20260828120000). Refletir aqui evita o card ficar
                 // vermelho até o próximo `carregar()`.
-                ...(reiniciaORelogio ? { ultimo_contato_em: new Date().toISOString() } : {}),
+                ultimo_contato_em: new Date().toISOString(),
               }
             : l,
         ),
@@ -435,56 +473,20 @@ export default function LeadsKanban() {
         if (!res.ok) {
           throw new Error(d.error || "Falha ao salvar");
         }
-        // A passagem do SDR volta com as etiquetas que a conversa ficou
-        // (resgate e reaquecido garantidos) — ou com o aviso de que elas não
-        // chegaram ao Chatwoot. Ver o PATCH de `/api/leads/gerenciar`.
         if (Array.isArray(d.etiquetas)) {
           setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, etiquetas: d.etiquetas } : l)));
         }
         if (typeof d.aviso === "string" && d.aviso) setAvisoDaGravacao(d.aviso);
+        // O detalhe aberto mostra a etapa e o histórico deste lead: relê.
+        setVersaoDoAberto((v) => v + 1);
       } catch (e: any) {
-        // Recarrega em vez de restaurar um retrato tirado antes da chamada:
-        // com vários consultores mexendo na mesma fila, o retrato local já
-        // pode estar velho, e restaurá-lo desfaria o trabalho de outro.
+        // Relê em vez de restaurar um retrato tirado antes da chamada: com
+        // vários consultores mexendo na mesma fila, o retrato local já pode
+        // estar velho, e restaurá-lo desfaria o trabalho de outro.
         falhou(e.message);
-      } finally {
-        if (escreveNoChatwoot) voar(id, false);
       }
     },
-    [falhou, voar],
-  );
-
-  /**
-   * Põe ou tira etiqueta da conversa do lead. Manda a MUDANÇA, não a lista:
-   * a lista do card vem do espelho e pode estar atrás da conversa, e gravada
-   * por cima apagaria o que o card não via. Otimista como `salvar`; a resposta
-   * traz a lista que ficou no Chatwoot, que é a que o card passa a mostrar.
-   */
-  const salvarEtiquetas = useCallback(
-    async (id: string, mudanca: MudancaDeEtiquetas) => {
-      voar(id, true);
-      setLeads((atual) =>
-        atual.map((l) => (l.id === id ? { ...l, etiquetas: aplicarMudanca(l.etiquetas ?? [], mudanca) } : l)),
-      );
-      try {
-        const res = await fetch("/api/leads/etiquetas", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, ...mudanca }),
-        });
-        const d = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(d.error || "Falha ao gravar as etiquetas");
-        if (Array.isArray(d.etiquetas)) {
-          setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, etiquetas: d.etiquetas } : l)));
-        }
-        if (typeof d.aviso === "string" && d.aviso) setAvisoDaGravacao(d.aviso);
-      } catch (e: unknown) {
-        falhou(e instanceof Error ? e.message : "Falha ao gravar as etiquetas");
-      } finally {
-        voar(id, false);
-      }
-    },
-    [falhou, voar],
+    [falhou, etapas],
   );
 
   /**
@@ -498,16 +500,13 @@ export default function LeadsKanban() {
    * aqui, `ganho || perdido`, que deixou todo descarte sem motivo desde
    * 2026-08-28. Ver o cabeçalho de `criarMover`.
    */
-  const mover = useMemo(
-    () =>
-      criarMover({
-        etapas,
-        leads,
-        pedirMotivo: (lead, etapa) => setFechando({ lead, etapa }),
-        gravar: salvar,
-      }),
-    [etapas, leads, salvar],
-  );
+  const mover = (id: string, chave: string) =>
+    criarMover({
+      etapas,
+      leads,
+      pedirMotivo: (lead, etapa) => setFechando({ lead, etapa }),
+      gravar: salvar,
+    })(id, chave);
 
   const confirmarDesfecho = useCallback(
     (escolha: DesfechoEscolhido) => {
@@ -525,34 +524,63 @@ export default function LeadsKanban() {
   );
 
   /**
-   * O atalho do WhatsApp. Abre a conversa E registra o contato.
+   * O atalho da conversa. Abre a conversa E registra o contato.
    *
-   * O registro é o que faz o botão valer mais que um link: sem ele, o vendedor
+   * O registro é o que faz o link valer mais que um link: sem ele, o vendedor
    * que acabou de falar com o cliente recebe, uma hora depois, um alerta
    * cobrando que fale com o cliente. Dois desses e ninguém lê mais alerta.
    *
-   * A gravação é solta (`void`) de propósito: a janela do WhatsApp abre no
-   * clique, sem esperar a rede. Registro que falha vira, no pior caso, um
-   * lembrete a mais — bem melhor que um clique que trava.
+   * A gravação é solta (`void`) de propósito: a janela abre no clique, sem
+   * esperar a rede. Registro que falha vira, no pior caso, um lembrete a
+   * mais — bem melhor que um clique que trava.
    */
   const falarNoWhatsApp = useCallback(
-    (lead: Lead) => {
+    (lead: LeadDaFila) => {
       void salvar(lead.id, { contato: "whatsapp" });
     },
     [salvar],
   );
 
-  /** Os que ainda estão em jogo — o quadro é só deles. */
-  const emAberto = useMemo(() => leads.filter((l) => !l.desfecho), [leads]);
+  /** O detalhe mudou o lead (registro, etapa, responsável): o card acompanha. */
+  const aoMudarLead = useCallback((id: string, campos: Partial<LeadDaFila>) => {
+    setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, ...campos } : l)));
+    // O relógio da tela acompanha: o passo que acabou de ser gravado para
+    // "agora" não pode se ler como futuro até o próximo tique.
+    setAgora(Date.now());
+  }, []);
 
-  const visiveis = useMemo(() => {
-    const porResponsavel = filtrarPorResponsavel(emAberto, filtroResponsavel);
-    if (!soParados) return porResponsavel;
-    return porResponsavel.filter((l) => {
-      const n = nivelDeEstagnacao(l, etapas.find((e) => e.chave === l.situacao), agora);
-      return n === "estagnado" || n === "transferir";
-    });
-  }, [emAberto, filtroResponsavel, soParados, etapas, agora]);
+  const aoSairDeSincronia = useCallback(() => {
+    void carregar();
+  }, [carregar]);
+
+  // ── o que a tela mostra: escopo, busca e chip ─────────────────────────
+  const buscando = buscaNaTela !== null;
+  const padroes = padroesDoFunil(soOsMeus ? "meus" : null, meuNome);
+  const escopo = naUrl.escopo ?? padroes.escopo;
+  const vista = naUrl.vista ?? padroes.vista;
+
+  const noEscopo = useMemo(
+    () => filtrarPorEscopo(leads, { temEscopo: padroes.temEscopo, escopo, meuNome, buscando }),
+    [leads, padroes.temEscopo, escopo, meuNome, buscando],
+  );
+
+  /** Os que ainda estão em jogo — o quadro é só deles. */
+  const emAberto = useMemo(() => noEscopo.filter((l) => !l.desfecho), [noEscopo]);
+
+  // Os chips contam sobre escopo e busca, nunca sobre o total.
+  const contasDosChips = useMemo(() => contarChips(emAberto, agora), [emAberto, agora]);
+  const contasDoEscopo = useMemo(() => contarEscopos(leads, meuNome), [leads, meuNome]);
+  // "Sem responsável" é do Administrador (`escopo: "todos"`): só ele recebe o
+  // lead sem dono. "Parados" é de todos.
+  const veSemDono = escopoDoServidor === "todos";
+  const semDono = useMemo(() => filtrarPorResponsavel(emAberto, SEM_DONO), [emAberto]);
+  const parados = useMemo(() => filtrarParados(emAberto, etapas, agora), [emAberto, etapas, agora]);
+  /** O que os filtros de ligar e desligar deixam: é o que a Lista do dia agrupa. */
+  const filtrados = useMemo(() => {
+    const porDono = soSemDono && veSemDono ? filtrarPorResponsavel(emAberto, SEM_DONO) : emAberto;
+    return soParados ? filtrarParados(porDono, etapas, agora) : porDono;
+  }, [emAberto, soSemDono, veSemDono, soParados, etapas, agora]);
+  const visiveis = useMemo(() => filtrarPorChip(filtrados, chip, agora), [filtrados, chip, agora]);
 
   // As colunas do quadro são só as etapas ABERTAS: ganho e perdido viraram
   // botão. Passa `emAberto` e não `leads` de propósito — `etapasDoQuadro`
@@ -560,33 +588,27 @@ export default function LeadsKanban() {
   // numa etapa arquivada ressuscitaria a coluna sem ninguém entender por quê.
   const colunasVisiveis = useMemo(() => etapasDoQuadro(etapas, emAberto), [etapas, emAberto]);
 
-  /**
-   * Os botões do card, em dois grupos.
-   *
-   * Fechar um negócio e descartar um registro são gestos diferentes, e
-   * juntá-los na mesma fileira convidaria ao erro que o descarte existe para
-   * evitar: marcar spam como "perdido" porque era o botão ao lado. Ganho e
-   * perdido ficam lado a lado; o descarte vem embaixo, com menos peso, porque
-   * é o mais raro dos três.
-   */
-  const destinos = useMemo(() => destinosDoNegocio(etapas), [etapas]);
-  const fecham = useMemo(() => destinos.filter((e) => !ehDescarte(e.tipo)), [destinos]);
-  const descartam = useMemo(() => destinos.filter((e) => ehDescarte(e.tipo)), [destinos]);
-
   const fechados = useMemo(
     () =>
-      filtrarPorResponsavel(leads.filter((l) => l.desfecho), filtroResponsavel).sort(
-        (a, b) =>
-          new Date(b.desfecho_em ?? b.created_at).getTime() -
-          new Date(a.desfecho_em ?? a.created_at).getTime(),
-      ),
-    [leads, filtroResponsavel],
+      noEscopo
+        .filter((l) => l.desfecho)
+        .sort(
+          (a, b) =>
+            new Date(b.desfecho_em ?? b.created_at).getTime() -
+            new Date(a.desfecho_em ?? a.created_at).getTime(),
+        ),
+    [noEscopo],
   );
 
   const rotuloDoMotivo = useCallback(
     (chave?: string | null) =>
       chave ? motivos.find((m) => m.chave === chave)?.rotulo ?? chave : null,
     [motivos],
+  );
+
+  const rotuloDaEtapa = useCallback(
+    (chave: string) => etapas.find((e) => e.chave === chave)?.rotulo ?? chave,
+    [etapas],
   );
 
   /**
@@ -602,27 +624,20 @@ export default function LeadsKanban() {
     [salvar],
   );
 
-  const opcoesResponsavel = useMemo(
-    () => opcoesDeResponsavel(atendentes, leads),
-    [atendentes, leads],
-  );
+  /**
+   * O que a busca achou além do quadro: lead fechado não está nas colunas, e
+   * a busca que acha só um lead fechado desenharia colunas vazias — quadro
+   * vazio se lê como "não achei". Na busca por referência, também o aviso de
+   * mais de um lead com o mesmo código (`resumoDaBusca`).
+   */
+  const alemDoQuadro = useMemo(() => {
+    if (!buscaNaTela || leads.length === 0) return null;
+    const resumo = resumoDaBusca(buscaNaTela.ref ?? "", leads);
+    const frases = buscaNaTela.ref ? resumo.frases : resumo.fechados > 0 ? [resumo.frases[1]] : [];
+    return frases.length > 0 ? { frases, fechados: resumo.fechados } : null;
+  }, [buscaNaTela, leads]);
 
-  const semDono = useMemo(() => emAberto.filter((l) => !l.responsavel).length, [emAberto]);
-
-  const parados = useMemo(
-    () =>
-      emAberto.filter((l) => {
-        const n = nivelDeEstagnacao(l, etapas.find((e) => e.chave === l.situacao), agora);
-        return n === "estagnado" || n === "transferir";
-      }).length,
-    [emAberto, etapas, agora],
-  );
-
-  /** O aviso da busca que achou — ver `resumoDaBusca`. Nulo na fila e na busca vazia. */
-  const resumoDaRef = useMemo(
-    () => (refNaTela && leads.length > 0 ? resumoDaBusca(refNaTela, leads) : null),
-    [refNaTela, leads],
-  );
+  const termoInvalido = buscaDigitada.trim() !== "" && !filtroDaBusca(buscaDigitada);
 
   // ── a barra de navegação ───────────────────────────────────────────────
   const medir = useCallback(() => {
@@ -637,10 +652,15 @@ export default function LeadsKanban() {
   }, []);
 
   useEffect(() => {
-    medir();
+    // Depois de pintar: o quadro acabou de mudar de largura (colunas, cards,
+    // a gaveta que abriu ao lado).
+    const quadro = requestAnimationFrame(medir);
     window.addEventListener("resize", medir);
-    return () => window.removeEventListener("resize", medir);
-  }, [medir, colunasVisiveis.length, visiveis.length]);
+    return () => {
+      cancelAnimationFrame(quadro);
+      window.removeEventListener("resize", medir);
+    };
+  }, [medir, colunasVisiveis.length, visiveis.length, vista, leadNaGaveta]);
 
   const deslizar = (valor: number) => {
     const el = trilho.current;
@@ -650,27 +670,11 @@ export default function LeadsKanban() {
   };
 
   /**
-   * Leva a coluna escolhida para a vista.
-   *
-   * Pela diferença entre os retângulos, e não por `offsetLeft`: aquele mede a
-   * partir do primeiro ancestral posicionado, que aqui pode ser qualquer coisa
-   * acima na página — e o trilho pararia no lugar errado sem dar erro.
-   */
-  const irParaEtapa = (chave: string) => {
-    const el = trilho.current;
-    const col = colunas.current[chave];
-    if (!el || !col) return;
-    const delta = col.getBoundingClientRect().left - el.getBoundingClientRect().left;
-    el.scrollTo({ left: el.scrollLeft + delta - 4, behavior: "smooth" });
-  };
-
-  /**
    * Rolagem automática ao arrastar perto da borda.
    *
-   * Sem isto, mover um card do "Novo" para o "Perdido" num funil de sete
-   * colunas é impossível no mouse: o cursor chega na borda da tela e o trilho
-   * não anda. É o par natural da barra — ela resolve a navegação, esta resolve
-   * o arrasto.
+   * Sem isto, mover um card da primeira para a última coluna é impossível no
+   * mouse: o cursor chega na borda da tela e o trilho não anda. É o par
+   * natural da barra — ela resolve a navegação, esta resolve o arrasto.
    */
   const arrastarNaBorda = (clientX: number) => {
     const el = trilho.current;
@@ -681,9 +685,63 @@ export default function LeadsKanban() {
     else if (clientX > right - zona) el.scrollLeft += 18;
   };
 
-  if (carregando) {
-    return <div className="py-16 text-center text-xs text-mt-neutral-700">Carregando leads…</div>;
+  // ── abrir e fechar o detalhe ──────────────────────────────────────────
+  const abrirLead = (id: string) => {
+    // Abaixo de 1024px a gaveta não cabe: o detalhe é a página.
+    if (!largo) {
+      router.push(urlDoLead(id));
+      return;
+    }
+    if (id === leadNaGaveta) return;
+    // Há um registro começado no lead aberto: a gaveta pergunta antes de trocar.
+    if (leadNaGaveta && rascunhoAberto) {
+      setTrocaPendente(id);
+      return;
+    }
+    navegar({ lead: id });
+  };
+
+  const fecharLead = () => {
+    const id = naUrl.lead;
+    setRascunhoAberto(false);
+    setTrocaPendente(null);
+    navegar({ lead: null });
+    if (id) focarQuemAbriu(id);
+  };
+
+  /** "Descartar": segue para o card que foi clicado, ou fecha a gaveta. */
+  const descartarRascunho = () => {
+    const destino = trocaPendente;
+    if (!destino) {
+      fecharLead();
+      return;
+    }
+    setRascunhoAberto(false);
+    setTrocaPendente(null);
+    navegar({ lead: destino });
+  };
+
+  /**
+   * O lead aberto saiu do escopo de quem olha (o vendedor passou o lead
+   * adiante, e a releitura respondeu 404): a gaveta fecha, a fila é relida, e a
+   * tela diz o que houve. O aviso entra DEPOIS da releitura, como em `falhou`.
+   */
+  const aoSumirOLead = () => {
+    setRascunhoAberto(false);
+    setTrocaPendente(null);
+    navegar({ lead: null });
+    void carregar().finally(() => setAvisoDaGravacao(AVISO_DE_LEAD_QUE_SAIU));
+  };
+
+  if (primeiraCarga) {
+    return (
+      <div role="status" className="py-16 text-center text-xs text-mt-neutral-700">
+        Carregando leads…
+      </div>
+    );
   }
+
+  const semLeads = leads.length === 0;
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -692,11 +750,15 @@ export default function LeadsKanban() {
           <div className="mt-rotulo mt-rotulo-accent">Geral</div>
           <h1 className="mt-titulo text-3xl md:text-4xl">Leads</h1>
           <p className="mt-1 max-w-[620px] text-sm text-mt-neutral-800">
-            Cada contato enviado pelo site entra aqui. Mover entre etapas é o registro do
-            atendimento — o WhatsApp continua sendo onde a conversa acontece.
+            Cada contato enviado pelo site entra aqui. Abra o lead para registrar o que aconteceu e
+            definir o próximo passo; a conversa continua no WhatsApp.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* `aria-live` e não `role="status"`: os avisos da tela é que são status. */}
+          <span aria-live="polite" className="text-[11px] text-mt-neutral-700">
+            {carregando ? "Atualizando…" : ""}
+          </span>
           <Link
             href="/admin/leads/relatorio"
             className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
@@ -721,10 +783,16 @@ export default function LeadsKanban() {
       </div>
 
       {erro && (
-        <div className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
+        <div role="alert" className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800">
           {erro}
         </div>
       )}
+
+      {avisosDaFila.map((aviso) => (
+        <div key={aviso} className="border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">
+          {aviso}
+        </div>
+      ))}
 
       {faltamNaConta.length > 0 && (
         <div className="border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">
@@ -751,65 +819,57 @@ export default function LeadsKanban() {
         </div>
       )}
 
-      {/* ── a busca pela referência ────────────────────────────────────────
+      {/* ── a linha de controles ───────────────────────────────────────────
           FORA do bloco condicional de baixo de propósito: a busca que não
           acha nada esvazia `leads`, e um campo que morasse no ramo de "há
           leads" sumiria junto — sem campo, sem como desfazer a busca.
-          Marketing não o vê: a rota recusa a busca a quem fica no agregado. */}
+          Marketing não a vê: a rota recusa a busca a quem fica no agregado. */}
       {!migracaoPendente && !agregado && (
-        <form
-          role="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            buscarPorRef();
+        <ControlesDoFunil
+          busca={buscaDigitada}
+          aoBuscar={aoBuscar}
+          aoEnviarBusca={enviarBusca}
+          aoLimparBusca={limparBusca}
+          linhaDaBusca={buscando ? linhaDaBusca(leads.length, !soOsMeus) : null}
+          dicaDaBusca={termoInvalido ? AVISO_DE_BUSCA_INVALIDA : null}
+          buscando={buscando}
+          temEscopo={padroes.temEscopo}
+          escopo={escopo}
+          contasDoEscopo={contasDoEscopo}
+          aoMudarEscopo={(novo) => navegar({ escopo: novo })}
+          vista={vista}
+          aoMudarVista={(nova) => {
+            // Lead sem dono não tem próximo passo: na Lista do dia o filtro
+            // deixaria a tela vazia sem dizer por quê.
+            if (nova === "lista") setSoSemDono(false);
+            navegar({ vista: nova });
           }}
-          className="flex flex-wrap items-center gap-3 border-b border-mt-regua-fina pb-4"
-        >
-          <label
-            htmlFor="busca-ref"
-            className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
-          >
-            Referência
-          </label>
-          <input
-            id="busca-ref"
-            type="text"
-            value={refDigitada}
-            onChange={(e) => setRefDigitada(e.target.value)}
-            placeholder="0DCB1CDC"
-            spellCheck={false}
-            autoComplete="off"
-            className="mt-foco w-[220px] border border-mt-regua-fina bg-mt-bg px-3 py-2 text-xs tabular-nums text-mt-ink placeholder:text-mt-neutral-500"
-          />
-          <button
-            type="submit"
-            className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2 text-[11px]"
-          >
-            Buscar
-          </button>
-          {(refPedida !== null || refNaTela !== null) && (
-            <button
-              type="button"
-              onClick={voltarParaFila}
-              className="mt-foco cursor-pointer text-[11px] text-mt-accent hover:underline"
-            >
-              voltar para a fila
-            </button>
-          )}
-          <span className="ml-auto max-w-[420px] text-[11px] leading-snug text-mt-neutral-600">
-            O código do fim da mensagem do cliente, como em “(Ref: 0DCB1CDC)”. Acha o lead
-            quando o WhatsApp chegou de outro número — dá para colar a mensagem inteira.
-          </span>
-        </form>
+          chip={chip}
+          contasDosChips={contasDosChips}
+          aoMudarChip={setChip}
+          parados={parados.length}
+          soParados={soParados}
+          aoAlternarParados={() => setSoParados((v) => !v)}
+          semResponsavel={veSemDono ? semDono.length : null}
+          soSemResponsavel={soSemDono && veSemDono}
+          aoAlternarSemResponsavel={() => {
+            // Ligar o filtro leva ao Quadro: é onde o lead sem dono está.
+            if (!soSemDono) navegar({ vista: "quadro" });
+            setSoSemDono((v) => !v);
+          }}
+          fechados={fechados.length}
+          vendoFechados={vendoFechados}
+          aoAlternarFechados={() => setVendoFechados((v) => !v)}
+        />
       )}
 
-      {resumoDaRef && (
+      {alemDoQuadro && (
         <div
           role="status"
           className="border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs leading-relaxed text-mt-accent-800"
         >
-          <strong>{resumoDaRef.frases[0]}</strong> {resumoDaRef.frases.slice(1).join(" ")}
-          {resumoDaRef.fechados > 0 && !vendoFechados && (
+          <strong>{alemDoQuadro.frases[0]}</strong> {alemDoQuadro.frases.slice(1).join(" ")}
+          {alemDoQuadro.fechados > 0 && !vendoFechados && (
             <button
               type="button"
               onClick={() => setVendoFechados(true)}
@@ -851,24 +911,32 @@ export default function LeadsKanban() {
             Administrador, conforme a matriz de permissões.
           </p>
         </div>
-      ) : leads.length === 0 ? (
+      ) : semLeads ? (
         <div className="border border-dashed border-mt-regua-fina bg-mt-surface p-10 text-center">
-          {refNaTela ? (
+          {buscaNaTela?.ref ? (
             <>
               <div className="text-[15px] font-extrabold tracking-[-.01em]">
-                Nenhum lead com a referência {refNaTela}
+                Nenhum lead com a referência {buscaNaTela.ref}
               </div>
               {/* A ressalva não é rodapé. Sem ela o atendente conclui que
                   digitou errado e tenta de novo — quando o contato pode
                   simplesmente não ter virado lead com rastreio: o `ag_uid` só
-                  é gravado por `/api/leads`, desde 2026-09-02 (ver a nota do
-                  insert lá), e só quem envia um formulário passa por ela. O
-                  lead que o Chatwoot cria de uma conversa nasce sem ele. */}
+                  é gravado por `/api/leads`, desde 2026-09-02, e só quem envia
+                  um formulário passa por ela. O lead que o Chatwoot cria de
+                  uma conversa nasce sem ele. */}
               <p className="mx-auto mt-2 max-w-[520px] text-xs leading-relaxed text-mt-neutral-700">
                 Confira os oito caracteres. Se estiverem certos, este contato não virou lead com
                 referência: ela só fica guardada quando a pessoa envia um formulário do site, e só
                 nos leads recebidos a partir de 02/09/2026. Nesses casos, procure pelo nome ou
-                pelo telefone na fila.
+                pelo telefone.
+              </p>
+            </>
+          ) : buscando ? (
+            <>
+              <div className="text-[15px] font-extrabold tracking-[-.01em]">Nenhum lead encontrado</div>
+              <p className="mx-auto mt-2 max-w-[520px] text-xs leading-relaxed text-mt-neutral-700">
+                Confira o que foi digitado. A busca por nome diferencia acento: “Joao” não acha “João”.
+                {soOsMeus ? " Ela procura só entre os seus leads." : ""}
               </p>
             </>
           ) : (
@@ -882,612 +950,188 @@ export default function LeadsKanban() {
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <label
-              htmlFor="filtro-responsavel"
-              className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700"
-            >
-              Responsável
-            </label>
-            <select
-              id="filtro-responsavel"
-              value={filtroResponsavel}
-              onChange={(e) => setFiltroResponsavel(e.target.value)}
-              className="mt-foco cursor-pointer border border-mt-regua-fina bg-mt-bg px-3 py-2 text-xs text-mt-ink"
-            >
-              <option value="">Todos ({emAberto.length})</option>
-              <option value={SEM_DONO}>Sem responsável ({semDono})</option>
-              {opcoesResponsavel.map((n) => (
-                <option key={n} value={n}>
-                  {n} ({emAberto.filter((l) => l.responsavel === n).length})
-                </option>
-              ))}
-            </select>
-            {filtroResponsavel && (
-              <button
-                onClick={() => setFiltroResponsavel("")}
-                className="mt-foco cursor-pointer text-[11px] text-mt-accent hover:underline"
+          {vista === "lista" ? (
+            <ListaDoDia
+              leads={filtrados}
+              agora={agora}
+              chip={chip}
+              rotuloDaEtapa={rotuloDaEtapa}
+              leadAberto={leadNaGaveta}
+              temEscopo={padroes.temEscopo}
+              buscando={buscando}
+              aoAbrir={abrirLead}
+              aoVerNoQuadro={() => {
+                setChip(null);
+                navegar({ vista: "quadro" });
+              }}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {visiveis.length === 0 && (
+                <p className="m-0 border border-dashed border-mt-regua-fina bg-mt-surface p-6 text-center text-xs text-mt-neutral-700">
+                  {textoDoVazio(padroes.temEscopo)}
+                </p>
+              )}
+
+              {/* ── a barra de slide ─────────────────────────────────────────
+                  Some quando o quadro cabe na tela: controle que não controla
+                  nada é ruído. `input[type=range]` e não uma barra desenhada à
+                  mão porque ele já vem com teclado, leitor de tela e toque. */}
+              {rolavel && (
+                <label className="flex items-center gap-3">
+                  <span className="sr-only">Percorrer o funil</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={progresso}
+                    onChange={(e) => deslizar(Number(e.target.value))}
+                    aria-label="Percorrer o funil"
+                    className="mt-range mt-foco"
+                  />
+                  <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-mt-neutral-600">
+                    {progresso}%
+                  </span>
+                </label>
+              )}
+
+              <div
+                ref={trilho}
+                onScroll={medir}
+                onDragOver={(e) => arrastarNaBorda(e.clientX)}
+                className="relative flex gap-0.5 overflow-x-auto pb-4"
               >
-                limpar
-              </button>
-            )}
-
-            {/* O filtro que a régua de estagnação torna possível: a fila do dia
-                é a dos parados, e ela costuma ser dez cards num quadro de
-                duzentos. */}
-            <button
-              type="button"
-              onClick={() => setSoParados((v) => !v)}
-              aria-pressed={soParados}
-              className={`mt-foco cursor-pointer border px-3 py-2 text-[11px] ${
-                soParados
-                  ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800"
-                  : "border-mt-regua-fina text-mt-neutral-700 hover:border-mt-accent"
-              }`}
-            >
-              Só os parados ({parados})
-            </button>
-
-            {/* Fechar tirou o card do quadro — este é o endereço dele. Não é
-                uma coluna: é uma lista, com o motivo, a observação e a volta.
-                Sem ela, "sem aba de ganho ou perdido" viraria "o lead some". */}
-            <button
-              type="button"
-              onClick={() => setVendoFechados((v) => !v)}
-              aria-pressed={vendoFechados}
-              className={`mt-foco cursor-pointer border px-3 py-2 text-[11px] ${
-                vendoFechados
-                  ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800"
-                  : "border-mt-regua-fina text-mt-neutral-700 hover:border-mt-accent"
-              }`}
-            >
-              Fechados ({fechados.length})
-            </button>
-
-            <span className="ml-auto text-[11px] text-mt-neutral-600">
-              Arraste o card, use as setas ou a barra
-            </span>
-          </div>
-
-          {/* ── trilho de etapas: clique e o quadro vai ─────────────────── */}
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap gap-1">
-              {colunasVisiveis.map((etapa) => {
-                const total = visiveis.filter((l) => l.situacao === etapa.chave).length;
-                return (
-                  <button
-                    key={etapa.chave}
-                    type="button"
-                    onClick={() => irParaEtapa(etapa.chave)}
-                    title={
-                      etapa.estagnacao_minutos
-                        ? `Cobra em ${formatarPrazo(etapa.estagnacao_minutos)}` +
-                          (etapa.protegida || !etapa.transferencia_minutos
-                            ? " · não transfere"
-                            : ` · transfere em ${formatarPrazo(etapa.transferencia_minutos)}`)
-                        : "Sem régua de tempo"
-                    }
-                    className="mt-foco cursor-pointer border border-mt-regua-fina px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink"
-                  >
-                    {etapa.rotulo}
-                    <span className="ml-1.5 tabular-nums text-mt-neutral-600">{total}</span>
-                    {!etapa.ativa && <span className="ml-1 text-mt-accent">arquivada</span>}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* ── a barra de slide ─────────────────────────────────────────
-                Some quando o quadro cabe na tela: controle que não controla
-                nada é ruído. `input[type=range]` e não uma barra desenhada à
-                mão porque ele já vem com teclado, leitor de tela e toque. */}
-            {rolavel && (
-              <label className="flex items-center gap-3">
-                <span className="sr-only">Percorrer o funil</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={progresso}
-                  onChange={(e) => deslizar(Number(e.target.value))}
-                  aria-label="Percorrer o funil"
-                  className="mt-foco h-1.5 w-full cursor-pointer appearance-none rounded-none bg-mt-regua-fina accent-mt-accent"
-                />
-                <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-mt-neutral-600">
-                  {progresso}%
-                </span>
-              </label>
-            )}
-          </div>
-
-          <div
-            ref={trilho}
-            onScroll={medir}
-            onDragOver={(e) => arrastarNaBorda(e.clientX)}
-            className="relative flex gap-0.5 overflow-x-auto pb-4"
-          >
-            {colunasVisiveis.map((etapa) => {
-              const daEtapa = visiveis.filter((l) => l.situacao === etapa.chave);
-              const alvo = colunaAlvo === etapa.chave && arrastando !== null;
-              const i = colunasVisiveis.findIndex((e) => e.chave === etapa.chave);
-              return (
-                <div
-                  key={etapa.chave}
-                  ref={(el) => {
-                    colunas.current[etapa.chave] = el;
-                  }}
-                  className="flex w-[240px] flex-none flex-col"
-                  // Soltar aqui move o lead. O `preventDefault` no dragOver é
-                  // o que autoriza o drop — sem ele o navegador recusa.
-                  onDragOver={(e) => {
-                    if (!arrastando) return;
-                    e.preventDefault();
-                    setColunaAlvo(etapa.chave);
-                  }}
-                  onDragLeave={() => setColunaAlvo((c) => (c === etapa.chave ? null : c))}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const id = arrastando || e.dataTransfer.getData("text/plain");
-                    const lead = leads.find((l) => l.id === id);
-                    if (lead && lead.situacao !== etapa.chave) mover(id, etapa.chave);
-                    setArrastando(null);
-                    setColunaAlvo(null);
-                  }}
-                >
-                  <div
-                    className={`flex items-baseline gap-2 border-b-2 px-3 py-2.5 ${
-                      i === 0 ? "border-mt-accent bg-mt-ink text-mt-bg" : "border-mt-regua"
-                    }`}
-                    style={i !== 0 && etapa.cor ? { borderBottomColor: etapa.cor } : undefined}
-                  >
-                    <span className="text-[11px] font-extrabold uppercase tracking-[.1em]">
-                      {etapa.rotulo}
-                    </span>
-                    <span
-                      className={`ml-auto text-[11px] tabular-nums ${
-                        i === 0 ? "text-mt-neutral-400" : "text-mt-neutral-700"
-                      }`}
+                {colunasVisiveis.map((etapa, i) => {
+                  const daEtapa = visiveis.filter((l) => l.situacao === etapa.chave);
+                  const alvo = colunaAlvo === etapa.chave && arrastando !== null;
+                  return (
+                    <div
+                      key={etapa.chave}
+                      className="flex w-[240px] flex-none flex-col"
+                      // Soltar aqui move o lead. O `preventDefault` no dragOver é
+                      // o que autoriza o drop — sem ele o navegador recusa.
+                      onDragOver={(e) => {
+                        if (!arrastando) return;
+                        e.preventDefault();
+                        setColunaAlvo(etapa.chave);
+                      }}
+                      onDragLeave={() => setColunaAlvo((c) => (c === etapa.chave ? null : c))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const id = arrastando || e.dataTransfer.getData("text/plain");
+                        const lead = leads.find((l) => l.id === id);
+                        if (lead && lead.situacao !== etapa.chave) mover(id, etapa.chave);
+                        setArrastando(null);
+                        setColunaAlvo(null);
+                      }}
                     >
-                      {daEtapa.length}
-                    </span>
-                  </div>
-
-                  <div
-                    className={`flex min-h-[80px] flex-col gap-0.5 p-1 transition-colors ${
-                      alvo ? "bg-mt-accent-100 outline-dashed outline-1 outline-mt-accent" : ""
-                    }`}
-                  >
-                    {daEtapa.map((l) => {
-                      const nivel = nivelDeEstagnacao(l, etapa, agora);
-                      const aviso = AVISO[nivel];
-                      // O id da conversa vem junto na resposta de
-                      // `/api/leads/gerenciar` (2026-08-31). Existindo, o botão
-                      // abre o Chatwoot; senão cai no `wa.me`, que é o caso do
-                      // lead que ainda não escreveu — ver `linkDeConversa`.
-                      const conversa = linkDeConversa(
-                        l.telefone,
-                        mensagemParaCliente(l, { vendedor: l.responsavel }),
-                        l.chatwoot_conversation_id,
-                      );
-                      const destino = destinoDaConversa(l.telefone, l.chatwoot_conversation_id);
-                      // Quem está anotando não perde o campo se o card fechar.
-                      const expandido = abertos.has(l.id) || anotando === l.id;
-                      return (
-                        <div
-                          key={l.id}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData("text/plain", l.id);
-                            e.dataTransfer.effectAllowed = "move";
-                            setArrastando(l.id);
-                          }}
-                          onDragEnd={() => {
-                            setArrastando(null);
-                            setColunaAlvo(null);
-                          }}
-                          className={`border p-3 ${MOLDURA[nivel]} ${
-                            arrastando === l.id ? "opacity-40" : "cursor-grab"
+                      <div
+                        className={`flex items-baseline gap-2 border-b-2 px-3 py-2.5 ${
+                          i === 0 ? "border-mt-accent bg-mt-ink text-mt-bg" : "border-mt-regua"
+                        }`}
+                        style={i !== 0 && etapa.cor ? { borderBottomColor: etapa.cor } : undefined}
+                        // A régua de tempo da etapa, que morava no trilho de
+                        // etapas clicável.
+                        title={
+                          etapa.estagnacao_minutos
+                            ? `Cobra em ${formatarPrazo(etapa.estagnacao_minutos)}` +
+                              (etapa.protegida || !etapa.transferencia_minutos
+                                ? " · não transfere"
+                                : ` · transfere em ${formatarPrazo(etapa.transferencia_minutos)}`)
+                            : "Sem régua de tempo"
+                        }
+                      >
+                        <span className="text-[11px] font-extrabold uppercase tracking-[.1em]">
+                          {etapa.rotulo}
+                        </span>
+                        {!etapa.ativa && (
+                          <span className={`text-[10px] ${i === 0 ? "text-mt-neutral-400" : "text-mt-accent-800"}`}>
+                            arquivada
+                          </span>
+                        )}
+                        <span
+                          className={`ml-auto text-[11px] tabular-nums ${
+                            i === 0 ? "text-mt-neutral-400" : "text-mt-neutral-700"
                           }`}
                         >
-                          {/* O resumo, sempre à vista: quem é, há quanto tempo
-                              espera e com quem está. O nome é o botão que abre
-                              o card. */}
-                          <button
-                            type="button"
-                            aria-expanded={expandido}
-                            aria-controls={`lead-${l.id}`}
-                            onClick={() => alternarCard(l.id)}
-                            // Do tamanho do nome, e não da largura do card: o
-                            // que sobra à direita é por onde se pega o card
-                            // para arrastar (no Firefox, apertar um botão não
-                            // começa o arrasto do card em volta).
-                            className="mt-foco inline-flex min-h-11 max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-mt-ink"
-                          >
-                            <span className="min-w-0 break-words text-[13px] font-extrabold tracking-[-.01em]">{l.nome}</span>
-                            <span aria-hidden="true" className="text-[14px] text-mt-cobre">
-                              {expandido ? "–" : "+"}
-                            </span>
-                          </button>
-                          {/* O carro de interesse e as etiquetas, como no card
-                              aprovado no desenho (03/10): é o que diferencia
-                              um lead do outro sem abrir. As etiquetas aqui são
-                              só leitura; editar é no card aberto, e por isso
-                              esta linha some quando ele abre. */}
-                          {l.interesse && (
-                            // O interesse pode ser a mensagem livre do cliente:
-                            // fechado, duas linhas; aberto, o texto inteiro.
-                            <div
-                              title={expandido ? undefined : l.interesse}
-                              className={`text-[12px] leading-snug text-mt-neutral-800 [overflow-wrap:anywhere] ${
-                                expandido ? "" : "line-clamp-2"
-                              }`}
-                            >
-                              {l.interesse}
-                            </div>
-                          )}
-                          {!expandido && (l.etiquetas ?? []).length > 0 && (
-                            <ul role="list" aria-label={`Etiquetas de ${l.nome}, resumo`} className="m-0 mt-1.5 flex list-none flex-wrap gap-1 p-0">
-                              {(l.etiquetas ?? []).map((e) => (
-                                <li
-                                  key={e}
-                                  className={`max-w-full border px-1.5 py-0.5 text-[10px] text-mt-neutral-800 [overflow-wrap:anywhere] ${
-                                    ehEtiquetaDaPassagem(e) ? "border-mt-accent" : "border-mt-regua-fina"
-                                  }`}
-                                >
-                                  {e}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          <div className="mt-2 flex items-center gap-1.5 text-[11px] text-mt-neutral-800">
-                            {!soOsMeus && (
-                            <>
-                            <span
-                              aria-hidden="true"
-                              className={`flex h-5 w-5 shrink-0 items-center justify-center text-[9px] font-extrabold ${
-                                l.responsavel
-                                  ? "bg-mt-ink text-mt-bg"
-                                  : "border border-dashed border-mt-regua text-mt-neutral-500"
-                              }`}
-                            >
-                              {l.responsavel ? iniciais(l.responsavel) : "—"}
-                            </span>
-                            <span className="min-w-0 truncate">{l.responsavel || "Sem responsável"}</span>
-                            </>
-                            )}
-                            <span className="ml-auto shrink-0 tabular-nums text-mt-neutral-700">
-                              {espera(l.created_at, agora)}
-                            </span>
-                          </div>
-                          {aviso && (
-                            <div
-                              className={`mt-1 text-[10px] font-semibold uppercase tracking-[.08em] ${
-                                nivel === "atencao" ? "text-mt-neutral-700" : "text-mt-accent-800"
-                              }`}
-                            >
-                              {aviso} há {formatarPrazo(minutosParado(l, agora))}
-                            </div>
-                          )}
+                          {daEtapa.length}
+                        </span>
+                      </div>
 
-                          {/* O resto do card. Fechado, continua no HTML
-                              (`hidden`): o que cada bloco guarda não se perde
-                              ao fechar e abrir. */}
-                          <div id={`lead-${l.id}`} hidden={!expandido} className="mt-2 border-t border-mt-regua-fina pt-2">
-
-                          {/* As etiquetas da conversa (2026-09-25). Antes do
-                              botão do Chatwoot: são o contexto de quem vai
-                              abrir a conversa. */}
-                          <EtiquetasDoLead
-                            nome={l.nome}
-                            etiquetas={l.etiquetas ?? []}
-                            disponiveis={etiquetasDisponiveis}
-                            temConversa={destino === "chatwoot"}
-                            editavel={etiquetasEditaveis}
-                            ocupado={Boolean(emVoo[l.id])}
-                            onIncluir={(e) => salvarEtiquetas(l.id, { incluir: [e] })}
-                            onRetirar={(e) => salvarEtiquetas(l.id, { retirar: [e] })}
+                      <div
+                        className={`flex min-h-[80px] flex-col gap-0.5 p-1 transition-colors ${
+                          alvo ? "bg-mt-accent-100 outline-dashed outline-1 outline-mt-accent" : ""
+                        }`}
+                      >
+                        {daEtapa.map((l) => (
+                          <CardDoLead
+                            key={l.id}
+                            lead={l}
+                            nivel={nivelDeEstagnacao(l, etapa, agora)}
+                            agora={agora}
+                            soOsMeus={soOsMeus}
+                            aberto={leadNaGaveta === l.id}
+                            arrastando={arrastando === l.id}
+                            podeVoltar={i > 0}
+                            podeAvancar={i < colunasVisiveis.length - 1}
+                            aoAbrir={abrirLead}
+                            aoVoltar={() => mover(l.id, colunasVisiveis[i - 1].chave)}
+                            aoAvancar={() => mover(l.id, colunasVisiveis[i + 1].chave)}
+                            aoConversar={falarNoWhatsApp}
+                            aoComecarArrasto={(e) => {
+                              e.dataTransfer.setData("text/plain", l.id);
+                              e.dataTransfer.effectAllowed = "move";
+                              setArrastando(l.id);
+                            }}
+                            aoTerminarArrasto={() => {
+                              setArrastando(null);
+                              setColunaAlvo(null);
+                            }}
                           />
-
-                          <BlocoDaAvaliacao
-                            nome={l.nome}
-                            avaliacao={l.avaliacao}
-                            valorOfertado={l.avaliacao_valor_ofertado}
-                            valorPago={l.avaliacao_valor_pago}
-                            onSalvar={(campo, valor) =>
-                              salvar(l.id, { [campo]: valor }, { reiniciaORelogio: false })
-                            }
-                          />
-
-                          {/* O que o cliente respondeu ao Profiler (25/09). Ao
-                              lado da avaliação: os dois são o que o site
-                              coletou, e nenhum lead tem os dois. */}
-                          <BlocoDoPerfil perfil={l.perfil} />
-
-                          {/* O atalho do dono: conversa aberta com o texto já
-                              escrito, e o contato registrado no mesmo clique. */}
-                          {conversa ? (
-                            <a
-                              href={conversa}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={() => falarNoWhatsApp(l)}
-                              // Sem desligar o arrasto no link, o navegador
-                              // arrasta a âncora em vez do card e o drop nunca
-                              // dispara. Falha muda: o card só não se move.
-                              draggable={false}
-                              className="mt-foco mt-2 flex items-center justify-center gap-1.5 border border-mt-accent bg-mt-bg px-2 py-1.5 text-[11px] font-semibold text-mt-accent hover:bg-mt-accent-100"
-                            >
-                              {/* O rótulo diz para ONDE vai, e não é detalhe:
-                                  no `wa.me` a mensagem já vai escrita; no
-                                  Chatwoot, não — lá o consultor digita. Chamar
-                                  os dois de "WhatsApp" faria a pessoa colar um
-                                  texto que ela achava que já estava lá. */}
-                              {destino === "chatwoot" ? "Abrir no Chatwoot" : "WhatsApp"}
-                              <span className="tabular-nums font-normal text-mt-neutral-700">
-                                {formatarTelefone(l.telefone)}
-                              </span>
-                            </a>
-                          ) : (
-                            l.telefone && (
-                              <div className="mt-1.5 text-[11px] tabular-nums text-mt-neutral-700">
-                                {formatarTelefone(l.telefone)}
-                              </div>
-                            )
-                          )}
-
-                          <div className="mt-2 text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
-                            {l.canal || "site"}
-                          </div>
-
-                          {/* O que substituiu o teto de rodízio. Decisão do
-                              dono: o lead circula *"quantas se fizerem
-                              necessárias até o atendimento"* — travar
-                              escondia o problema, contar o expõe. Cinco
-                              transferências não é um lead defeituoso: são
-                              cinco pessoas que não o atenderam. */}
-                          {seloDeRodizio(l.transferencias) && (
-                            <div className="mt-1 text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
-                              {seloDeRodizio(l.transferencias)}
-                            </div>
-                          )}
-
-                          <div className="mt-2 flex items-center gap-1.5">
-                            <select
-                              value={l.responsavel ?? ""}
-                              onChange={(e) => salvar(l.id, { responsavel: e.target.value || null })}
-                              // Trava com as etiquetas: ver `emVoo`.
-                              disabled={Boolean(emVoo[l.id])}
-                              aria-label={`Responsável por ${l.nome}`}
-                              className="mt-foco w-full cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink disabled:cursor-wait disabled:opacity-60"
-                            >
-                              {/* Só o Administrador deixa o lead sem dono
-                                  (03/10): para os outros a opção não existe, e
-                                  a rota recusa com 403. */}
-                              {opcaoSemResponsavel(podeTirarDono, l.responsavel) !== "nao" && (
-                                <option value="" disabled={!podeTirarDono}>
-                                  Sem responsável
-                                </option>
-                              )}
-                              {/* Só o Comercial (23/09). O dono de fora aparece
-                                  para o select mostrar o valor do lead, mas não
-                                  pode ser escolhido de novo — a rota recusa. */}
-                              {opcoesDoCard(atendentes, l.responsavel).map((o) => (
-                                <option key={o.nome} value={o.nome} disabled={o.fora}>
-                                  {o.fora ? `${o.nome} (fora do comercial)` : o.nome}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {anotando === l.id ? (
-                            <textarea
-                              autoFocus
-                              defaultValue={l.observacoes ?? ""}
-                              rows={3}
-                              placeholder="O que foi combinado…"
-                              // Grava ao sair do campo: salvar a cada tecla
-                              // seria uma requisição por letra.
-                              onBlur={(e) => {
-                                const texto = e.target.value.trim();
-                                if (texto !== (l.observacoes ?? "")) {
-                                  salvar(l.id, { observacoes: texto || null });
-                                }
-                                setAnotando(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Escape") setAnotando(null);
-                              }}
-                              className="mt-foco mt-1.5 w-full resize-none border border-mt-regua-fina bg-mt-bg p-1.5 text-[11px] leading-snug text-mt-ink outline-none focus:border-mt-accent"
-                            />
-                          ) : l.observacoes ? (
-                            <button
-                              onClick={() => setAnotando(l.id)}
-                              aria-label={`Editar anotação de ${l.nome}`}
-                              className="mt-foco mt-1.5 w-full cursor-pointer border-l-2 border-mt-regua bg-mt-bg px-2 py-1 text-left text-[11px] leading-snug text-mt-neutral-800 hover:border-mt-accent"
-                            >
-                              {l.observacoes}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setAnotando(l.id)}
-                              className="mt-foco mt-1.5 cursor-pointer text-[10px] text-mt-neutral-600 hover:text-mt-accent"
-                            >
-                              + anotação
-                            </button>
-                          )}
-
-                          <div className="mt-2 flex gap-1">
-                            <button
-                              onClick={() => mover(l.id, colunasVisiveis[i - 1].chave)}
-                              disabled={i <= 0}
-                              aria-label={`Voltar ${l.nome} uma etapa`}
-                              className="mt-foco cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-30"
-                            >
-                              ←
-                            </button>
-                            <button
-                              onClick={() => mover(l.id, colunasVisiveis[i + 1].chave)}
-                              disabled={i >= colunasVisiveis.length - 1}
-                              aria-label={`Avançar ${l.nome} uma etapa`}
-                              className="mt-foco flex-1 cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] font-semibold text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-30"
-                            >
-                              Avançar →
-                            </button>
-                          </div>
-
-                          {/* Ganho e perdido saem do fluxo das setas: fechar
-                              negócio não é "avançar uma etapa", é um desfecho —
-                              e ele custa um clique de qualquer coluna. */}
-                          {/* O destino do negócio, em botão. Não é "avançar
-                              uma etapa" — é o fim da conversa, e cabe de
-                              qualquer coluna. Vem de `destinos`, e não das
-                              colunas do quadro: ganho e perdido deixaram de
-                              ser colunas em 2026-08-28. */}
-                          {fecham.length > 0 && (
-                            <div className="mt-1 flex gap-1">
-                              {fecham.map((e) => (
-                                <button
-                                  key={e.chave}
-                                  onClick={() => mover(l.id, e.chave)}
-                                  aria-label={`Marcar ${l.nome} como ${e.rotulo}`}
-                                  className="mt-foco flex-1 cursor-pointer border border-mt-regua-fina px-2 py-1 text-[10px] text-mt-neutral-700 hover:border-mt-accent hover:text-mt-ink"
-                                >
-                                  {e.rotulo}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* O descarte, com menos peso: é o mais raro dos
-                              três e não deve competir por atenção com o
-                              fechamento de um negócio de verdade. */}
-                          {descartam.map((e) => (
-                            <button
-                              key={e.chave}
-                              onClick={() => mover(l.id, e.chave)}
-                              aria-label={`Marcar ${l.nome} como ${e.rotulo}`}
-                              title="Spam, teste, contato equivocado — fica fora da taxa de conversão"
-                              className="mt-foco mt-1 w-full cursor-pointer px-2 py-1 text-[10px] text-mt-neutral-600 hover:text-mt-accent"
-                            >
-                              {e.rotulo}
-                            </button>
-                          ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Com a gaveta aberta, as últimas colunas ficariam atrás dela:
+                    este respiro deixa o trilho rolar até elas aparecerem. */}
+                {leadNaGaveta && <div aria-hidden="true" className="w-[572px] flex-none" />}
+              </div>
+            </div>
+          )}
 
           {/* ── os fechados ──────────────────────────────────────────────
               Ganho e perdido saíram do quadro; esta é a lista onde eles
-              moram. Ela mostra o MOTIVO e a OBSERVAÇÃO lado a lado porque
-              foi para isso que os dois campos foram pedidos — o motivo
-              agrupa no relatório, a frase explica o caso. E oferece a volta:
-              fechar por engano é o erro mais fácil de cometer num card. */}
+              moram, com o caminho de volta. */}
           {vendoFechados && (
-            <section className="flex flex-col gap-2 border-t-2 border-mt-regua pt-5">
-              <div className="flex items-baseline justify-between">
-                <h2 className="mt-rotulo">Negócios fechados</h2>
-                <span className="text-[11px] text-mt-neutral-600">
-                  {fechados.length} no total
-                </span>
-              </div>
-
-              {fechados.length === 0 ? (
-                <p className="border border-dashed border-mt-regua-fina bg-mt-surface p-6 text-center text-xs text-mt-neutral-700">
-                  Nenhum negócio fechado ainda. Use os botões no rodapé do card.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[720px] text-[12px]">
-                    <thead>
-                      <tr className="border-b border-mt-regua-fina text-[10px] uppercase tracking-[.08em] text-mt-neutral-600">
-                        <th className="py-2 text-left font-semibold">Cliente</th>
-                        <th className="py-2 text-left font-semibold">Desfecho</th>
-                        <th className="py-2 text-left font-semibold">Observação</th>
-                        <th className="py-2 text-left font-semibold">Responsável</th>
-                        <th className="py-2 text-right font-semibold">Quando</th>
-                        <th className="py-2 text-right font-semibold">Reabrir em</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {fechados.map((l) => (
-                        <tr key={l.id} className="border-b border-mt-regua-fina align-top">
-                          <td className="py-2.5 pr-3">
-                            <div className="font-semibold text-mt-ink">{l.nome}</div>
-                            {l.interesse && (
-                              <div className="text-[10px] leading-snug text-mt-neutral-700">
-                                {l.interesse}
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-3">
-                            <span
-                              className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
-                                l.desfecho === "ganho"
-                                  ? "border-mt-accent-800 text-mt-accent-800"
-                                  : ehDescarte(l.desfecho)
-                                    ? "border-dashed border-mt-regua-fina text-mt-neutral-500"
-                                    : "border-mt-regua-fina text-mt-neutral-700"
-                              }`}
-                            >
-                              {l.desfecho ? ROTULO_DO_DESFECHO[l.desfecho] : "—"}
-                            </span>
-                            <div className="mt-1 text-[11px] leading-snug text-mt-neutral-800">
-                              {rotuloDoMotivo(l.desfecho_motivo) ?? "—"}
-                            </div>
-                            {l.desfecho_valor ? (
-                              <div className="text-[10px] tabular-nums text-mt-neutral-700">
-                                {Number(l.desfecho_valor).toLocaleString("pt-BR", {
-                                  style: "currency",
-                                  currency: "BRL",
-                                  maximumFractionDigits: 0,
-                                })}
-                              </div>
-                            ) : null}
-                          </td>
-                          <td className="max-w-[280px] py-2.5 pr-3 text-[11px] leading-snug text-mt-neutral-800">
-                            {l.desfecho_nota || (
-                              <span className="text-mt-neutral-500">—</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-3 text-[11px] text-mt-neutral-700">
-                            {l.responsavel || "—"}
-                          </td>
-                          <td className="py-2.5 pr-3 text-right text-[11px] tabular-nums text-mt-neutral-700">
-                            {l.desfecho_em
-                              ? new Date(l.desfecho_em).toLocaleDateString("pt-BR")
-                              : "—"}
-                          </td>
-                          <td className="py-2.5 text-right">
-                            <select
-                              value=""
-                              onChange={(e) => e.target.value && reabrir(l.id, e.target.value)}
-                              aria-label={`Reabrir ${l.nome} em uma etapa`}
-                              className="mt-foco cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink"
-                            >
-                              <option value="">reabrir…</option>
-                              {colunasVisiveis.map((e) => (
-                                <option key={e.chave} value={e.chave}>
-                                  {e.rotulo}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+            <FechadosDoFunil
+              fechados={fechados}
+              etapasAbertas={colunasVisiveis}
+              rotuloDoMotivo={rotuloDoMotivo}
+              aoReabrir={reabrir}
+              aoAbrir={abrirLead}
+            />
           )}
         </>
+      )}
+
+      {leadNaGaveta && (
+        <DetalheDoLead
+          key={leadNaGaveta}
+          id={leadNaGaveta}
+          layout="gaveta"
+          versao={versaoDoAberto}
+          etiquetasDaConta={etiquetasDisponiveis}
+          saidaPendente={trocaPendente !== null}
+          aoFechar={fecharLead}
+          aoDescartar={descartarRascunho}
+          aoManter={() => setTrocaPendente(null)}
+          aoMudarRascunho={setRascunhoAberto}
+          aoSumir={aoSumirOLead}
+          aoMudarLead={aoMudarLead}
+          aoSairDeSincronia={aoSairDeSincronia}
+        />
       )}
 
       {fechando && (

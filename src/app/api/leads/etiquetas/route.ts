@@ -28,10 +28,13 @@ async function sessaoQueMoveLead() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, papeis, full_name")
+    .select("role, papeis, full_name, is_active")
     .eq("id", user.id)
     .single();
-  if (!ehStaff(profile)) {
+  // Perfil desativado não lê nem grava etiqueta (03/10/2026): a sessão de quem
+  // saiu da loja pode seguir viva, e `ehStaff` não olha `is_active`. A mesma
+  // régua de `sessaoDeLeads`.
+  if (!ehStaff(profile) || profile?.is_active !== true) {
     return { supabase, visao: semVisao, recusa: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
   }
   if (podeFazer(perfisDe(profile), "Ver e mover leads no kanban") !== "faz") {

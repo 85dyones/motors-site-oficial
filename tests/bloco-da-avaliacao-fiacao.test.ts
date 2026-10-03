@@ -5,13 +5,16 @@ import { createRoot, type Root } from "react-dom/client";
 import { ETAPAS_PADRAO } from "../src/lib/funil";
 import { montarAvaliacaoDoLead } from "../src/lib/avaliacaoDoLead";
 import { lerParametrosDaCurva, recomendarAvaliacao } from "../src/lib/avaliacaoRecomendacao";
+import { cardDe, definirLargura, detalheDeTeste, gaveta, leadDaUrl, zerarRota } from "./quadroDeLeadsDeTeste";
 
 /**
- * O card do lead de avaliação, na tela montada.
+ * O lead de avaliação, na tela montada.
  *
- * Até 24/09/2026 o card mostrava só "Fiat Argo … 2021". O que se trava aqui:
+ * Até 24/09/2026 o card mostrava só "Fiat Argo … 2021". Desde 03/10 (card
+ * enxuto) o bloco da avaliação mora no DETALHE do lead, nos dados do negócio:
+ * cada teste abre a gaveta antes de olhar. O que se trava aqui:
  *   - o que o cliente preencheu (FIPE, km, estado, faixa sugerida, o que ele
- *     escreveu) aparece no card, e lead sem retrato não ganha bloco vazio;
+ *     escreveu) aparece no detalhe, e lead sem retrato não ganha bloco vazio;
  *   - digitar o ofertado e sair do campo manda UM PATCH, com o número lido;
  *   - valor ilegível avisa e não manda nada;
  *   - gravar um valor não "reinicia" o relógio de estagnação na tela — o
@@ -30,6 +33,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) =>
     createElement("a", { href, ...resto } as never, children as never),
 }));
+vi.mock("next/navigation", async () => (await import("./quadroDeLeadsDeTeste")).navegacaoDeTeste);
 
 const TRES_DIAS_ATRAS = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -110,6 +114,13 @@ function dublarFetch() {
     const metodo = opcoes?.method ?? "GET";
     chamadas.push({ metodo, url: String(url), corpo: opcoes?.body ? JSON.parse(String(opcoes.body)) : undefined });
     if (metodo === "PATCH") return { ok: true, json: async () => ({ ok: true }) };
+    const doLead = leadDaUrl(String(url));
+    if (doLead) {
+      return {
+        ok: true,
+        json: async () => detalheDeTeste(doLead.id === "l1" ? COM_AVALIACAO : SEM_AVALIACAO, { etapas: ETAPAS }),
+      };
+    }
     return {
       ok: true,
       json: async () => ({
@@ -147,9 +158,15 @@ async function montar() {
   await assentar();
 }
 
-/** O card de quem tem este nome — o bloco de avaliação mora dentro dele. */
 /** Texto do card com o espaço não separável do `Intl` virado espaço comum. */
 const textoDoCard = (nome: string) => (card(nome).textContent ?? "").replace(/\u00a0/g, " ");
+/** O mesmo, do detalhe aberto na gaveta: é lá que o bloco de avaliação mora. */
+const textoDoDetalhe = () => (gaveta()?.textContent ?? "").replace(/\u00a0/g, " ");
+
+async function abrir(id: string) {
+  await act(async () => cardDe(container, id)!.click());
+  await assentar();
+}
 
 function card(nome: string): HTMLElement {
   const achado = [...container.querySelectorAll<HTMLElement>("[draggable='true']")].find((c) =>
@@ -179,6 +196,8 @@ const AVISO_DE_PARADO = /esfriando há|parado há|vai passar para outro vendedor
 
 beforeEach(() => {
   chamadas = [];
+  zerarRota();
+  definirLargura(true);
   dublarFetch();
 });
 
@@ -187,11 +206,14 @@ afterEach(async () => {
   container.remove();
 });
 
-describe("o bloco da avaliação no card", () => {
-  it("mostra o que o cliente preencheu, e só no card do lead de avaliação", async () => {
+describe("o bloco da avaliação no detalhe do lead", () => {
+  it("mostra o que o cliente preencheu, e só no lead de avaliação", async () => {
     await montar();
+    // O card enxuto não carrega o bloco: ele mora no detalhe.
+    expect(textoDoCard("Ana Vende")).not.toContain("Avaliação do site");
+    await abrir("l1");
 
-    const doAna = textoDoCard("Ana Vende");
+    const doAna = textoDoDetalhe();
     expect(doAna).toContain("Avaliação do site");
     expect(doAna).toContain("FIPE R$ 68.000");
     expect(doAna).toContain("180.000 km");
@@ -204,11 +226,14 @@ describe("o bloco da avaliação no card", () => {
     expect(doAna).toContain("Curva de deságio vigente desde 30/08/2026");
     expect(doAna).toContain("pneus novos");
 
-    expect(card("Carlos Compra").textContent).not.toContain("Avaliação do site");
+    await abrir("l2");
+    expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Carlos Compra");
+    expect(textoDoDetalhe()).not.toContain("Avaliação do site");
   });
 
   it("o ofertado digitado vira um PATCH com o número lido", async () => {
     await montar();
+    await abrir("l1");
     await preencherESair(campoDoValor("Ofertado", "Ana Vende")!, "52.000");
 
     expect(patches()).toHaveLength(1);
@@ -217,18 +242,24 @@ describe("o bloco da avaliação no card", () => {
 
   it("valor ilegível avisa e não manda nada", async () => {
     await montar();
+    await abrir("l1");
     await preencherESair(campoDoValor("Pago", "Ana Vende")!, "cinquenta mil");
 
     expect(patches()).toHaveLength(0);
-    expect(card("Ana Vende").textContent).toContain("Só o número");
+    expect(textoDoDetalhe()).toContain("Só o número");
   });
 
   it("gravar um valor não esconde que o lead está parado", async () => {
     await montar();
     expect(textoDoCard("Ana Vende"), "o lead de três dias precisa começar parado").toMatch(AVISO_DE_PARADO);
+    await abrir("l1");
+    expect(textoDoDetalhe(), "o detalhe diz o mesmo que o card").toMatch(AVISO_DE_PARADO);
 
     await preencherESair(campoDoValor("Ofertado", "Ana Vende")!, "52.000");
+    expect(patches()).toHaveLength(1);
 
+    // Nem no card, nem no cabeçalho do detalhe.
     expect(textoDoCard("Ana Vende")).toMatch(AVISO_DE_PARADO);
+    expect(textoDoDetalhe()).toMatch(AVISO_DE_PARADO);
   });
 });

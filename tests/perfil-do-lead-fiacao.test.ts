@@ -5,15 +5,18 @@ import { createRoot, type Root } from "react-dom/client";
 import { ETAPAS_PADRAO } from "../src/lib/funil";
 import { CANAL_DO_PROFILER, montarPerfilDoLead } from "../src/lib/perfilDoLead";
 import { lerCodigo } from "./fonte";
+import { cardDe, definirLargura, detalheDeTeste, gaveta, leadDaUrl, zerarRota } from "./quadroDeLeadsDeTeste";
 
 /**
  * O perfil do Profiler no card do lead — a fiação.
  *
  * `perfil-do-lead.test.ts` executa a lib, o bloco solto, a rota e o PATCH. O
- * que fica aqui é o que só aparece com as peças LIGADAS:
- *   - o kanban montado desenha o bloco no card do lead do Profiler, e só nele;
+ * que fica aqui é o que só aparece com as peças LIGADAS (desde 03/10, com o
+ * card enxuto, o bloco mora no DETALHE do lead, nos dados do negócio):
+ *   - o detalhe do lead do Profiler desenha o bloco, e só o dele;
  *   - um `leads.perfil` torto — jsonb que o staff pode escrever pelo
- *     PostgREST — não derruba o quadro: o card continua lá, sem o bloco;
+ *     PostgREST — não derruba o quadro nem o detalhe: o card continua lá, e o
+ *     detalhe abre sem o bloco;
  *   - na fonte, as três decisões que o comportamento sozinho não mostra: o
  *     perfil é montado FORA do `try` do insert, a segunda tentativa sem a
  *     coluna nomeia a migração, e o PATCH do painel não tem campo `perfil`.
@@ -30,6 +33,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) =>
     createElement("a", { href, ...resto } as never, children as never),
 }));
+vi.mock("next/navigation", async () => (await import("./quadroDeLeadsDeTeste")).navegacaoDeTeste);
 
 const AGORA = new Date().toISOString();
 
@@ -75,8 +79,19 @@ const TORTOS = [
   lead("l6", "Tina Vazia", { perfil: { versao: 1, carros: "Onix", perfil: [], orcamento: 7, na_faixa: "3" } }),
 ];
 
+const TODOS = () => [DO_PROFILER, SEM_PERFIL, ...TORTOS];
+
 function dublarFetch() {
-  globalThis.fetch = (async () => ({
+  globalThis.fetch = (async (url: string) => {
+    const doLead = leadDaUrl(String(url));
+    if (doLead) {
+      return { ok: true, json: async () => detalheDeTeste(TODOS().find((l) => l.id === doLead.id)!) };
+    }
+    return respostaDaFila;
+  }) as never;
+}
+
+const respostaDaFila = {
     ok: true,
     json: async () => ({
       leads: [DO_PROFILER, SEM_PERFIL, ...TORTOS],
@@ -87,8 +102,7 @@ function dublarFetch() {
       podeConfigurar: false,
       busca: null,
     }),
-  })) as never;
-}
+};
 
 let container: HTMLDivElement;
 let root: Root;
@@ -123,7 +137,16 @@ function card(nome: string): HTMLElement {
 /** Texto do card com o espaço não separável do `Intl` virado espaço comum. */
 const textoDoCard = (nome: string) => (card(nome).textContent ?? "").replace(/ /g, " ");
 
+/** Abre a gaveta do lead e devolve o texto do detalhe, com o mesmo trato. */
+async function textoDoDetalhe(id: string) {
+  await act(async () => cardDe(container, id)!.click());
+  await assentar();
+  return (gaveta()?.textContent ?? "").replace(/\u00a0/g, " ");
+}
+
 beforeEach(() => {
+  zerarRota();
+  definirLargura(true);
   dublarFetch();
 });
 
@@ -132,11 +155,13 @@ afterEach(async () => {
   container.remove();
 });
 
-describe("o bloco do perfil no card", () => {
-  it("mostra o que o cliente respondeu ao Profiler, e só no card do lead dele", async () => {
+describe("o bloco do perfil no detalhe do lead", () => {
+  it("mostra o que o cliente respondeu ao Profiler, e só no lead dele", async () => {
     await montar();
+    // O card enxuto não carrega o bloco: ele mora no detalhe.
+    expect(textoDoCard("Paula Perfil")).not.toContain("Perfil do Profiler");
 
-    const daPaula = textoDoCard("Paula Perfil");
+    const daPaula = await textoDoDetalhe("l1");
     for (const trecho of [
       "Perfil do Profiler",
       "Pediu aviso quando chegar",
@@ -153,16 +178,23 @@ describe("o bloco do perfil no card", () => {
     // `jeitos: []` é "tanto faz" OU pergunta pulada: o card não escolhe.
     expect(daPaula).not.toContain("Jeito");
 
-    expect(textoDoCard("Carlos Compra")).not.toContain("Perfil do Profiler");
+    const doCarlos = await textoDoDetalhe("l2");
+    expect(doCarlos).toContain("Carlos Compra");
+    expect(doCarlos).not.toContain("Perfil do Profiler");
   });
 
-  it("perfil torto no banco não derruba o quadro: o card fica, sem o bloco", async () => {
+  it("perfil torto no banco não derruba o quadro nem o detalhe: abre, sem o bloco", async () => {
     await montar();
-    for (const { nome } of TORTOS) {
-      expect(textoDoCard(nome), nome).not.toContain("Perfil do Profiler");
+    for (const { id, nome } of TORTOS) {
+      // O card está no quadro...
+      expect(textoDoCard(nome), nome).toContain(nome);
+      // ...e o detalhe abre inteiro, só sem o bloco do perfil.
+      const detalhe = await textoDoDetalhe(id);
+      expect(detalhe, nome).toContain("Dados do negócio");
+      expect(detalhe, nome).not.toContain("Perfil do Profiler");
     }
-    // E o card bom continua desenhado ao lado dos tortos.
-    expect(textoDoCard("Paula Perfil")).toContain("Perfil do Profiler");
+    // E o lead bom continua mostrando o seu.
+    expect(await textoDoDetalhe("l1")).toContain("Perfil do Profiler");
   });
 });
 
@@ -207,9 +239,10 @@ describe("a rota de leads grava o perfil sem arriscar o lead", () => {
 });
 
 describe("o painel lê o perfil e não o escreve", () => {
-  it("o card do kanban desenha o bloco com o perfil do lead", () => {
-    const kanban = lerCodigo("src/components/admin/LeadsKanban.tsx");
-    expect(kanban).toContain("<BlocoDoPerfil perfil={l.perfil} />");
+  it("o detalhe do lead desenha o bloco com o perfil do lead", () => {
+    // Desde 03/10 o bloco mora nos dados do negócio do detalhe, e não no card.
+    const dados = lerCodigo("src/components/admin/lead/DadosDoNegocio.tsx");
+    expect(dados).toContain("<BlocoDoPerfil perfil={lead.perfil} />");
   });
 
   it("o GET entrega a coluna: a fila lê `*`, sem lista fechada de colunas", () => {

@@ -102,7 +102,7 @@ export default function ModalDeDesfecho({
           pergunta: "Por quê?",
           vazio: MOTIVO_DO_DESFECHO.perdido,
           confirmar: "Marcar como perdido",
-          exemplo: "Ex.: queria prata, só tinha branco — pediu para avisar quando chegar",
+          exemplo: "Ex.: queria prata, só tinha branco; pediu para avisar quando chegar",
         };
   const [motivo, setMotivo] = useState("");
   const [valor, setValor] = useState("");
@@ -221,7 +221,7 @@ export default function ModalDeDesfecho({
                 />
                 <span className="text-[10px] leading-relaxed text-mt-neutral-600">
                   {descarte
-                    ? "Opcional. O descarte fica fora da taxa de conversão — este lead não entra na conta de ganhos nem de perdas."
+                    ? "Opcional. O descarte fica fora da taxa de conversão: este lead não entra na conta de ganhos nem de perdas."
                     : "Opcional, e é o que o motivo não consegue dizer. Aparece no relatório ao lado da estatística."}
                 </span>
               </label>

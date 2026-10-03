@@ -161,6 +161,7 @@ beforeEach(() => {
     midia_sincronizacoes: [],
     midia_ajustes: [],
     atendimentos: [],
+    leads_interacoes: [],
     funil_etapas: [],
     funil_motivos: [],
   };

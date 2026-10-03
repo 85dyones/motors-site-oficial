@@ -159,10 +159,10 @@ export default function BlocoDaAvaliacao({
       a.fipe
         ? [reais(a.fipe.valor), a.fipe.mes_referencia, a.fipe.codigo].filter(Boolean).join(" · ")
         : a.veiculo_digitado
-          ? "não consultada — o cliente digitou o carro"
-          : "sem valor — a FIPE não respondeu no envio",
+          ? "não consultada: o cliente digitou o carro"
+          : "sem valor: a FIPE não respondeu no envio",
     ],
-    ["Sugestão", a.recomendacao?.resumo ?? "sem sugestão — não havia régua legível no envio"],
+    ["Sugestão", a.recomendacao?.resumo ?? "sem sugestão: não havia régua legível no envio"],
   ];
 
   return (

@@ -333,6 +333,8 @@ beforeEach(() => {
     }
     if (tabela === "funil_etapas") return consulta(tabela, () => ETAPAS_PADRAO);
     if (tabela === "funil_motivos") return consulta(tabela, () => []);
+    // A última interação de cada lead (03/10/2026): nenhuma nesta fixture.
+    if (tabela === "leads_interacoes") return consulta(tabela, () => []);
     throw new Error(`tabela inesperada: ${tabela}`);
   });
 });
