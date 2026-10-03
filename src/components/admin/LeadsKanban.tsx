@@ -37,7 +37,7 @@ import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
 import BlocoDaAvaliacao from "./BlocoDaAvaliacao";
 import BlocoDoPerfil from "./BlocoDoPerfil";
 import EtiquetasDoLead from "./EtiquetasDoLead";
-import { aplicarMudanca, type MudancaDeEtiquetas } from "../../lib/etiquetas";
+import { aplicarMudanca, ehEtiquetaDaPassagem, type MudancaDeEtiquetas } from "../../lib/etiquetas";
 
 /**
  * Tela A8 do design doc — o funil de leads.
@@ -1105,12 +1105,26 @@ export default function LeadsKanban() {
                               só leitura; editar é no card aberto, e por isso
                               esta linha some quando ele abre. */}
                           {l.interesse && (
-                            <div className="text-[12px] leading-snug text-mt-neutral-800">{l.interesse}</div>
+                            // O interesse pode ser a mensagem livre do cliente:
+                            // fechado, duas linhas; aberto, o texto inteiro.
+                            <div
+                              title={expandido ? undefined : l.interesse}
+                              className={`text-[12px] leading-snug text-mt-neutral-800 [overflow-wrap:anywhere] ${
+                                expandido ? "" : "line-clamp-2"
+                              }`}
+                            >
+                              {l.interesse}
+                            </div>
                           )}
                           {!expandido && (l.etiquetas ?? []).length > 0 && (
                             <ul role="list" aria-label={`Etiquetas de ${l.nome}, resumo`} className="m-0 mt-1.5 flex list-none flex-wrap gap-1 p-0">
                               {(l.etiquetas ?? []).map((e) => (
-                                <li key={e} className="border border-mt-regua px-1.5 py-0.5 text-[10px] text-mt-neutral-800">
+                                <li
+                                  key={e}
+                                  className={`max-w-full border px-1.5 py-0.5 text-[10px] text-mt-neutral-800 [overflow-wrap:anywhere] ${
+                                    ehEtiquetaDaPassagem(e) ? "border-mt-accent" : "border-mt-regua-fina"
+                                  }`}
+                                >
                                   {e}
                                 </li>
                               ))}

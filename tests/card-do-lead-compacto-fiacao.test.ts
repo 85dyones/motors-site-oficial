@@ -109,6 +109,7 @@ describe("o card do lead, na tela", () => {
     await clicar(botao("l1"));
     expect(botao("l1").getAttribute("aria-expanded")).toBe("true");
     expect(detalhe("l1").hidden).toBe(false);
+    expect(botao("l1").closest("[draggable]")!.textContent).toContain("Renault Duster");
     // Aberto, o resumo das etiquetas dá lugar às etiquetas editáveis.
     expect(container.querySelector('[aria-label="Etiquetas de Joana, resumo"]')).toBeNull();
     expect(container.querySelector('[aria-label="Responsável por Joana"]')!.closest("[hidden]")).toBeNull();
