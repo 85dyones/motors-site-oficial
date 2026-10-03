@@ -18,6 +18,12 @@ import {
   type PerfilDoFluxo,
 } from "../../../../lib/responsavelDoLead";
 import { AVISO_DE_REF_INVALIDA, normalizarRef, padraoDaRef } from "../../../../lib/leadsKanban";
+import {
+  AVISO_DE_BUSCA_INVALIDA,
+  filtroDaBusca,
+  ultimaInteracaoPorLead,
+  type InteracaoDoLead,
+} from "../../../../lib/gestaoDoLead";
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
@@ -67,6 +73,12 @@ export async function GET(request: NextRequest) {
     if (!ehStaff(profile)) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
+    // Perfil desativado não lê a fila (03/10/2026): a sessão de quem saiu da
+    // loja pode seguir viva, e `ehStaff` não olha `is_active`. Com a RLS de
+    // `leads` por escopo o banco já devolveria zero linhas; sem ela, não.
+    if (profile?.is_active === false) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
     const perfil = perfisDe(profile);
     const podeVer = podeFazer(perfil, "Ver e mover leads no kanban") === "faz";
     // Quais leads esta pessoa enxerga (regra de 03/10/2026, `escopoDeLeads`).
@@ -95,7 +107,28 @@ export async function GET(request: NextRequest) {
         { status: 403 },
       );
     }
-    const ref = refPedida === null ? "" : normalizarRef(refPedida);
+    // ------------------------------------------------------------------------
+    // `?busca=` — a busca única: nome, telefone ou referência (03/10/2026)
+    // ------------------------------------------------------------------------
+    // Um campo só no lugar dos três. Quem decide o que foi digitado é
+    // `filtroDaBusca` (`lib/gestaoDoLead`); a referência reconhecida ali segue
+    // pelo MESMO filtro do `?ref=`, que continua valendo como sempre. Com os
+    // dois na URL, vale o `?ref=`.
+    //
+    // As recusas são as da referência, e pela mesma razão: a busca devolve
+    // nome e telefone, então quem não vê lead recebe 403 antes de qualquer
+    // leitura. E ela obedece ao escopo, logo abaixo: "na equipe inteira" vale
+    // só para quem vê a equipe.
+    const buscaPedida = refPedida === null ? new URL(request.url).searchParams.get("busca") : null;
+    if (buscaPedida !== null && !podeVer) {
+      return NextResponse.json({ error: "Seu perfil não busca leads" }, { status: 403 });
+    }
+    const filtro = buscaPedida === null ? null : filtroDaBusca(buscaPedida);
+    if (buscaPedida !== null && !filtro) {
+      return NextResponse.json({ error: AVISO_DE_BUSCA_INVALIDA, codigo: "busca_invalida" }, { status: 400 });
+    }
+
+    const ref = refPedida === null ? (filtro?.tipo === "ref" ? filtro.ref : "") : normalizarRef(refPedida);
     if (refPedida !== null && !ref) {
       return NextResponse.json({ error: AVISO_DE_REF_INVALIDA }, { status: 400 });
     }
@@ -144,6 +177,17 @@ export async function GET(request: NextRequest) {
     // que não roda por visitante. O padrão, e por que ele é o inverso exato de
     // `refCurta`, está em `padraoDaRef`.
     if (ref) consulta = consulta.ilike("ag_uid", padraoDaRef(ref));
+    // Nome: contém, sem distinguir caixa (o padrão já vem com `%` e `_` do
+    // termo escapados). Telefone: os dígitos contidos no número gravado, que
+    // é só dígitos. Oito dígitos exatos também formam uma referência: a busca
+    // procura pelos dois. O `or` só leva dígitos e hexadecimais, validados em
+    // `filtroDaBusca` e `padraoDaRef`: nada do que foi digitado entra cru.
+    if (filtro?.tipo === "nome") consulta = consulta.ilike("nome", filtro.padrao);
+    if (filtro?.tipo === "telefone") {
+      consulta = filtro.refAlternativa
+        ? consulta.or(`telefone.ilike.%${filtro.digitos}%,ag_uid.ilike.${padraoDaRef(filtro.refAlternativa)}`)
+        : consulta.ilike("telefone", `%${filtro.digitos}%`);
+    }
     // O escopo vale para a fila E para a busca por referência. Quem chega aqui
     // vê leads; o Marketing já saiu acima, com a contagem da loja.
     consulta = comEscopoDeLeads(consulta, visao);
@@ -154,7 +198,7 @@ export async function GET(request: NextRequest) {
       // depois de ter lido a fila. Responder `migracaoPendente` aqui travaria o
       // painel inteiro em "a tabela de leads ainda não existe" — falso, e sem
       // volta até recarregar a página.
-      if (ehTabelaOuColunaAusente(error) && !ref) {
+      if (ehTabelaOuColunaAusente(error) && !ref && !filtro) {
         return NextResponse.json({ leads: [], migracaoPendente: true });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -238,12 +282,55 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+    // ------------------------------------------------------------------------
+    // A última interação de cada lead (03/10/2026)
+    // ------------------------------------------------------------------------
+    // O card novo e a Lista do dia mostram o último registro do vendedor.
+    // UMA leitura para todos os leads da resposta, e não uma por lead; quem
+    // escolhe a mais recente de cada um é `ultimaInteracaoPorLead`.
+    //
+    // O teto: o PostgREST corta a resposta em 1000 linhas, e a leitura vem da
+    // mais nova para a mais antiga. Com mais de 1000 registros nos leads da
+    // fila, o lead cuja última interação é mais velha que essas 1000 sairia
+    // sem ela, calado. Por isso o teto é pedido às claras e, batido, a
+    // resposta leva um aviso. A saída de verdade é uma view com
+    // `distinct on (lead_id)`, que é mudança de banco.
+    //
+    // Como a conversa do Chatwoot acima: se a leitura falhar, a fila continua
+    // inteira, sem a última interação, e a resposta diz que ela faltou.
+    const TETO_DE_INTERACOES = 1000;
+    const avisos: string[] = [];
+    let ultimaPorLead: ReturnType<typeof ultimaInteracaoPorLead> = new Map();
+    if (leads.length > 0) {
+      const { data: interacoes, error: erroInteracoes } = await supabase
+        .from("leads_interacoes")
+        .select("id, lead_id, tipo, resultado, texto, autor, criado_em")
+        .in("lead_id", leads.map((l: { id: string }) => l.id))
+        .order("criado_em", { ascending: false })
+        .limit(TETO_DE_INTERACOES);
+
+      if (erroInteracoes) {
+        console.warn("[Leads] Sem a última interação:", erroInteracoes.message);
+        avisos.push("Não deu para ler a última interação dos leads. O resto da fila está completo.");
+      } else {
+        ultimaPorLead = ultimaInteracaoPorLead((interacoes ?? []) as InteracaoDoLead[]);
+        if ((interacoes ?? []).length >= TETO_DE_INTERACOES) {
+          avisos.push("Há registros demais para ler de uma vez: a última interação de alguns leads pode não aparecer.");
+        }
+      }
+    }
+
     for (const l of leads as Array<Record<string, unknown>>) {
       const a = atendimentoPorLead.get(String(l.id));
       l.chatwoot_conversation_id = a?.conversa ?? null;
       l.com_assistente = a?.comAssistente ?? false;
       l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
       l.etiquetas = a?.etiquetas ?? [];
+      l.ultima_interacao = ultimaPorLead.get(String(l.id)) ?? null;
+      // Já vêm no `select("*")`; aqui só se garante o nulo num banco sem a
+      // migração da gestão do lead, para a tela não receber `undefined`.
+      l.proximo_passo = l.proximo_passo ?? null;
+      l.proximo_passo_vence_em = l.proximo_passo_vence_em ?? null;
     }
 
     // Quem pode receber um lead. Vem junto na mesma resposta em vez de uma
@@ -294,7 +381,16 @@ export async function GET(request: NextRequest) {
       // O que os `leads` acima SÃO: a fila (`null`) ou o resultado de uma
       // busca. A tela lê daqui, e não do que pediu, para nunca chamar de
       // "fila" uma lista filtrada nem de "busca vazia" uma fila vazia.
-      busca: ref ? { ref } : null,
+      //
+      // `ref` continua onde sempre esteve, para a tela de hoje. `termo` e
+      // `tipo` são da busca única: o que foi digitado e como foi entendido.
+      busca: filtro
+        ? { termo: buscaPedida, tipo: filtro.tipo, ...(ref ? { ref } : {}) }
+        : ref
+          ? { ref }
+          : null,
+      // Leituras secundárias que falharam ou vieram cortadas. Vazio é o normal.
+      avisos,
       // As etiquetas do card (2026-09-25). `etiquetasEditaveis` diz se o
       // servidor consegue gravar no Chatwoot — sem token, o card mostra as
       // etiquetas e não oferece editar, em vez de oferecer e falhar no clique.

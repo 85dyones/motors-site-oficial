@@ -173,7 +173,16 @@ describe("nomenclatura da tabela de inventário", () => {
     // casa a placa inteira e lê o código FIPE).
     // A guarda de que nenhuma leitura literal pede coluna interna mora em
     // `tests/documento-e-custo-so-para-a-equipe.test.ts`.
-    expect(comAcesso.length).toBe(11);
+    //
+    // O décimo segundo e o décimo terceiro, em 2026-10-03 (gestão do lead):
+    // `api/leads/[id]/route.ts`, o detalhe do lead, que lê o cartão do carro
+    // de interesse (id, marca, modelo, versao, ano, quilometragem, preco,
+    // vendido — só coluna pública) pelo `veiculo_id` do lead, e
+    // `api/leads/[id]/dados/route.ts`, que lê só `id` para conferir que o
+    // carro escolhido como interesse existe antes de gravar o vínculo:
+    // `leads.veiculo_id` não é chave estrangeira, e o banco aceitaria
+    // qualquer número. Nenhuma das duas grava no estoque.
+    expect(comAcesso.length).toBe(13);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -210,6 +219,9 @@ describe("nomenclatura da tabela de inventário", () => {
     // placa de `getEstoque` em `lib/supabase.ts`. A curadoria dos destaques e
     // o gerador de descritivo ficaram aqui, trocando `select("*")` pela lista
     // pública: nenhum dos dois usa documento nem custo.
-    expect(total).toBe(16);
+    //
+    // E os acessos nº 17 e 18, em 2026-10-03, com os dois arquivos novos da
+    // gestão do lead, acima.
+    expect(total).toBe(18);
   });
 });
