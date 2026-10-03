@@ -76,7 +76,9 @@ export async function GET(request: NextRequest) {
     // Perfil desativado não lê a fila (03/10/2026): a sessão de quem saiu da
     // loja pode seguir viva, e `ehStaff` não olha `is_active`. Com a RLS de
     // `leads` por escopo o banco já devolveria zero linhas; sem ela, não.
-    if (profile?.is_active === false) {
+    // `!== true`, como em `sessaoDeLeads`: perfil sem a coluna lida também
+    // fica de fora, e não só o que diz `false`.
+    if (profile?.is_active !== true) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
     const perfil = perfisDe(profile);
@@ -441,10 +443,16 @@ export async function PATCH(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, papeis, full_name")
+      .select("role, papeis, full_name, is_active")
       .eq("id", user.id)
       .single();
     if (!ehStaff(profile)) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
+    // Perfil desativado não escreve (03/10/2026): a sessão de quem saiu da
+    // loja pode seguir viva, e `ehStaff` não olha `is_active`. A mesma régua
+    // do GET e de `sessaoDeLeads`.
+    if (profile?.is_active !== true) {
       return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
     }
     const perfisDoAutor = perfisDe(profile);

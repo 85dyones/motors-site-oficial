@@ -132,7 +132,7 @@ beforeEach(() => {
     if (tabela === "profiles") {
       // Com `eq("id")` é o perfil de quem chama; sem filtro é a equipe, que o
       // PATCH lê para recusar responsável fora do Comercial (2026-09-23).
-      return consulta((f) => (f.id !== undefined ? autor : EQUIPE));
+      return consulta((f) => (f.id !== undefined ? { is_active: true, ...autor } : EQUIPE));
     }
     lidas.push(tabela);
     if (tabela === "funil_etapas") {

@@ -442,9 +442,20 @@ O que a tela decide por conta própria, e onde:
   `full_name` de quem está logado. O nome vem da página (`/admin/leads`), que o
   lê do perfil; a resposta da fila não o traz. Sem nome, o controle some.
 - **O estado na URL** (`?vista=`, `?escopo=`, `?lead=`): a tela muda no clique e
-  pede à URL que a acompanhe (`router.replace`, sem rolar). `SincroniaComAUrl`
-  separa o eco de um clique da navegação de fora. O chip e a busca não vão para
-  a URL.
+  escreve a URL com `history.replaceState`, sem ida ao servidor e sem entrada
+  nova no histórico. A URL que muda por fora (um link, o voltar do navegador) é
+  adotada (`SincroniaComAUrl`, `popstate`). Os chips e a busca não vão para a
+  URL.
+- **Os chips**: "Atrasados" e "Hoje" (um ou outro), "Parados" (para todos: quem
+  a régua de estagnação já cobra) e "Sem responsável" (só para o Administrador,
+  `escopo: "todos"`; ligá-lo leva ao Quadro). Todos contam sobre escopo e busca.
+- **As sugestões de próximo passo** são calculadas na tela
+  (`sugestoesDeProximoPasso(etapa, agora)`) quando a caixa é desenhada, e a data
+  no toque. O `sugestoes` da leitura do detalhe não é usado: envelhecia.
+- **Registro começado**: com algo escrito, Esc não fecha a gaveta, e FECHAR ou
+  a troca de card perguntam na própria gaveta.
+- **Lead que saiu do escopo**: se a releitura do detalhe responde 404, a gaveta
+  fecha, a fila é relida e a tela diz "Este lead saiu da sua fila."
 - **Carro de interesse**: "Trocar" pede o código do carro no estoque
   (`veiculo_id`). Não há busca de estoque nesta tela.
 - **O `tel:` do LIGAR não passa por `trackContactClick`**: é a equipe ligando

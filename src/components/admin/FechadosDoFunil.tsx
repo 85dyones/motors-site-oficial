@@ -1,7 +1,7 @@
 "use client";
 
 import { ROTULO_DO_DESFECHO, ehDescarte, type EtapaDoFunil } from "../../lib/funil";
-import { plural, type LeadDaFila } from "../../lib/filaDoFunil";
+import { diaNoCalendarioDaLoja, plural, type LeadDaFila } from "../../lib/filaDoFunil";
 
 /**
  * Os negócios fechados.
@@ -97,7 +97,7 @@ export default function FechadosDoFunil({
                   </td>
                   <td className="py-2.5 pr-3 text-[11px] text-mt-neutral-700">{l.responsavel || "Sem responsável"}</td>
                   <td className="py-2.5 pr-3 text-right text-[11px] tabular-nums text-mt-neutral-700">
-                    {l.desfecho_em ? new Date(l.desfecho_em).toLocaleDateString("pt-BR") : ""}
+                    {diaNoCalendarioDaLoja(l.desfecho_em)}
                   </td>
                   <td className="py-2.5 text-right">
                     <select

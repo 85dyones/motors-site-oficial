@@ -28,6 +28,12 @@ export default function ControlesDoFunil({
   chip,
   contasDosChips,
   aoMudarChip,
+  parados,
+  soParados,
+  aoAlternarParados,
+  semResponsavel,
+  soSemResponsavel,
+  aoAlternarSemResponsavel,
   fechados,
   vendoFechados,
   aoAlternarFechados,
@@ -52,6 +58,14 @@ export default function ControlesDoFunil({
   chip: ChipDoFunil | null;
   contasDosChips: Record<ChipDoFunil, number>;
   aoMudarChip: (chip: ChipDoFunil | null) => void;
+  /** Os que a régua de estagnação já cobra. */
+  parados: number;
+  soParados: boolean;
+  aoAlternarParados: () => void;
+  /** Só para o Administrador, que é quem os enxerga e distribui; `null` para os outros. */
+  semResponsavel: number | null;
+  soSemResponsavel: boolean;
+  aoAlternarSemResponsavel: () => void;
   fechados: number;
   vendoFechados: boolean;
   aoAlternarFechados: () => void;
@@ -124,6 +138,16 @@ export default function ControlesDoFunil({
         <ChipDeFiltro ativo={chip === "hoje"} aoAlternar={() => aoMudarChip(chip === "hoje" ? null : "hoje")}>
           Hoje ({contasDosChips.hoje})
         </ChipDeFiltro>
+        {/* O filtro que a régua de estagnação torna possível: a fila do dia
+            de quem cobra é a dos parados. */}
+        <ChipDeFiltro ativo={soParados} aoAlternar={aoAlternarParados}>
+          Parados ({parados})
+        </ChipDeFiltro>
+        {semResponsavel !== null && (
+          <ChipDeFiltro ativo={soSemResponsavel} aoAlternar={aoAlternarSemResponsavel}>
+            Sem responsável ({semResponsavel})
+          </ChipDeFiltro>
+        )}
         {/* Fechar tirou o card do quadro: este é o endereço dele. Não é uma
             coluna, é uma lista, com o motivo, a observação e a volta. */}
         <ChipDeFiltro ativo={vendoFechados} aoAlternar={aoAlternarFechados}>

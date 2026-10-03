@@ -35,7 +35,13 @@ export function zerarRota() {
   rota.query = "";
   rota.replace.mockClear();
   rota.push.mockClear();
+  // A vista, o escopo e o lead aberto são escritos na barra de endereços com
+  // `history.replaceState`: cada teste começa com ela limpa.
+  if (typeof window !== "undefined") window.history.replaceState(null, "", "/admin/leads");
 }
+
+/** O que a barra de endereços mostra: é onde a tela escreve `?vista=`, `?escopo=` e `?lead=`. */
+export const urlDaTela = () => window.location.pathname + window.location.search;
 
 /** A tela é larga (gaveta) ou estreita (página)? O jsdom não tem `matchMedia`. */
 export function definirLargura(larga: boolean) {

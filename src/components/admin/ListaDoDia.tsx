@@ -1,7 +1,7 @@
 "use client";
 
 import { ordenarListaDoDia, rotuloDoPasso } from "../../lib/gestaoDoLead";
-import { linhaDosSemPasso, textoDoVazio, type ChipDoFunil, type LeadDaFila } from "../../lib/filaDoFunil";
+import { linhaDosSemPasso, textoDoVazioDaLista, type ChipDoFunil, type LeadDaFila } from "../../lib/filaDoFunil";
 
 /**
  * A Lista do dia: a fila do vendedor, por vencimento do próximo passo.
@@ -24,6 +24,7 @@ export default function ListaDoDia({
   rotuloDaEtapa,
   leadAberto,
   temEscopo,
+  buscando,
   aoAbrir,
   aoVerNoQuadro,
 }: {
@@ -34,6 +35,8 @@ export default function ListaDoDia({
   rotuloDaEtapa: (chave: string) => string;
   leadAberto: string | null;
   temEscopo: boolean;
+  /** O que está na tela é uma busca: o texto do vazio muda. */
+  buscando: boolean;
   aoAbrir: (id: string) => void;
   aoVerNoQuadro: () => void;
 }) {
@@ -46,7 +49,7 @@ export default function ListaDoDia({
     <div className="flex w-full max-w-[540px] flex-col gap-6">
       {grupos.length === 0 && (
         <p className="m-0 border border-dashed border-mt-regua-fina bg-mt-surface p-6 text-center text-xs text-mt-neutral-700">
-          {textoDoVazio(temEscopo)}
+          {textoDoVazioDaLista(buscando, temEscopo)}
         </p>
       )}
 

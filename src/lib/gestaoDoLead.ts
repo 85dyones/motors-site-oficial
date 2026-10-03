@@ -848,7 +848,7 @@ export type FiltroDaBusca =
    * procura pelos dois, em vez de escolher um e não achar.
    */
   | { tipo: "telefone"; digitos: string; refAlternativa?: string }
-  /** `padrao` já vem pronto para `ilike`, com `%` e `_` do termo escapados. */
+  /** `padrao` já vem pronto para `ilike`, com `%`, `_` e `*` do termo escapados. */
   | { tipo: "nome"; termo: string; padrao: string };
 
 export const AVISO_DE_BUSCA_INVALIDA =
@@ -883,7 +883,10 @@ export function filtroDaBusca(termo: string | null | undefined): FiltroDaBusca |
 
   if (ref) return { tipo: "ref", ref };
   if (limpo.length < 2) return null;
-  return { tipo: "nome", termo: limpo, padrao: `%${limpo.replace(/[\\%_]/g, "\\$&")}%` };
+  // `*` entra na lista: o PostgREST o lê como apelido de `%` no `ilike`. Com a
+  // barra ele deixa de ser curinga (vira um `%` literal no padrão): quem busca
+  // "Jo*" não lista a loja inteira.
+  return { tipo: "nome", termo: limpo, padrao: `%${limpo.replace(/[\\%_*]/g, "\\$&")}%` };
 }
 
 /**

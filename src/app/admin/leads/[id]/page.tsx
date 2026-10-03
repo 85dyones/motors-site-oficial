@@ -3,7 +3,7 @@ import DetalheDoLead from "../../../../components/admin/DetalheDoLead";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Lead · Motors Showcase",
+  title: "Lead | Motors Store",
   description: "O detalhe de um lead: próximo passo, registros, histórico e dados do negócio.",
 };
 

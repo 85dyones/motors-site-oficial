@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { criarMover, resumoDaBusca } from "../../lib/leadsKanban";
+import { SEM_DONO, criarMover, filtrarPorResponsavel, resumoDaBusca } from "../../lib/leadsKanban";
 import {
   ETAPAS_PADRAO,
   ehTipoDeDesfecho,
@@ -16,10 +16,13 @@ import {
 } from "../../lib/funil";
 import { AVISO_DE_BUSCA_INVALIDA, filtroDaBusca } from "../../lib/gestaoDoLead";
 import {
+  AVISO_DE_LEAD_QUE_SAIU,
   aoMudarAUrl,
   aoMudarOEstado,
+  aoVoltarOuAvancar,
   contarChips,
   contarEscopos,
+  filtrarParados,
   filtrarPorChip,
   filtrarPorEscopo,
   iniciarSincronia,
@@ -130,8 +133,15 @@ import ListaDoDia from "./ListaDoDia";
  *   dele. Os chips "Atrasados" e "Hoje" contam sobre escopo e busca.
  * - **O trilho de etapas clicável saiu**; a barra de slide e as setas ficam.
  * - **A vista, o escopo e o lead aberto moram na URL** (`?vista=`, `?escopo=`,
- *   `?lead=`), para o link e para o voltar do navegador. A RECARGA da tela
- *   continua levando à Visão geral (`lib/recargaDoPainel`).
+ *   `?lead=`), para o link e para o voltar do navegador. A tela a escreve com
+ *   `history.replaceState`: abrir um lead não vai ao servidor. A RECARGA da
+ *   tela continua levando à Visão geral (`lib/recargaDoPainel`).
+ * - **"Parados" e "Sem responsável"** voltaram como chips: o primeiro é o "só
+ *   os parados" de antes, para todos; o segundo é do Administrador, que é quem
+ *   enxerga o lead sem dono e o distribui. Ele força o Quadro: lead sem dono
+ *   não tem próximo passo, e não aparece na Lista do dia.
+ * - **Registro começado não se perde**: com algo escrito no detalhe, trocar de
+ *   card pergunta antes (a pergunta mora na gaveta).
  * - **Reler a fila não desmonta a tela.** Só a primeira leitura mostra
  *   "Carregando": com a busca ao digitar e a gaveta aberta, trocar a tela
  *   inteira por um aviso apagaria o campo de busca e o que estava sendo
@@ -177,6 +187,8 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   // nome em cada card, nem tem "Equipe" para alternar. A regra de quem vê o
   // quê é do servidor (`escopoDeLeads`).
   const [soOsMeus, setSoOsMeus] = useState(false);
+  /** O `escopo` da rota: "todos" é o Administrador, o único que vê lead sem dono. */
+  const [escopoDoServidor, setEscopoDoServidor] = useState<string | null>(null);
   // As etiquetas (2026-09-25): as vistas nas conversas vêm com a fila; as
   // criadas na conta do Chatwoot vêm depois, numa leitura à parte, para a fila
   // não esperar a API. Guardadas separadas porque `carregar` renova a
@@ -199,6 +211,12 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   const [agregado, setAgregado] = useState<{ total: number; porSituacao: Record<string, number> } | null>(null);
 
   const [chip, setChip] = useState<ChipDoFunil | null>(null);
+  const [soParados, setSoParados] = useState(false);
+  const [soSemDono, setSoSemDono] = useState(false);
+  /** Há registro começado no detalhe aberto (quem diz é o detalhe). */
+  const [rascunhoAberto, setRascunhoAberto] = useState(false);
+  /** O card que foi clicado com um registro começado em outro lead. */
+  const [trocaPendente, setTrocaPendente] = useState<string | null>(null);
 
   // ── a busca única ─────────────────────────────────────────────────────
   // Três estados, e não um, porque respondem a perguntas diferentes:
@@ -221,19 +239,29 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   const [rolavel, setRolavel] = useState(false);
 
   // ── a vista, o escopo e o lead aberto, em sincronia com a URL ─────────
-  // A tela reage no clique e pede à URL que a acompanhe; a URL que muda por
-  // fora (um link, o voltar do navegador) é adotada. Ver `SincroniaComAUrl`.
+  // A tela reage no clique e escreve a URL com `history.replaceState` (sem ida
+  // ao servidor). A URL que muda por fora (um link, o voltar do navegador) é
+  // adotada. Ver `SincroniaComAUrl`.
   const queryDaUrl = useSearchParams().toString();
   const [sincronia, setSincronia] = useState(() => iniciarSincronia(queryDaUrl));
-  if (queryDaUrl !== sincronia.ultimaQuery) setSincronia(aoMudarAUrl(sincronia, queryDaUrl));
+  if (queryDaUrl !== sincronia.ultimaQuery) {
+    setSincronia(aoMudarAUrl(sincronia, queryDaUrl, typeof window === "undefined" ? queryDaUrl : window.location.search));
+  }
   const naUrl = sincronia.estado;
 
   const navegar = (parcial: Partial<EstadoNaUrl>) => {
     const proxima = aoMudarOEstado(sincronia, parcial);
     if (proxima === sincronia) return;
     setSincronia(proxima);
-    router.replace(urlDoFunil(proxima.estado), { scroll: false });
+    window.history.replaceState(window.history.state, "", urlDoFunil(proxima.estado));
   };
+
+  // O voltar e o avançar do navegador: vale o que a barra de endereços mostra.
+  useEffect(() => {
+    const aoVoltar = () => setSincronia((s) => aoVoltarOuAvancar(s, window.location.search));
+    window.addEventListener("popstate", aoVoltar);
+    return () => window.removeEventListener("popstate", aoVoltar);
+  }, []);
 
   // A gaveta só existe em tela larga. Abaixo disso o detalhe é a página.
   const largo = useSyncExternalStore(assinarLargura, telaLarga, () => true);
@@ -293,6 +321,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
         setMotivos(d.motivos ?? []);
         setPodeConfigurar(Boolean(d.podeConfigurar));
         setSoOsMeus(d.escopo === "meus");
+        setEscopoDoServidor(typeof d.escopo === "string" ? d.escopo : null);
         setEtiquetasVistas(d.etiquetasDisponiveis ?? []);
         setEtiquetasEditaveis(Boolean(d.etiquetasEditaveis));
         setAvisosDaFila(Array.isArray(d.avisos) ? d.avisos : []);
@@ -344,9 +373,11 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   const aoBuscar = (valor: string) => {
     setBuscaDigitada(valor);
     if (filtroDaBusca(valor)) {
-      // Buscar limpa o filtro escolhido para a fila, que esconderia
+      // Buscar limpa os filtros escolhidos para a fila, que esconderiam
       // justamente o lead procurado.
       setChip(null);
+      setSoParados(false);
+      setSoSemDono(false);
     } else {
       // Campo vazio ou termo curto demais: a tela volta para a fila.
       setBuscaPedida(null);
@@ -539,7 +570,17 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   // Os chips contam sobre escopo e busca, nunca sobre o total.
   const contasDosChips = useMemo(() => contarChips(emAberto, agora), [emAberto, agora]);
   const contasDoEscopo = useMemo(() => contarEscopos(leads, meuNome), [leads, meuNome]);
-  const visiveis = useMemo(() => filtrarPorChip(emAberto, chip, agora), [emAberto, chip, agora]);
+  // "Sem responsável" é do Administrador (`escopo: "todos"`): só ele recebe o
+  // lead sem dono. "Parados" é de todos.
+  const veSemDono = escopoDoServidor === "todos";
+  const semDono = useMemo(() => filtrarPorResponsavel(emAberto, SEM_DONO), [emAberto]);
+  const parados = useMemo(() => filtrarParados(emAberto, etapas, agora), [emAberto, etapas, agora]);
+  /** O que os filtros de ligar e desligar deixam: é o que a Lista do dia agrupa. */
+  const filtrados = useMemo(() => {
+    const porDono = soSemDono && veSemDono ? filtrarPorResponsavel(emAberto, SEM_DONO) : emAberto;
+    return soParados ? filtrarParados(porDono, etapas, agora) : porDono;
+  }, [emAberto, soSemDono, veSemDono, soParados, etapas, agora]);
+  const visiveis = useMemo(() => filtrarPorChip(filtrados, chip, agora), [filtrados, chip, agora]);
 
   // As colunas do quadro são só as etapas ABERTAS: ganho e perdido viraram
   // botão. Passa `emAberto` e não `leads` de propósito — `etapasDoQuadro`
@@ -651,13 +692,45 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
       router.push(urlDoLead(id));
       return;
     }
+    if (id === leadNaGaveta) return;
+    // Há um registro começado no lead aberto: a gaveta pergunta antes de trocar.
+    if (leadNaGaveta && rascunhoAberto) {
+      setTrocaPendente(id);
+      return;
+    }
     navegar({ lead: id });
   };
 
   const fecharLead = () => {
     const id = naUrl.lead;
+    setRascunhoAberto(false);
+    setTrocaPendente(null);
     navegar({ lead: null });
     if (id) focarQuemAbriu(id);
+  };
+
+  /** "Descartar": segue para o card que foi clicado, ou fecha a gaveta. */
+  const descartarRascunho = () => {
+    const destino = trocaPendente;
+    if (!destino) {
+      fecharLead();
+      return;
+    }
+    setRascunhoAberto(false);
+    setTrocaPendente(null);
+    navegar({ lead: destino });
+  };
+
+  /**
+   * O lead aberto saiu do escopo de quem olha (o vendedor passou o lead
+   * adiante, e a releitura respondeu 404): a gaveta fecha, a fila é relida, e a
+   * tela diz o que houve. O aviso entra DEPOIS da releitura, como em `falhou`.
+   */
+  const aoSumirOLead = () => {
+    setRascunhoAberto(false);
+    setTrocaPendente(null);
+    navegar({ lead: null });
+    void carregar().finally(() => setAvisoDaGravacao(AVISO_DE_LEAD_QUE_SAIU));
   };
 
   if (primeiraCarga) {
@@ -765,10 +838,25 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
           contasDoEscopo={contasDoEscopo}
           aoMudarEscopo={(novo) => navegar({ escopo: novo })}
           vista={vista}
-          aoMudarVista={(nova) => navegar({ vista: nova })}
+          aoMudarVista={(nova) => {
+            // Lead sem dono não tem próximo passo: na Lista do dia o filtro
+            // deixaria a tela vazia sem dizer por quê.
+            if (nova === "lista") setSoSemDono(false);
+            navegar({ vista: nova });
+          }}
           chip={chip}
           contasDosChips={contasDosChips}
           aoMudarChip={setChip}
+          parados={parados.length}
+          soParados={soParados}
+          aoAlternarParados={() => setSoParados((v) => !v)}
+          semResponsavel={veSemDono ? semDono.length : null}
+          soSemResponsavel={soSemDono && veSemDono}
+          aoAlternarSemResponsavel={() => {
+            // Ligar o filtro leva ao Quadro: é onde o lead sem dono está.
+            if (!soSemDono) navegar({ vista: "quadro" });
+            setSoSemDono((v) => !v);
+          }}
           fechados={fechados.length}
           vendoFechados={vendoFechados}
           aoAlternarFechados={() => setVendoFechados((v) => !v)}
@@ -864,12 +952,13 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
         <>
           {vista === "lista" ? (
             <ListaDoDia
-              leads={emAberto}
+              leads={filtrados}
               agora={agora}
               chip={chip}
               rotuloDaEtapa={rotuloDaEtapa}
               leadAberto={leadNaGaveta}
               temEscopo={padroes.temEscopo}
+              buscando={buscando}
               aoAbrir={abrirLead}
               aoVerNoQuadro={() => {
                 setChip(null);
@@ -1034,7 +1123,12 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
           layout="gaveta"
           versao={versaoDoAberto}
           etiquetasDaConta={etiquetasDisponiveis}
+          saidaPendente={trocaPendente !== null}
           aoFechar={fecharLead}
+          aoDescartar={descartarRascunho}
+          aoManter={() => setTrocaPendente(null)}
+          aoMudarRascunho={setRascunhoAberto}
+          aoSumir={aoSumirOLead}
           aoMudarLead={aoMudarLead}
           aoSairDeSincronia={aoSairDeSincronia}
         />

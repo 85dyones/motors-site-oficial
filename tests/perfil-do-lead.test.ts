@@ -80,7 +80,7 @@ vi.mock("../src/lib/supabase-server", () => ({
           select: () => q,
           eq: () => q,
           single: async () => ({
-            data: { role: "comercial", papeis: ["comercial"], full_name: "Ana" },
+            data: { role: "comercial", papeis: ["comercial"], full_name: "Ana", is_active: true },
             error: null,
           }),
         };

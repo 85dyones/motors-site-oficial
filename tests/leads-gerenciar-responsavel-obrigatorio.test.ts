@@ -80,7 +80,7 @@ beforeEach(() => {
   CLIENTE.rpc.mockResolvedValue({ error: null });
   CLIENTE.from.mockImplementation((tabela: string) => {
     if (tabela === "profiles") {
-      return consulta((f) => ({ data: f.id !== undefined ? autor : EQUIPE, error: null }));
+      return consulta((f) => ({ data: f.id !== undefined ? { is_active: true, ...autor } : EQUIPE, error: null }));
     }
     if (tabela === "funil_etapas") {
       return consulta((f) => ({ data: { chave: f.chave, rotulo: String(f.chave), tipo: "andamento" }, error: null }));

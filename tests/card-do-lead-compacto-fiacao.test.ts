@@ -15,6 +15,7 @@ import {
   quemAbre,
   rota,
   teclar,
+  urlDaTela,
   zerarRota,
 } from "./quadroDeLeadsDeTeste";
 
@@ -136,7 +137,7 @@ describe("o card enxuto, na tela", () => {
 
     expect(patches().map((p) => p.corpo)).toEqual([{ id: "l1", situacao: "em_contato" }]);
     expect(gaveta()).toBeNull();
-    expect(rota.replace).not.toHaveBeenCalled();
+    expect(urlDaTela()).toBe("/admin/leads");
   });
 
   it("o link da conversa registra o contato, não abre o detalhe e não rouba o arrasto", async () => {
@@ -165,7 +166,7 @@ describe("o card enxuto, na tela", () => {
     expect(cardDe(container, "l1")!.className).toContain("outline-2");
     expect(cardDe(container, "l2")!.className).not.toContain("outline-2");
     expect(quemAbre(container, "l1")!.getAttribute("aria-expanded")).toBe("true");
-    expect(rota.replace).toHaveBeenLastCalledWith("/admin/leads?lead=l1", { scroll: false });
+    expect(urlDaTela()).toBe("/admin/leads?lead=l1");
     // O foco entrou na gaveta.
     expect(aberta.contains(document.activeElement)).toBe(true);
     // E o que saiu do card está nela.
@@ -181,7 +182,7 @@ describe("o card enxuto, na tela", () => {
 
     expect(gaveta()).toBeNull();
     expect(document.activeElement).toBe(quemAbre(container, "l1"));
-    expect(rota.replace).toHaveBeenLastCalledWith("/admin/leads", { scroll: false });
+    expect(urlDaTela()).toBe("/admin/leads");
   });
 
   it("o botão FECHAR também fecha, e trocar de card troca o lead da gaveta", async () => {

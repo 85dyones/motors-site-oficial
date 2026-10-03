@@ -6,7 +6,7 @@ import {
   ROTULO_DO_RESULTADO,
   TIPOS_DE_INTERACAO,
   diaNaLoja,
-  type SugestaoDePasso,
+  sugestoesDeProximoPasso,
 } from "../../../lib/gestaoDoLead";
 import {
   PLACEHOLDER_DO_REGISTRO,
@@ -43,7 +43,7 @@ export default function RegistroDeInteracao({
   form,
   aoMudar,
   aberto,
-  sugestoes,
+  etapa,
   agora,
   registrando,
   refDoTexto,
@@ -54,8 +54,8 @@ export default function RegistroDeInteracao({
   aoMudar: (form: FormDoRegistro) => void;
   /** Lead fechado dispensa o próximo passo. */
   aberto: boolean;
-  /** As duas sugestões da etapa, como a API as devolveu. */
-  sugestoes: readonly SugestaoDePasso[];
+  /** A etapa em que o lead está AGORA: é dela que saem as duas sugestões. */
+  etapa: string;
   agora: number;
   registrando: boolean;
   refDoTexto: React.RefObject<HTMLTextAreaElement | null>;
@@ -64,6 +64,10 @@ export default function RegistroDeInteracao({
 }) {
   const estado = estadoDoRegistro(form, { aberto }, agora);
   const passoVazio = form.passo.trim() === "";
+  // As sugestões saem da etapa e do relógio DESTA pintura, e não da leitura do
+  // lead: quem moveu de etapa, ou deixou a gaveta aberta de manhã, veria as de
+  // antes ("hoje 16:00" às 17h). Lead fechado não pede próximo passo.
+  const sugestoes = aberto ? sugestoesDeProximoPasso(etapa, agora) : [];
 
   return (
     <section
@@ -120,11 +124,13 @@ export default function RegistroDeInteracao({
 
         {passoVazio && sugestoes.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {sugestoes.map((s) => (
+            {sugestoes.map((s, i) => (
               <button
                 key={s.texto}
                 type="button"
-                onClick={() => aoMudar(comSugestao(form, s))}
+                // A data é a do toque: "hoje +15 min" conta a partir de agora,
+                // e não do último tique do relógio da tela.
+                onClick={() => aoMudar(comSugestao(form, sugestoesDeProximoPasso(etapa, Date.now())[i] ?? s))}
                 className="mt-foco cursor-pointer border border-dashed border-mt-regua bg-transparent px-2.5 py-2 text-left text-[11px] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink pointer-coarse:min-h-11"
               >
                 + {s.texto} · <span className="tabular-nums">{s.quando}</span>

@@ -1,9 +1,17 @@
 import { describe, it, expect } from "vitest";
+import { ETAPAS_PADRAO } from "../src/lib/funil";
 import { decidirInteracao, diaNaLoja, instanteNoFusoDaLoja } from "../src/lib/gestaoDoLead";
 import {
   AVISO_DE_LEAD_FECHADO,
+  AVISO_DE_LEAD_QUE_SAIU,
   FORM_DO_REGISTRO_VAZIO,
   HORA_PADRAO_DO_PASSO,
+  PERGUNTA_DO_DESCARTE,
+  aoVoltarOuAvancar,
+  diaNoCalendarioDaLoja,
+  filtrarParados,
+  registroEmAndamento,
+  textoDoVazioDaLista,
   PLACEHOLDER_DO_REGISTRO,
   aoMudarAUrl,
   aoMudarOEstado,
@@ -202,33 +210,99 @@ describe("a vista, o escopo e o lead aberto na URL", () => {
     expect(urlDoLead("0dcb1cdc-fb39-4a39-99c9-923f025619f4")).toBe("/admin/leads/0dcb1cdc-fb39-4a39-99c9-923f025619f4");
   });
 
-  it("a tela muda na hora e anota o que pediu à URL", () => {
+  it("a tela muda na hora; pedir o que já está não muda nada (nem escreve na URL)", () => {
     const inicio = iniciarSincronia("");
     const aberto = aoMudarOEstado(inicio, { lead: "l1" });
     expect(aberto.estado.lead).toBe("l1");
-    expect(aberto.pedidas).toEqual(["lead=l1"]);
-    // Pedir o que já está não muda nada (nem navega).
     expect(aoMudarOEstado(aberto, { lead: "l1" })).toBe(aberto);
+    // A lista de pedidos à URL saiu com o `router.replace`: a tela escreve a
+    // URL na hora, com `history.replaceState`.
+    expect(aberto).not.toHaveProperty("pedidas");
   });
 
-  it("a URL que chega e foi pedida é só o eco: não desfaz um clique mais novo", () => {
+  it("a query que chega atrasada é eco: não desfaz um clique mais novo", () => {
     let s = iniciarSincronia("");
     s = aoMudarOEstado(s, { lead: "l1" });
     s = aoMudarOEstado(s, { lead: "l2" });
-    // O eco do primeiro clique chega depois do segundo.
-    s = aoMudarAUrl(s, "lead=l1");
+    // O roteador entrega a do primeiro clique quando a barra já mostra a do segundo.
+    s = aoMudarAUrl(s, "lead=l1", "?lead=l2");
     expect(s.estado.lead).toBe("l2");
-    s = aoMudarAUrl(s, "lead=l2");
+    s = aoMudarAUrl(s, "lead=l2", "?lead=l2");
     expect(s.estado.lead).toBe("l2");
-    expect(s.pedidas).toEqual([]);
+    expect(s.ultimaQuery).toBe("lead=l2");
   });
 
-  it("a URL que muda por fora é adotada: o link do alerta, o voltar do navegador", () => {
+  it("a URL que muda por fora é adotada: o link do alerta, um link do painel", () => {
     let s = iniciarSincronia("vista=lista");
-    s = aoMudarAUrl(s, "vista=quadro&lead=l9");
+    s = aoMudarAUrl(s, "vista=quadro&lead=l9", "?vista=quadro&lead=l9");
     expect(s.estado).toEqual({ vista: "quadro", escopo: null, lead: "l9" });
-    s = aoMudarAUrl(s, "");
+    s = aoMudarAUrl(s, "", "");
     expect(s.estado).toEqual({ vista: null, escopo: null, lead: null });
+  });
+
+  it("voltar e avançar do navegador: vale o que a barra de endereços mostra", () => {
+    let s = aoMudarOEstado(iniciarSincronia(""), { lead: "l1", vista: "lista" });
+    s = aoVoltarOuAvancar(s, "?vista=quadro");
+    expect(s.estado).toEqual({ vista: "quadro", escopo: null, lead: null });
+    // Igual ao que já está: o mesmo objeto, sem repintar.
+    expect(aoVoltarOuAvancar(s, "?vista=quadro")).toBe(s);
+  });
+});
+
+describe("os filtros que voltaram: parados", () => {
+  const etapas = ETAPAS_PADRAO.map((e) => (e.chave === "novo" ? { ...e, estagnacao_minutos: 60, transferencia_minutos: 600 } : e));
+  const lead = (id: string, minutos: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    nome: id,
+    situacao: "novo",
+    created_at: new Date(AGORA - minutos * 60_000).toISOString(),
+    ...extra,
+  });
+
+  it("parado é o que a régua já cobra ou vai passar adiante; esfriando ainda não", () => {
+    const leads = [lead("fresco", 5), lead("esfriando", 40), lead("parado", 90), lead("transferir", 700)];
+    expect(filtrarParados(leads, etapas, AGORA).map((l) => l.id)).toEqual(["parado", "transferir"]);
+  });
+
+  it("negócio fechado e etapa sem régua nunca estão parados", () => {
+    const leads = [lead("fechado", 900, { desfecho: "perdido" }), lead("sem-regua", 900, { situacao: "proposta" })];
+    expect(filtrarParados(leads, etapas, AGORA)).toEqual([]);
+  });
+});
+
+describe("o registro começado, que não pode se perder", () => {
+  it("vazio não é rascunho; o tipo sozinho também não (LIGAR só pré-seleciona)", () => {
+    expect(registroEmAndamento(FORM_DO_REGISTRO_VAZIO)).toBe(false);
+    expect(registroEmAndamento({ ...FORM_DO_REGISTRO_VAZIO, tipo: "ligacao" })).toBe(false);
+  });
+
+  it("qualquer coisa escrita ou escolhida é", () => {
+    for (const campos of [{ texto: "a" }, { passo: "Ligar" }, { dia: "2026-10-04" }, { hora: "10:00" }, { resultado: "atendeu" as const }]) {
+      expect(registroEmAndamento({ ...FORM_DO_REGISTRO_VAZIO, ...campos }), JSON.stringify(campos)).toBe(true);
+    }
+    expect(registroEmAndamento(formAoConcluir("Ligar"))).toBe(true);
+  });
+
+  it("a pergunta e o aviso do lead que saiu são frases simples", () => {
+    expect(PERGUNTA_DO_DESCARTE).toBe("Há um registro não salvo. Descartar?");
+    expect(AVISO_DE_LEAD_QUE_SAIU).toBe("Este lead saiu da sua fila.");
+  });
+});
+
+describe("a Lista do dia vazia e a data dos fechados", () => {
+  it("sem busca, diz que falta marcar o próximo passo; com busca, manda limpar", () => {
+    const semBusca = "Nenhum próximo passo marcado. Abra um lead no Quadro e registre o primeiro.";
+    expect(textoDoVazioDaLista(false, true)).toBe(semBusca);
+    expect(textoDoVazioDaLista(false, false)).toBe(semBusca);
+    expect(textoDoVazioDaLista(true, false)).toBe("Nada por aqui. Limpe a busca.");
+    expect(textoDoVazioDaLista(true, true)).toBe("Nada por aqui. Limpe a busca ou troque para Equipe.");
+  });
+
+  it("a data do desfecho é a do calendário da loja, e não a do aparelho", () => {
+    // 01:30 UTC de 04/10 ainda é 03/10 em São Paulo.
+    expect(diaNoCalendarioDaLoja("2026-10-04T01:30:00.000Z")).toBe("03/10/2026");
+    expect(diaNoCalendarioDaLoja("2026-10-04T03:30:00.000Z")).toBe("04/10/2026");
+    expect(diaNoCalendarioDaLoja(null)).toBe("");
   });
 });
 

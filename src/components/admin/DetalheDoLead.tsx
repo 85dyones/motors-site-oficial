@@ -12,11 +12,13 @@ import { leadEstaAberto, type CampoDosDados, type ItemDoHistorico } from "../../
 import {
   AVISO_DE_LEAD_FECHADO,
   FORM_DO_REGISTRO_VAZIO,
+  PERGUNTA_DO_DESCARTE,
   comTipo,
   estadoDoRegistro,
   formAoConcluir,
   formAoRemarcar,
   mensagemDeQuemChegou,
+  registroEmAndamento,
   urlDoLead,
   type DetalheDaApi,
   type FormDoRegistro,
@@ -39,9 +41,10 @@ import { NivelDoTituloDeBloco } from "./lead/TituloDeBloco";
  * O detalhe do lead: um componente, dois layouts (desenho de 23/09/2026).
  *
  *   · `gaveta`: 600px à direita, sobre o quadro, com rolagem própria. Vale em
- *     telas de 1024px ou mais. Não tem véu: o quadro continua em uso ao lado.
- *     Esc fecha; o foco entra nela ao abrir e volta ao card ao fechar (quem
- *     devolve o foco é quem a abriu).
+ *     telas de 1024px ou mais, abaixo da barra de topo. Não tem véu: o quadro
+ *     continua em uso ao lado. Esc fecha; o foco entra nela ao abrir e volta ao
+ *     card ao fechar (quem devolve o foco é quem a abriu). Com um registro
+ *     começado, Esc não fecha, e FECHAR ou a troca de card perguntam antes.
  *   · `pagina`: `/admin/leads/[id]`, o destino dos links e das telas estreitas.
  *
  * Os cinco blocos são os mesmos, na mesma ordem no HTML (h, p, c, t, d). Na
@@ -57,6 +60,16 @@ import { NivelDoTituloDeBloco } from "./lead/TituloDeBloco";
  */
 
 export type LayoutDoDetalhe = "gaveta" | "pagina";
+
+/** A leitura do lead falhou: a frase da rota e o status, que decide o que a tela faz. */
+class ErroDeLeitura extends Error {
+  constructor(
+    mensagem: string,
+    readonly status: number,
+  ) {
+    super(mensagem);
+  }
+}
 
 /** Onde cada bloco cai na página larga. Na gaveta e na página estreita, a ordem do HTML. */
 const AREA: Record<"h" | "p" | "c" | "t" | "d", string> = {
@@ -76,7 +89,12 @@ export default function DetalheDoLead({
   layout,
   versao = 0,
   etiquetasDaConta,
+  saidaPendente = false,
   aoFechar,
+  aoDescartar,
+  aoManter,
+  aoMudarRascunho,
+  aoSumir,
   aoMudarLead,
   aoSairDeSincronia,
 }: {
@@ -86,7 +104,17 @@ export default function DetalheDoLead({
   versao?: number;
   /** As etiquetas da conta do Chatwoot, quando quem monta já as leu. */
   etiquetasDaConta?: readonly string[];
+  /** Quem montou quer sair deste lead (outro card foi clicado) e há registro começado. */
+  saidaPendente?: boolean;
   aoFechar?: () => void;
+  /** A pessoa escolheu descartar o registro começado. Sem isto, vale `aoFechar`. */
+  aoDescartar?: () => void;
+  /** A pessoa escolheu continuar escrevendo. */
+  aoManter?: () => void;
+  /** O registro passou a ter (ou deixou de ter) algo que se perderia ao sair. */
+  aoMudarRascunho?: (emAndamento: boolean) => void;
+  /** A releitura respondeu 404: o lead saiu do escopo de quem olha. */
+  aoSumir?: () => void;
   /** O lead mudou aqui: o quadro atualiza o card sem reler a fila. */
   aoMudarLead?: (id: string, campos: Partial<LeadDaFila>) => void;
   /** Uma gravação falhou: o quadro relê a fila. */
@@ -101,6 +129,10 @@ export default function DetalheDoLead({
   const [chegando, setChegando] = useState(false);
   const [fechando, setFechando] = useState<EtapaDoFunil | null>(null);
   const [form, setForm] = useState<FormDoRegistro>(FORM_DO_REGISTRO_VAZIO);
+  /** FECHAR foi tocado com um registro começado: a gaveta pergunta antes. */
+  const [querFechar, setQuerFechar] = useState(false);
+  /** Este lead já foi lido uma vez: um 404 depois disso é o lead saindo do escopo. */
+  const jaLido = useRef(false);
   const [etiquetasLidas, setEtiquetasLidas] = useState<string[]>([]);
   const caixa = useRef<HTMLDivElement>(null);
   const campoDoTexto = useRef<HTMLTextAreaElement>(null);
@@ -116,9 +148,31 @@ export default function DetalheDoLead({
   const ler = useCallback(async (): Promise<DetalheDaApi> => {
     const res = await fetch(`/api/leads/${encodeURIComponent(id)}`);
     const d = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(d.error || "Não deu para abrir este lead.");
+    if (!res.ok) throw new ErroDeLeitura(d.error || "Não deu para abrir este lead.", res.status);
+    jaLido.current = true;
     return d as DetalheDaApi;
   }, [id]);
+
+  // `aoSumir` é lido pelo ref, e não entra nas dependências da leitura: quem
+  // monta passa uma função nova a cada pintura, e o efeito de leitura releria o
+  // lead a cada pintura do quadro.
+  const aoSumirAtual = useRef(aoSumir);
+  useEffect(() => {
+    aoSumirAtual.current = aoSumir;
+  }, [aoSumir]);
+
+  /**
+   * A leitura falhou. Um 404 em lead que já estava na tela é o lead saindo do
+   * escopo de quem olha (o vendedor passou o lead adiante): quem montou fecha
+   * a gaveta e relê a fila. O resto vira faixa de erro.
+   */
+  const leituraFalhou = useCallback((e: unknown) => {
+    if (e instanceof ErroDeLeitura && e.status === 404 && jaLido.current && aoSumirAtual.current) {
+      aoSumirAtual.current();
+      return;
+    }
+    setErroDeLeitura(e instanceof Error ? e.message : "Não deu para abrir este lead.");
+  }, []);
 
   // Lê ao montar e a cada `versao` nova. Quem troca de lead remonta o
   // componente (a `key` é o id): o estado de um lead nunca aparece em outro.
@@ -131,12 +185,12 @@ export default function DetalheDoLead({
         setErroDeLeitura("");
       })
       .catch((e: unknown) => {
-        if (vivo) setErroDeLeitura(e instanceof Error ? e.message : "Não deu para abrir este lead.");
+        if (vivo) leituraFalhou(e);
       });
     return () => {
       vivo = false;
     };
-  }, [ler, versao]);
+  }, [ler, versao, leituraFalhou]);
 
   /** Relê em silêncio: o que está na tela fica até o novo chegar. */
   const recarregar = useCallback(async () => {
@@ -145,9 +199,9 @@ export default function DetalheDoLead({
       setDados(d);
       setErroDeLeitura("");
     } catch (e: unknown) {
-      setErroDeLeitura(e instanceof Error ? e.message : "Não deu para abrir este lead.");
+      leituraFalhou(e);
     }
-  }, [ler]);
+  }, [ler, leituraFalhou]);
 
   /** A gravação falhou: relê o lead e só depois mostra o porquê. */
   const falhou = useCallback(
@@ -188,15 +242,34 @@ export default function DetalheDoLead({
   useEffect(() => {
     if (layout === "gaveta") caixa.current?.focus();
   }, [layout]);
-  const caixaDeMotivosAberta = fechando !== null;
+  // Com registro começado, Esc não fecha: uma tecla não pode apagar o que foi
+  // escrito. E com uma caixa modal aberta (a de motivos, daqui ou do quadro), o
+  // Esc é dela.
+  const emAndamento = registroEmAndamento(form);
   useEffect(() => {
     if (layout !== "gaveta" || !aoFechar) return;
     const naTecla = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !caixaDeMotivosAberta) aoFechar();
+      if (e.key !== "Escape" || emAndamento) return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      aoFechar();
     };
     document.addEventListener("keydown", naTecla);
     return () => document.removeEventListener("keydown", naTecla);
-  }, [layout, aoFechar, caixaDeMotivosAberta]);
+  }, [layout, aoFechar, emAndamento]);
+
+  /** Toda mudança do registro passa por aqui: quem montou sabe se há algo a perder. */
+  const mudarForm = useCallback(
+    (novo: FormDoRegistro) => {
+      setForm(novo);
+      aoMudarRascunho?.(registroEmAndamento(novo));
+    },
+    [aoMudarRascunho],
+  );
+
+  const pedirParaFechar = () => {
+    if (emAndamento) setQuerFechar(true);
+    else aoFechar?.();
+  };
 
   const etapas = useMemo(() => ordenarEtapas(dados?.etapas ?? []), [dados?.etapas]);
   const lead = dados?.lead ?? null;
@@ -269,16 +342,13 @@ export default function DetalheDoLead({
   );
 
   /** Mover: etapa terminal pede o motivo; as abertas gravam direto. A regra é de `criarMover`. */
-  const mover = useMemo(
-    () =>
-      criarMover({
-        etapas,
-        leads: lead ? [lead] : [],
-        pedirMotivo: (_lead, etapa) => setFechando(etapa),
-        gravar: (_id, campos) => void gravar(campos),
-      }),
-    [etapas, lead, gravar],
-  );
+  const mover = (leadId: string, chave: string) =>
+    criarMover({
+      etapas,
+      leads: lead ? [lead] : [],
+      pedirMotivo: (_lead, etapa) => setFechando(etapa),
+      gravar: (_id, campos) => void gravar(campos),
+    })(leadId, chave);
 
   const confirmarDesfecho = (escolha: DesfechoEscolhido) => {
     if (!fechando) return;
@@ -361,7 +431,7 @@ export default function DetalheDoLead({
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Falha ao registrar");
       aplicarResumo(d.lead, d.item);
-      setForm(FORM_DO_REGISTRO_VAZIO);
+      mudarForm(FORM_DO_REGISTRO_VAZIO);
       if (typeof d.aviso === "string" && d.aviso) setAviso(d.aviso);
       // Gravou e a rota não conseguiu reler: o detalhe relê.
       if (!d.lead || !d.item) void recarregar();
@@ -403,7 +473,7 @@ export default function DetalheDoLead({
 
   /** Começa um registro a partir de outro bloco, e leva o foco ao texto. */
   const comecarRegistro = (novo: FormDoRegistro) => {
-    setForm(novo);
+    mudarForm(novo);
     campoDoTexto.current?.focus();
   };
 
@@ -497,9 +567,9 @@ export default function DetalheDoLead({
                 // Abrir a conversa registra o contato: sem isso, quem acabou
                 // de falar com o cliente é cobrado por não ter falado.
                 void gravar({ contato: "whatsapp" });
-                setForm((f) => comTipo(f, "whatsapp"));
+                mudarForm(comTipo(form, "whatsapp"));
               }}
-              aoLigar={() => setForm((f) => comTipo(f, "ligacao"))}
+              aoLigar={() => mudarForm(comTipo(form, "ligacao"))}
               aoChegar={() => void chegou()}
             />
             <ProximoPassoDoLead
@@ -512,9 +582,9 @@ export default function DetalheDoLead({
             />
             <RegistroDeInteracao
               form={form}
-              aoMudar={setForm}
+              aoMudar={mudarForm}
               aberto={aberto}
-              sugestoes={dados.sugestoes}
+              etapa={lead.situacao}
               agora={agora}
               registrando={registrando}
               refDoTexto={campoDoTexto}
@@ -589,7 +659,7 @@ export default function DetalheDoLead({
         aria-label={nome ? `Detalhe do lead ${nome}` : "Detalhe do lead"}
         tabIndex={-1}
         data-layout="gaveta"
-        className="fixed bottom-0 right-0 top-0 z-30 flex w-[600px] max-w-full flex-col overflow-y-auto border-l-2 border-mt-ink bg-mt-bg shadow-[var(--mt-shadow-lg)] outline-none"
+        className="fixed bottom-0 right-0 top-16 z-30 flex w-[600px] max-w-full flex-col overflow-y-auto border-l-2 border-mt-ink bg-mt-bg shadow-[var(--mt-shadow-lg)] outline-none"
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-mt-regua-fina bg-mt-bg px-6 py-3">
           <Link href={urlDoLead(id)} className={LINK}>
@@ -597,12 +667,44 @@ export default function DetalheDoLead({
           </Link>
           <button
             type="button"
-            onClick={aoFechar}
+            onClick={pedirParaFechar}
             className="mt-foco mt-alvo cursor-pointer border-0 bg-transparent p-0 text-[11px] font-extrabold tracking-[.1em] text-mt-ink hover:text-mt-accent-hover"
           >
             FECHAR ✕
           </button>
         </div>
+        {/* A pergunta mora na gaveta, e não numa caixa do navegador: o que foi
+            escrito continua à vista enquanto a pessoa decide. */}
+        {emAndamento && (querFechar || saidaPendente) && (
+          <div
+            role="alert"
+            data-descarte
+            className="sticky top-[45px] z-10 flex flex-wrap items-center gap-3 border-b border-l-[3px] border-b-mt-regua-fina border-l-mt-accent bg-mt-accent-100 px-6 py-3 text-xs text-mt-accent-800"
+          >
+            <span className="flex-1 font-semibold">{PERGUNTA_DO_DESCARTE}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setQuerFechar(false);
+                (aoDescartar ?? aoFechar)?.();
+              }}
+              className="mt-btn mt-btn-contorno mt-foco px-3.5 py-[9px] text-[11px] pointer-coarse:min-h-11"
+            >
+              Descartar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setQuerFechar(false);
+                aoManter?.();
+                campoDoTexto.current?.focus();
+              }}
+              className="mt-btn mt-btn-tinta mt-foco px-3.5 py-[9px] text-[11px] pointer-coarse:min-h-11"
+            >
+              Continuar escrevendo
+            </button>
+          </div>
+        )}
         {conteudo}
       </div>
       {modal}

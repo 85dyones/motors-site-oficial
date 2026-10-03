@@ -6,6 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ETAPAS_PADRAO } from "../src/lib/funil";
 import { diaNaLoja, instanteNoFusoDaLoja, sugestoesDeProximoPasso } from "../src/lib/gestaoDoLead";
+import { diaNoCalendarioDaLoja } from "../src/lib/filaDoFunil";
 import { lerNomeNaTrilha } from "../src/lib/nomeNaTrilha";
 import {
   assentar,
@@ -21,6 +22,7 @@ import {
   quemAbre,
   rota,
   teclar,
+  urlDaTela,
   zerarRota,
 } from "./quadroDeLeadsDeTeste";
 
@@ -49,6 +51,10 @@ const daqui = (horas: number) => new Date(AGORA + horas * 3_600_000).toISOString
 const ETAPAS = ETAPAS_PADRAO.map((e) => (e.chave === "novo" ? { ...e, estagnacao_minutos: 15 } : e));
 
 type Lead = ReturnType<typeof leadDeTeste>;
+
+const SUGESTOES_VELHAS = [
+  { texto: "Sugestão velha da leitura", quando: "hoje 08:00", vence_em: new Date(AGORA - 6 * 3_600_000).toISOString() },
+];
 
 function leadsDoDia(): Lead[] {
   return [
@@ -113,7 +119,9 @@ function dublarFetch() {
         detalheDeTeste(lead, {
           etapas: ETAPAS,
           historico: historico[lead.id] ?? [],
-          sugestoes: lead.desfecho ? [] : sugestoesDeProximoPasso(String(lead.situacao), Date.now()),
+          // De propósito, as sugestões da leitura estão VELHAS e são de outra
+          // etapa: a tela tem de calcular as dela, na hora em que desenha a caixa.
+          sugestoes: SUGESTOES_VELHAS,
           vizinhos: { anterior: lead.id === "l1" ? null : "l1", proximo: lead.id === "l1" ? "l4" : null },
           motivos: [{ chave: "preco", rotulo: "Preço", tipo: "perdido", ativo: true, ordem: 1, escopo: "ambos" }],
         }),
@@ -295,7 +303,7 @@ describe("a linha de controles: escopo e vista por papel", () => {
     expect(botao(/^Atrasados \(1\)$/)).toBeDefined();
     expect(botao(/^Hoje \(0\)$/), "o lead de hoje é do Bruno").toBeDefined();
     expect(cardDe(container, "l2")).toBeNull();
-    expect(rota.replace).toHaveBeenLastCalledWith("/admin/leads?escopo=minha", { scroll: false });
+    expect(urlDaTela()).toBe("/admin/leads?escopo=minha");
   });
 
   it("o chip Atrasados deixa só os atrasados no quadro, e desliga no segundo toque", async () => {
@@ -361,7 +369,7 @@ describe("a Lista do dia", () => {
 
     expect(pressionado("Quadro")).toBe("true");
     expect(cardDe(container, "l4")).not.toBeNull();
-    expect(rota.replace).toHaveBeenLastCalledWith("/admin/leads?vista=quadro", { scroll: false });
+    expect(urlDaTela()).toBe("/admin/leads?vista=quadro");
   });
 
   it("o chip Hoje deixa só o grupo de hoje", async () => {
@@ -370,15 +378,40 @@ describe("a Lista do dia", () => {
     expect([...container.querySelectorAll("section[aria-label]")].map((s) => s.getAttribute("aria-label"))).toEqual(["Hoje"]);
   });
 
-  it("vazia, diz o que fazer: com o texto de quem tem Equipe, e o de quem não tem", async () => {
+  it("vazia e sem busca: diz que falta marcar o próximo passo, e não manda limpar busca nenhuma", async () => {
     servidor = [leadDeTeste("l4", "Saulo Sem Passo", { responsavel: "Bruno" })];
     await montarQuadro("Ana");
+    expect(texto()).toContain("Nenhum próximo passo marcado. Abra um lead no Quadro e registre o primeiro.");
+    expect(texto()).not.toContain("Limpe a busca");
+  });
+
+  it("vazia com busca ativa: manda limpar a busca, com a variante de quem tem Equipe", async () => {
+    servidor = [leadDeTeste("l4", "Saulo Sem Passo", { responsavel: "Bruno" })];
+    const original = globalThis.fetch as (u: string, o?: RequestInit) => Promise<{ ok: boolean; status: number; json: () => Promise<Record<string, unknown>> }>;
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const r = await original(url, opcoes);
+      if (!String(url).includes("?busca=")) return r;
+      const corpo = await r.json();
+      return { ...r, json: async () => ({ ...corpo, busca: { termo: "Saulo", tipo: "nome" } }) };
+    }) as never;
+    const buscar = async () => {
+      const campo = container.querySelector<HTMLInputElement>("#busca-de-leads")!;
+      await mudar(campo, "Saulo");
+      await act(async () => {
+        campo.form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
+      await assentar();
+    };
+
+    await montarQuadro("Ana");
+    await buscar();
     expect(texto()).toContain("Nada por aqui. Limpe a busca ou troque para Equipe.");
 
     await act(async () => root.unmount());
     container.remove();
     escopo = "meus";
     await montarQuadro("Ana");
+    await buscar();
     expect(texto()).toContain("Nada por aqui. Limpe a busca.");
     expect(texto()).not.toContain("troque para Equipe");
   });
@@ -388,7 +421,7 @@ describe("a Lista do dia", () => {
     await clicar(quemAbre(container, "l1"));
     expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Joana Atrasada");
     expect(quemAbre(container, "l1")!.className).toContain("border-l-mt-ink");
-    expect(rota.replace).toHaveBeenLastCalledWith("/admin/leads?vista=lista&lead=l1", { scroll: false });
+    expect(urlDaTela()).toBe("/admin/leads?vista=lista&lead=l1");
 
     await teclar("Escape");
     expect(gaveta()).toBeNull();
@@ -591,6 +624,7 @@ describe("registrar interação", () => {
       "+ Primeiro contato pelo WhatsApp · hoje +15 min",
       "+ Ligar para qualificar · hoje +1 h",
     ]);
+    expect(texto()).not.toContain("Sugestão velha da leitura");
 
     await clicar(sugestoes[1]);
     expect(campoDoPasso().value).toBe("Ligar para qualificar");
@@ -824,6 +858,333 @@ describe("os dados do negócio", () => {
     const gravacoes = chamadas.filter((c) => c.metodo === "PATCH" && c.url === "/api/leads/l1/dados").map((c) => c.corpo);
     expect(gravacoes).toEqual([{ pagamento_pretendido: "financiado" }, { carro_na_troca: "Gol 2015" }]);
     expect(pressionado("Financiado", d)).toBe("true");
+  });
+});
+
+describe("os filtros que voltaram: Parados, para todos; Sem responsável, para o Administrador", () => {
+  beforeEach(() => {
+    servidor.push(leadDeTeste("l6", "Ugo Sem Dono", { responsavel: null }));
+  });
+
+  it("o Administrador tem o chip 'Sem responsável (n)', e ele deixa só os sem dono no quadro", async () => {
+    await montarQuadro("Ana");
+    const chip = botao(/^Sem responsável \(1\)$/)!;
+    expect(chip, "o Admin precisa do caminho até o lead sem dono").toBeDefined();
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+
+    await clicar(chip);
+
+    expect(pressionado(/^Sem responsável/)).toBe("true");
+    expect(cardDe(container, "l6")).not.toBeNull();
+    for (const id of ["l1", "l2", "l3", "l4"]) expect(cardDe(container, id), id).toBeNull();
+
+    await clicar(botao(/^Sem responsável/));
+    expect(cardDe(container, "l1")).not.toBeNull();
+  });
+
+  it("ligado na Lista do dia, leva ao Quadro: lead sem dono não tem próximo passo", async () => {
+    rota.query = "vista=lista";
+    await montarQuadro("Ana");
+    expect(pressionado("Lista do dia")).toBe("true");
+
+    await clicar(botao(/^Sem responsável/));
+
+    expect(pressionado("Quadro")).toBe("true");
+    expect(urlDaTela()).toBe("/admin/leads?vista=quadro");
+    expect(cardDe(container, "l6")).not.toBeNull();
+    // Voltar para a Lista desliga o filtro, em vez de deixar a tela vazia.
+    await clicar(botao("Lista do dia"));
+    expect(pressionado(/^Sem responsável/)).toBe("false");
+    expect(quemAbre(container, "l1")).not.toBeNull();
+  });
+
+  it("Gestor, SDR e vendedor não têm o chip: o servidor nem entrega lead sem dono a eles", async () => {
+    for (const quem of ["designados", "meus"]) {
+      escopo = quem;
+      rota.query = "vista=quadro";
+      await montarQuadro("Ana");
+      expect(botao(/^Sem responsável/), quem).toBeUndefined();
+      // "Parados" é de todos.
+      expect(botao(/^Parados \(\d+\)$/), quem).toBeDefined();
+      await act(async () => root.unmount());
+      container.remove();
+    }
+    await montarQuadro("Ana");
+  });
+
+  it("'Parados (n)' conta e deixa só quem a régua já cobra, depois de Atrasados e Hoje", async () => {
+    await montarQuadro("Ana");
+    const chips = [...container.querySelectorAll("button[aria-pressed]")].map((b) => (b.textContent ?? "").replace(/ \(\d+\)$/, ""));
+    expect(chips.slice(chips.indexOf("Atrasados"), chips.indexOf("Atrasados") + 3)).toEqual(["Atrasados", "Hoje", "Parados"]);
+    // Três dias em "novo", que cobra em 15 minutos: só a Joana está parada.
+    await clicar(botao(/^Parados \(1\)$/));
+
+    expect(pressionado(/^Parados/)).toBe("true");
+    expect(cardDe(container, "l1")).not.toBeNull();
+    for (const id of ["l2", "l3", "l4", "l6"]) expect(cardDe(container, id), id).toBeNull();
+  });
+
+  it("os dois filtros somam com os chips de data, e a busca os desliga", async () => {
+    await montarQuadro("Ana");
+    await clicar(botao(/^Parados/));
+    await clicar(botao(/^Hoje/));
+    expect(container.querySelectorAll("[data-lead]")).toHaveLength(0);
+
+    const campo = container.querySelector<HTMLInputElement>("#busca-de-leads")!;
+    await mudar(campo, "Pedro");
+    expect(pressionado(/^Parados/)).toBe("false");
+    expect(pressionado(/^Hoje/)).toBe("false");
+  });
+});
+
+describe("as sugestões de próximo passo saem da etapa e da hora em que a caixa é desenhada", () => {
+  const sugestoes = (raiz: ParentNode) =>
+    [...raiz.querySelectorAll<HTMLButtonElement>('[data-bloco="c"] fieldset button')]
+      .map((b) => b.textContent ?? "")
+      .filter((t) => t.startsWith("+ "));
+
+  it("não usa as da leitura do lead, que já estão velhas", async () => {
+    await montarPagina("l4");
+    expect(sugestoes(container)).toEqual(
+      sugestoesDeProximoPasso("novo", Date.now()).map((s) => `+ ${s.texto} · ${s.quando}`),
+    );
+    expect(texto()).not.toContain("Sugestão velha da leitura");
+  });
+
+  it("mover de etapa troca as sugestões, mesmo com a releitura trazendo as velhas", async () => {
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l4"));
+    expect(sugestoes(gaveta()!)[0]).toContain("Primeiro contato pelo WhatsApp");
+
+    await clicar(botao("Proposta", grupo("Etapa de Saulo Sem Passo", gaveta()!)!));
+
+    expect(sugestoes(gaveta()!).map((t) => t.replace(/ · .*$/, ""))).toEqual([
+      "+ Cobrar retorno da proposta",
+      "+ Enviar simulação de financiamento",
+    ]);
+  });
+
+  it("'hoje +15 min' conta a partir do toque", async () => {
+    await montarPagina("l4");
+    const antes = Date.now();
+    await clicar([...container.querySelectorAll<HTMLButtonElement>('[data-bloco="c"] fieldset button')].find((b) => (b.textContent ?? "").includes("+15 min")));
+    const hora = container.querySelector<HTMLInputElement>('[data-bloco="c"] input[type="time"]')!.value;
+    const dia = container.querySelector<HTMLInputElement>('[data-bloco="c"] input[type="date"]')!.value;
+    const vence = new Date(instanteNoFusoDaLoja(dia, hora)!).getTime();
+    // O campo guarda minutos: o instante cai entre 14 e 15 minutos depois do toque.
+    expect(vence).toBeGreaterThan(antes + 13.9 * 60_000);
+    expect(vence).toBeLessThanOrEqual(Date.now() + 15 * 60_000);
+  });
+});
+
+describe("registro começado não se perde ao fechar a gaveta", () => {
+  const campoDoTexto = () => gaveta()!.querySelector<HTMLTextAreaElement>('[data-bloco="c"] textarea')!;
+  const pergunta = () => gaveta()?.querySelector<HTMLElement>("[data-descarte]") ?? null;
+  const fechar = () => botao("FECHAR ✕", gaveta()!)!;
+
+  async function abrirEEscrever() {
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l1"));
+    await mudar(campoDoTexto(), "Falei com ela, quer a proposta");
+  }
+
+  it("Esc não fecha a gaveta com algo escrito", async () => {
+    await abrirEEscrever();
+    await teclar("Escape");
+    expect(gaveta(), "uma tecla não pode apagar o que foi escrito").not.toBeNull();
+    expect(campoDoTexto().value).toBe("Falei com ela, quer a proposta");
+    expect(urlDaTela()).toBe("/admin/leads?lead=l1");
+  });
+
+  it("FECHAR pergunta na própria gaveta, sem a caixa do navegador; continuar mantém o texto", async () => {
+    const confirmar = vi.fn(() => true);
+    (window as unknown as { confirm: unknown }).confirm = confirmar;
+    await abrirEEscrever();
+    expect(pergunta()).toBeNull();
+
+    await clicar(fechar());
+
+    expect(texto(pergunta())).toContain("Há um registro não salvo. Descartar?");
+    expect([...pergunta()!.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Descartar", "Continuar escrevendo"]);
+    expect(gaveta()).not.toBeNull();
+    expect(confirmar).not.toHaveBeenCalled();
+
+    await clicar(botao("Continuar escrevendo", pergunta()!));
+    expect(pergunta()).toBeNull();
+    expect(gaveta()).not.toBeNull();
+    expect(campoDoTexto().value).toBe("Falei com ela, quer a proposta");
+    expect(document.activeElement).toBe(campoDoTexto());
+  });
+
+  it("FECHAR e Descartar fecha, e o foco volta ao card", async () => {
+    await abrirEEscrever();
+    await clicar(fechar());
+    await clicar(botao("Descartar", pergunta()!));
+    expect(gaveta()).toBeNull();
+    expect(document.activeElement).toBe(quemAbre(container, "l1"));
+    // E a gaveta seguinte abre limpa, sem pergunta pendente.
+    await clicar(cardDe(container, "l2"));
+    expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Pedro de Hoje");
+    expect(pergunta()).toBeNull();
+  });
+
+  it("clicar em outro card pergunta antes de trocar; Continuar fica, Descartar troca", async () => {
+    await abrirEEscrever();
+    await clicar(cardDe(container, "l2"));
+
+    expect(gaveta()!.getAttribute("aria-label"), "a gaveta não troca sem perguntar").toBe("Detalhe do lead Joana Atrasada");
+    expect(texto(pergunta())).toContain("Há um registro não salvo. Descartar?");
+
+    await clicar(botao("Continuar escrevendo", pergunta()!));
+    expect(pergunta()).toBeNull();
+    expect(campoDoTexto().value).toBe("Falei com ela, quer a proposta");
+
+    await clicar(cardDe(container, "l2"));
+    await clicar(botao("Descartar", pergunta()!));
+    expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Pedro de Hoje");
+    expect(urlDaTela()).toBe("/admin/leads?lead=l2");
+    expect(campoDoTexto().value).toBe("");
+  });
+
+  it("sem nada escrito, nada disso pergunta: Esc fecha, e outro card troca na hora", async () => {
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l1"));
+    // LIGAR só pré-seleciona o tipo: não é registro começado.
+    const ligar = [...gaveta()!.querySelectorAll<HTMLAnchorElement>("a")].find((a) => a.textContent === "LIGAR")!;
+    ligar.addEventListener("click", (e) => e.preventDefault());
+    await clicar(ligar);
+    await clicar(cardDe(container, "l2"));
+    expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Pedro de Hoje");
+    await teclar("Escape");
+    expect(gaveta()).toBeNull();
+  });
+
+  it("registrar limpa o rascunho: depois de gravar, Esc volta a fechar", async () => {
+    await abrirEEscrever();
+    await mudar(gaveta()!.querySelector<HTMLInputElement>('[data-bloco="c"] input[type="text"]')!, "Enviar proposta");
+    await clicar(botao("Amanhã", grupo("Dia do próximo passo", gaveta()!)!));
+    await clicar(botao("REGISTRAR →", gaveta()!));
+    expect(posts("interacoes")).toHaveLength(1);
+
+    await teclar("Escape");
+    expect(gaveta()).toBeNull();
+  });
+
+  it("com uma caixa modal aberta por cima (a de motivos do quadro), o Esc é dela e a gaveta fica", async () => {
+    // A caixa de motivos do QUADRO só abre por arrasto até uma etapa terminal,
+    // que o quadro não desenha; aqui ela é representada por um elemento com
+    // `aria-modal`, que é o que a gaveta consulta antes de fechar.
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l1"));
+    const caixa = document.createElement("div");
+    caixa.setAttribute("role", "dialog");
+    caixa.setAttribute("aria-modal", "true");
+    document.body.appendChild(caixa);
+
+    await teclar("Escape");
+    expect(gaveta(), "o Esc da caixa modal não fecha a gaveta").not.toBeNull();
+
+    caixa.remove();
+    await teclar("Escape");
+    expect(gaveta()).toBeNull();
+  });
+});
+
+describe("a URL é escrita sem ida ao servidor, e o voltar do navegador vale", () => {
+  it("abrir, trocar de vista e de escopo não chamam o roteador nem releem a fila", async () => {
+    await montarQuadro("Ana");
+    const filas = () => chamadas.filter((c) => c.url === "/api/leads/gerenciar").length;
+    const antes = filas();
+
+    await clicar(cardDe(container, "l1"));
+    await clicar(botao("Lista do dia"));
+    await clicar(botao(/^Minha fila/));
+
+    expect(urlDaTela()).toBe("/admin/leads?vista=lista&escopo=minha&lead=l1");
+    expect(rota.replace).not.toHaveBeenCalled();
+    expect(rota.push).not.toHaveBeenCalled();
+    expect(filas()).toBe(antes);
+  });
+
+  it("não cria entrada no histórico: é replaceState, e não pushState", async () => {
+    await montarQuadro("Ana");
+    const antes = window.history.length;
+    await clicar(cardDe(container, "l1"));
+    await clicar(cardDe(container, "l2"));
+    expect(window.history.length).toBe(antes);
+  });
+
+  it("popstate: a tela adota o que a barra de endereços passou a mostrar", async () => {
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l1"));
+    expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Joana Atrasada");
+
+    // O navegador voltou para uma entrada com outro lead e outra vista.
+    await act(async () => {
+      window.history.replaceState(null, "", "/admin/leads?vista=lista&lead=l2");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await assentar();
+    expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Pedro de Hoje");
+    expect(pressionado("Lista do dia")).toBe("true");
+
+    await act(async () => {
+      window.history.replaceState(null, "", "/admin/leads");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    await assentar();
+    expect(gaveta()).toBeNull();
+    expect(pressionado("Quadro")).toBe("true");
+  });
+});
+
+describe("a gaveta abaixo da barra de topo, o lead que saiu da fila e a data dos fechados", () => {
+  it("a gaveta começa a 64px do topo: 'VER O SITE' continua à vista", async () => {
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l1"));
+    const classes = gaveta()!.className.split(" ");
+    expect(classes).toContain("top-16");
+    expect(classes).not.toContain("top-0");
+  });
+
+  it("a releitura respondeu 404 (o vendedor passou o lead adiante): a gaveta fecha, a fila é relida e a tela diz", async () => {
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l1"));
+    const filas = () => chamadas.filter((c) => c.metodo === "GET" && c.url === "/api/leads/gerenciar").length;
+    const antes = filas();
+    // Depois da passagem, o lead não é mais dele: a rota do detalhe responde 404.
+    forcar["GET /api/leads/l1"] = { status: 404, corpo: { error: "Lead não encontrado" } };
+
+    await mudar(gaveta()!.querySelector<HTMLSelectElement>('[aria-label="Responsável por Joana Atrasada"]')!, "Bruno");
+    await assentar();
+
+    expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toEqual({ id: "l1", responsavel: "Bruno" });
+    expect(gaveta(), "a gaveta não fica aberta num lead que não é mais dele").toBeNull();
+    expect(urlDaTela()).toBe("/admin/leads");
+    expect(filas()).toBe(antes + 1);
+    const status = container.querySelector('[role="status"]')!;
+    expect(status.textContent).toContain("Este lead saiu da sua fila.");
+    // É aviso, e não erro.
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("404 já na primeira leitura não é 'saiu da fila': a gaveta diz que não achou", async () => {
+    forcar["GET /api/leads/l1"] = { status: 404, corpo: { error: "Lead não encontrado" } };
+    await montarQuadro("Ana");
+    await clicar(cardDe(container, "l1"));
+    expect(gaveta()!.querySelector('[role="alert"]')!.textContent).toBe("Lead não encontrado");
+    expect(texto()).not.toContain("Este lead saiu da sua fila.");
+  });
+
+  it("a data do desfecho, na lista de Fechados, é a do calendário de São Paulo", async () => {
+    // 01:30 UTC de 04/10 ainda é 03/10 na loja.
+    Object.assign(umLead("l5"), { desfecho_em: "2026-10-04T01:30:00.000Z" });
+    await montarQuadro("Ana");
+    await clicar(botao(/^Fechados/));
+    const linha = [...container.querySelectorAll("tbody tr")].find((tr) => texto(tr).includes("Tina Fechada"))!;
+    expect(texto(linha)).toContain("03/10/2026");
+    expect(texto(linha)).toContain(diaNoCalendarioDaLoja("2026-10-04T01:30:00.000Z"));
+    expect(texto(linha)).not.toContain("04/10/2026");
   });
 });
 

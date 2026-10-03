@@ -830,6 +830,12 @@ describe("filtroDaBusca — nome, telefone ou referência", () => {
   it("nome: contém, com os curingas do termo escapados", () => {
     expect(filtroDaBusca("  Maria   Silva ")).toEqual({ tipo: "nome", termo: "Maria Silva", padrao: "%Maria Silva%" });
     expect(filtroDaBusca("100%_x\\")).toEqual({ tipo: "nome", termo: "100%_x\\", padrao: "%100\\%\\_x\\\\%" });
+    // O asterisco também: o PostgREST o lê como `%` no `ilike`.
+    expect(filtroDaBusca("Jo*")).toEqual({ tipo: "nome", termo: "Jo*", padrao: "%Jo\\*%" });
+    expect(filtroDaBusca("**")).toEqual({ tipo: "nome", termo: "**", padrao: "%\\*\\*%" });
+    // Nenhum asterisco do termo chega ao padrão sem a barra na frente.
+    const padrao = (filtroDaBusca("a*b*c") as { padrao: string }).padrao;
+    expect(padrao.replace(/\\\*/g, "")).not.toContain("*");
     // Nome com número não é telefone.
     expect(filtroDaBusca("Onix 2020")?.tipo).toBe("nome");
   });

@@ -9,7 +9,7 @@
  *
  * Tudo puro: todo "agora" entra por parâmetro, em milissegundos.
  */
-import { espera, type EtapaDoFunil, type LeadDoFunil, type MotivoDoFunil, type NivelDeEstagnacao } from "./funil";
+import { espera, nivelDeEstagnacao, type EtapaDoFunil, type LeadDoFunil, type MotivoDoFunil, type NivelDeEstagnacao } from "./funil";
 import {
   FUSO_DA_LOJA,
   ROTULO_DA_INTERACAO,
@@ -171,6 +171,17 @@ export function filtrarPorChip<T extends LeadComPasso>(leads: readonly T[], chip
   return leads.filter((l) => situacaoDoLead(l, agora) === alvo);
 }
 
+/**
+ * Os parados: quem a régua de estagnação já cobra (estagnado) ou vai passar
+ * adiante (transferir). É o "só os parados" de antes do desenho de 23/09.
+ */
+export function filtrarParados<T extends LeadDoFunil>(leads: readonly T[], etapas: readonly EtapaDoFunil[], agora: number): T[] {
+  return leads.filter((l) => {
+    const nivel = nivelDeEstagnacao(l, etapas.find((e) => e.chave === l.situacao), agora);
+    return nivel === "estagnado" || nivel === "transferir";
+  });
+}
+
 /** A linha embaixo da busca. "Na equipe inteira" só para quem vê a equipe. */
 export function linhaDaBusca(total: number, veAEquipe: boolean): string {
   const achados = total === 0 ? "Nenhum encontrado" : plural(total, "encontrado", "encontrados");
@@ -180,6 +191,16 @@ export function linhaDaBusca(total: number, veAEquipe: boolean): string {
 /** A caixa tracejada da tela sem nada para mostrar. */
 export function textoDoVazio(temEscopo: boolean): string {
   return temEscopo ? "Nada por aqui. Limpe a busca ou troque para Equipe." : "Nada por aqui. Limpe a busca.";
+}
+
+/**
+ * A Lista do dia vazia. Sem busca, o motivo é outro: ninguém marcou próximo
+ * passo ainda, e mandar "limpar a busca" a quem não buscou é um beco.
+ */
+export function textoDoVazioDaLista(buscando: boolean, temEscopo: boolean): string {
+  return buscando
+    ? textoDoVazio(temEscopo)
+    : "Nenhum próximo passo marcado. Abra um lead no Quadro e registre o primeiro.";
 }
 
 /** "3 leads sem próximo passo": a linha discreta embaixo da Lista do dia. */
@@ -215,6 +236,14 @@ const DATA_E_HORA = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
   hourCycle: "h23",
 });
+
+const SO_O_DIA = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO_DA_LOJA, day: "2-digit", month: "2-digit", year: "numeric" });
+
+/** "03/10/2026", no calendário da loja. `""` quando a data não se lê. */
+export function diaNoCalendarioDaLoja(iso: string | null | undefined): string {
+  const ms = iso ? new Date(iso).getTime() : NaN;
+  return Number.isFinite(ms) ? SO_O_DIA.format(new Date(ms)) : "";
+}
 
 /** "03/10/26 14:32", no relógio da loja. `""` quando a data não se lê. */
 export function dataDoHistorico(iso: string | null | undefined): string {
@@ -271,39 +300,47 @@ export function urlDoLead(id: string): string {
 /**
  * A tela e a URL, em sincronia.
  *
- * A tela reage no clique e pede à URL que a acompanhe (`router.replace`, que
- * chega depois). A URL também muda sozinha: o link de um alerta, o voltar do
- * navegador. `pedidas` guarda o que a tela pediu e ainda não viu chegar, para
- * distinguir os dois casos: a URL que chega e foi pedida é só o eco de um
- * clique (talvez já superado por outro), e não desfaz a tela; a que chega sem
- * ter sido pedida é navegação, e a tela a adota.
+ * A tela muda no clique e escreve a URL com `history.replaceState`: sem ida ao
+ * servidor e sem entrada nova no histórico. A URL também muda por fora (o link
+ * de um alerta, um link do painel, o voltar do navegador), e aí a tela a adota.
+ *
+ * O Next repassa o `replaceState` ao `useSearchParams` um instante depois. Com
+ * dois cliques seguidos, a query do primeiro pode chegar quando a barra de
+ * endereços já mostra a do segundo: é eco, e não navegação. Por isso a query
+ * que chega só é adotada quando é a que o navegador mostra AGORA.
  */
 export interface SincroniaComAUrl {
   estado: EstadoNaUrl;
-  /** A última query lida da URL. */
+  /** A última query recebida do roteador. */
   ultimaQuery: string;
-  pedidas: string[];
 }
 
 export function iniciarSincronia(query: string): SincroniaComAUrl {
-  return { estado: lerEstadoDaUrl(query), ultimaQuery: query, pedidas: [] };
+  return { estado: lerEstadoDaUrl(query), ultimaQuery: query };
 }
 
-/** A URL mudou: eco de um pedido da tela, ou navegação de fora. */
-export function aoMudarAUrl(s: SincroniaComAUrl, query: string): SincroniaComAUrl {
+/**
+ * O roteador entregou uma query nova. `queryDoNavegador` é a da barra de
+ * endereços neste instante (`location.search`).
+ */
+export function aoMudarAUrl(s: SincroniaComAUrl, query: string, queryDoNavegador: string): SincroniaComAUrl {
   const canonica = queryDoEstado(lerEstadoDaUrl(query));
-  const posicao = s.pedidas.indexOf(canonica);
-  if (posicao >= 0) return { ...s, ultimaQuery: query, pedidas: s.pedidas.slice(posicao + 1) };
-  if (canonica === queryDoEstado(s.estado)) return { ...s, ultimaQuery: query, pedidas: [] };
-  return { estado: lerEstadoDaUrl(query), ultimaQuery: query, pedidas: [] };
+  const atrasada = canonica !== queryDoEstado(lerEstadoDaUrl(queryDoNavegador.replace(/^\?/, "")));
+  if (atrasada || canonica === queryDoEstado(s.estado)) return { ...s, ultimaQuery: query };
+  return { estado: lerEstadoDaUrl(query), ultimaQuery: query };
 }
 
-/** A tela mudou: o estado novo, e a query a pedir à URL (anotada em `pedidas`). */
+/** A tela mudou. Devolve o MESMO objeto quando nada muda (não há o que escrever na URL). */
 export function aoMudarOEstado(s: SincroniaComAUrl, parcial: Partial<EstadoNaUrl>): SincroniaComAUrl {
   const estado = { ...s.estado, ...parcial };
-  const query = queryDoEstado(estado);
-  if (query === queryDoEstado(s.estado)) return s;
-  return { ...s, estado, pedidas: [...s.pedidas, query] };
+  if (queryDoEstado(estado) === queryDoEstado(s.estado)) return s;
+  return { ...s, estado };
+}
+
+/** O voltar e o avançar do navegador (`popstate`): vale o que a barra de endereços mostra. */
+export function aoVoltarOuAvancar(s: SincroniaComAUrl, queryDoNavegador: string): SincroniaComAUrl {
+  const estado = lerEstadoDaUrl(queryDoNavegador.replace(/^\?/, ""));
+  return queryDoEstado(estado) === queryDoEstado(s.estado) ? s : { ...s, estado };
 }
 
 // ---------------------------------------------------------------------------
@@ -506,7 +543,8 @@ export interface DetalheDaApi {
   lead: LeadDoDetalhe;
   veiculo: VeiculoDoLead | null;
   historico: ItemDoHistorico[];
-  sugestoes: SugestaoDePasso[];
+  /** As sugestões do instante da leitura. A tela as recalcula ao desenhar a caixa. */
+  sugestoes?: SugestaoDePasso[];
   vizinhos: { anterior: string | null; proximo: string | null };
   etapas: EtapaDoFunil[];
   motivos: MotivoDoFunil[];
@@ -530,3 +568,19 @@ export function mensagemDeQuemChegou(resposta: { movido?: boolean }, rotuloDaEta
 
 export const AVISO_DE_LEAD_FECHADO =
   "Este lead já foi fechado. Para registrar a chegada, reabra o lead numa etapa e toque de novo em Chegou na loja.";
+
+/**
+ * O registro tem algo que se perderia ao fechar o detalhe?
+ *
+ * Conta o que foi ESCRITO ou escolhido (resultado, texto, passo, dia, hora). O
+ * tipo sozinho não conta: LIGAR e o link da conversa só pré-selecionam o tipo,
+ * e quem ligou e fecha a gaveta não perde nada.
+ */
+export function registroEmAndamento(form: FormDoRegistro): boolean {
+  return (["resultado", "texto", "passo", "dia", "hora"] as const).some(
+    (campo) => form[campo] !== FORM_DO_REGISTRO_VAZIO[campo],
+  );
+}
+
+export const PERGUNTA_DO_DESCARTE = "Há um registro não salvo. Descartar?";
+export const AVISO_DE_LEAD_QUE_SAIU = "Este lead saiu da sua fila.";

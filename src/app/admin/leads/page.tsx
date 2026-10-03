@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from "../../../lib/supabase-server";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Leads — Motors Showcase",
+  title: "Leads | Motors Store",
   description: "Contatos enviados pelo site, por etapa de atendimento.",
 };
 

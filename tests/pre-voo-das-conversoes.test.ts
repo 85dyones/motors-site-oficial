@@ -129,12 +129,14 @@ describe("todo `tel:` do site passa por `trackContactClick`", () => {
     // Trava a reincidência: o próximo `tel:` que alguém escrever num
     // componente precisa vir com o clique medido, como os dois de hoje.
     //
-    // O painel fica de fora (03/10/2026): o `tel:` do detalhe do lead
-    // (`admin/lead/CabecalhoDoLead.tsx`) é a EQUIPE ligando para o cliente, e
-    // não um cliente ligando para a loja. Medi-lo com `trackContactClick`
-    // contaria cada ligação do vendedor como contato recebido, no GA4 e na
-    // CAPI. É a mesma fronteira de `INTERNOS` em `promessa-publica.test.ts`.
-    const semMedida = componentes.filter((f) => !f.startsWith("src/components/admin/")).filter((f) => {
+    // Uma isenção, por arquivo (03/10/2026): o `tel:` do detalhe do lead é a
+    // EQUIPE ligando para o cliente, e não um cliente ligando para a loja.
+    // Medi-lo com `trackContactClick` contaria cada ligação do vendedor como
+    // contato recebido, no GA4 e na CAPI. O resto do painel segue na regra.
+    const ISENTO = "src/components/admin/lead/CabecalhoDoLead.tsx";
+    expect(componentes, "o arquivo isento mudou de lugar").toContain(ISENTO);
+    expect(lerCodigo(ISENTO)).toMatch(/href=\{`tel:/);
+    const semMedida = componentes.filter((f) => f !== ISENTO).filter((f) => {
       const codigo = lerCodigo(f);
       return /href=\{?[`"']tel:/.test(codigo) && !codigo.includes('trackContactClick("phone"');
     });

@@ -72,7 +72,7 @@ beforeEach(() => {
   CLIENTE.rpc.mockResolvedValue({ error: null });
   CLIENTE.from.mockImplementation((tabela: string) => {
     if (tabela === "profiles") {
-      return consulta({ role: "comercial", papeis: ["comercial"], full_name: "Ana" });
+      return consulta({ role: "comercial", papeis: ["comercial"], full_name: "Ana", is_active: true });
     }
     if (tabela === "leads") {
       return {
