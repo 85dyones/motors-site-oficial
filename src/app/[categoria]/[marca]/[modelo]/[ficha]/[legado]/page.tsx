@@ -1,5 +1,7 @@
 import { permanentRedirect, notFound } from "next/navigation";
 import { getVeiculoById, getVeiculoPdpUrl } from "../../../../../../lib/supabase";
+import { recortesDoEstoque } from "../../../../../../lib/hubsDeEstoque";
+import { destinoDeFichaAntiga, ehFichaDoSiteAntigo } from "../../../../../../lib/enderecoAntigo";
 
 /**
  * A URL antiga da ficha — cinco segmentos — respondendo com 301.
@@ -63,16 +65,23 @@ function idDoSlugAntigo(slug: string): string {
 }
 
 export default async function FichaNoEnderecoAntigo({ params }: PageProps) {
-  const { legado } = await params;
+  const { categoria, marca, modelo, legado } = await params;
 
   const id = idDoSlugAntigo(legado);
-  // Sem id plausível não há para onde mandar. 404 é melhor que redirecionar
-  // para a vitrine: quem pediu um carro específico e cai numa lista não sabe
-  // se o carro sumiu ou se o site quebrou.
-  if (!/^\d+$/.test(id)) notFound();
-
-  const veiculo = await getVeiculoById(id);
-  if (!veiculo) notFound();
+  const veiculo = /^\d+$/.test(id) ? await getVeiculoById(id) : null;
+  if (!veiculo) {
+    // Desde 03/10/2026 a ficha do SITE ANTIGO (`.html` no fim) de um anúncio
+    // que o banco nunca conheceu vai para o hub do modelo ou da marca, como a
+    // ficha vendida: o Search Console da propriedade antiga ainda mostrava
+    // essas URLs com impressões, e elas chegavam aqui como 404. O hub diz
+    // "este saiu, estes são os que temos", que é a resposta a quem pediu um
+    // carro específico. Endereço sem `.html` continua 404.
+    if (ehFichaDoSiteAntigo(legado)) {
+      const { historico, disponiveis } = await recortesDoEstoque();
+      permanentRedirect(destinoDeFichaAntiga(categoria, marca, modelo, historico, disponiveis));
+    }
+    notFound();
+  }
 
   permanentRedirect(getVeiculoPdpUrl(veiculo));
 }

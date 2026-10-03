@@ -193,8 +193,14 @@ const nextConfig: NextConfig = {
       // Os outros filtros do catálogo velho (`/multipla/modelo/...`,
       // `/multipla/preco/...`) não têm equivalente um-para-um: a vitrine
       // inteira é o destino honesto.
+      //
+      // `/multipla/modelo-marca/<MODELO>` fica de fora (03/10/2026): a rota
+      // `app/multipla/modelo-marca/[modelo]` acha a marca no estoque e manda
+      // para o hub do modelo. Regra de redirect roda antes das rotas, então a
+      // exceção precisa estar escrita aqui.
+      { source: "/multipla", destination: "/estoque", permanent: true },
       {
-        source: "/multipla/:resto*",
+        source: "/multipla/:resto((?!modelo-marca/).*)",
         destination: "/estoque",
         permanent: true,
       },

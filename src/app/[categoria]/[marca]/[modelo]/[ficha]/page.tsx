@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { getEstoque, getVeiculoById, getVeiculoPdpUrl, truncateString } from "../../../../../lib/supabase";
 import { publicacaoDoVeiculo } from "../../../../../lib/publicacaoDaFicha";
+import { destinoDeFichaAntiga, ehFichaDoSiteAntigo } from "../../../../../lib/enderecoAntigo";
 import PDPClientWrapper from "../../../../../components/PDPClientWrapper";
 import FaixaProcedencia from "../../../../../components/modernist/FaixaProcedencia";
 import { getCachedSettings } from "../../../../../lib/settings";
@@ -233,6 +234,21 @@ export default async function CarDetailsPage({ params }: PageProps) {
   }
   
   if (!veiculo) {
+    // Ficha do site antigo de um anúncio que o banco nunca conheceu: vai para
+    // o hub do modelo ou da marca, como a ficha vendida. Só com `.html` no
+    // fim; endereço qualquer continua 404. Ver `lib/enderecoAntigo.ts`.
+    if (ehFichaDoSiteAntigo(slug)) {
+      const { historico, disponiveis } = await recortesDoEstoque();
+      permanentRedirect(
+        destinoDeFichaAntiga(
+          resolvedParams.categoria,
+          resolvedParams.marca,
+          resolvedParams.modelo,
+          historico,
+          disponiveis,
+        ),
+      );
+    }
     notFound();
   }
 
