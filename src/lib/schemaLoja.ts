@@ -113,6 +113,30 @@ export const PERFIL_NO_GOOGLE = "https://www.google.com/maps?cid=631274004896139
 export const PLACE_ID_NO_GOOGLE = "ChIJv0CqvV3n3JQRquS50aBbm1c";
 
 /**
+ * A tela de AVALIAR a loja no Google — abre direto na caixa de escrever.
+ *
+ * Pedido do dono em 03/10/2026, para o gatilho de pós-venda
+ * `pedido_de_avaliacao` do motor do Ciclo (`lib/ciclo/motor.ts`): três dias
+ * depois da venda, o comprador recebe por WhatsApp o pedido de avaliação, e o
+ * link tem de cair na tela certa, não na ficha.
+ *
+ * De onde vem o formato: `search.google.com/local/writereview?placeid=` é a
+ * forma que a ajuda do Perfil da Empresa no Google ensinava a montar com o
+ * `place_id` do Place ID Finder, antes de o painel passar a entregar o atalho
+ * `g.page/r/…/review`. O atalho não foi usado porque é encurtador: opaco, e só
+ * o dono o obtém, dentro do painel do perfil. ⚠️ Não foi conferido por clique
+ * nesta entrega — abrir o link uma vez, logado, antes de ligar o gatilho.
+ *
+ * ⚠️ Depende do `place_id`, e não do CID: este endpoint não aceita `?cid=`.
+ * A nota acima já avisa que o Google documenta que `place_id` PODE MUDAR. Se
+ * mudar, este link passa a abrir uma tela sem lugar nenhum, e quem o recebe é
+ * cliente real, por WhatsApp, sem ninguém da loja ver. Trocar o `place_id`
+ * conserta os dois usos de uma vez (a rota do `COMO CHEGAR` e este), porque o
+ * link é montado a partir da constante e não copiado.
+ */
+export const LINK_DE_AVALIACAO_NO_GOOGLE = `https://search.google.com/local/writereview?placeid=${PLACE_ID_NO_GOOGLE}`;
+
+/**
  * As cidades que a loja atende de fato.
  *
  * Curitiba mais a Região Metropolitana de onde o comprador se desloca — o

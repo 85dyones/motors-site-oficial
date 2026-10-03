@@ -4,6 +4,7 @@ import { nomeComAno, nomeDoVeiculo } from "../src/lib/nomeDoVeiculo";
 import { precoValidoAte, schemaDoVeiculo, transmissaoDoSchema } from "../src/lib/schemaVeiculo";
 import {
   ID_DA_LOJA,
+  LINK_DE_AVALIACAO_NO_GOOGLE,
   PERFIL_NO_GOOGLE,
   PLACE_ID_NO_GOOGLE,
   faixaDePreco,
@@ -407,6 +408,28 @@ describe("o elo com o Perfil da Empresa no Google", () => {
     // O que a mutação do apelido produzia: um valor com `?` dentro, que o
     // parser de query descarta ao meio.
     expect(PLACE_ID_NO_GOOGLE).not.toMatch(/[?&/:]/);
+  });
+
+  it("o link de avaliar a loja é o `writereview` do mesmo lugar — comparado por VALOR", () => {
+    // Pedido do dono em 2026-10-03, para o gatilho `pedido_de_avaliacao` do
+    // motor do Ciclo: este endereço vai por WhatsApp para quem acabou de
+    // comprar. A string inteira está escrita aqui de propósito — um apelido de
+    // import (`PERFIL_NO_GOOGLE as PLACE_ID_NO_GOOGLE`) montaria um link com
+    // uma URL dentro do parâmetro, e só a comparação de valor pega isso.
+    expect(LINK_DE_AVALIACAO_NO_GOOGLE).toBe(
+      "https://search.google.com/local/writereview?placeid=ChIJv0CqvV3n3JQRquS50aBbm1c",
+    );
+
+    const url = new URL(LINK_DE_AVALIACAO_NO_GOOGLE);
+    expect(url.protocol).toBe("https:");
+    expect(url.hostname).toBe("search.google.com");
+    expect(url.pathname).toBe("/local/writereview");
+    // Um parâmetro só, e ele é o `place_id` — o endpoint não aceita `?cid=`.
+    expect([...url.searchParams.keys()]).toEqual(["placeid"]);
+    expect(url.searchParams.get("placeid")).toBe(PLACE_ID_NO_GOOGLE);
+    // Não é a ficha (que mostra as avaliações dos outros) nem encurtador.
+    expect(LINK_DE_AVALIACAO_NO_GOOGLE).not.toBe(PERFIL_NO_GOOGLE);
+    expect(LINK_DE_AVALIACAO_NO_GOOGLE).not.toMatch(/share\.google|g\.page|cid=/);
   });
 
   it("sem endereço não monta rota — o botão some em vez de levar a lugar nenhum", () => {
