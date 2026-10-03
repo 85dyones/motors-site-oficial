@@ -73,7 +73,46 @@ export const GATILHOS = {
 
 export type Gatilho = keyof typeof GATILHOS;
 
-export const GATILHOS_ATIVOS = Object.keys(GATILHOS) as Gatilho[];
+/**
+ * Todos os gatilhos que o código CONHECE (tem prioridade, cadência e texto).
+ * Conhecer não é disparar: quem a rota da fila aceita e pede ao banco é
+ * `gatilhosAtivos()`, logo abaixo.
+ */
+export const GATILHOS_CONHECIDOS = Object.keys(GATILHOS) as Gatilho[];
+
+/**
+ * A chave de desligar do `pedido_de_avaliacao` (revisão do PR #233, B3).
+ *
+ * O orquestrador do n8n pede a fila sem filtro (`{"reservar": true}`). Sem
+ * esta chave, aplicar a migração `20261003131500_pedido_de_avaliacao.sql`
+ * bastaria para o pedido sair sozinho, antes de o dono aprovar a mensagem e a
+ * base legal. Com ela, a migração pode ser aplicada e o gatilho continua
+ * parado até alguém ligar de propósito.
+ *
+ * NASCE DESLIGADA, e só o valor exato `ligado` liga. Ausente, vazia, `true`,
+ * `1`, `LIGADO`, `ligado ` com espaço: tudo desligado. Sem `trim` e sem
+ * `toLowerCase` de propósito: uma chave que libera mensagem a cliente não
+ * pode ligar por aproximação. Errar o valor deixa o gatilho parado, que é o
+ * lado seguro do erro.
+ */
+export const ENV_DO_PEDIDO_DE_AVALIACAO = "CICLO_PEDIDO_DE_AVALIACAO";
+export const VALOR_QUE_LIGA_O_PEDIDO_DE_AVALIACAO = "ligado";
+
+type Ambiente = Record<string, string | undefined>;
+
+export function pedidoDeAvaliacaoLigado(env: Ambiente = process.env): boolean {
+  return env[ENV_DO_PEDIDO_DE_AVALIACAO] === VALOR_QUE_LIGA_O_PEDIDO_DE_AVALIACAO;
+}
+
+/**
+ * Os gatilhos que o motor dispara AGORA: os conhecidos, menos os desligados
+ * por chave. É função, e não constante, para a env ser lida a cada requisição
+ * e não uma vez na carga do módulo.
+ */
+export function gatilhosAtivos(env: Ambiente = process.env): Gatilho[] {
+  const ligado = pedidoDeAvaliacaoLigado(env);
+  return GATILHOS_CONHECIDOS.filter((g) => g !== "pedido_de_avaliacao" || ligado);
+}
 
 /** Motivos de supressão que a fila devolve. Espelham o CASE da função SQL. */
 export const MOTIVOS_DE_SUPRESSAO = [

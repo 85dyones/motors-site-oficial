@@ -58,6 +58,45 @@ O único gatilho que não é do Ciclo: fala com **todo comprador** registrado em
   seguem com a regra de antes: WhatsApp, senão e-mail.
 - **Não é isento** da janela de 21 dias, nem de domingo, horário, quarentena
   ou colisão.
+- **Nasce DESLIGADO**, por chave de ambiente: ver "A chave de desligar", logo
+  abaixo.
+
+#### A chave de desligar (`CICLO_PEDIDO_DE_AVALIACAO`)
+
+O orquestrador pede a fila sem filtro. Sem uma chave, aplicar a migração
+bastaria para o pedido sair sozinho, antes de o dono aprovar a mensagem e a
+base legal (bloqueio B3 da revisão do PR #233). A chave separa as duas coisas:
+a migração pode estar aplicada e o gatilho continua parado.
+
+- **Só o valor exato `ligado` liga.** Ausente, vazia, `true`, `1`, `LIGADO`,
+  `ligado ` com espaço: tudo desligado. Não há `trim` nem conversão de caixa,
+  de propósito — errar o valor deixa o gatilho parado, que é o lado seguro.
+- **Como funciona:** a rota da fila nunca passa `p_gatilhos` nulo ao banco
+  (nulo, no SQL, é "todos"). Passa sempre a lista explícita dos gatilhos
+  ligados; com a chave desligada, são os quatro do Ciclo. A função filtra por
+  essa lista na CTE `filtrados`, **antes** do canal, da janela de 21 dias, da
+  colisão de prioridade e da reserva. Então, desligado, o pedido não toma a
+  vez do lembrete de revisão (40 contra 60), não aparece em `suprimidos` e não
+  grava nada em `eventos_ciclo`.
+- **Para ligar** (nesta ordem): (1) migração
+  `20261003131500_pedido_de_avaliacao.sql` aplicada; (2) aprovação do dono
+  para o texto e para os dois pontos em aberto abaixo; (3)
+  `CICLO_PEDIDO_DE_AVALIACAO=ligado` na Vercel, em Production; (4) Redeploy;
+  (5) um ensaio: `POST /api/ciclo/motor/fila` com
+  `{"reservar": false, "gatilhos": ["pedido_de_avaliacao"]}` — **200** quer
+  dizer chave ligada no deploy que está no ar, **422 "Gatilho desligado"** quer
+  dizer que a env não chegou (valor errado ou faltou o Redeploy).
+- **Para desligar, sem migração e sem mexer no n8n:** apagar o valor da env
+  na Vercel (ou trocar por qualquer coisa que não seja `ligado`) e Redeploy.
+  A próxima fila já sai sem o pedido. O que já foi enviado fica registrado em
+  `eventos_ciclo` e continua contando na janela de 21 dias do cliente, como
+  qualquer contato.
+- **Filtro `gatilhos` pedindo o gatilho desligado leva 422** (`Gatilho
+  desligado: pedido_de_avaliacao.`), e não uma fila vazia com 200: é a mesma
+  regra do nome desconhecido. ⚠️ Consequência: se um dia o orquestrador passar
+  a mandar `gatilhos` com os cinco nomes, desligar a chave derruba a chamada
+  inteira (os quatro do Ciclo junto) até o nome sair do workflow. Hoje ele não
+  manda filtro, e é assim que deve ficar.
 - **Corte da base histórica:** só venda com `data_venda >= 2026-10-03`. O
   corte é uma linha da consulta, sem backfill em `eventos_ciclo`.
 - **Passo único**, prioridade 40. O contexto que o banco entrega é
@@ -150,6 +189,10 @@ Corpo: `{ "reservar": true|false, "gatilhos": ["..."]? }`.
   sobrepostas não duplicam mensagem. `false` = ensaio, só olhar.
 - `gatilhos` filtra; nome desconhecido leva **422** com a lista dos válidos —
   typo no workflow não pode virar "hoje não tinha ninguém".
+  Gatilho conhecido mas desligado por chave (hoje, só o `pedido_de_avaliacao`)
+  também leva **422**, com `Gatilho desligado: ...`.
+- Sem `gatilhos`, a rota pede ao banco a lista explícita dos gatilhos
+  **ligados**, nunca "todos".
 
 Resposta: `{ ok, reservado, total, fila: [{ evento_id, veiculo_vendido_id,
 cliente_id, nome, placa, gatilho, passo, canal, numero_whatsapp, email,
@@ -234,8 +277,9 @@ lembrete de revisão, risco, revisão verificada e pedido de avaliação são
 Por isso o `pedido_de_avaliacao` (2026-10-03) **não deve pedir mudança no
 n8n**: o corpo que o orquestrador manda está registrado como
 `{"reservar": true}`, sem `gatilhos` (`docs/HANDOFF_ALIAS_DA_VERCEL.md`), então
-o gatilho novo chega pela mesma chamada assim que a migração for aplicada e o
-deploy estiver no ar. ⚠️ O JSON do orquestrador não está no repositório: isso
+o gatilho novo chega pela mesma chamada assim que a migração estiver aplicada,
+o deploy no ar **e a chave `CICLO_PEDIDO_DE_AVALIACAO=ligado`** (nasce
+desligada; sem ela a rota nem pede o gatilho ao banco). ⚠️ O JSON do orquestrador não está no repositório: isso
 é o que os documentos dizem, não uma leitura do workflow vivo. Conferir o
 corpo do nó HTTP no n8n antes de aplicar a migração; se houver filtro
 `gatilhos`, o nome novo precisa entrar nele.
@@ -320,6 +364,8 @@ Migração `20261003131500_pedido_de_avaliacao.sql` (o gatilho
 `pedido_de_avaliacao`): **ainda não aplicada em produção** em 2026-10-03. O
 código que a acompanha (texto da mensagem, nome aceito no filtro da rota)
 pode ir ao ar antes dela sem efeito: enquanto a função do banco não devolver o
-gatilho, nada muda na fila. A ordem inversa não manda mensagem errada, mas é
+gatilho, nada muda na fila. E, com a chave `CICLO_PEDIDO_DE_AVALIACAO`
+desligada (o padrão), a migração também pode ser aplicada sem efeito: a rota
+pede ao banco só os quatro gatilhos do Ciclo. A ordem inversa não manda mensagem errada, mas é
 ruidosa: com a migração aplicada e o deploy antigo no ar, a rota não tem texto
 para o gatilho, devolve a vez (`falha_envio`) e ninguém recebe.

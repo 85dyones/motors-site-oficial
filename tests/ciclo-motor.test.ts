@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { arquivoDaMigracaoViva, definicaoViva, migracaoViva } from "./migracaoViva";
 import {
   GATILHOS,
-  GATILHOS_ATIVOS,
+  GATILHOS_CONHECIDOS,
   MOTIVOS_DE_SUPRESSAO,
   mensagemDoGatilho,
   mensagemDaFilaDeVerificacao,
@@ -160,7 +160,7 @@ function todasAsMensagens(): { gatilho: Gatilho; passo: number; texto: string }[
   };
 
   const saida: { gatilho: Gatilho; passo: number; texto: string }[] = [];
-  for (const gatilho of GATILHOS_ATIVOS) {
+  for (const gatilho of GATILHOS_CONHECIDOS) {
     for (let passo = 1; passo <= GATILHOS[gatilho].passos; passo++) {
       saida.push({
         gatilho,
@@ -369,7 +369,7 @@ describe("prioridade e cadência — o TS e o SQL contam a mesma história", () 
     expect(GATILHOS.elegibilidade_em_risco.prioridade).toBeLessThan(
       GATILHOS.revisao_programada.prioridade,
     );
-    for (const gatilho of GATILHOS_ATIVOS) {
+    for (const gatilho of GATILHOS_CONHECIDOS) {
       const { prioridade } = GATILHOS[gatilho];
       const noSql = new RegExp(`'${gatilho}'::text[^,]*,\\s*${prioridade}\\b`);
       expect(migracao, `${gatilho} com prioridade diferente no SQL`).toMatch(noSql);
@@ -397,7 +397,7 @@ describe("prioridade e cadência — o TS e o SQL contam a mesma história", () 
   });
 
   it("a isenção da janela de 21 dias é a mesma nos dois lados", () => {
-    const isentos = GATILHOS_ATIVOS.filter((g) => GATILHOS[g].isentoDaJanela).sort();
+    const isentos = GATILHOS_CONHECIDOS.filter((g) => GATILHOS[g].isentoDaJanela).sort();
     expect(isentos).toEqual(["boas_vindas", "elegibilidade_em_risco", "revisao_verificada"]);
     for (const gatilho of isentos) {
       // `[^)]` já atravessa quebra de linha — a lista do SQL é multilinha.
@@ -634,12 +634,14 @@ describe("o pedido de avaliação no Google — pedido do dono em 2026-10-03", (
     expect(cte("veic", "compradores")).toContain("where vv.aderiu_ciclo");
   });
 
-  it("a rota da fila aceita o nome novo no filtro, porque deriva de GATILHOS", () => {
-    expect(GATILHOS_ATIVOS).toContain("pedido_de_avaliacao");
-    // Nenhuma lista escrita à mão na rota: a validação e a resposta do 422
-    // usam `GATILHOS_ATIVOS`, que é `Object.keys(GATILHOS)`.
-    expect(rotaFilaMotor).toContain("!GATILHOS_ATIVOS.includes(g as Gatilho)");
-    expect(rotaFilaMotor).toContain("gatilhos_validos: GATILHOS_ATIVOS");
+  it("a rota da fila deriva os nomes de GATILHOS, sem lista escrita à mão", () => {
+    expect(GATILHOS_CONHECIDOS).toContain("pedido_de_avaliacao");
+    // Conhecido não é ligado: quem a rota aceita e pede ao banco é
+    // `gatilhosAtivos()`, que depende da chave (ver `ciclo-motor-chave.test.ts`).
+    expect(rotaFilaMotor).toContain("const ativos = gatilhosAtivos();");
+    expect(rotaFilaMotor).toContain("!GATILHOS_CONHECIDOS.includes(g as Gatilho)");
+    expect(rotaFilaMotor).toContain("!ativos.includes(g as Gatilho)");
+    expect(rotaFilaMotor).toContain("gatilhos_validos: ativos");
     expect(rotaFilaMotor).not.toContain('"boas_vindas"');
   });
 });
