@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { caminhoEmMinusculas } from "../../../lib/enderecoAntigo";
 import PaginaDeEstoque from "../../../components/modernist/PaginaDeEstoque";
 import EncomendaDeCarro from "../../../components/EncomendaDeCarro";
 import { getCachedSettings } from "../../../lib/settings";
@@ -105,6 +106,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function HubDeMarcaPage({ params }: PageProps) {
   const resolvidos = await params;
+  // `/carros/VOLKSWAGEN` (o site antigo escrevia a marca em maiúsculas) vai
+  // para `/carros/volkswagen` em vez de 404. Ver `lib/enderecoAntigo.ts`.
+  const emMinusculas = caminhoEmMinusculas([resolvidos.categoria, resolvidos.marca]);
+  if (emMinusculas) permanentRedirect(emMinusculas);
   const dados = await resolver(resolvidos);
   if (!dados) notFound();
 

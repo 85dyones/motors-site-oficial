@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import type { Veiculo } from "../types";
-import { getEstoque } from "./supabase";
+import { EstoqueIndisponivelError, getEstoque } from "./supabase";
 import { CARROCERIAS } from "./classificacaoVeiculo";
 import { PERFIS_DE_USO, type PerfilDeUso } from "./perfisDeUso";
 // O preço vigente já vive em `regrasEstoque` — é o mesmo que a vitrine, os
@@ -655,6 +655,21 @@ export function destinoDoVeiculoArquivado(
     return `/${segmento}/${slugMarca}`;
   }
   return "/estoque";
+}
+
+/**
+ * O índice de marcas do recorte guardado, ou `null` na pane do estoque.
+ *
+ * É o que as rotas de endereço antigo consultam (`lib/enderecoAntigo.ts`): uma
+ * leitura por hora, e nunca um 500 no lugar do 404.
+ */
+export async function marcasConhecidasOuNada(): Promise<MarcaConhecida[] | null> {
+  try {
+    return (await recorteDoNaoEncontrado()).marcas;
+  } catch (erro) {
+    if (erro instanceof EstoqueIndisponivelError) return null;
+    throw erro;
+  }
 }
 
 /**

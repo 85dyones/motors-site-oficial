@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { guiasDoModelo } from "../../../../lib/guiasNoSite";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { caminhoEmMinusculas } from "../../../../lib/enderecoAntigo";
 import PaginaDeEstoque from "../../../../components/modernist/PaginaDeEstoque";
 import EncomendaDeCarro from "../../../../components/EncomendaDeCarro";
 import { getCachedSettings } from "../../../../lib/settings";
@@ -162,6 +163,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function HubDeModeloPage({ params }: PageProps) {
   const resolvidos = await params;
+  // Marca ou modelo em maiúsculas (endereço do site antigo) vai para o
+  // endereço em minúsculas em vez de 404. Ver `lib/enderecoAntigo.ts`.
+  const emMinusculas = caminhoEmMinusculas([resolvidos.categoria, resolvidos.marca, resolvidos.modelo]);
+  if (emMinusculas) permanentRedirect(emMinusculas);
   const dados = await resolver(resolvidos);
   if (!dados) notFound();
 
