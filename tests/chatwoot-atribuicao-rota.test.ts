@@ -13,7 +13,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *   - o mesmo nome não gera escrita;
  *   - Chatwoot fora do ar, sem token ou com nota de outra atribuição: nada
  *     muda e a resposta continua 200;
- *   - o rastro diz que foi um admin, pelo Chatwoot, e não o motor.
+ *   - o rastro diz que foi um admin, pelo Chatwoot, e não o motor;
+ *   - o que a revisão de 03/10 cobrou: e-mail não passa por cima do nome da
+ *     nota, texto de nota escrito por gente não atribui nada, nota velha não
+ *     cai em lead novo, duas entregas juntas gravam uma vez, o autor é
+ *     conferido na lista de agentes, e o passo inteiro cabe no prazo.
  *
  * Banco em memória e Chatwoot falso (o `fetch` global), como em
  * `leads-etiquetas-rotas.test.ts`: a rota é chamada de verdade, com as funções
@@ -27,6 +31,10 @@ let banco: Record<string, Linha[]>;
 let falhas: Record<string, { message: string } | undefined>;
 let gravacoes: string[];
 let proximoId = 1;
+/** Roda logo depois de a rota LER o lead: é onde outra entrega ganha a corrida. */
+let depoisDeLerOLead: (() => void) | null;
+/** O gatilho de `leads` escreve o rastro? Desligado, a rota é quem insere. */
+let gatilhoEscreve: boolean;
 
 function consulta(tabela: string) {
   const filtros: Array<(l: Linha) => boolean> = [];
@@ -43,9 +51,15 @@ function consulta(tabela: string) {
       return { data: [nova], error: null };
     }
     if (atualizacao) {
-      for (const l of linhas()) {
+      const alcancadas = linhas();
+      for (const l of alcancadas) {
         // O gatilho de `leads`, com a chave de serviço (`auth.uid()` nulo).
-        if (tabela === "leads" && "responsavel" in atualizacao && atualizacao.responsavel !== l.responsavel) {
+        if (
+          gatilhoEscreve &&
+          tabela === "leads" &&
+          "responsavel" in atualizacao &&
+          atualizacao.responsavel !== l.responsavel
+        ) {
           (banco.leads_eventos ??= []).push({
             id: `ev-${proximoId++}`,
             lead_id: l.id,
@@ -62,16 +76,30 @@ function consulta(tabela: string) {
         Object.assign(l, atualizacao);
       }
       gravacoes.push(`update ${tabela}`);
-      return { data: null, error: null };
+      return { data: alcancadas, error: null };
     }
-    return { data: linhas(), error: null };
+    const lidas = linhas().map((l) => ({ ...l }));
+    if (tabela === "leads" && colunas.includes("responsavel_desde") && depoisDeLerOLead) {
+      const gancho = depoisDeLerOLead;
+      depoisDeLerOLead = null;
+      gancho();
+    }
+    return { data: lidas, error: null };
   };
+  let colunas = "";
   const q = {
-    select: () => q,
+    select: (quais = "") => {
+      colunas = quais;
+      return q;
+    },
     order: () => q,
     limit: () => q,
     eq: (coluna: string, valor: unknown) => {
-      filtros.push((l) => l[coluna] === valor);
+      // `detalhe->>origem`, como o PostgREST lê um campo de jsonb.
+      const [raiz, campo] = coluna.split("->>");
+      filtros.push((l) =>
+        campo === undefined ? l[coluna] === valor : (l[raiz] as Linha | null | undefined)?.[campo] === valor,
+      );
       return q;
     },
     gte: (coluna: string, valor: string) => {
@@ -123,15 +151,31 @@ const rota = await import("../src/app/api/chatwoot/eventos/route");
 let mensagens: Linha[];
 /** O que a segunda leitura devolve, quando difere da primeira. */
 let mensagensDepois: Linha[] | null;
+let agentes: Linha[];
 let statusDoChatwoot: number | null;
+let statusDosAgentes: number | null;
+/** O Chatwoot não responde: a chamada só termina quando o prazo dela estoura. */
+let chatwootMudo: boolean;
 const chamadas: Array<{ url: string; token: string | null }> = [];
+const leituras = () => chamadas.filter((c) => c.url.endsWith("/messages"));
+const consultasDeAgentes = () => chamadas.filter((c) => c.url.endsWith("/agents"));
 
 async function chatwootFalso(url: string, init?: RequestInit): Promise<Response> {
   const cabecalhos = new Headers(init?.headers);
   chamadas.push({ url, token: cabecalhos.get("api_access_token") });
+  if (chatwootMudo) {
+    return new Promise<Response>((_, recusar) => {
+      const sinal = init?.signal;
+      sinal?.addEventListener("abort", () => recusar(sinal.reason));
+    });
+  }
+  if (url.endsWith("/accounts/3/agents")) {
+    if (statusDosAgentes) return new Response("{}", { status: statusDosAgentes });
+    return Response.json(agentes);
+  }
   if (statusDoChatwoot) return new Response("{}", { status: statusDoChatwoot });
   if (!/\/conversations\/412\/messages$/.test(url)) return new Response("{}", { status: 404 });
-  const lista = chamadas.length > 1 && mensagensDepois ? mensagensDepois : mensagens;
+  const lista = leituras().length > 1 && mensagensDepois ? mensagensDepois : mensagens;
   return Response.json({ meta: {}, payload: lista });
 }
 
@@ -145,7 +189,17 @@ beforeEach(() => {
   gravacoes = [];
   chamadas.length = 0;
   statusDoChatwoot = null;
+  statusDosAgentes = null;
+  chatwootMudo = false;
+  depoisDeLerOLead = null;
+  gatilhoEscreve = true;
   mensagensDepois = null;
+  agentes = [
+    { id: 1, name: "Dyones Oliveira", email: "dyones@chatwoot.com", role: "administrator" },
+    { id: 5, name: "Rodrigo Naumowicz", email: "rodrigo@chatwoot.com", role: "agent" },
+    { id: 6, name: "Ana Lima", email: "ana@painel.com", role: "agent" },
+    { id: 9, name: "Mari Marketing", email: "mari@painel.com", role: "agent" },
+  ];
   mensagens = [
     { message_type: 0, content: "Oi, tem o Onix?", created_at: NOTA_DE_ONTEM },
     atividade("Atribuído a Rodrigo Naumowicz por Dyones Oliveira"),
@@ -229,9 +283,13 @@ describe("o admin atribui no Chatwoot e o lead muda de dono", () => {
     expect(status).toBe(200);
     expect(corpo.acao).toBe("responsavel_atribuido");
     expect(lead().responsavel).toBe("Rodrigo Naumowicz");
-    expect(chamadas).toEqual([
-      { url: "https://chat.exemplo.com.br/api/v1/accounts/3/conversations/412/messages", token: "tok-123" },
-    ]);
+    expect(chamadas).toHaveLength(2);
+    expect(chamadas).toEqual(
+      expect.arrayContaining([
+        { url: "https://chat.exemplo.com.br/api/v1/accounts/3/conversations/412/messages", token: "tok-123" },
+        { url: "https://chat.exemplo.com.br/api/v1/accounts/3/agents", token: "tok-123" },
+      ]),
+    );
   });
 
   it("o vendedor recebe o lead com o prazo novo, como na troca pelo painel", async () => {
@@ -281,7 +339,7 @@ describe("o admin atribui no Chatwoot e o lead muda de dono", () => {
     expect(lead().responsavel).toBe("Rodrigo Naumowicz");
   });
 
-  it("a nota que vem no próprio evento dispensa a ida ao Chatwoot", async () => {
+  it("a nota que vem no próprio evento dispensa ler as mensagens, não os agentes", async () => {
     const { corpo } = await entregar({
       event: "message_created",
       message_type: "activity",
@@ -292,7 +350,8 @@ describe("o admin atribui no Chatwoot e o lead muda de dono", () => {
 
     expect(corpo.acao).toBe("responsavel_atribuido");
     expect(lead().responsavel).toBe("Rodrigo Naumowicz");
-    expect(chamadas).toHaveLength(0);
+    expect(leituras()).toHaveLength(0);
+    expect(consultasDeAgentes()).toHaveLength(1);
   });
 
   it("admin que também é Comercial pega a conversa para si", async () => {
@@ -355,7 +414,7 @@ describe("o que não muda o dono do lead", () => {
     await vi.runAllTimersAsync();
     await entrega;
     // Evento explícito: leu, esperou e leu de novo, uma vez só.
-    expect(chamadas).toHaveLength(2);
+    expect(leituras()).toHaveLength(2);
   });
 
   it("a remoção", async () => {
@@ -443,7 +502,7 @@ describe("o Chatwoot falhando não vira erro para o Chatwoot", () => {
     await vi.runAllTimersAsync();
     const { corpo } = await entrega;
 
-    expect(chamadas).toHaveLength(2);
+    expect(leituras()).toHaveLength(2);
     expect(corpo.acao).toBe("responsavel_atribuido");
     expect(lead().responsavel).toBe("Rodrigo Naumowicz");
   });
@@ -454,5 +513,307 @@ describe("o Chatwoot falhando não vira erro para o Chatwoot", () => {
     );
     expect(r.status).toBe(401);
     expect(trocasDeDono()).toBe(0);
+  });
+});
+
+/**
+ * O defeito bloqueante da revisão: a nota de TIME chega com o e-mail de quem o
+ * Chatwoot sorteou dentro do time. O admin nomeou o time, não a pessoa.
+ */
+describe("o e-mail do evento não passa por cima do nome da nota", () => {
+  const doRodrigo = { id: 5, name: "Rodrigo Naumowicz", email: "rodrigo@painel.com" };
+
+  it("nota de time lida na conversa, com o e-mail do vendedor no evento: nada muda", async () => {
+    mensagens = [atividade("Atribuído a Comercial por Dyones Oliveira")];
+    vi.useFakeTimers();
+    const entrega = entregar(atribuiu(conversa(doRodrigo)));
+    await vi.runAllTimersAsync();
+    const { status, corpo } = await entrega;
+
+    expect(status).toBe(200);
+    expect(String(corpo.detalhe)).toMatch(/não é do responsável atual/);
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(trocasDeDono()).toBe(0);
+  });
+
+  it("nota de time que vem NO evento, com o vendedor como responsável: nada muda", async () => {
+    const { corpo } = await entregar({
+      event: "message_created",
+      message_type: "activity",
+      content: "Atribuído a Comercial por Dyones Oliveira",
+      created_at: NOTA_DE_HOJE,
+      conversation: conversa(doRodrigo),
+    });
+
+    expect(String(corpo.detalhe)).toMatch(/não é do responsável atual/);
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it("nota de time sem responsável no evento: o time não é perfil de ninguém", async () => {
+    const { corpo } = await entregar({
+      event: "message_created",
+      message_type: "activity",
+      content: "Atribuído a Comercial por Dyones Oliveira",
+      created_at: NOTA_DE_HOJE,
+      conversation: conversa(null),
+    });
+    expect(String(corpo.detalhe)).toContain("destino-nao-e-comercial");
+    expect(lead().responsavel).toBe("Ana Lima");
+  });
+});
+
+/**
+ * Só a mensagem de ATIVIDADE é nota. A mesma frase digitada por alguém, de
+ * qualquer lado, é só texto.
+ */
+describe("texto de nota escrito por gente não atribui nada", () => {
+  const FRASE = "Atribuído a Rodrigo Naumowicz por Dyones Oliveira";
+
+  it("o cliente escrevendo a frase", async () => {
+    const { corpo } = await entregar({
+      event: "message_created",
+      message_type: "incoming",
+      content: FRASE,
+      conversation: conversa(),
+      sender: { id: 88, name: "Fulano", phone_number: "+5541999990000", type: "contact" },
+    });
+    expect(corpo.acao).toBe("atendimento_vinculado");
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it("o consultor respondendo com a frase", async () => {
+    const { corpo } = await entregar({
+      event: "message_created",
+      message_type: "outgoing",
+      content: FRASE,
+      conversation: conversa(),
+      sender: { id: 6, name: "Ana Lima", type: "user" },
+    });
+    expect(corpo.acao).toBe("contato_registrado");
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it("a nota privada com a frase", async () => {
+    const { corpo } = await entregar({
+      event: "message_created",
+      message_type: "outgoing",
+      private: true,
+      content: FRASE,
+      conversation: conversa(),
+      sender: { id: 6, name: "Ana Lima", type: "user" },
+    });
+    expect(corpo.acao).toBe("contato_registrado");
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it("na conversa lida pela API, só a atividade conta", async () => {
+    mensagens = [
+      { message_type: 0, content: FRASE, created_at: NOTA_DE_HOJE },
+      { message_type: 1, content: FRASE, created_at: NOTA_DE_HOJE },
+      { message_type: 1, private: true, content: FRASE, created_at: NOTA_DE_HOJE },
+    ];
+    vi.useFakeTimers();
+    const entrega = entregar(atribuiu());
+    await vi.runAllTimersAsync();
+    const { corpo } = await entrega;
+
+    expect(String(corpo.detalhe)).toContain("não tem nota de atribuição");
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(trocasDeDono()).toBe(0);
+  });
+});
+
+/**
+ * O nome da nota é nome de exibição, que o agente edita. A rota confere o
+ * autor na lista de agentes do Chatwoot, e sem a lista não age.
+ */
+describe("o autor é conferido na lista de agentes do Chatwoot", () => {
+  async function recusa(motivo: string | RegExp) {
+    const { status, corpo } = await entregar(atribuiu());
+    expect(status).toBe(200);
+    expect(String(corpo.detalhe)).toMatch(motivo);
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(trocasDeDono()).toBe(0);
+    expect(banco.leads_eventos).toHaveLength(0);
+  }
+
+  it("vendedor que se renomeou para o nome do admin: dois agentes com o nome, recusa", async () => {
+    agentes.push({ id: 7, name: "Dyones Oliveira", email: "esperto@chatwoot.com", role: "agent" });
+    await recusa("nome-ambiguo");
+  });
+
+  it("autor que no Chatwoot não é administrador: recusa", async () => {
+    agentes[0].role = "agent";
+    await recusa("autor-nao-e-admin");
+  });
+
+  it("lista de agentes fora do ar: recusa, com o motivo", async () => {
+    statusDosAgentes = 403;
+    await recusa(/agentes do Chatwoot ilegíveis.*403/);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("Agentes não lidos"), expect.anything());
+  });
+
+  it("vale também para a nota que vem no próprio evento", async () => {
+    statusDosAgentes = 500;
+    const { corpo } = await entregar({
+      event: "message_created",
+      message_type: 2,
+      content: "Atribuído a Rodrigo Naumowicz por Dyones Oliveira",
+      created_at: NOTA_DE_HOJE,
+      conversation: conversa(),
+    });
+    expect(String(corpo.detalhe)).toContain("agentes do Chatwoot ilegíveis");
+    expect(lead().responsavel).toBe("Ana Lima");
+  });
+});
+
+/**
+ * Conversa reaberta: o negócio antigo foi encerrado, o cliente voltou a
+ * escrever na mesma conversa e nasceu um lead NOVO. A nota de atribuição da
+ * conversa é do negócio antigo.
+ */
+describe("a nota velha não cai num lead novo", () => {
+  beforeEach(() => {
+    mensagens = [atividade("Atribuído a Rodrigo Naumowicz por Dyones Oliveira", NOTA_DE_ONTEM)];
+    Object.assign(lead(), {
+      responsavel: null,
+      responsavel_desde: null,
+      created_at: "2026-10-03T08:00:00Z",
+    });
+  });
+
+  it("evento sem `changed_attributes`: o lead novo fica sem dono", async () => {
+    const { status, corpo } = await entregar(atribuiu({ changed_attributes: undefined }));
+    expect(status).toBe(200);
+    expect(String(corpo.detalhe)).toContain("nota-anterior-ao-lead");
+    expect(lead().responsavel).toBeNull();
+    expect(trocasDeDono()).toBe(0);
+  });
+
+  it("`changed_attributes` nulo conta como ausente", async () => {
+    const { corpo } = await entregar(atribuiu({ changed_attributes: null }));
+    expect(String(corpo.detalhe)).toContain("nota-anterior-ao-lead");
+    expect(lead().responsavel).toBeNull();
+  });
+
+  it("nota sem data, em evento que só carrega um responsável: recusa", async () => {
+    mensagens = [{ message_type: 2, content: "Atribuído a Rodrigo Naumowicz por Dyones Oliveira" }];
+    const { corpo } = await entregar(atribuiu({ changed_attributes: undefined }));
+    expect(String(corpo.detalhe)).toContain("nota-sem-data");
+    expect(lead().responsavel).toBeNull();
+  });
+
+  it("lead sem dono recebe a nota NOVA (a condição da gravação é `is null`)", async () => {
+    mensagens = [atividade("Atribuído a Rodrigo Naumowicz por Dyones Oliveira", NOTA_DE_HOJE)];
+    const { corpo } = await entregar(atribuiu({ changed_attributes: undefined }));
+    expect(corpo.acao).toBe("responsavel_atribuido");
+    expect(lead().responsavel).toBe("Rodrigo Naumowicz");
+    expect(banco.leads_eventos[0]).toMatchObject({ tipo: "responsavel", de: null, autor: "Dyones Oliveira" });
+  });
+});
+
+describe("duas entregas ao mesmo tempo", () => {
+  it("juntas, gravam uma vez e deixam uma linha no rastro", async () => {
+    const [a, b] = await Promise.all([entregar(atribuiu()), entregar(atribuiu())]);
+
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect([a.corpo.acao, b.corpo.acao].filter((x) => x === "responsavel_atribuido")).toHaveLength(1);
+    expect(lead().responsavel).toBe("Rodrigo Naumowicz");
+    expect(banco.leads_eventos).toHaveLength(1);
+    expect(banco.leads_eventos[0]).toMatchObject({ tipo: "responsavel", autor: "Dyones Oliveira" });
+  });
+
+  it("o dono mudou entre a leitura e a gravação: não grava e não toca o rastro", async () => {
+    // O painel devolve o lead a outra pessoa depois de a rota já tê-lo lido.
+    depoisDeLerOLead = () => {
+      lead().responsavel = "Dyones Oliveira";
+    };
+    const { status, corpo } = await entregar(atribuiu());
+
+    expect(status).toBe(200);
+    expect(String(corpo.detalhe)).toContain("responsavel-mudou-durante-a-troca");
+    expect(lead().responsavel).toBe("Dyones Oliveira");
+    expect(banco.leads_eventos).toHaveLength(0);
+  });
+
+  it("sem a linha do gatilho, insere a do Chatwoot uma vez", async () => {
+    gatilhoEscreve = false;
+    await entregar(atribuiu());
+    expect(banco.leads_eventos).toHaveLength(1);
+    expect(banco.leads_eventos[0]).toMatchObject({
+      lead_id: "lead-1",
+      tipo: "responsavel",
+      de: "Ana Lima",
+      para: "Rodrigo Naumowicz",
+      autor: "Dyones Oliveira",
+      automatico: false,
+      detalhe: { origem: "chatwoot", nota: "atribuida" },
+    });
+  });
+
+  it("sem a linha do gatilho, não insere em dobro a que outra entrega já escreveu", async () => {
+    gatilhoEscreve = false;
+    banco.leads_eventos.push({
+      id: "ev-da-outra",
+      lead_id: "lead-1",
+      tipo: "responsavel",
+      para: "Rodrigo Naumowicz",
+      autor: "Dyones Oliveira",
+      automatico: false,
+      detalhe: { origem: "chatwoot", conversa: 412, nota: "atribuida" },
+      criado_em: new Date().toISOString(),
+    });
+    const { corpo } = await entregar(atribuiu());
+
+    expect(corpo.acao).toBe("responsavel_atribuido");
+    expect(banco.leads_eventos).toHaveLength(1);
+  });
+});
+
+/**
+ * O passo inteiro acontece dentro da resposta ao webhook. Relógio de verdade
+ * aqui: o prazo é do `AbortSignal`, que os temporizadores falsos não alcançam.
+ */
+describe("o passo da atribuição cabe no prazo", () => {
+  it("Chatwoot que não responde: 200 em menos de 4 s, nada muda", async () => {
+    chatwootMudo = true;
+    const inicio = Date.now();
+    const { status, corpo } = await entregar(atribuiu());
+    const gasto = Date.now() - inicio;
+
+    expect(status).toBe(200);
+    expect(corpo.ok).toBe(true);
+    expect(String(corpo.detalhe)).toContain("não respondeu a tempo");
+    expect(gasto).toBeLessThan(4000);
+    // Estourou o prazo da primeira leitura: não há segunda.
+    expect(leituras()).toHaveLength(1);
+    expect(lead().responsavel).toBe("Ana Lima");
+    expect(trocasDeDono()).toBe(0);
+  });
+
+  it("Chatwoot que emudece na SEGUNDA leitura: ainda 200 em menos de 4 s", async () => {
+    mensagens = [{ message_type: 0, content: "Oi", created_at: NOTA_DE_ONTEM }];
+    const fetchDeAntes = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (leituras().length >= 1 && url.endsWith("/messages")) chatwootMudo = true;
+        return fetchDeAntes(url, init);
+      }),
+    );
+    const inicio = Date.now();
+    const { status, corpo } = await entregar(atribuiu());
+    const gasto = Date.now() - inicio;
+
+    expect(status).toBe(200);
+    expect(String(corpo.detalhe)).toContain("não respondeu a tempo");
+    expect(leituras()).toHaveLength(2);
+    expect(gasto).toBeLessThan(4000);
+    expect(lead().responsavel).toBe("Ana Lima");
   });
 });

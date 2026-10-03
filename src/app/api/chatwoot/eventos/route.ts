@@ -9,12 +9,17 @@ import {
 } from "../../../../lib/chatwootEventos";
 import {
   decidirResponsavel,
-  notaSuperada,
+  motivoDeNotaVelha,
+  notaConfere,
   type NotaDatada,
   type PerfilDaAtribuicao,
 } from "../../../../lib/atribuicaoDoChatwoot";
-import { lerNotaDaConversa } from "../../../../lib/atribuicaoDoChatwoot-servidor";
-import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
+import {
+  lerAgentesDoChatwoot,
+  lerNotaDaConversa,
+  ORCAMENTO_DO_CHATWOOT_MS,
+} from "../../../../lib/atribuicaoDoChatwoot-servidor";
+import { configDoChatwoot, type Resultado } from "../../../../lib/etiquetasDoChatwoot";
 
 export const dynamic = "force-dynamic";
 
@@ -322,6 +327,13 @@ async function aplicar(
 
 /** Quanto o relógio do servidor pode estar adiantado em relação ao do banco. */
 const FOLGA_DO_RASTRO_MS = 60_000;
+/**
+ * Depois disto, a atribuição desiste ANTES de gravar. O Chatwoot fica com no
+ * máximo `ORCAMENTO_DO_CHATWOOT_MS`; o resto é para as leituras do banco. Uma
+ * troca de dono que não coube no prazo fica para a próxima entrega: é melhor
+ * que responder tarde a um webhook.
+ */
+const PRAZO_DA_ATRIBUICAO_MS = 3500;
 
 type ResultadoDaAtribuicao = { mudou: true } | { mudou: false; motivo: string };
 
@@ -332,8 +344,20 @@ type ResultadoDaAtribuicao = { mudou: true } | { mudou: false; motivo: string };
  * `decidirResponsavel`; aqui ficam as leituras que ela pede e a gravação.
  *
  * O evento não diz quem atribuiu. Quando a nota não veio nele, é lida da
- * conversa pela API. Sem `CHATWOOT_API_TOKEN`, ou com o Chatwoot fora do ar,
- * o lead fica como está: o motivo sai no log e a resposta continua 200.
+ * conversa pela API. Venha de onde vier, a nota precisa apontar para o
+ * responsável que o evento traz (`notaConfere`). E o autor é conferido na
+ * lista de agentes do Chatwoot, lida em paralelo: o nome da nota é nome de
+ * exibição, que o agente edita. Sem `CHATWOOT_API_TOKEN`, com o Chatwoot fora
+ * do ar ou sem a lista de agentes, o lead fica como está: o motivo sai no log
+ * e a resposta continua 200.
+ *
+ * ---------------------------------------------------------------------------
+ * Duas entregas ao mesmo tempo
+ * ---------------------------------------------------------------------------
+ * O Chatwoot manda mais de um evento pela mesma atribuição. O `update` leva o
+ * responsável que foi LIDO como condição: a entrega que chega em segundo não
+ * alcança linha nenhuma, e quem não alcançou linha não toca o rastro. O mesmo
+ * vale se o painel trocou o dono entre a leitura e a gravação.
  *
  * ---------------------------------------------------------------------------
  * O rastro, e por que ele é corrigido depois de gravado
@@ -363,18 +387,34 @@ async function aplicarAtribuicao(
   conversaId: number,
   sinal: SinalDeAtribuicao,
 ): Promise<ResultadoDaAtribuicao> {
-  let datada: NotaDatada | null = sinal.nota ? { nota: sinal.nota, em: sinal.notaEm } : null;
+  const inicio = Date.now();
+  const limite = inicio + ORCAMENTO_DO_CHATWOOT_MS;
 
-  if (!datada) {
-    const cfg = configDoChatwoot();
-    if (!cfg) return { mudou: false, motivo: "chatwoot-nao-configurado" };
-    const lida = await lerNotaDaConversa(conversaId, cfg, sinal);
-    if (!lida.ok) {
-      console.warn("[Chatwoot] Nota de atribuição não lida:", lida.motivo);
-      return { mudou: false, motivo: lida.motivo };
-    }
-    datada = lida.valor;
+  const cfg = configDoChatwoot();
+  if (!cfg) return { mudou: false, motivo: "chatwoot-nao-configurado" };
+
+  const notaDoEvento: Resultado<NotaDatada> | null = sinal.nota
+    ? notaConfere(sinal.nota, sinal.responsavelNoChatwoot)
+      ? { ok: true, valor: { nota: sinal.nota, em: sinal.notaEm } }
+      : { ok: false, motivo: "a nota não é do responsável atual da conversa" }
+    : null;
+  if (notaDoEvento && !notaDoEvento.ok) return { mudou: false, motivo: notaDoEvento.motivo };
+
+  const [lida, agentes] = await Promise.all([
+    notaDoEvento ?? lerNotaDaConversa(conversaId, cfg, sinal, limite),
+    lerAgentesDoChatwoot(cfg, limite),
+  ]);
+  if (!lida.ok) {
+    console.warn("[Chatwoot] Nota de atribuição não lida:", lida.motivo);
+    return { mudou: false, motivo: lida.motivo };
   }
+  if (!agentes.ok) {
+    // Sem a lista não há como saber se o autor é admin NO CHATWOOT, e o nome
+    // da nota sozinho não prova nada.
+    console.warn("[Chatwoot] Agentes não lidos, atribuição recusada:", agentes.motivo);
+    return { mudou: false, motivo: `agentes do Chatwoot ilegíveis: ${agentes.motivo}` };
+  }
+  const datada = lida.valor;
 
   const { data: perfis, error: erroPerfis } = await supabase
     .from("profiles")
@@ -386,32 +426,42 @@ async function aplicarAtribuicao(
     nota: datada.nota,
     perfis: (perfis ?? []) as PerfilDaAtribuicao[],
     emailDoDestino: sinal.emailDoResponsavel,
+    agentes: agentes.valor,
   });
-  if (decisao.responsavel === null) return { mudou: false, motivo: decisao.motivo };
+  if (decisao.responsavel === null) {
+    console.info("[Chatwoot] Atribuição recusada:", decisao.motivo);
+    return { mudou: false, motivo: decisao.motivo };
+  }
 
   const { data: lead, error: erroLead } = await supabase
     .from("leads")
-    .select("responsavel, responsavel_desde")
+    .select("responsavel, responsavel_desde, created_at")
     .eq("id", leadId)
     .maybeSingle();
   if (erroLead || !lead) {
     return { mudou: false, motivo: `lead ilegível: ${erroLead?.message ?? "não encontrado"}` };
   }
 
-  const atual = typeof lead.responsavel === "string" ? lead.responsavel.trim() : "";
+  const lido = typeof lead.responsavel === "string" ? lead.responsavel : null;
   // O mesmo nome não gera escrita: o Chatwoot manda vários eventos pela mesma
   // atribuição, e cada escrita seria uma linha a mais no rastro.
-  if (atual === decisao.responsavel) return { mudou: false, motivo: "ja-e-o-responsavel" };
-  // Nota mais velha que a última troca de dono: o painel já decidiu depois.
-  if (notaSuperada(datada.em, lead.responsavel_desde as string | null)) {
-    return { mudou: false, motivo: "nota-anterior-a-ultima-troca" };
-  }
+  if ((lido ?? "").trim() === decisao.responsavel) return { mudou: false, motivo: "ja-e-o-responsavel" };
+
+  const velha = motivoDeNotaVelha({
+    notaEm: datada.em,
+    explicito: sinal.explicito,
+    leadCriadoEm: lead.created_at as string | null,
+    responsavelDesde: lead.responsavel_desde as string | null,
+  });
+  if (velha) return { mudou: false, motivo: velha };
+
+  if (Date.now() - inicio >= PRAZO_DA_ATRIBUICAO_MS) return { mudou: false, motivo: "sem-tempo" };
 
   // Só linha do rastro escrita DESTA troca pode ser corrigida. A folga cobre a
   // diferença entre o relógio daqui e o do banco.
   const desde = new Date(Date.now() - FOLGA_DO_RASTRO_MS).toISOString();
   const agora = new Date().toISOString();
-  const { error: erroGravar } = await supabase
+  const gravacao = supabase
     .from("leads")
     .update({
       responsavel: decisao.responsavel,
@@ -420,11 +470,19 @@ async function aplicarAtribuicao(
       alertado_em: null,
     })
     .eq("id", leadId);
+  // A condição é o valor LIDO, cru: se outra entrega ou o painel trocou o
+  // dono nesse meio tempo, nenhuma linha casa.
+  const { data: gravadas, error: erroGravar } = await (
+    lido === null ? gravacao.is("responsavel", null) : gravacao.eq("responsavel", lido)
+  ).select("id");
   if (erroGravar) return { mudou: false, motivo: `lead não atualizado: ${erroGravar.message}` };
+  if (!gravadas || gravadas.length === 0) {
+    return { mudou: false, motivo: "responsavel-mudou-durante-a-troca" };
+  }
 
   await corrigirRastro(supabase, {
     leadId,
-    de: atual || null,
+    de: (lido ?? "").trim() || null,
     para: decisao.responsavel,
     autor: decisao.autor,
     desde,
@@ -436,6 +494,10 @@ async function aplicarAtribuicao(
 /**
  * Faz o rastro dizer o que houve: um admin trocou o dono, pelo Chatwoot.
  * Ver o cabeçalho de `aplicarAtribuicao`. Falha aqui não desfaz a troca.
+ *
+ * Só é chamada por quem de fato gravou a troca. Ainda assim confere, antes de
+ * inserir, se a linha desta troca já está lá: sem chave única no rastro (que
+ * pediria migração), é o que dá para fazer contra a linha em dobro.
  */
 async function corrigirRastro(
   supabase: ReturnType<typeof createAdminSupabaseClient>,
@@ -446,7 +508,7 @@ async function corrigirRastro(
     autor: string;
     /** Antes disto, a linha é de outra troca e não se toca. */
     desde: string;
-    detalhe: Record<string, unknown>;
+    detalhe: { origem: string; conversa: number; nota: string };
   },
 ): Promise<void> {
   const correto = {
@@ -472,12 +534,37 @@ async function corrigirRastro(
   }
 
   const doGatilho = escritas?.[0]?.id;
-  const { error } = doGatilho
-    ? await supabase.from("leads_eventos").update(correto).eq("id", doGatilho)
-    : await supabase
-        .from("leads_eventos")
-        .insert({ ...correto, lead_id: troca.leadId, de: troca.de, para: troca.para });
-  if (error) console.error("[Chatwoot] Rastro da atribuição não corrigido:", error.message);
+  if (doGatilho) {
+    const { error } = await supabase
+      .from("leads_eventos")
+      .update(correto)
+      .eq("id", doGatilho)
+      // Ainda é a linha do gatilho: outra entrega pode tê-la corrigido antes.
+      .eq("tipo", "transferencia");
+    if (error) console.error("[Chatwoot] Rastro da atribuição não corrigido:", error.message);
+    return;
+  }
+
+  const { data: jaEscritas, error: erroConferir } = await supabase
+    .from("leads_eventos")
+    .select("id")
+    .eq("lead_id", troca.leadId)
+    .eq("tipo", "responsavel")
+    .eq("para", troca.para)
+    .eq("detalhe->>origem", troca.detalhe.origem)
+    .eq("detalhe->>nota", troca.detalhe.nota)
+    .gte("criado_em", troca.desde)
+    .limit(1);
+  if (erroConferir) {
+    console.error("[Chatwoot] Rastro da atribuição ilegível:", erroConferir.message);
+    return;
+  }
+  if (jaEscritas && jaEscritas.length > 0) return;
+
+  const { error } = await supabase
+    .from("leads_eventos")
+    .insert({ ...correto, lead_id: troca.leadId, de: troca.de, para: troca.para });
+  if (error) console.error("[Chatwoot] Rastro da atribuição não registrado:", error.message);
 }
 
 /**
