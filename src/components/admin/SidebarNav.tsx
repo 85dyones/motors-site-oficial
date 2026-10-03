@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { PERFIS_QUE_TRIAM_ERROS } from "../../lib/filaDeErros";
+import { ABAS_DO_SITE } from "../../lib/abasDeConfiguracao";
 
 interface SidebarNavProps {
   /**
@@ -35,6 +37,28 @@ interface SidebarNavProps {
  * que ainda não foram construídas (leads, fotos e mídia, SEO), e link morto
  * no painel é pior que ausência.
  */
+/** Onde o navegador guarda os grupos que a pessoa abriu ou fechou. */
+const CHAVE_DOS_GRUPOS = "mt_painel_grupos";
+const EVENTO_DOS_GRUPOS = "mt-painel-grupos";
+
+/* A escolha mora no navegador, e o React a lê como fonte externa: sem estado
+   copiado num efeito, e duas abas do painel abertas ficam iguais. */
+function assinarGrupos(avisar: () => void) {
+  window.addEventListener("storage", avisar);
+  window.addEventListener(EVENTO_DOS_GRUPOS, avisar);
+  return () => {
+    window.removeEventListener("storage", avisar);
+    window.removeEventListener(EVENTO_DOS_GRUPOS, avisar);
+  };
+}
+function lerGrupos(): string {
+  try {
+    return localStorage.getItem(CHAVE_DOS_GRUPOS) ?? "{}";
+  } catch {
+    return "{}";
+  }
+}
+
 export default function SidebarNav({ perfis }: SidebarNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -48,7 +72,9 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       title: "Geral",
       roles: ["admin", "gestor", "comercial", "marketing", "financeiro"],
       items: [
-        { name: "Visão geral", href: "/admin" },
+        // A Visão geral saiu da lista do grupo em 03/10/2026: ela é a porta
+        // do painel e fica fixa no topo do trilho, fora dos grupos que abrem e
+        // fecham. Quem a vê continua sendo quem vê o grupo Geral.
         { name: "Leads", href: "/admin/leads" },
         // A agenda de pessoas (2026-08-24). Ela mora em GERAL, e não dentro
         // de Financeiro, porque o dono a pediu como área própria: *"o revenda
@@ -172,14 +198,11 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // diferença importa para quem procura: lá se CORRIGE o texto de uma
         // página que já existe; aqui se CRIA a página.
         { name: "Guias", href: "/admin/guias" },
-        { name: "Destaques rápidos", href: "/admin/configuracoes?tab=destaques" },
-        { name: "Aparência e cores", href: "/admin/configuracoes?tab=aparencia" },
-        { name: "Página quem somos", href: "/admin/configuracoes?tab=sobre" },
-        // O card que aparece quando alguém cola um link do site no WhatsApp.
-        // Fica em "Site" porque é conteúdo de página, não credencial.
-        { name: "Compartilhamento", href: "/admin/configuracoes?tab=compartilhamento" },
-        { name: "Faixa de procedência", href: "/admin/configuracoes?tab=procedencia" },
-        { name: "Faixa do Instagram", href: "/admin/configuracoes?tab=instagram" },
+        // Seis telas de configuração viraram UMA entrada (03/10/2026): o grupo
+        // tinha dez itens, e seis eram abas da mesma tela. As abas agora
+        // aparecem dentro dela (`ABAS_DO_SITE` em `lib/abasDeConfiguracao.ts`),
+        // e este item fica aceso em qualquer uma.
+        { name: "Configurações do site", href: "/admin/configuracoes?tab=destaques", abas: ABAS_DO_SITE.map((a) => a.id) },
       ],
     },
     {
@@ -212,12 +235,10 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         { name: "Integrações e webhooks", href: "/admin/configuracoes?tab=integracao" },
         { name: "Pop-ups de lead", href: "/admin/configuracoes?tab=popups" },
         { name: "Dados da concessionária", href: "/admin/configuracoes?tab=empresa" },
+        // Era um grupo "Administrativo" de um item só. Mora em Sistema desde
+        // 03/10/2026, e continua só de Admin.
+        { name: "Usuários e permissões", href: "/admin/usuarios", roles: ["admin"] },
       ],
-    },
-    {
-      title: "Administrativo",
-      roles: ["admin"],
-      items: [{ name: "Usuários e permissões", href: "/admin/usuarios" }],
     },
   ];
 
@@ -240,13 +261,19 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
     // Grupo que ficou sem item nenhum não vira um título solto no trilho.
     .filter((group) => group.items.length > 0);
 
-  const isItemActive = (href: string) => {
+  const isItemActive = (href: string, abas?: readonly string[]) => {
+    // A entrada que reúne várias abas fica acesa em qualquer uma delas, e na
+    // tela sem `?tab=`, que abre a primeira.
+    if (abas) {
+      if (pathname !== "/admin/configuracoes") return false;
+      return !activeTab || abas.includes(activeTab);
+    }
     if (href.startsWith("/admin/configuracoes")) {
       const url = new URL(href, "http://localhost");
       const tabPart = url.searchParams.get("tab");
       if (pathname !== "/admin/configuracoes") return false;
       if (tabPart) return activeTab === tabPart;
-      return !activeTab || activeTab === "destaques"; // aba padrão quando a URL não diz
+      return false;
     }
 
     // A visão e o editor de um veículo (/admin/estoque/[id] e /editar)
@@ -270,36 +297,93 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
     return pathname === href;
   };
 
-  return (
-    <nav className="flex flex-col pb-4">
-      {allowedGroups.map((group) => (
-        <div key={group.title} className="px-5 pb-1.5 pt-4">
-          <div className="mb-2 text-[9px] font-semibold uppercase tracking-[.18em] text-mt-inverso-suave">
-            {group.title}
-          </div>
+  const abasDe = (item: { href: string }) => ("abas" in item ? (item as { abas?: readonly string[] }).abas : undefined);
+  const grupoTemAtivo = (group: (typeof allowedGroups)[number]) =>
+    group.items.some((item) => isItemActive(item.href, abasDe(item)));
 
-          {group.items.map((item) => {
-            const active = isItemActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                /* A marca do item ativo é uma régua de 3px encostada na
-                   borda do trilho: daí o recuo negativo, que puxa a borda
-                   para fora do respiro de 20px do grupo. */
-                className={`mt-foco -ml-[13px] flex items-center border-l-[3px] py-2 pl-2.5 text-[13px] no-underline transition-colors ${
-                  active
-                    ? "border-mt-accent font-extrabold text-mt-inverso"
-                    : "border-transparent font-normal text-mt-inverso-suave hover:text-mt-inverso"
-                }`}
-              >
-                {item.name}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+  // O que a pessoa abriu ou fechou à mão, lembrado no navegador. Sem escolha
+  // guardada, só o grupo da tela atual fica aberto: é o que o servidor também
+  // desenha, então nada pisca na primeira pintura.
+  const textoDasEscolhas = useSyncExternalStore(assinarGrupos, lerGrupos, () => "{}");
+  const escolhas = useMemo<Record<string, boolean>>(() => {
+    try {
+      const salvo: unknown = JSON.parse(textoDasEscolhas);
+      return salvo && typeof salvo === "object" ? (salvo as Record<string, boolean>) : {};
+    } catch {
+      return {}; // valor estragado: fica o padrão
+    }
+  }, [textoDasEscolhas]);
+  const alternar = (titulo: string, abertoAgora: boolean) => {
+    try {
+      localStorage.setItem(CHAVE_DOS_GRUPOS, JSON.stringify({ ...escolhas, [titulo]: !abertoAgora }));
+      window.dispatchEvent(new Event(EVENTO_DOS_GRUPOS));
+    } catch {
+      /* armazenamento bloqueado: o menu fica no padrão, com o grupo da tela aberto */
+    }
+  };
+
+  const veAVisaoGeral = menuGroups[0].roles.some((r) => perfis.includes(r));
+  const classeDoItem = (active: boolean) =>
+    /* A marca do item ativo é uma régua de 3px encostada na borda do trilho. */
+    `mt-foco flex min-h-10 items-center border-l-[3px] pl-[17px] pr-5 text-[13px] no-underline transition-colors ${
+      active
+        ? "border-mt-accent font-extrabold text-mt-inverso"
+        : "border-transparent font-normal text-mt-inverso-suave hover:text-mt-inverso"
+    }`;
+
+  return (
+    <nav aria-label="Painel" className="flex flex-col pb-4 pt-2">
+      {veAVisaoGeral && (
+        <Link
+          href="/admin"
+          aria-current={pathname === "/admin" ? "page" : undefined}
+          className={`${classeDoItem(pathname === "/admin")} min-h-11 text-[14px]`}
+        >
+          Visão geral
+        </Link>
+      )}
+
+      {allowedGroups.map((group) => {
+        const temAtivo = grupoTemAtivo(group);
+        // O grupo da tela atual abre sozinho; fechá-lo à mão continua valendo.
+        const aberto = escolhas[group.title] ?? temAtivo;
+        const idDaLista = `grupo-${group.title.toLowerCase()}`;
+        return (
+          <div key={group.title} className="border-t border-mt-inverso-regua-fina">
+            <button
+              type="button"
+              aria-expanded={aberto}
+              aria-controls={idDaLista}
+              onClick={() => alternar(group.title, aberto)}
+              className={`mt-foco flex min-h-11 w-full cursor-pointer items-center justify-between border-0 bg-transparent px-5 text-left text-[10px] font-extrabold uppercase tracking-[.16em] hover:text-mt-inverso ${
+                aberto || temAtivo ? "text-mt-inverso" : "text-mt-inverso-suave"
+              }`}
+            >
+              <span>{group.title}</span>
+              <span aria-hidden="true" className="text-[14px] font-normal tracking-normal text-mt-cobre-marca">
+                {aberto ? "–" : "+"}
+              </span>
+            </button>
+            {/* Fechado, o grupo continua no HTML (`hidden`): o leitor de tela e
+                o Tab pulam os itens, e nada precisa ser buscado ao abrir. */}
+            <div id={idDaLista} hidden={!aberto} className="flex flex-col pb-2">
+              {group.items.map((item) => {
+                const active = isItemActive(item.href, abasDe(item));
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={classeDoItem(active)}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </nav>
   );
 }
