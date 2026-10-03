@@ -5,7 +5,16 @@ import {
   interpretarEventoDoChatwoot,
   variantesDoTelefone,
   type EventoDoChatwoot,
+  type SinalDeAtribuicao,
 } from "../../../../lib/chatwootEventos";
+import {
+  decidirResponsavel,
+  notaSuperada,
+  type NotaDatada,
+  type PerfilDaAtribuicao,
+} from "../../../../lib/atribuicaoDoChatwoot";
+import { lerNotaDaConversa } from "../../../../lib/atribuicaoDoChatwoot-servidor";
+import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
 
 export const dynamic = "force-dynamic";
 
@@ -186,7 +195,9 @@ export async function POST(request: Request) {
  *
  *   1. o atendimento existe (é a linha única por conversa);
  *   2. o lead existe e está vinculado (é o que aparece no kanban);
- *   3. se foi o consultor que falou, o relógio da estagnação reinicia.
+ *   3. se foi o consultor que falou, o relógio da estagnação reinicia;
+ *   4. se um admin deu a conversa a um vendedor no Chatwoot, o lead muda de
+ *      dono (2026-10-03, ver `aplicarAtribuicao`).
  *
  * O passo 3 depende do 2 — sem lead não há relógio para parar —, e é por isso
  * que a resposta do consultor também cria lead quando ainda não há um. O caso
@@ -279,6 +290,27 @@ async function aplicar(
     return { ok: true, acao: "contato_registrado", conversa: conversaId, lead: leadId };
   }
 
+  // 4. O dono ------------------------------------------------------------
+  if (evento.atribuicao && leadId) {
+    // Nada daqui derruba o que já foi gravado: o atendimento e o vínculo
+    // valem mesmo que a atribuição não possa ser lida.
+    let resultado: ResultadoDaAtribuicao;
+    try {
+      resultado = await aplicarAtribuicao(supabase, leadId, conversaId, evento.atribuicao);
+    } catch (erro: unknown) {
+      const motivo = erro instanceof Error ? erro.message : String(erro);
+      console.error("[Chatwoot] Atribuição não aplicada:", motivo);
+      resultado = { mudou: false, motivo };
+    }
+    return {
+      ok: true,
+      acao: resultado.mudou ? "responsavel_atribuido" : "atendimento_vinculado",
+      conversa: conversaId,
+      lead: leadId,
+      detalhe: resultado.mudou ? undefined : `atribuição sem efeito: ${resultado.motivo}`,
+    };
+  }
+
   return {
     ok: true,
     acao: leadId ? "atendimento_vinculado" : "atendimento_sem_lead",
@@ -286,6 +318,166 @@ async function aplicar(
     lead: leadId,
     detalhe: leadId ? undefined : "conversa sem telefone reconhecível",
   };
+}
+
+/** Quanto o relógio do servidor pode estar adiantado em relação ao do banco. */
+const FOLGA_DO_RASTRO_MS = 60_000;
+
+type ResultadoDaAtribuicao = { mudou: true } | { mudou: false; motivo: string };
+
+/**
+ * A atribuição feita no Chatwoot vira o dono do lead (2026-10-03).
+ *
+ * Só quando um ADMIN ativo deu a conversa a um Comercial ativo. A régua é
+ * `decidirResponsavel`; aqui ficam as leituras que ela pede e a gravação.
+ *
+ * O evento não diz quem atribuiu. Quando a nota não veio nele, é lida da
+ * conversa pela API. Sem `CHATWOOT_API_TOKEN`, ou com o Chatwoot fora do ar,
+ * o lead fica como está: o motivo sai no log e a resposta continua 200.
+ *
+ * ---------------------------------------------------------------------------
+ * O rastro, e por que ele é corrigido depois de gravado
+ * ---------------------------------------------------------------------------
+ * Quem escreve o rastro da troca de dono é o gatilho de `leads`
+ * (`leads_registrar_no_rastro`), e ele decide pelo `auth.uid()`: com a chave
+ * de serviço, que é a desta rota, a troca sai como `transferencia` AUTOMÁTICA
+ * e sem autor, como se o motor tivesse tirado o lead de alguém. Deixar assim
+ * tem custo: o relatório contaria uma transferência que não houve, e o
+ * gatilho do crédito do SDR lê `transferencia` automática como "lead parado".
+ *
+ * Então, logo depois do `update`, a linha que o gatilho escreveu é corrigida
+ * para o que a troca foi: `responsavel`, com o nome do admin e
+ * `detalhe.origem = "chatwoot"`. Se a linha não for achada, uma equivalente é
+ * inserida. ⚠️ O conserto de verdade é uma função de banco que receba o autor
+ * (como `registrar_contato_do_lead` recebe `p_autor`); esta entrega não
+ * podia escrever migração.
+ *
+ * Pela mesma razão o `update` zera o alerta e carimba `ultimo_contato_em`: é
+ * o que o gatilho `leads_antes_de_atualizar` faz quando a troca vem de gente
+ * pelo painel. Sem isso, o vendedor receberia o lead com o prazo já vencido e
+ * o motor o tiraria dele na rodada seguinte.
+ */
+async function aplicarAtribuicao(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  leadId: string,
+  conversaId: number,
+  sinal: SinalDeAtribuicao,
+): Promise<ResultadoDaAtribuicao> {
+  let datada: NotaDatada | null = sinal.nota ? { nota: sinal.nota, em: sinal.notaEm } : null;
+
+  if (!datada) {
+    const cfg = configDoChatwoot();
+    if (!cfg) return { mudou: false, motivo: "chatwoot-nao-configurado" };
+    const lida = await lerNotaDaConversa(conversaId, cfg, sinal);
+    if (!lida.ok) {
+      console.warn("[Chatwoot] Nota de atribuição não lida:", lida.motivo);
+      return { mudou: false, motivo: lida.motivo };
+    }
+    datada = lida.valor;
+  }
+
+  const { data: perfis, error: erroPerfis } = await supabase
+    .from("profiles")
+    .select("full_name, email, papeis, is_active")
+    .eq("is_active", true);
+  if (erroPerfis) return { mudou: false, motivo: `perfis ilegíveis: ${erroPerfis.message}` };
+
+  const decisao = decidirResponsavel({
+    nota: datada.nota,
+    perfis: (perfis ?? []) as PerfilDaAtribuicao[],
+    emailDoDestino: sinal.emailDoResponsavel,
+  });
+  if (decisao.responsavel === null) return { mudou: false, motivo: decisao.motivo };
+
+  const { data: lead, error: erroLead } = await supabase
+    .from("leads")
+    .select("responsavel, responsavel_desde")
+    .eq("id", leadId)
+    .maybeSingle();
+  if (erroLead || !lead) {
+    return { mudou: false, motivo: `lead ilegível: ${erroLead?.message ?? "não encontrado"}` };
+  }
+
+  const atual = typeof lead.responsavel === "string" ? lead.responsavel.trim() : "";
+  // O mesmo nome não gera escrita: o Chatwoot manda vários eventos pela mesma
+  // atribuição, e cada escrita seria uma linha a mais no rastro.
+  if (atual === decisao.responsavel) return { mudou: false, motivo: "ja-e-o-responsavel" };
+  // Nota mais velha que a última troca de dono: o painel já decidiu depois.
+  if (notaSuperada(datada.em, lead.responsavel_desde as string | null)) {
+    return { mudou: false, motivo: "nota-anterior-a-ultima-troca" };
+  }
+
+  // Só linha do rastro escrita DESTA troca pode ser corrigida. A folga cobre a
+  // diferença entre o relógio daqui e o do banco.
+  const desde = new Date(Date.now() - FOLGA_DO_RASTRO_MS).toISOString();
+  const agora = new Date().toISOString();
+  const { error: erroGravar } = await supabase
+    .from("leads")
+    .update({
+      responsavel: decisao.responsavel,
+      atualizado_em: agora,
+      ultimo_contato_em: agora,
+      alertado_em: null,
+    })
+    .eq("id", leadId);
+  if (erroGravar) return { mudou: false, motivo: `lead não atualizado: ${erroGravar.message}` };
+
+  await corrigirRastro(supabase, {
+    leadId,
+    de: atual || null,
+    para: decisao.responsavel,
+    autor: decisao.autor,
+    desde,
+    detalhe: { origem: "chatwoot", conversa: conversaId, nota: datada.nota.tipo },
+  });
+  return { mudou: true };
+}
+
+/**
+ * Faz o rastro dizer o que houve: um admin trocou o dono, pelo Chatwoot.
+ * Ver o cabeçalho de `aplicarAtribuicao`. Falha aqui não desfaz a troca.
+ */
+async function corrigirRastro(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  troca: {
+    leadId: string;
+    de: string | null;
+    para: string;
+    autor: string;
+    /** Antes disto, a linha é de outra troca e não se toca. */
+    desde: string;
+    detalhe: Record<string, unknown>;
+  },
+): Promise<void> {
+  const correto = {
+    tipo: "responsavel",
+    autor: troca.autor,
+    automatico: false,
+    detalhe: troca.detalhe,
+  };
+
+  const { data: escritas, error: erroLer } = await supabase
+    .from("leads_eventos")
+    .select("id")
+    .eq("lead_id", troca.leadId)
+    .eq("tipo", "transferencia")
+    .eq("automatico", true)
+    .eq("para", troca.para)
+    .gte("criado_em", troca.desde)
+    .order("criado_em", { ascending: false })
+    .limit(1);
+  if (erroLer) {
+    console.error("[Chatwoot] Rastro da atribuição ilegível:", erroLer.message);
+    return;
+  }
+
+  const doGatilho = escritas?.[0]?.id;
+  const { error } = doGatilho
+    ? await supabase.from("leads_eventos").update(correto).eq("id", doGatilho)
+    : await supabase
+        .from("leads_eventos")
+        .insert({ ...correto, lead_id: troca.leadId, de: troca.de, para: troca.para });
+  if (error) console.error("[Chatwoot] Rastro da atribuição não corrigido:", error.message);
 }
 
 /**

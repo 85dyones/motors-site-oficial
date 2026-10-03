@@ -36,6 +36,13 @@
  * silencioso.
  */
 
+import {
+  ehMensagemDeAtividade,
+  instanteDaMensagem,
+  lerNotaDeAtribuicao,
+  type NotaDeAtribuicao,
+} from "./atribuicaoDoChatwoot";
+
 /** O que aconteceu, do ponto de vista do funil. */
 export type TipoDeEventoDoChatwoot =
   /** O cliente escreveu. É o que cria lead e o que abre atendimento. */
@@ -63,6 +70,31 @@ export interface EventoDoChatwoot {
   autor: string | null;
   /** Por que foi ignorado. Fila que descarta em silêncio é fila que ninguém audita. */
   motivo?: string;
+  /**
+   * A conversa PODE ter mudado de responsável no Chatwoot. Só o sinal: quem
+   * decide se o lead muda de dono é `decidirResponsavel`, com os perfis na mão.
+   */
+  atribuicao?: SinalDeAtribuicao;
+}
+
+/**
+ * O que o evento deixa saber sobre uma troca de responsável.
+ *
+ * O Chatwoot não diz quem atribuiu. O evento traz, no máximo, QUE mudou
+ * (`changed_attributes`) e quem é o responsável agora (`meta.assignee`). O
+ * autor só existe na nota de atividade, que quase nunca vem no evento e é
+ * lida da conversa pela rota. Ver `atribuicaoDoChatwoot.ts`.
+ */
+export interface SinalDeAtribuicao {
+  /** A nota, quando o próprio evento é a mensagem de atividade. */
+  nota: NotaDeAtribuicao | null;
+  /** Quando a nota foi escrita, em milissegundos. */
+  notaEm: number | null;
+  /** O evento DISSE que o responsável mudou, ou só carrega um responsável? */
+  explicito: boolean;
+  /** Nome do responsável atual da conversa no Chatwoot, se veio. */
+  responsavelNoChatwoot: string | null;
+  emailDoResponsavel: string | null;
 }
 
 /** Lê um inteiro de um campo que pode vir número, string ou lixo. */
@@ -149,6 +181,32 @@ function direcaoDaMensagem(v: unknown): "entrada" | "saida" | null {
   return null;
 }
 
+/**
+ * `changed_attributes` menciona `assignee_id`?
+ *
+ * O Chatwoot manda uma lista de objetos de uma chave só
+ * (`[{ assignee_id: { previous_value, current_value } }]`) e omite o campo
+ * quando não tem o que dizer. Aceita também o objeto direto, que é como um
+ * intermediário costuma achatar. `null` = o envelope não trouxe o campo, e
+ * quem chama decide pelo que mais o evento carrega.
+ */
+function mencionaResponsavel(alterados: unknown): boolean | null {
+  if (alterados === undefined || alterados === null) return null;
+  const itens = Array.isArray(alterados) ? alterados : [alterados];
+  return itens.some(
+    (i) => i === "assignee_id" || (i && typeof i === "object" && "assignee_id" in (i as object)),
+  );
+}
+
+/** O responsável atual da conversa, de `meta.assignee`. */
+function responsavelDaConversa(meta: Record<string, unknown>): { nome: string | null; email: string | null } {
+  const a = (meta.assignee && typeof meta.assignee === "object" ? meta.assignee : {}) as Record<
+    string,
+    unknown
+  >;
+  return { nome: texto(a.name) ?? texto(a.available_name), email: texto(a.email) };
+}
+
 const IGNORADO = (motivo: string): EventoDoChatwoot => ({
   tipo: "ignorado",
   conversaId: null,
@@ -210,6 +268,32 @@ export function interpretarEventoDoChatwoot(bruto: unknown): EventoDoChatwoot {
 
   if (evento === "message_created") {
     if (!conversaId) return IGNORADO("mensagem sem id de conversa");
+
+    // Mensagem de atividade: a linha cinza que o Chatwoot escreve na conversa.
+    // A única que interessa é a nota de atribuição, e ela entra como evento de
+    // CONVERSA: não é o cliente escrevendo nem o consultor respondendo, então
+    // não cria lead e não mexe no relógio.
+    if (ehMensagemDeAtividade(corpo.message_type)) {
+      const nota = lerNotaDeAtribuicao(corpo.content);
+      if (!nota) return IGNORADO("mensagem de atividade sem efeito no funil");
+      const responsavel = responsavelDaConversa(meta);
+      return {
+        ...base,
+        tipo: "conversa",
+        contatoId: inteiro(contatoDaConversa.id),
+        telefone: telefoneDoChatwoot(contatoDaConversa.phone_number ?? contatoDaConversa.identifier),
+        nome: texto(contatoDaConversa.name),
+        autor: null,
+        atribuicao: {
+          nota,
+          notaEm: instanteDaMensagem(corpo.created_at),
+          explicito: true,
+          responsavelNoChatwoot: responsavel.nome,
+          emailDoResponsavel: responsavel.email,
+        },
+      };
+    }
+
     const direcao = direcaoDaMensagem(corpo.message_type);
     if (!direcao) return IGNORADO(`message_type desconhecido: ${String(corpo.message_type)}`);
 
@@ -250,6 +334,27 @@ export function interpretarEventoDoChatwoot(bruto: unknown): EventoDoChatwoot {
     evento === "conversation_resolved"
   ) {
     if (!conversaId) return IGNORADO("evento de conversa sem id");
+
+    // A troca de responsável só chega por `conversation_updated`. Com
+    // `changed_attributes` no envelope, ele manda: sem `assignee_id` ali, a
+    // atualização foi de outra coisa (etiqueta, status) e não se vai ao
+    // Chatwoot perguntar. Sem o campo, sobra o que o evento carrega: uma
+    // conversa COM responsável pode ter acabado de ganhá-lo.
+    let atribuicao: SinalDeAtribuicao | undefined;
+    if (evento === "conversation_updated") {
+      const responsavel = responsavelDaConversa(meta);
+      const mencionado = mencionaResponsavel(corpo.changed_attributes);
+      if (mencionado === true || (mencionado === null && responsavel.nome)) {
+        atribuicao = {
+          nota: null,
+          notaEm: null,
+          explicito: mencionado === true,
+          responsavelNoChatwoot: responsavel.nome,
+          emailDoResponsavel: responsavel.email,
+        };
+      }
+    }
+
     return {
       ...base,
       tipo: "conversa",
@@ -257,6 +362,7 @@ export function interpretarEventoDoChatwoot(bruto: unknown): EventoDoChatwoot {
       telefone: telefoneDoChatwoot(contatoDaConversa.phone_number ?? contatoDaConversa.identifier),
       nome: texto(contatoDaConversa.name),
       autor: null,
+      ...(atribuicao ? { atribuicao } : {}),
     };
   }
 
