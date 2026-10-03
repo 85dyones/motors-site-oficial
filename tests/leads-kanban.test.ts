@@ -8,6 +8,7 @@ import {
   filtrarPorResponsavel,
   iniciais,
   opcoesDeResponsavel,
+  opcaoSemResponsavel,
   opcoesDoCard,
 } from "../src/lib/leadsKanban";
 
@@ -384,8 +385,58 @@ describe("a rota", () => {
   });
 
   it("mantém Marketing no agregado, sem nome de pessoa", () => {
-    const agregado = rota.slice(rota.indexOf("if (!podeVer)"), rota.indexOf("let atendentes"));
+    // O bloco do agregado sai ANTES da leitura da fila (a que traz pessoas).
+    const inicio = rota.indexOf("if (!podeVer) {");
+    const fim = rota.indexOf("// `created_at`, não `criado_em`");
+    expect(inicio).toBeGreaterThan(-1);
+    expect(fim).toBeGreaterThan(inicio);
+    const agregado = rota.slice(inicio, fim);
     expect(agregado).toContain("somenteAgregado");
     expect(agregado).not.toContain("nome");
+    // A contagem é da loja: chave de serviço, só a coluna da etapa.
+    expect(agregado).toContain('lerLeadsDaLoja<{ situacao: string }>(passe, ["situacao"]');
+    expect(agregado).not.toContain("supabase.from(");
+  });
+});
+
+/**
+ * Só o Administrador deixa um lead sem responsável (decisão do dono,
+ * 03/10/2026). O select do card não oferece a opção vazia a mais ninguém.
+ */
+describe("a opção 'Sem responsável' do select do card (03/10)", () => {
+  it("o Admin a escolhe, com ou sem dono no lead", () => {
+    expect(opcaoSemResponsavel(true, "Ana")).toBe("oferece");
+    expect(opcaoSemResponsavel(true, null)).toBe("oferece");
+  });
+
+  it("para quem não é Admin, o lead com dono não tem a opção", () => {
+    expect(opcaoSemResponsavel(false, "Ana")).toBe("nao");
+  });
+
+  it("lead sem dono à vista de quem não é Admin: a opção só mostra o valor", () => {
+    // Não deveria acontecer (o servidor não entrega esse lead), mas sem a
+    // opção o select exibiria o primeiro nome da lista como se fosse o dono.
+    expect(opcaoSemResponsavel(false, null)).toBe("so-mostra");
+    expect(opcaoSemResponsavel(false, "")).toBe("so-mostra");
+    expect(opcaoSemResponsavel(false, "   ")).toBe("so-mostra");
+  });
+
+  it("o card pergunta à régua do escopo e só pinta a opção quando ela deixa", () => {
+    expect(codigo).toContain("setPodeTirarDono(podeRemoverResponsavel({ escopo: d.escopo }));");
+    // Começa fechado: antes de a fila chegar, a tela não oferece o que a rota recusa.
+    expect(codigo).toContain("const [podeTirarDono, setPodeTirarDono] = useState(false);");
+    const opcao = codigo.indexOf('{opcaoSemResponsavel(podeTirarDono, l.responsavel) !== "nao" && (');
+    expect(opcao).toBeGreaterThan(-1);
+    const trecho = codigo.slice(opcao, opcao + 260);
+    expect(trecho).toContain('<option value="" disabled={!podeTirarDono}>');
+    expect(trecho).toContain("Sem responsável");
+    // A opção vazia do SELECT DO CARD não existe fora desse guarda.
+    expect(codigo.match(/<option value=""[^>]*>\s*Sem responsável/g)).toHaveLength(1);
+  });
+
+  it("a recusa da rota aparece na tela pelo caminho de sempre", () => {
+    expect(codigo).toContain('throw new Error(d.error || "Falha ao salvar");');
+    expect(codigo).toContain("falhou(e.message);");
+    expect(rota).toContain("return NextResponse.json({ error: AVISO_DE_RESPONSAVEL_OBRIGATORIO }, { status: 403 });");
   });
 });

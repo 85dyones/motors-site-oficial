@@ -10,6 +10,7 @@ import {
   iniciais,
   normalizarRef,
   opcoesDeResponsavel,
+  opcaoSemResponsavel,
   opcoesDoCard,
   resumoDaBusca,
 } from "../../lib/leadsKanban";
@@ -38,6 +39,7 @@ import BlocoDaAvaliacao from "./BlocoDaAvaliacao";
 import BlocoDoPerfil from "./BlocoDoPerfil";
 import EtiquetasDoLead from "./EtiquetasDoLead";
 import { aplicarMudanca, ehEtiquetaDaPassagem, type MudancaDeEtiquetas } from "../../lib/etiquetas";
+import { podeRemoverResponsavel } from "../../lib/escopoDeLeads";
 
 /**
  * Tela A8 do design doc — o funil de leads.
@@ -173,6 +175,9 @@ export default function LeadsKanban() {
   // Quem só enxerga os próprios leads (o vendedor) não precisa ler o próprio
   // nome em cada card. A regra de quem vê o quê é do servidor (`escopoDeLeads`).
   const [soOsMeus, setSoOsMeus] = useState(false);
+  // Só o Administrador deixa um lead sem responsável (03/10/2026). Começa em
+  // `false`: até a fila chegar, a tela não oferece o que a rota recusaria.
+  const [podeTirarDono, setPodeTirarDono] = useState(false);
   // As etiquetas (2026-09-25): as vistas nas conversas vêm com a fila; as
   // criadas na conta do Chatwoot vêm depois, numa leitura à parte, para a fila
   // não esperar a API. Guardadas separadas porque `carregar` renova a
@@ -281,6 +286,7 @@ export default function LeadsKanban() {
         setMotivos(d.motivos ?? []);
         setPodeConfigurar(Boolean(d.podeConfigurar));
         setSoOsMeus(d.escopo === "meus");
+        setPodeTirarDono(podeRemoverResponsavel({ escopo: d.escopo }));
         setEtiquetasVistas(d.etiquetasDisponiveis ?? []);
         setEtiquetasEditaveis(Boolean(d.etiquetasEditaveis));
       }
@@ -1255,7 +1261,14 @@ export default function LeadsKanban() {
                               aria-label={`Responsável por ${l.nome}`}
                               className="mt-foco w-full cursor-pointer border border-mt-regua-fina bg-mt-bg px-1.5 py-1 text-[10px] text-mt-ink disabled:cursor-wait disabled:opacity-60"
                             >
-                              <option value="">Sem responsável</option>
+                              {/* Só o Administrador deixa o lead sem dono
+                                  (03/10): para os outros a opção não existe, e
+                                  a rota recusa com 403. */}
+                              {opcaoSemResponsavel(podeTirarDono, l.responsavel) !== "nao" && (
+                                <option value="" disabled={!podeTirarDono}>
+                                  Sem responsável
+                                </option>
+                              )}
                               {/* Só o Comercial (23/09). O dono de fora aparece
                                   para o select mostrar o valor do lead, mas não
                                   pode ser escolhido de novo — a rota recusa. */}

@@ -7,6 +7,7 @@ import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { resumoDeVisitas } from "../../lib/analytics";
 import { resumoDeMidia, DIAS_DO_RESUMO } from "../../lib/midiaResumo";
+import { passeDaEquipe } from "../../lib/leadsDaLoja";
 import { kmDiscrepantes, trocasDeKmRecentes } from "../../lib/kmDiscrepante";
 
 export const dynamic = "force-dynamic";
@@ -58,13 +59,9 @@ export default async function AdminVisaoGeralPage() {
   // O KPI e o alerta de contas vencidas saíram em 2026-08-28, com a
   // aposentadoria do módulo de caixa (decisão do dono): a tabela `contas`
   // não existe mais, e o financeiro renasce sobre o razão do handoff.
-  // Mídia paga dos últimos 7 dias, vinda das plataformas (desde 2026-09-24).
-  // `null` quando as tabelas da mídia sincronizada não respondem.
   // A leitura do histórico de km sai já, em paralelo com o resto: não depende
   // de nada e só é usada no alerta, lá embaixo.
   const trocasDeKm = trocasDeKmRecentes(supabase);
-  const midia = await resumoDeMidia(supabase);
-  const campanhasNoAr = midia ? midia.meta.noAr + midia.google.noAr : 0;
 
   // Leads aguardando primeiro contato — a fila que abre a tela A1 no doc.
   // `error` ignorado de propósito: antes da migração de leads a consulta
@@ -77,9 +74,17 @@ export default async function AdminVisaoGeralPage() {
     data: { user: quemAbriu },
   } = await supabase.auth.getUser();
   const { data: perfilDeQuemAbriu } = quemAbriu
-    ? await supabase.from("profiles").select("role, papeis, full_name").eq("id", quemAbriu.id).maybeSingle()
+    ? await supabase.from("profiles").select("role, papeis, full_name, is_active").eq("id", quemAbriu.id).maybeSingle()
     : { data: null };
   const visaoDeQuemAbriu = visaoDeLeads(perfisDe(perfilDeQuemAbriu), perfilDeQuemAbriu?.full_name);
+
+  // Mídia paga dos últimos 7 dias, vinda das plataformas (desde 2026-09-24).
+  // `null` quando as tabelas da mídia sincronizada não respondem.
+  // O cartão de mídia conta leads por campanha, da LOJA: com o passe da equipe
+  // essa contagem sai da chave de serviço (`leadsDaLoja.ts`), e não do escopo
+  // de quem abriu a tela.
+  const midia = await resumoDeMidia(supabase, passeDaEquipe(perfilDeQuemAbriu));
+  const campanhasNoAr = midia ? midia.meta.noAr + midia.google.noAr : 0;
   const { data: leadsNovos } = await comEscopoDeLeads(
     supabase.from("leads").select("id, nome, interesse, canal, created_at").eq("situacao", "novo"),
     visaoDeQuemAbriu,

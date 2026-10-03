@@ -7,12 +7,19 @@ import {
   type Plataforma,
   type Rodada,
 } from "./midiaSync";
+import { lerLeadsDaLoja, type PasseDaEquipe } from "./leadsDaLoja";
 
 /**
  * O resumo de mídia paga da visão geral (`/admin`): últimos 7 dias por
  * plataforma, nas duas réguas de lead, mais o estado da sincronização.
  * Qualquer erro de leitura devolve `null` — a visão geral segue de pé sem o
  * cartão, como já faz com os leads antes da migração deles.
+ *
+ * Os leads por campanha são um número da LOJA: com o `passe` da equipe saem da
+ * chave de serviço (`leadsDaLoja.ts`, só a coluna `utm_campaign`), porque a RLS
+ * de `leads` por escopo (20261003130000) faria o cartão contar só os leads de
+ * quem abriu a tela. Sem passe, a leitura fica na sessão, como era. A mídia
+ * em si continua lida com a sessão.
  */
 
 export interface ResumoPlataforma {
@@ -28,7 +35,10 @@ export type ResumoMidia = Record<Plataforma, ResumoPlataforma>;
 
 export const DIAS_DO_RESUMO = 7;
 
-export async function resumoDeMidia(supabase: SupabaseClient): Promise<ResumoMidia | null> {
+export async function resumoDeMidia(
+  supabase: SupabaseClient,
+  passe: PasseDaEquipe | null = null,
+): Promise<ResumoMidia | null> {
   const janela = janelaDeDias(DIAS_DO_RESUMO);
 
   const [campRes, diarioRes, rodadasRes, leadsRes] = await Promise.all([
@@ -44,12 +54,16 @@ export async function resumoDeMidia(supabase: SupabaseClient): Promise<ResumoMid
       .select("plataforma, iniciada_em, ok, erro")
       .order("iniciada_em", { ascending: false })
       .limit(200),
-    supabase
-      .from("leads")
-      .select("utm_campaign")
-      .not("utm_campaign", "is", null)
-      .gte("created_at", `${janela.de}T00:00:00-03:00`)
-      .limit(5000),
+    passe
+      ? lerLeadsDaLoja<{ utm_campaign: string | null }>(passe, ["utm_campaign"], (c) =>
+          c.not("utm_campaign", "is", null).gte("created_at", `${janela.de}T00:00:00-03:00`).limit(5000),
+        )
+      : supabase
+          .from("leads")
+          .select("utm_campaign")
+          .not("utm_campaign", "is", null)
+          .gte("created_at", `${janela.de}T00:00:00-03:00`)
+          .limit(5000),
   ]);
 
   if (campRes.error || diarioRes.error || rodadasRes.error) return null;

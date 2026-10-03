@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
-import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads } from "../../../../lib/escopoDeLeads";
+import {
+  AVISO_DE_RESPONSAVEL_OBRIGATORIO,
+  comEscopoDeLeads,
+  leadNoEscopo,
+  pedeLeadSemResponsavel,
+  podeRemoverResponsavel,
+  visaoDeLeads,
+} from "../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
+import { lerLeadsDaLoja, passeDaEquipe } from "../../../../lib/leadsDaLoja";
 import {
   atendentesDoFluxo,
   recusaDeResponsavel,
@@ -51,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, papeis, full_name")
+      .select("role, papeis, full_name, is_active")
       .eq("id", user.id)
       .single();
     // Cliente da Garagem é authenticated sem ser staff; normalizar sem
@@ -92,6 +100,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: AVISO_DE_REF_INVALIDA }, { status: 400 });
     }
 
+    // Marketing enxerga volume, não pessoas — regra da matriz A17. O volume é
+    // o da LOJA, e por isso não sai da sessão: com a RLS de `leads` fechada
+    // por escopo (20261003130000), a sessão do Marketing não lê lead nenhum e
+    // a contagem viraria zero. Sai da chave de serviço, só a coluna da etapa,
+    // nas mesmas 500 linhas mais novas que a fila mostra.
+    if (!podeVer) {
+      const passe = passeDaEquipe(profile);
+      if (!passe) {
+        return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+      }
+      const etapas = await lerLeadsDaLoja<{ situacao: string }>(passe, ["situacao"], (c) =>
+        c.order("created_at", { ascending: false }).limit(500),
+      );
+      if (etapas.error) {
+        if (ehTabelaOuColunaAusente(etapas.error)) {
+          return NextResponse.json({ leads: [], migracaoPendente: true });
+        }
+        return NextResponse.json({ error: etapas.error.message }, { status: 500 });
+      }
+      const porSituacao: Record<string, number> = {};
+      for (const l of etapas.data ?? []) porSituacao[l.situacao] = (porSituacao[l.situacao] ?? 0) + 1;
+      return NextResponse.json({
+        somenteAgregado: true,
+        total: (etapas.data ?? []).length,
+        porSituacao,
+      });
+    }
+
     // `created_at`, não `criado_em`: a tabela `leads` é preexistente e já
     // trazia esse nome. Renomear quebraria consumidor externo — ver a nota na
     // migração 20260807210000.
@@ -108,9 +144,9 @@ export async function GET(request: NextRequest) {
     // que não roda por visitante. O padrão, e por que ele é o inverso exato de
     // `refCurta`, está em `padraoDaRef`.
     if (ref) consulta = consulta.ilike("ag_uid", padraoDaRef(ref));
-    // O escopo vale para a fila E para a busca por referência. Marketing fica
-    // de fora do filtro: ele só recebe a contagem, e a contagem é da loja.
-    if (podeVer) consulta = comEscopoDeLeads(consulta, visao);
+    // O escopo vale para a fila E para a busca por referência. Quem chega aqui
+    // vê leads; o Marketing já saiu acima, com a contagem da loja.
+    consulta = comEscopoDeLeads(consulta, visao);
     const { data, error } = await consulta;
 
     if (error) {
@@ -127,18 +163,7 @@ export async function GET(request: NextRequest) {
     // O banco já filtrou pelo escopo; esta segunda passada só tira o caso que
     // ele não enxerga (responsável só com espaços), para a fila não oferecer
     // um lead que a escrita recusaria.
-    const leads = podeVer ? (data ?? []).filter((l) => leadNoEscopo(visao, l.responsavel)) : (data ?? []);
-
-    // Marketing enxerga volume, não pessoas — regra da matriz A17.
-    if (!podeVer) {
-      const porSituacao: Record<string, number> = {};
-      for (const l of leads) porSituacao[l.situacao] = (porSituacao[l.situacao] ?? 0) + 1;
-      return NextResponse.json({
-        somenteAgregado: true,
-        total: leads.length,
-        porSituacao,
-      });
-    }
+    const leads = (data ?? []).filter((l) => leadNoEscopo(visao, l.responsavel));
 
     // ------------------------------------------------------------------------
     // A conversa no Chatwoot, quando já existe
@@ -363,6 +388,14 @@ export async function PATCH(request: NextRequest) {
       if (!alvo || !leadNoEscopo(visaoDoAutor, alvo.responsavel)) {
         return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
       }
+    }
+
+    // Só o Administrador deixa um lead sem responsável (decisão do dono,
+    // 03/10/2026). Depois do guarda do escopo, para o lead que a pessoa não
+    // enxerga continuar sendo 404, e ANTES do registro de contato, que é a
+    // primeira escrita da rota: recusado, o pedido não grava nada.
+    if (pedeLeadSemResponsavel(responsavel) && !podeRemoverResponsavel(visaoDoAutor)) {
+      return NextResponse.json({ error: AVISO_DE_RESPONSAVEL_OBRIGATORIO }, { status: 403 });
     }
 
     // "Falei com o cliente" — o clique no WhatsApp do card. Vai por RPC porque

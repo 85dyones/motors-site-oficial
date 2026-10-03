@@ -258,7 +258,8 @@ describe("PATCH /api/leads/gerenciar — fechar o negócio exige motivo", () => 
     expect((await r.json()).error).toMatch(/comercial/i);
     expect(gravacoes).toEqual([]);
 
-    // Tirar o dono continua valendo.
+    // Tirar o dono continua valendo para quem pode: o Administrador (03/10).
+    autor = { role: "admin", papeis: ["admin"], full_name: "Dono" };
     const semDono = await chamar({ responsavel: null });
     expect(semDono.status).toBe(200);
     expect(gravacoes[0]).toMatchObject({ responsavel: null });
@@ -419,7 +420,8 @@ describe("PATCH /api/leads/gerenciar — o responsável é gravado aparado (03/1
     expect(gravacoes).toEqual([]);
   });
 
-  it("tirar o dono continua gravando nulo", async () => {
+  it("tirar o dono, por quem pode (o Admin), continua gravando nulo", async () => {
+    autor = { role: "admin", papeis: ["admin"], full_name: "Dono" };
     await chamar({ responsavel: null });
     expect(gravacoes[0].responsavel).toBeNull();
   });
