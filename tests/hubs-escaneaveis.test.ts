@@ -95,8 +95,12 @@ const { textos } = JSON.parse(
 
 // O lote aprovado pelo dono em 02/10/2026 (hubs com procura no Search
 // Console) passa pela mesma régua.
-// O segundo lote (03/10/2026) entra na mesma lista.
-const loteProcura = ["textos-de-hub-lote-procura.json", "textos-de-hub-lote-procura-2.json", "textos-de-hub-lote-procura-3.json"].flatMap(
+// O segundo e o terceiro lotes (03/10/2026) entram na mesma lista.
+const loteProcura = [
+  "textos-de-hub-lote-procura.json",
+  "textos-de-hub-lote-procura-2.json",
+  "textos-de-hub-lote-procura-3.json",
+].flatMap(
   (arquivo) =>
     (JSON.parse(readFileSync(join(__dirname, "..", "conteudo-seo", arquivo), "utf8")) as { textos: Texto[] })
       .textos,
