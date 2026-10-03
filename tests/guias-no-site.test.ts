@@ -13,6 +13,7 @@ import { segmentarComLinks } from "../src/lib/linksNoTexto";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import PaginaDeEstoque from "../src/components/modernist/PaginaDeEstoque";
+import { PERGUNTAS_DE_GARANTIA, SECOES_DE_GARANTIA } from "../src/lib/paginasInstitucionais";
 
 /**
  * O registro de `lib/guiasNoSite.ts` copia título e slug dos guias, que vivem
@@ -140,6 +141,79 @@ describe("o bloco de guias não repete o link do texto", () => {
     const vezes = (href: string) => html.split(`href="${href}"`).length - 1;
     expect(vezes("/guias/o-que-reprova-pericia-cautelar")).toBe(1);
     expect(vezes("/guias/garantia-carro-usado-loja")).toBe(1);
+  });
+});
+
+describe("nenhum guia publicado fica órfão", () => {
+  // 03/10/2026, pedido do dono: ligar os guias órfãos. Até aqui seis guias só
+  // recebiam link do índice `/guias` e de outros guias. Todo guia publicado
+  // precisa de pelo menos uma entrada vinda de fora: um card de página
+  // comercial (`GUIAS_DA_PAGINA`), um card de hub de modelo
+  // (`GUIAS_POR_MODELO`) ou um link que o linkador põe no texto de uma página
+  // que não é guia.
+  //
+  // A terceira via depende do texto da página, que pode mudar sem ninguém
+  // lembrar do guia. Por isso ela é lista fechada: só vale para os slugs
+  // abaixo, e o teste confere com o texto de `/garantia` que está no
+  // repositório (seções e perguntas frequentes) que o link sai mesmo. Quem
+  // tirar a frase da página derruba o teste e decide: devolve a frase ou dá um
+  // card ao guia.
+  const SO_PELO_LINKADOR: Record<string, string> = {
+    // "passagem por leilão", na lista de motivos de recusa de `/garantia`.
+    "consultar-carro-leilao-sinistro": "passagem por leilão",
+    // "adulteração de numeração", na mesma lista.
+    "chassi-remarcado": "adulteração de numeração",
+    // "vistoria de transferência", na pergunta sobre a documentação.
+    "cautelar-x-vistoria-transferencia": "vistoria de transferência",
+  };
+
+  const comCard = new Set(
+    [...Object.values(GUIAS_DA_PAGINA).flat(), ...Object.values(GUIAS_POR_MODELO).flat()].map((g) => g.slug),
+  );
+
+  it("todo guia publicado tem card fora de /guias ou está na lista do linkador", () => {
+    for (const slug of Object.keys(GUIAS_CONHECIDOS)) {
+      expect(comCard.has(slug) || slug in SO_PELO_LINKADOR, `${slug} não recebe link de fora de /guias`).toBe(true);
+    }
+  });
+
+  it("a lista do linkador só tem guia sem card, e o texto de /garantia linka cada um", () => {
+    const textos = [
+      ...SECOES_DE_GARANTIA.flatMap((s) => s.paragrafos),
+      ...PERGUNTAS_DE_GARANTIA.map((p) => p.resposta),
+    ];
+    const linkados = textos.flatMap((t) => segmentarComLinks(t, "/garantia").filter((s) => s.href));
+    for (const [slug, termo] of Object.entries(SO_PELO_LINKADOR)) {
+      expect(GUIAS_CONHECIDOS[slug], slug).toBeDefined();
+      // Guia que ganhou card sai daqui: a exceção deixou de ser necessária.
+      expect(comCard.has(slug), `${slug} já tem card`).toBe(false);
+      expect(
+        linkados.some((s) => s.href === `/guias/${slug}` && s.texto.toLowerCase() === termo),
+        `"${termo}" não linka ${slug} no texto de /garantia`,
+      ).toBe(true);
+    }
+  });
+
+  it("os cards de 03/10 estão nas páginas combinadas com o dono", () => {
+    const slugsDe = (pagina: keyof typeof GUIAS_DA_PAGINA) => GUIAS_DA_PAGINA[pagina].map((g) => g.slug as string);
+    for (const slug of ["vender-sozinho-ou-para-loja", "consignacao-de-carro", "carro-reprovado-cautelar-como-vender"]) {
+      expect(slugsDe("/avaliacao"), slug).toContain(slug);
+    }
+    for (const slug of ["resultados-laudo-cautelar", "carro-de-loja-ou-particular"]) {
+      expect(slugsDe("/garantia"), slug).toContain(slug);
+    }
+    expect(slugsDe("/seminovos-curitiba")).toContain("test-drive-carro-usado");
+    expect(slugsDe("/sobre")).toContain("resultados-laudo-cautelar");
+
+    // O card do carro reprovado não pode sugerir que a loja ou o Repasse
+    // Motors compra ou recebe o carro recusado (regra do guia 07, 28/09/2026).
+    const reprovado = GUIAS_DA_PAGINA["/avaliacao"].find((g) => g.slug === "carro-reprovado-cautelar-como-vender")!;
+    expect(reprovado.apoio).not.toMatch(/repasse|a loja|a gente|compramos|recebemos|aceitamos|Motors/i);
+
+    // /garantia: nenhuma linha de apoio explica a garantia legal.
+    for (const g of GUIAS_DA_PAGINA["/garantia"]) {
+      expect(g.apoio, g.slug).not.toMatch(/\bCDC\b|Código de Defesa|garantia legal|prazo legal|90 dias|noventa dias/i);
+    }
   });
 });
 
