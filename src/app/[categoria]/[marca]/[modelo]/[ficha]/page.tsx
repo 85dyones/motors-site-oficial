@@ -27,6 +27,7 @@ import { urlDoSite } from "../../../../../lib/site";
 import { blocoJsonLd } from "../../../../../lib/schemaListagem";
 import {
   destinoDoVeiculoArquivado,
+  marcasConhecidasOuNada,
   recortesDoEstoque,
   rotuloDoModelo,
 } from "../../../../../lib/hubsDeEstoque";
@@ -84,7 +85,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const slug = resolvedParams.ficha;
   
   // Natively strip `.html` ending and capture ID
-  const cleanSlug = slug.replace(/\.html$/, "");
+  const cleanSlug = slug.replace(/\.html$/i, "");
   
   let veiculo = await getVeiculoById(cleanSlug);
   if (!veiculo) {
@@ -237,16 +238,12 @@ export default async function CarDetailsPage({ params }: PageProps) {
     // Ficha do site antigo de um anúncio que o banco nunca conheceu: vai para
     // o hub do modelo ou da marca, como a ficha vendida. Só com `.html` no
     // fim; endereço qualquer continua 404. Ver `lib/enderecoAntigo.ts`.
-    if (ehFichaDoSiteAntigo(slug)) {
-      const { historico, disponiveis } = await recortesDoEstoque();
+    // O índice vem do recorte guardado por uma hora, e não do estoque: este
+    // é o ramo de não encontrado (decisão de 13/09). Na pane, segue 404.
+    const marcas = ehFichaDoSiteAntigo(slug) ? await marcasConhecidasOuNada() : null;
+    if (marcas) {
       permanentRedirect(
-        destinoDeFichaAntiga(
-          resolvedParams.categoria,
-          resolvedParams.marca,
-          resolvedParams.modelo,
-          historico,
-          disponiveis,
-        ),
+        destinoDeFichaAntiga(resolvedParams.categoria, resolvedParams.marca, resolvedParams.modelo, marcas),
       );
     }
     notFound();

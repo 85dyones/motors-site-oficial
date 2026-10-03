@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import nextConfig from "../next.config";
-import type { Veiculo } from "../src/types";
+import type { MarcaConhecida } from "../src/lib/fichaPerdida";
 import {
   caminhoEmMinusculas,
   destinoDeFichaAntiga,
@@ -19,30 +19,20 @@ import {
  * com impressões nos 90 dias anteriores.
  */
 
-function veiculo(parcial: Partial<Veiculo> & Pick<Veiculo, "id" | "marca" | "modelo">): Veiculo {
-  return {
-    versao: "",
-    ano: 2022,
-    quilometragem: 40000,
-    cambio: "Manual",
-    combustivel: "Flex",
-    cor: "Prata",
-    fipe: "",
-    preco_original: 50000,
-    preco_promocional: 0,
-    pericia: "",
-    whatsapp_images: [],
-    web_full_images: [],
-    opcionais: "",
-    laudo_pericia: "",
-    ...parcial,
-  } as Veiculo;
-}
-
-const UP = veiculo({ id: "1", marca: "Volkswagen", modelo: "Up", versao: "Take 1.0", tipo: "Hatch" });
-const VOYAGE = veiculo({ id: "2", marca: "Volkswagen", modelo: "Voyage", versao: "1.6", tipo: "Sedan" });
-const KA = veiculo({ id: "3", marca: "Ford", modelo: "Ka", versao: "SE 1.0", tipo: "Hatch" });
-const ESTOQUE = [UP, VOYAGE, KA];
+const MARCAS: MarcaConhecida[] = [
+  {
+    slug: "volkswagen",
+    nome: "Volkswagen",
+    segmento: "carros",
+    total: 2,
+    modelos: [
+      { slug: "up", nome: "Up", total: 1 },
+      { slug: "voyage", nome: "Voyage", total: 1 },
+    ],
+  },
+  { slug: "ford", nome: "Ford", segmento: "carros", total: 1, modelos: [{ slug: "ka", nome: "Ka", total: 1 }] },
+  { slug: "land-rover", nome: "Land Rover", segmento: "carros", total: 0, modelos: [] },
+];
 
 describe("marca e modelo em maiúsculas", () => {
   it("vão para o mesmo caminho em minúsculas", () => {
@@ -53,6 +43,10 @@ describe("marca e modelo em maiúsculas", () => {
   it("caminho já em minúsculas não redireciona (seria laço)", () => {
     expect(caminhoEmMinusculas(["carros", "volkswagen"])).toBeNull();
     expect(caminhoEmMinusculas(["carros", "mercedes-benz", "classe-a"])).toBeNull();
+    // `×` está na faixa das maiúsculas acentuadas e não tem minúscula: com a
+    // regex de faixa, `/carros/×` redirecionava para si mesmo, sem fim.
+    expect(caminhoEmMinusculas(["carros", "×"])).toBeNull();
+    expect(caminhoEmMinusculas(["carros", "%C3%97"])).toBeNull();
   });
 
   it("os dois hubs chamam a correção antes do 404", () => {
@@ -76,7 +70,7 @@ describe("ficha antiga de anúncio que o banco não conhece", () => {
   });
 
   it("vai para o hub do modelo quando ele existe", () => {
-    expect(destinoDeFichaAntiga("carros", "Volkswagen", "Voyage", ESTOQUE, ESTOQUE)).toBe(
+    expect(destinoDeFichaAntiga("carros", "Volkswagen", "Voyage", MARCAS)).toBe(
       "/carros/volkswagen/voyage",
     );
   });
@@ -84,13 +78,17 @@ describe("ficha antiga de anúncio que o banco não conhece", () => {
   it("sem hub do modelo, vai para o da marca", () => {
     // `/carros/Ford/Jeep//Ford-Jeep-1971-…-4846154.html`: a loja não tem hub
     // "ford/jeep", mas tem o da Ford.
-    expect(destinoDeFichaAntiga("carros", "Ford", "Jeep", ESTOQUE, ESTOQUE)).toBe("/carros/ford");
-    expect(destinoDeFichaAntiga("carros", "Volkswagen", "Taos", ESTOQUE, ESTOQUE)).toBe("/carros/volkswagen");
+    expect(destinoDeFichaAntiga("carros", "Ford", "Jeep", MARCAS)).toBe("/carros/ford");
+    expect(destinoDeFichaAntiga("carros", "Volkswagen", "Taos", MARCAS)).toBe("/carros/volkswagen");
+  });
+
+  it("a marca passa pelo mesmo slug do site novo (espaço e acento)", () => {
+    expect(destinoDeFichaAntiga("carros", "Land%20Rover", "Defender", MARCAS)).toBe("/carros/land-rover");
   });
 
   it("marca que a loja nunca teve cai na vitrine, e nunca na home", () => {
-    expect(destinoDeFichaAntiga("carros", "Lada", "Niva", ESTOQUE, ESTOQUE)).toBe("/estoque");
-    expect(destinoDeFichaAntiga("blog", "Ford", "Ka", ESTOQUE, ESTOQUE)).toBe("/estoque");
+    expect(destinoDeFichaAntiga("carros", "Lada", "Niva", MARCAS)).toBe("/estoque");
+    expect(destinoDeFichaAntiga("blog", "Ford", "Ka", MARCAS)).toBe("/estoque");
   });
 
   it("as duas rotas de ficha usam a regra só para endereço antigo", () => {
@@ -99,20 +97,35 @@ describe("ficha antiga de anúncio que o banco não conhece", () => {
       "src/app/[categoria]/[marca]/[modelo]/[ficha]/[legado]/page.tsx",
     ]) {
       const fonte = readFileSync(join(__dirname, "..", arquivo), "utf8");
-      expect(fonte, arquivo).toMatch(/if \(ehFichaDoSiteAntigo\((slug|legado)\)\) \{[\s\S]{0,400}destinoDeFichaAntiga\(/);
+      expect(fonte, arquivo).toMatch(
+        /ehFichaDoSiteAntigo\((slug|legado)\) \? await marcasConhecidasOuNada\(\) : null;[\s\S]{0,200}destinoDeFichaAntiga\(/,
+      );
+      // O ramo de não encontrado não lê o estoque inteiro (decisão de 13/09).
+      const ramo = fonte.slice(fonte.indexOf("ehFichaDoSiteAntigo("), fonte.indexOf("ehFichaDoSiteAntigo(") + 500);
+      expect(ramo, arquivo).not.toContain("recortesDoEstoque(");
     }
   });
 });
 
 describe("/multipla/modelo-marca/<MODELO>", () => {
+  it("a rota não lê o estoque inteiro e redireciona relativo ao pedido", () => {
+    const fonte = readFileSync(
+      join(__dirname, "..", "src", "app", "multipla", "modelo-marca", "[modelo]", "route.ts"),
+      "utf8",
+    );
+    expect(fonte).toContain("marcasConhecidasOuNada()");
+    expect(fonte).not.toContain("recortesDoEstoque");
+    expect(fonte).toContain("request.url");
+  });
+
   it("acha a marca no estoque e manda para o hub do modelo", () => {
-    expect(destinoDeModeloDoCatalogoAntigo("UP", ESTOQUE, ESTOQUE)).toBe("/carros/volkswagen/up");
-    expect(destinoDeModeloDoCatalogoAntigo("VOYAGE", ESTOQUE, ESTOQUE)).toBe("/carros/volkswagen/voyage");
+    expect(destinoDeModeloDoCatalogoAntigo("UP", MARCAS)).toBe("/carros/volkswagen/up");
+    expect(destinoDeModeloDoCatalogoAntigo("VOYAGE", MARCAS)).toBe("/carros/volkswagen/voyage");
   });
 
   it("modelo desconhecido (ou 'MOTO', que não é modelo) fica na vitrine", () => {
-    expect(destinoDeModeloDoCatalogoAntigo("MOTO", ESTOQUE, ESTOQUE)).toBe("/estoque");
-    expect(destinoDeModeloDoCatalogoAntigo("TAOS", ESTOQUE, ESTOQUE)).toBe("/estoque");
+    expect(destinoDeModeloDoCatalogoAntigo("MOTO", MARCAS)).toBe("/estoque");
+    expect(destinoDeModeloDoCatalogoAntigo("TAOS", MARCAS)).toBe("/estoque");
   });
 
   it("a regra genérica de /multipla deixa o pedido chegar na rota", async () => {
@@ -123,6 +136,9 @@ describe("/multipla/modelo-marca/<MODELO>", () => {
     const casa = (caminho: string) =>
       regras.filter((r) => !r.has).find((r) => match(r.source, { decode: decodeURIComponent })(caminho));
     expect(casa("/multipla/modelo-marca/UP")).toBeUndefined();
+    // Mais fundo que o modelo não é endereço do catálogo antigo: vitrine.
+    expect(casa("/multipla/modelo-marca/UP/x")?.destination).toBe("/estoque");
+    expect(casa("/multipla/modelo-marca")?.destination).toBe("/estoque");
     expect(casa("/multipla")?.destination).toBe("/estoque");
     expect(casa("/multipla/modelo/onix")?.destination).toBe("/estoque");
     expect(casa("/multipla/marca/VOLKSWAGEN")?.destination).toBe("/carros/:marca");

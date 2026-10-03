@@ -200,7 +200,7 @@ const nextConfig: NextConfig = {
       // exceção precisa estar escrita aqui.
       { source: "/multipla", destination: "/estoque", permanent: true },
       {
-        source: "/multipla/:resto((?!modelo-marca/).*)",
+        source: "/multipla/:resto((?!modelo-marca/[^/]+$).*)",
         destination: "/estoque",
         permanent: true,
       },

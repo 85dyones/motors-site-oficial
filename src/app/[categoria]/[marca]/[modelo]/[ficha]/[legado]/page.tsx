@@ -1,6 +1,6 @@
 import { permanentRedirect, notFound } from "next/navigation";
 import { getVeiculoById, getVeiculoPdpUrl } from "../../../../../../lib/supabase";
-import { recortesDoEstoque } from "../../../../../../lib/hubsDeEstoque";
+import { marcasConhecidasOuNada } from "../../../../../../lib/hubsDeEstoque";
 import { destinoDeFichaAntiga, ehFichaDoSiteAntigo } from "../../../../../../lib/enderecoAntigo";
 
 /**
@@ -59,7 +59,7 @@ interface PageProps {
  * seria refazer o erro para conferir o erro.
  */
 function idDoSlugAntigo(slug: string): string {
-  const limpo = slug.replace(/\.html$/, "");
+  const limpo = slug.replace(/\.html$/i, "");
   const partes = limpo.split("-");
   return partes[partes.length - 1] ?? "";
 }
@@ -76,10 +76,10 @@ export default async function FichaNoEnderecoAntigo({ params }: PageProps) {
     // essas URLs com impressões, e elas chegavam aqui como 404. O hub diz
     // "este saiu, estes são os que temos", que é a resposta a quem pediu um
     // carro específico. Endereço sem `.html` continua 404.
-    if (ehFichaDoSiteAntigo(legado)) {
-      const { historico, disponiveis } = await recortesDoEstoque();
-      permanentRedirect(destinoDeFichaAntiga(categoria, marca, modelo, historico, disponiveis));
-    }
+    // O índice vem do recorte guardado por uma hora (decisão de 13/09: o
+    // ramo de não encontrado não lê o estoque a cada pedido). Na pane, 404.
+    const marcas = ehFichaDoSiteAntigo(legado) ? await marcasConhecidasOuNada() : null;
+    if (marcas) permanentRedirect(destinoDeFichaAntiga(categoria, marca, modelo, marcas));
     notFound();
   }
 

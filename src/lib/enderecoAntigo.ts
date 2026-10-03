@@ -1,6 +1,5 @@
-import type { Veiculo } from "../types";
-import { acharHubDeMarca, acharHubDeModelo, hubsDeMarca } from "./hubsDeEstoque";
-import { ehSegmentoDePdp, type SegmentoDePdp } from "./veiculoUrl";
+import type { MarcaConhecida } from "./fichaPerdida";
+import { ehSegmentoDePdp, slugificar } from "./veiculoUrl";
 
 /**
  * Os endereços do site antigo (`motorsstoreoficial.com.br`, hospedado pelo
@@ -24,6 +23,12 @@ import { ehSegmentoDePdp, type SegmentoDePdp } from "./veiculoUrl";
  * A regra é a mesma cascata das fichas arquivadas: modelo → marca → `/estoque`,
  * nunca a home. E só vale para endereço com cara de site antigo (`.html` no
  * fim): um endereço qualquer, digitado errado, continua sendo 404.
+ *
+ * As funções recebem o ÍNDICE DE MARCAS do recorte do não encontrado
+ * (`recorteDoNaoEncontrado`, guardado por uma hora), e não o estoque: o espaço
+ * de endereços falsos é ilimitado, e a decisão de 13/09 é que o ramo de não
+ * encontrado nunca lê o estoque inteiro a cada pedido. Na pane, quem chama cai
+ * no 404 (ou em `/estoque`), como antes.
  */
 
 function semEscape(s: string): string {
@@ -40,13 +45,16 @@ export function ehFichaDoSiteAntigo(ultimoSegmento: string): boolean {
 }
 
 /**
- * O mesmo caminho em minúsculas, quando algum segmento tem maiúscula.
+ * O mesmo caminho em minúsculas, quando ele difere do pedido.
  *
- * `null` quando não há o que corrigir: o chamador segue o fluxo normal.
+ * `null` quando não há o que corrigir. A comparação é com o próprio resultado
+ * de `toLowerCase`, e não com uma faixa de letras: há caractere "maiúsculo"
+ * por faixa (o `×`) que não tem minúscula, e o destino igual à origem seria um
+ * laço de redirecionamento.
  */
 export function caminhoEmMinusculas(segmentos: string[]): string | null {
   const limpos = segmentos.map(semEscape);
-  if (!limpos.some((s) => /[A-ZÀ-Ý]/.test(s))) return null;
+  if (!limpos.some((s) => s !== s.toLowerCase())) return null;
   return "/" + limpos.map((s) => encodeURIComponent(s.toLowerCase())).join("/");
 }
 
@@ -55,20 +63,16 @@ export function destinoDeFichaAntiga(
   categoria: string,
   marca: string,
   modelo: string,
-  historico: Veiculo[],
-  disponiveis: Veiculo[],
+  marcas: MarcaConhecida[],
 ): string {
   const segmento = semEscape(categoria).toLowerCase();
   if (!ehSegmentoDePdp(segmento)) return "/estoque";
-  const slugMarca = semEscape(marca).toLowerCase();
-  const slugModelo = semEscape(modelo).toLowerCase();
-  if (acharHubDeModelo(historico, disponiveis, segmento, slugMarca, slugModelo)) {
-    return `/${segmento}/${slugMarca}/${slugModelo}`;
-  }
-  if (acharHubDeMarca(historico, disponiveis, segmento, slugMarca)) {
-    return `/${segmento}/${slugMarca}`;
-  }
-  return "/estoque";
+  const slugMarca = slugificar(semEscape(marca));
+  const slugModelo = slugificar(semEscape(modelo));
+  const hub = marcas.find((m) => m.segmento === segmento && m.slug === slugMarca);
+  if (!hub) return "/estoque";
+  if (hub.modelos.some((m) => m.slug === slugModelo)) return `/${segmento}/${slugMarca}/${slugModelo}`;
+  return `/${segmento}/${slugMarca}`;
 }
 
 /**
@@ -76,19 +80,10 @@ export function destinoDeFichaAntiga(
  * marca no endereço. Procura o modelo em todas as marcas; com um só hub que
  * bate, vai para ele. Sem nenhum, ou com mais de um, fica a vitrine.
  */
-export function destinoDeModeloDoCatalogoAntigo(
-  modelo: string,
-  historico: Veiculo[],
-  disponiveis: Veiculo[],
-): string {
-  const slug = semEscape(modelo).toLowerCase().trim().replace(/\s+/g, "-");
-  const achados: string[] = [];
-  for (const segmento of ["carros", "motos"] as SegmentoDePdp[]) {
-    for (const marca of hubsDeMarca(historico, disponiveis, segmento)) {
-      for (const m of marca.modelos) {
-        if (m.slug === slug) achados.push(`/${segmento}/${marca.slug}/${m.slug}`);
-      }
-    }
-  }
+export function destinoDeModeloDoCatalogoAntigo(modelo: string, marcas: MarcaConhecida[]): string {
+  const slug = slugificar(semEscape(modelo));
+  const achados = marcas.flatMap((marca) =>
+    marca.modelos.filter((m) => m.slug === slug).map((m) => `/${marca.segmento}/${marca.slug}/${m.slug}`),
+  );
   return achados.length === 1 ? achados[0] : "/estoque";
 }
