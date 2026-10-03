@@ -2,15 +2,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { ETAPAS_PADRAO } from "../src/lib/funil";
 import { aplicarMudanca } from "../src/lib/etiquetas";
+import { cardDe, detalheDeTeste, filaDeTeste, gaveta, leadDaUrl, zerarRota, definirLargura } from "./quadroDeLeadsDeTeste";
 
 /**
- * As etiquetas no card do kanban, na tela montada (2026-09-25).
+ * As etiquetas do lead, na tela montada (2026-09-25; no detalhe desde 03/10).
  *
- * Decisão do dono: o SDR vê e edita as etiquetas no card; a passagem para o
- * Comercial garante "resgate" e "reaquecido" sozinha. O que só a tela montada
- * prova:
+ * Decisão do dono: o SDR vê e edita as etiquetas do lead; a passagem para o
+ * Comercial garante "resgate" e "reaquecido" sozinha. Com o card enxuto
+ * (03/10/2026), o card mostra o resumo e a edição mora no DETALHE, com o
+ * select de responsável: cada teste abre a gaveta de Joana antes de mexer. O
+ * que só a tela montada prova:
  *   - o × e o "+ etiqueta" mandam só a MUDANÇA (esta sai, esta entra), nunca
  *     a lista que o card desenhou — ela vem do espelho e pode estar atrás
  *     (revisão de 25/09); e o card passa a mostrar o que o servidor devolveu;
@@ -33,6 +35,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) =>
     createElement("a", { href, ...resto } as never, children as never),
 }));
+vi.mock("next/navigation", async () => (await import("./quadroDeLeadsDeTeste")).navegacaoDeTeste);
 
 const lead = (id: string, nome: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -65,6 +68,10 @@ let chamadas: Array<{ metodo: string; url: string; corpo?: Record<string, unknow
 /** O que o PATCH e o POST respondem — cada teste troca. */
 let respostaDoPatch: { status: number; corpo: unknown };
 let respostaDoPost: { status: number; corpo: unknown } | null;
+/** O responsável de Joana como o servidor o tem. */
+let responsavelNoServidor: string | null;
+/** Quando não nulo, o que o ESPELHO (a leitura do detalhe) mostra: atrás da conversa. */
+let naConversaNoEspelho: string[] | null;
 
 function dublarFetch() {
   globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
@@ -87,19 +94,35 @@ function dublarFetch() {
     }
     if (metodo === "PATCH") {
       if (segurarPatch) await segurarPatch;
+      // O servidor de mentira guarda o que gravou: o detalhe relê o lead
+      // depois de trocar o responsável, e tem de receber o que ficou.
+      const gravado = respostaDoPatch.corpo as { etiquetas?: string[] };
+      if (respostaDoPatch.status < 400) {
+        if (typeof corpo?.responsavel === "string") responsavelNoServidor = corpo.responsavel;
+        if (Array.isArray(gravado.etiquetas)) naConversa = gravado.etiquetas;
+      }
       return responder(respostaDoPatch.status, respostaDoPatch.corpo);
     }
-    return responder(200, {
-      leads: [COM_CONVERSA, SEM_CONVERSA],
-      atendentes: [{ nome: "Ana" }],
-      etapas: ETAPAS_PADRAO,
-      motivos: [],
-      funilPendente: false,
-      podeConfigurar: false,
-      busca: null,
-      etiquetasDisponiveis: ["origem-site", "reaquecido", "resgate"],
-      etiquetasEditaveis: editaveis,
-    });
+    const doLead = leadDaUrl(String(url));
+    if (doLead) {
+      return responder(
+        200,
+        doLead.id === "l1"
+          ? detalheDeTeste(
+              { ...COM_CONVERSA, etiquetas: naConversaNoEspelho ?? naConversa, responsavel: responsavelNoServidor },
+              { etiquetasEditaveis: editaveis },
+            )
+          : detalheDeTeste(SEM_CONVERSA, { etiquetasEditaveis: editaveis }),
+      );
+    }
+    return responder(
+      200,
+      filaDeTeste([COM_CONVERSA, SEM_CONVERSA], {
+        atendentes: [{ nome: "Ana" }],
+        etiquetasDisponiveis: ["origem-site", "reaquecido", "resgate"],
+        etiquetasEditaveis: editaveis,
+      }),
+    );
   }) as never;
 }
 
@@ -114,7 +137,8 @@ async function assentar() {
   }
 }
 
-async function montar() {
+/** Monta o quadro e abre o detalhe de um lead (Joana, salvo pedido). */
+async function montar(abrir: "l1" | "l2" | null = "l1") {
   const { default: LeadsKanban } = await import("../src/components/admin/LeadsKanban");
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -123,6 +147,10 @@ async function montar() {
     root.render(createElement(LeadsKanban));
   });
   await assentar();
+  if (abrir) {
+    await act(async () => cardDe(container, abrir)!.click());
+    await assentar();
+  }
 }
 
 function mudar(el: HTMLSelectElement, valor: string) {
@@ -130,8 +158,10 @@ function mudar(el: HTMLSelectElement, valor: string) {
   el.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+/** O editor de etiquetas, que mora na gaveta do detalhe. */
 const grupo = (nome: string) =>
-  container.querySelector<HTMLElement>(`[role="group"][aria-label="Etiquetas de ${nome}"]`);
+  gaveta()?.querySelector<HTMLElement>(`[role="group"][aria-label="Etiquetas de ${nome}"]`) ?? null;
+const naGaveta = <T extends Element>(seletor: string) => gaveta()!.querySelector<T>(seletor);
 const chips = (nome: string) =>
   [...(grupo(nome)?.querySelectorAll("span") ?? [])].map((s) => (s.firstChild?.textContent ?? "").trim());
 const posts = () => chamadas.filter((c) => c.metodo === "POST");
@@ -144,6 +174,10 @@ beforeEach(() => {
   chamadas = [];
   respostaDoPatch = { status: 200, corpo: { ok: true } };
   respostaDoPost = null;
+  responsavelNoServidor = null;
+  naConversaNoEspelho = null;
+  zerarRota();
+  definirLargura(true);
   vi.stubEnv("NEXT_PUBLIC_CHATWOOT_URL", "https://chat.exemplo.com.br");
   vi.stubEnv("NEXT_PUBLIC_CHATWOOT_CONTA_ID", "3");
   dublarFetch();
@@ -155,8 +189,18 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("as etiquetas no card", () => {
-  it("aparecem, e resgate tem a régua de destaque", async () => {
+describe("as etiquetas do lead", () => {
+  it("no card, o resumo: só leitura, com a régua de destaque no resgate", async () => {
+    await montar(null);
+    const resumo = cardDe(container, "l1")!.querySelector('[aria-label="Etiquetas de Joana, resumo"]')!;
+    expect([...resumo.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["origem-site", "resgate"]);
+    expect(resumo.querySelector("button, select")).toBeNull();
+    expect(resumo.querySelectorAll("li")[1].className).toContain("border-mt-accent");
+    // Lead sem etiqueta não ganha linha vazia no card.
+    expect(cardDe(container, "l2")!.querySelector('[aria-label="Etiquetas de Pedro, resumo"]')).toBeNull();
+  });
+
+  it("no detalhe aparecem, e resgate tem a régua de destaque", async () => {
     await montar();
     expect(chips("Joana")).toEqual(["origem-site", "resgate"]);
     const resgate = [...grupo("Joana")!.querySelectorAll("span")].find((s) => s.textContent?.startsWith("resgate"));
@@ -164,34 +208,42 @@ describe("as etiquetas no card", () => {
   });
 
   it("lead sem conversa e sem etiqueta não ganha bloco", async () => {
-    await montar();
+    await montar("l2");
+    expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Pedro");
     expect(grupo("Pedro")).toBeNull();
+    expect(gaveta()!.textContent).not.toContain("Etiquetas da conversa");
   });
 
   it("o × manda só a que sai — e o card mostra o que ficou na conversa", async () => {
-    // A conversa está À FRENTE do card: a passagem já pôs reaquecido lá.
+    // A conversa está À FRENTE do espelho: a passagem já pôs reaquecido lá, e
+    // o detalhe ainda desenha as duas que o espelho tinha.
     naConversa = ["origem-site", "resgate", "reaquecido"];
+    naConversaNoEspelho = ["origem-site", "resgate"];
     await montar();
-    const tirar = container.querySelector<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
+    expect(chips("Joana")).toEqual(["origem-site", "resgate"]);
+    const tirar = naGaveta<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
     await act(async () => tirar.click());
     await assentar();
 
     expect(posts()).toEqual([
       { metodo: "POST", url: "/api/leads/etiquetas", corpo: { id: "l1", retirar: ["origem-site"] } },
     ]);
-    // O que o servidor devolveu, e não o que o card calculou sozinho.
+    // O que o servidor devolveu, e não o que a tela calculou sozinha.
     expect(chips("Joana")).toEqual(["resgate", "reaquecido"]);
+    // E o resumo do card acompanha o detalhe.
+    const resumo = cardDe(container, "l1")!.querySelector('[aria-label="Etiquetas de Joana, resumo"]')!;
+    expect([...resumo.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["resgate", "reaquecido"]);
   });
 
   it("resgate e reaquecido não têm ×", async () => {
     await montar();
-    expect(container.querySelector('[aria-label="Tirar a etiqueta resgate de Joana"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Tirar a etiqueta origem-site de Joana"]')).not.toBeNull();
+    expect(naGaveta('[aria-label="Tirar a etiqueta resgate de Joana"]')).toBeNull();
+    expect(naGaveta('[aria-label="Tirar a etiqueta origem-site de Joana"]')).not.toBeNull();
   });
 
   it("o + etiqueta oferece as da conta que faltam e manda só a que entra", async () => {
     await montar();
-    const pôr = container.querySelector<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
+    const pôr = naGaveta<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
     const opcoes = [...pôr.options].map((o) => o.value).filter(Boolean);
     // As da conta que faltam — nunca as que já estão, nem as duas da passagem,
     // que entram sozinhas (a rota as devolve na lista e o card as filtra).
@@ -222,18 +274,25 @@ describe("as etiquetas no card", () => {
     respostaDoPost = { status: 502, corpo: { error: "o Chatwoot respondeu 500" } };
     await montar();
     const antes = chamadas.filter((c) => c.url === "/api/leads/gerenciar").length;
-    const tirar = container.querySelector<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
+    const leiturasDoLead = () => chamadas.filter((c) => c.url === "/api/leads/l1" && c.metodo === "GET").length;
+    const antesDoLead = leiturasDoLead();
+    const tirar = naGaveta<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
     await act(async () => tirar.click());
     await assentar();
 
-    expect(container.textContent).toContain("o Chatwoot respondeu 500");
+    // O erro aparece onde a pessoa está olhando: na faixa do detalhe.
+    expect(gaveta()!.querySelector('[role="alert"]')!.textContent).toContain("o Chatwoot respondeu 500");
+    // O detalhe relê o lead, e o quadro relê a fila.
+    expect(leiturasDoLead()).toBe(antesDoLead + 1);
     expect(chamadas.filter((c) => c.url === "/api/leads/gerenciar").length).toBe(antes + 1);
+    // A etiqueta que não saiu continua lá.
+    expect(chips("Joana")).toEqual(["origem-site", "resgate"]);
   });
 });
 
-describe("a passagem do SDR no card", () => {
+describe("a passagem do SDR no detalhe", () => {
   const passarPara = async (nome: string) => {
-    const select = container.querySelector<HTMLSelectElement>('[aria-label="Responsável por Joana"]')!;
+    const select = naGaveta<HTMLSelectElement>('[aria-label="Responsável por Joana"]')!;
     await act(async () => mudar(select, nome));
     await assentar();
   };
@@ -245,6 +304,9 @@ describe("a passagem do SDR no card", () => {
 
     expect(chamadas.find((c) => c.metodo === "PATCH")?.corpo).toEqual({ id: "l1", responsavel: "Ana" });
     expect(chips("Joana")).toEqual(["origem-site", "resgate", "reaquecido"]);
+    // O card do quadro acompanha: o responsável novo e as duas etiquetas.
+    expect(cardDe(container, "l1")!.textContent).toContain("Ana");
+    expect(cardDe(container, "l1")!.textContent).toContain("reaquecido");
   });
 
   it("enquanto a passagem está no ar, o responsável e as etiquetas do lead travam", async () => {
@@ -256,14 +318,12 @@ describe("a passagem do SDR no card", () => {
     await montar();
     await passarPara("Ana");
 
-    const select = container.querySelector<HTMLSelectElement>('[aria-label="Responsável por Joana"]')!;
-    const pôr = container.querySelector<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
-    const tirar = container.querySelector<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
+    const select = naGaveta<HTMLSelectElement>('[aria-label="Responsável por Joana"]')!;
+    const pôr = naGaveta<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
+    const tirar = naGaveta<HTMLButtonElement>('[aria-label="Tirar a etiqueta origem-site de Joana"]')!;
     expect(select.disabled).toBe(true);
     expect(pôr.disabled).toBe(true);
     expect(tirar.disabled).toBe(true);
-    // O lead ao lado não trava.
-    expect(container.querySelector<HTMLSelectElement>('[aria-label="Responsável por Pedro"]')!.disabled).toBe(false);
 
     await act(async () => soltar());
     await assentar();
@@ -278,13 +338,13 @@ describe("a passagem do SDR no card", () => {
     await montar();
     await passarPara("Ana");
 
-    const status = container.querySelector('[role="status"]');
+    const status = naGaveta('[role="status"]');
     expect(status?.textContent).toContain(aviso);
-    const select = container.querySelector<HTMLSelectElement>('[aria-label="Responsável por Joana"]')!;
+    const select = naGaveta<HTMLSelectElement>('[aria-label="Responsável por Joana"]')!;
     expect(select.value).toBe("Ana");
 
     // E o aviso se fecha.
-    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Fechar o aviso"]')!.click());
-    expect(container.querySelector('[role="status"]')).toBeNull();
+    await act(async () => naGaveta<HTMLButtonElement>('[aria-label="Fechar o aviso"]')!.click());
+    expect(naGaveta('[role="status"]')).toBeNull();
   });
 });

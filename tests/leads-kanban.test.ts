@@ -11,6 +11,7 @@ import {
   opcaoSemResponsavel,
   opcoesDoCard,
 } from "../src/lib/leadsKanban";
+import { lerCodigo } from "./fonte";
 
 describe("opções de responsável no card (23/09)", () => {
   // A lista que a rota devolve já é só o Comercial ativo (`atendentesDoFluxo`).
@@ -77,6 +78,17 @@ const rota = readFileSync(
   join(__dirname, "..", "src", "app", "api", "leads", "gerenciar", "route.ts"),
   "utf-8"
 );
+
+// Desde 03/10/2026 (gestão do lead) a tela é o quadro MAIS as peças que
+// saíram dele: o card enxuto, a linha de controles, a lista de fechados e os
+// blocos do detalhe. Cada regra abaixo é lida no arquivo em que foi morar.
+const card = lerCodigo("src/components/admin/CardDoLead.tsx");
+const controles = lerCodigo("src/components/admin/ControlesDoFunil.tsx");
+const listaDeFechados = lerCodigo("src/components/admin/FechadosDoFunil.tsx");
+const detalhe = lerCodigo("src/components/admin/DetalheDoLead.tsx");
+const cabecalhoDoLead = lerCodigo("src/components/admin/lead/CabecalhoDoLead.tsx");
+const dadosDoNegocio = lerCodigo("src/components/admin/lead/DadosDoNegocio.tsx");
+const rotaDoDetalhe = lerCodigo("src/app/api/leads/[id]/route.ts");
 
 describe("iniciais", () => {
   it("usa primeira e última palavra", () => {
@@ -147,10 +159,13 @@ describe("a tela", () => {
     // Arrastar nativo não funciona no toque nem no teclado, e esta tela roda
     // no tablet de balcão. Se as setas saírem, o tablet perde a única forma
     // de mover lead — e não dá erro, some a capacidade.
-    expect(kanban).toContain("Avançar ${l.nome} uma etapa");
-    expect(kanban).toContain("Voltar ${l.nome} uma etapa");
-    expect(codigo).toContain("draggable");
+    expect(card).toContain("Avançar ${l.nome} uma etapa");
+    expect(card).toContain("Voltar ${l.nome} uma etapa");
+    expect(card).toMatch(/<div\s+draggable\s/);
     expect(codigo).toContain("onDrop");
+    // As setas do card chamam o mesmo `mover` do arrasto.
+    expect(codigo).toContain("aoVoltar={() => mover(l.id, colunasVisiveis[i - 1].chave)}");
+    expect(codigo).toContain("aoAvancar={() => mover(l.id, colunasVisiveis[i + 1].chave)}");
   });
 
   it("a barra de slide ENTRA sem tirar as outras duas formas de navegar", () => {
@@ -160,8 +175,11 @@ describe("a tela", () => {
     // move a VISTA, as setas movem o LEAD.
     expect(codigo).toMatch(/type="range"/);
     expect(codigo).toContain("Percorrer o funil");
-    // O trilho de etapas: clicar num nome leva a coluna para a vista.
-    expect(codigo).toContain("irParaEtapa");
+    // O trilho de etapas clicável saiu no desenho de 23/09 (tela em 03/10): a
+    // linha de controles ficou com a busca, o escopo, a vista e os filtros. A
+    // barra e as setas ficam.
+    expect(codigo).not.toContain("irParaEtapa");
+    expect(codigo).toContain("aoAvancar=");
   });
 
   it("a barra some quando o quadro cabe na tela", () => {
@@ -191,7 +209,9 @@ describe("a tela", () => {
     // a janela de 400 aceitaria `draggable={false}` colocado DEPOIS do `>`,
     // fora da tag, onde não faz efeito nenhum. O que importa é os dois estarem
     // na MESMA tag de abertura, e é isso que se afirma agora.
-    const daAncora = codigo.slice(codigo.indexOf("href={conversa}"));
+    // Desde 03/10 a âncora mora em `CardDoLead`.
+    expect(card.indexOf("href={conversa}")).toBeGreaterThan(-1);
+    const daAncora = card.slice(card.indexOf("href={conversa}"));
     // O `>` que fecha a tag é o que abre uma linha. Não dá para usar `[^>]*`
     // nem parar no primeiro `>`: `onClick={() => ...}` tem um dentro.
     const atributos = daAncora.slice(0, daAncora.search(/\n\s*>/));
@@ -206,7 +226,12 @@ describe("a tela", () => {
     expect(codigo).toContain("falarNoWhatsApp");
     expect(codigo).toMatch(/contato: "whatsapp"/);
     // E a mensagem já vai escrita — o pedido era um atalho para FALAR.
-    expect(codigo).toContain("mensagemParaCliente");
+    expect(card).toContain("mensagemParaCliente");
+    // O link do card chama o registro, e não só abre a conversa.
+    expect(codigo).toContain("aoConversar={falarNoWhatsApp}");
+    expect(card).toContain("aoConversar(l);");
+    // No detalhe, o mesmo: abrir a conversa registra o contato.
+    expect(detalhe).toMatch(/aoConversar=\{\(\) => \{\s*void gravar\(\{ contato: "whatsapp" \}\);/);
   });
 
   it("mover pede motivo em TODA etapa terminal, e grava direto nas abertas", () => {
@@ -311,9 +336,11 @@ describe("a tela", () => {
     // perdido, só um botão para destinar"*. O quadro desenha `colunasVisiveis`
     // (só etapas abertas) e os botões vêm de `destinos` — se alguém religar as
     // colunas terminais, o quadro volta a ter colunas que só crescem.
-    expect(codigo).toContain("const destinos = useMemo(() => destinosDoNegocio(etapas)");
+    // Desde 03/10 os botões moram no cabeçalho do detalhe.
+    expect(cabecalhoDoLead).toContain("const destinos = destinosDoNegocio(etapas);");
     // E os botões não podem voltar a sair das colunas do quadro.
     expect(codigo).not.toMatch(/colunasVisiveis[\s\S]{0,80}tipo === "ganho"/);
+    expect(codigo).toContain("const colunasVisiveis = useMemo(() => etapasDoQuadro(etapas, emAberto)");
   });
 
   it("descartar não fica na mesma fileira de fechar o negócio", () => {
@@ -322,21 +349,25 @@ describe("a tela", () => {
     // lado de Perdido, o erro fácil é marcar spam como perda — que é o erro
     // que o terceiro tipo existe para evitar, porque perda derruba a taxa de
     // conversão da loja.
-    expect(codigo).toContain("const fecham = useMemo");
-    expect(codigo).toContain("const descartam = useMemo");
-    expect(codigo).toContain("{fecham.map((e) => (");
-    expect(codigo).toContain("{descartam.map((e) => (");
+    expect(cabecalhoDoLead).toContain("const fecham = destinos.filter((e) => !ehDescarte(e.tipo));");
+    expect(cabecalhoDoLead).toContain("const descartam = destinos.filter((e) => ehDescarte(e.tipo));");
+    expect(cabecalhoDoLead).toContain("{fecham.map((e) => (");
+    expect(cabecalhoDoLead).toContain("{descartam.map((e) => (");
+    // E os dois passam pelo gesto que pede o motivo.
+    expect(detalhe).toContain("pedirMotivo: (_lead, etapa) => setFechando(etapa),");
   });
 
   it("o lead fechado sai do quadro e ganha endereço", () => {
     // "Sem coluna" não pode virar "o card sumiu": é a falha muda que este
     // projeto persegue. O quadro filtra por `emAberto`, e a lista de fechados
     // mostra motivo, observação e o caminho de volta.
-    expect(codigo).toContain("leads.filter((l) => !l.desfecho)");
-    expect(codigo).toContain("Fechados ({fechados.length})");
+    expect(codigo).toContain("noEscopo.filter((l) => !l.desfecho)");
+    expect(controles).toContain("Fechados ({fechados})");
+    expect(codigo).toContain("fechados={fechados.length}");
     expect(codigo).toContain("const reabrir = useCallback");
+    expect(codigo).toContain("aoReabrir={reabrir}");
     // A observação que o dono pediu aparece na lista, não só no formulário.
-    expect(codigo).toContain("l.desfecho_nota");
+    expect(listaDeFechados).toContain("l.desfecho_nota");
   });
 
   it("autoriza o drop com preventDefault no dragOver", () => {
@@ -344,8 +375,14 @@ describe("a tela", () => {
     expect(codigo).toMatch(/onDragOver[\s\S]{0,200}preventDefault/);
   });
 
-  it("grava anotação ao sair do campo, não a cada tecla", () => {
-    expect(codigo).toContain("onBlur");
+  it("os dados de texto do negócio gravam ao sair do campo, não a cada tecla", () => {
+    // A anotação única do card deu lugar ao registro de interação (03/10). O
+    // que continua gravando sozinho são os dados do negócio, e pela mesma
+    // razão de sempre: salvar a cada tecla seria uma requisição por letra.
+    expect(dadosDoNegocio).toContain('onBlur={aoSair("email", lead.email)}');
+    expect(dadosDoNegocio).toContain('onBlur={aoSair("carro_na_troca", lead.carro_na_troca)}');
+    expect(dadosDoNegocio).not.toMatch(/onChange=\{[^}]*(email|carro_na_troca)/);
+    // E a anotação solta não voltou para o quadro.
     expect(kanban).not.toMatch(/onChange=\{[^}]*observacoes/);
   });
 
@@ -361,6 +398,15 @@ describe("a tela", () => {
     expect(bloco).toContain("falhou(");
     expect(recuperacao).toMatch(/carregar\(\)\.finally\(\(\) => setErro\(mensagem\)\)/);
     expect(bloco).not.toContain("setLeads(anterior)");
+    // O detalhe segue o mesmo padrão: relê o lead e só depois mostra o erro.
+    expect(detalhe).toMatch(/recarregar\(\)\.finally\(\(\) => setErro\(mensagem\)\)/);
+  });
+
+  it("reler a fila não desmonta a tela: só a primeira leitura troca tudo por 'Carregando'", () => {
+    // Com a busca ao digitar e a gaveta aberta, trocar a tela inteira por um
+    // aviso apagaria o campo de busca e o que estava sendo escrito no detalhe.
+    expect(codigo).toContain("if (primeiraCarga) {");
+    expect(codigo).not.toMatch(/if \(carregando\) \{?\s*return/);
   });
 });
 
@@ -422,21 +468,28 @@ describe("a opção 'Sem responsável' do select do card (03/10)", () => {
   });
 
   it("o card pergunta à régua do escopo e só pinta a opção quando ela deixa", () => {
-    expect(codigo).toContain("setPodeTirarDono(podeRemoverResponsavel({ escopo: d.escopo }));");
-    // Começa fechado: antes de a fila chegar, a tela não oferece o que a rota recusa.
-    expect(codigo).toContain("const [podeTirarDono, setPodeTirarDono] = useState(false);");
-    const opcao = codigo.indexOf('{opcaoSemResponsavel(podeTirarDono, l.responsavel) !== "nao" && (');
+    // Desde 03/10 o select mora no cabeçalho do detalhe, e quem diz se a
+    // pessoa pode tirar o dono é a rota do detalhe, pela mesma régua.
+    expect(rotaDoDetalhe).toContain("podeRemoverResponsavel");
+    expect(detalhe).toContain("podeTirarDono={dados.podeRemoverResponsavel}");
+    const opcao = cabecalhoDoLead.indexOf('{opcaoSemResponsavel(podeTirarDono, lead.responsavel) !== "nao" && (');
     expect(opcao).toBeGreaterThan(-1);
-    const trecho = codigo.slice(opcao, opcao + 260);
+    const trecho = cabecalhoDoLead.slice(opcao, opcao + 260);
     expect(trecho).toContain('<option value="" disabled={!podeTirarDono}>');
     expect(trecho).toContain("Sem responsável");
-    // A opção vazia do SELECT DO CARD não existe fora desse guarda.
-    expect(codigo.match(/<option value=""[^>]*>\s*Sem responsável/g)).toHaveLength(1);
+    // A opção vazia do select de responsável não existe fora desse guarda,
+    // e o quadro não tem mais select de responsável nenhum.
+    expect(cabecalhoDoLead.match(/<option value=""[^>]*>\s*Sem responsável/g)).toHaveLength(1);
+    expect(codigo).not.toContain("<select");
+    expect(card).not.toContain("<select");
   });
 
   it("a recusa da rota aparece na tela pelo caminho de sempre", () => {
     expect(codigo).toContain('throw new Error(d.error || "Falha ao salvar");');
     expect(codigo).toContain("falhou(e.message);");
+    // A troca de responsável sai do detalhe, pelo mesmo caminho.
+    expect(detalhe).toContain('if (!res.ok) throw new Error(d.error || "Falha ao salvar");');
+    expect(detalhe).toContain('falhou(e instanceof Error ? e.message : "Falha ao salvar");');
     expect(rota).toContain("return NextResponse.json({ error: AVISO_DE_RESPONSAVEL_OBRIGATORIO }, { status: 403 });");
   });
 });

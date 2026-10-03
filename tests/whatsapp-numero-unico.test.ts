@@ -82,11 +82,14 @@ describe("ponto único de montagem", () => {
   });
 
   it("o kanban usa o montador único em vez de escrever o link à mão", () => {
-    const kanban = readFileSync(
-      join(raiz, "components", "admin", "LeadsKanban.tsx"),
-      "utf-8",
-    );
-    expect(kanban).toContain("linkDeConversa");
+    // Desde 03/10/2026 o link da conversa mora no card enxuto e no cabeçalho
+    // do detalhe do lead; o quadro só os monta.
+    for (const arquivo of ["CardDoLead.tsx", join("lead", "CabecalhoDoLead.tsx")]) {
+      const fonte = readFileSync(join(raiz, "components", "admin", arquivo), "utf-8");
+      expect(fonte, arquivo).toContain("linkDeConversa(");
+      expect(fonte, arquivo).not.toContain("wa.me/");
+    }
+    const kanban = readFileSync(join(raiz, "components", "admin", "LeadsKanban.tsx"), "utf-8");
     expect(kanban).not.toContain("wa.me/");
   });
 

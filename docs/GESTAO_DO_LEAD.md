@@ -415,9 +415,40 @@ decisão do dono:
   (`lib/recargaDoPainel`). O link direto (`/admin/leads/[id]`, o do alerta)
   funciona; a recarga, não. E nenhuma mensagem pode mandar "recarregar"
   (`tests/recarga-do-painel`).
-- **As telas** (card enxuto, Lista do dia, gaveta e página `/admin/leads/[id]`):
-  vêm depois, sobre este contrato. Até lá o quadro atual segue funcionando: a
-  resposta do `gerenciar` só ganhou campos.
+- **O aviso de vencimento no bloco do próximo passo.** O desenho escreve "É o
+  que aparece no card e o que dispara o aviso quando vence". O aviso é da Fase
+  4: a tela diz só "É o que aparece no card e na Lista do dia".
+
+---
+
+## 5.1 As telas (03/10/2026)
+
+Feitas sobre este contrato, sem rota nova:
+
+| Peça | Arquivo |
+|---|---|
+| O quadro (busca, URL, arrasto, gravação) | `src/components/admin/LeadsKanban.tsx` |
+| Card enxuto | `src/components/admin/CardDoLead.tsx` |
+| Linha de controles | `src/components/admin/ControlesDoFunil.tsx`, `SegmentadoDoPainel.tsx` |
+| Lista do dia | `src/components/admin/ListaDoDia.tsx` |
+| Negócios fechados | `src/components/admin/FechadosDoFunil.tsx` |
+| Detalhe (gaveta e página) | `src/components/admin/DetalheDoLead.tsx` e os blocos em `src/components/admin/lead/` |
+| Página do lead | `src/app/admin/leads/[id]/page.tsx` |
+| Regras de tela, puras | `src/lib/filaDoFunil.ts` |
+
+O que a tela decide por conta própria, e onde:
+
+- **"Minha fila"** para quem vê a equipe: os leads cujo `responsavel` é o
+  `full_name` de quem está logado. O nome vem da página (`/admin/leads`), que o
+  lê do perfil; a resposta da fila não o traz. Sem nome, o controle some.
+- **O estado na URL** (`?vista=`, `?escopo=`, `?lead=`): a tela muda no clique e
+  pede à URL que a acompanhe (`router.replace`, sem rolar). `SincroniaComAUrl`
+  separa o eco de um clique da navegação de fora. O chip e a busca não vão para
+  a URL.
+- **Carro de interesse**: "Trocar" pede o código do carro no estoque
+  (`veiculo_id`). Não há busca de estoque nesta tela.
+- **O `tel:` do LIGAR não passa por `trackContactClick`**: é a equipe ligando
+  para o cliente, e medi-lo contaria contato recebido no GA4 e na CAPI.
 
 ---
 
@@ -428,3 +459,10 @@ decisão do dono:
 - `tests/gestao-do-lead-rotas.test.ts`: as rotas executadas sobre um banco em
   memória, com a RLS de `leads` aberta e fechada: escopo, códigos de validação
   e a ordem guarda → histórico → função.
+- `tests/fila-do-funil.test.ts`: `lib/filaDoFunil` (escopo e vista por papel,
+  contagens dos chips, a URL, o botão REGISTRAR e as dicas).
+- `tests/gestao-do-lead-telas.test.ts`: as telas montadas (controles, Lista do
+  dia, o detalhe nos dois layouts, registrar, "Chegou na loja", dados).
+- `tests/card-do-lead-compacto*.test.ts`, `tests/busca-por-ref-fiacao.test.ts`,
+  `tests/etiquetas-do-lead-fiacao.test.ts`: o card, a gaveta, a busca única e as
+  etiquetas, no quadro montado.

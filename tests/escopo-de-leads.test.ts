@@ -183,6 +183,8 @@ describe("as rotas aplicam a regra", () => {
     expect(fila).toContain("escopo: visao.escopo,");
     const quadro = ler("src", "components", "admin", "LeadsKanban.tsx");
     expect(quadro).toContain('setSoOsMeus(d.escopo === "meus");');
-    expect(quadro).toContain("{!soOsMeus && (");
+    expect(quadro).toContain("soOsMeus={soOsMeus}");
+    // Desde 03/10 o card é um componente à parte.
+    expect(ler("src", "components", "admin", "CardDoLead.tsx")).toContain("{!soOsMeus && (");
   });
 });

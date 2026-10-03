@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import LogoutButton from "./LogoutButton";
 import { useTheme } from "../../app/ThemeContext";
 import { ConfirmProvider } from "./ConfirmDialog";
+import { assinarNomeNaTrilha, lerNomeNaTrilha } from "../../lib/nomeNaTrilha";
 
 interface AdminLayoutClientWrapperProps {
   role: string;
@@ -23,7 +24,7 @@ interface AdminLayoutClientWrapperProps {
  * App Router: as páginas abaixo dela são componentes de servidor e não têm
  * como empurrar estado para cima sem um contexto novo só para isso.
  */
-function trilhaDaRota(pathname: string, aba: string | null): string {
+function trilhaDaRota(pathname: string, aba: string | null, nome: string | null = null): string {
   const partes: string[] = ["PAINEL"];
 
   if (pathname.startsWith("/admin/marketing/midia-paga")) {
@@ -41,6 +42,11 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
     partes.push("VISÃO GERAL");
   } else if (pathname.startsWith("/admin/leads")) {
     partes.push("GERAL", "LEADS");
+    // O detalhe de um lead (`/admin/leads/[id]`): a rota só tem o id; o nome
+    // chega com os dados, por `lib/nomeNaTrilha`. As telas irmãs (`funil`,
+    // `relatorio`) não são lead.
+    const resto = pathname.replace("/admin/leads", "").replace(/^\/+|\/+$/g, "");
+    if (resto && resto !== "funil" && resto !== "relatorio") partes.push((nome ?? "LEAD").toUpperCase());
   } else if (pathname.startsWith("/admin/estoque/")) {
     partes.push("ESTOQUE", "VEÍCULOS", `CÓD. ${pathname.split("/")[3] ?? ""}`);
     // A visão e o editor do mesmo carro (01/10): o trilho diz em qual se está.
@@ -74,10 +80,11 @@ function trilhaDaRota(pathname: string, aba: string | null): string {
 function TrilhaDoTopo() {
   const pathname = usePathname();
   const aba = useSearchParams().get("tab");
+  const nome = useSyncExternalStore(assinarNomeNaTrilha, lerNomeNaTrilha, () => null);
 
   return (
     <div className="mr-auto truncate text-[11px] font-semibold tracking-[.14em] text-mt-neutral-700">
-      {trilhaDaRota(pathname, aba)}
+      {trilhaDaRota(pathname, aba, nome)}
     </div>
   );
 }
