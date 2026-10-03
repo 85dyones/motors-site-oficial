@@ -1,0 +1,137 @@
+{
+  "_leia": "Segundo lote de textos próprios para hubs que estão no sitemap e ainda saem com o texto gerado (03/10/2026). Escolhidos pela procura dos modelos e das marcas. Mesma forma do primeiro lote (chamada, abertura, \"### subtítulo\", lista, fechamento) e mesma regra do dono: informar o que conferir sem argumentar contra o carro. AINDA NÃO GRAVADO em `textos_de_hub`: espera a aprovação do dono. A garantia da Chevrolet para a correia não entra no hub da Tracker sem decisão dele (regra de 21/09).",
+  "textos": [
+    {
+      "caminho": "/carros/honda/civic",
+      "titulo": null,
+      "paragrafos": [
+        "Civic usado: cada geração é um carro diferente",
+        "O Civic muda bastante de uma geração para outra. De 2007 a 2016, o sedã usa motor 1.8 ou 2.0 com câmbio automático de cinco marchas. De 2017 a 2021 o desenho é outro, o automático passa a ser CVT e a versão Touring traz motor 1.5 turbo.",
+        "### O que conferir num Civic usado",
+        "Na visita, confira:\n- Câmbio. Pergunte se é manual, automático de cinco marchas ou CVT, e dirija em retomada.\n- Histórico de revisões, com a troca do fluido do câmbio registrada.\n- Na Touring, o histórico de óleo no prazo, que é o que conserva o motor turbo.\n- Suspensão e rodas, em piso irregular.\n- Central multimídia e ar-condicionado digital.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Diga no WhatsApp qual geração te interessa, e a gente manda as fotos reais e o laudo."
+      ]
+    },
+    {
+      "caminho": "/carros/honda/hr-v",
+      "titulo": null,
+      "paragrafos": [
+        "HR-V usado: a primeira geração e a atual",
+        "O HR-V vendido até 2021 usa motor 1.8 flex na maioria das versões, quase sempre com câmbio CVT. A geração atual, de 2022 em diante, trocou o motor por um 1.5, aspirado ou turbo conforme a versão. Nas duas, o banco traseiro rebate de vários jeitos para levar carga alta.",
+        "### O que conferir num HR-V usado",
+        "Na visita, confira:\n- Câmbio CVT em retomada e em subida, e a troca do fluido no histórico.\n- Banco traseiro: teste os rebatimentos.\n- Freio de estacionamento eletrônico e a função que segura o carro em rampa.\n- Ar-condicionado e central multimídia, com o seu celular conectado.\n- Pneus e alinhamento.",
+        "Nenhum HR-V é anunciado sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Se não houver HR-V no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/honda/fit",
+      "titulo": null,
+      "paragrafos": [
+        "Fit usado: três gerações e dois tipos de câmbio",
+        "O Fit tem o tanque sob os bancos da frente, e por isso o banco traseiro rebate rente ao assoalho ou levanta o assento para carga alta. São três gerações: a primeira até 2008, a segunda até 2014 e a terceira até 2021. O câmbio automático muda entre elas.",
+        "### O que conferir num Fit usado",
+        "Na hora de ver o carro:\n- Câmbio. Na primeira e na terceira geração o automático é CVT; na segunda, é convencional de cinco marchas. Dirija em retomada.\n- Banco traseiro: teste todos os rebatimentos.\n- Histórico de revisões, com a troca do fluido do câmbio.\n- Coxins do motor e suspensão dianteira.\n- Ar-condicionado.",
+        "A perícia independente vem antes do anúncio, e o laudo fica com o vendedor; é só pedir. Diga no WhatsApp o ano que te interessa, e a gente conta qual geração e qual câmbio são."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/t-cross",
+      "titulo": null,
+      "paragrafos": [
+        "T-Cross usado: 200 TSI ou 250 TSI",
+        "O T-Cross é o SUV compacto da Volkswagen, lançado em 2019. O 200 TSI tem motor 1.0 turbo, com câmbio manual ou automático; o 250 TSI, das versões de topo, tem motor 1.4 turbo e é sempre automático. Os dois automáticos têm seis marchas e conversor de torque.",
+        "### O que conferir num T-Cross usado",
+        "Na visita, confira:\n- Histórico de óleo no prazo, que é o que conserva o motor TSI.\n- Câmbio automático em arrancada, rampa e manobra.\n- Central multimídia, com o seu celular conectado.\n- Pneus e rodas.\n- Teto solar, se houver: abertura e vedação.",
+        "Todo T-Cross daqui passa por perícia cautelar independente antes do anúncio, e o laudo fica com o vendedor para quem pedir. Mande a versão que te interessa, e a gente envia as fotos reais e o laudo antes de você vir."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/virtus",
+      "titulo": null,
+      "paragrafos": [
+        "Virtus usado: sedã com porta-malas de carro maior",
+        "O Virtus é o sedã do Polo atual, com entre-eixos maior e porta-malas de mais de quinhentos litros. O motor é 1.6 aspirado ou 1.0 turbo, o 200 TSI; o 1.4 turbo fica nas versões de topo. O automático tem seis marchas e conversor de torque.",
+        "### O que conferir num Virtus usado",
+        "Antes de fechar, confira:\n- No TSI, o histórico de óleo no prazo.\n- Câmbio automático em arrancada e em rampa.\n- Porta-malas e assoalho do estepe.\n- Suspensão traseira, que trabalha mais com o carro carregado.\n- Central multimídia e ar-condicionado.",
+        "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor para quem pedir. Se não houver Virtus no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/chevrolet/tracker",
+      "titulo": null,
+      "paragrafos": [
+        "Tracker usada: a importada e a nacional",
+        "A Tracker vendida até 2019 vinha do México, com motor 1.8 aspirado e, depois, 1.4 turbo. A geração nacional, de 2020 em diante, é outro projeto: motor de três cilindros, 1.0 ou 1.2 turbo, e câmbio automático de seis marchas na maioria das versões.",
+        "### O que conferir numa Tracker usada",
+        "Na visita, confira:\n- Na geração nacional, o histórico de troca de óleo com o produto especificado no manual. A correia do motor trabalha banhada em óleo.\n- Câmbio automático em arrancada e em rampa.\n- Central multimídia e conexão com o celular.\n- Pneus e alinhamento.\n- Teto solar, se houver: abertura e vedação.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor; é só pedir. Diga no WhatsApp qual ano te interessa, e a gente conta qual motor é e manda as fotos reais."
+      ]
+    },
+    {
+      "caminho": "/carros/fiat/argo",
+      "titulo": null,
+      "paragrafos": [
+        "Argo usado: três motores e quatro câmbios",
+        "O Argo saiu com motor 1.0 de três cilindros, 1.3 e 1.8, e o câmbio varia: manual em todos, automatizado no 1.3 dos primeiros anos, automático de seis marchas no 1.8 e CVT no 1.3 mais recente. Saber qual é o conjunto vem antes de comparar preço.",
+        "### O que conferir num Argo usado",
+        "Na visita, confira:\n- Câmbio. Confirme se é manual, automatizado, automático ou CVT, e dirija no trânsito lento.\n- Embreagem, nos manuais e no automatizado.\n- Histórico de revisões no prazo.\n- Central multimídia, com o seu celular.\n- Buchas e amortecedores, em piso irregular.",
+        "Nenhum carro é anunciado antes da perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Se não houver Argo no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/fiat/toro",
+      "titulo": null,
+      "paragrafos": [
+        "Toro usada: flex ou diesel, 4x2 ou 4x4",
+        "A Toro é uma picape de cabine dupla com conforto de SUV. As flex têm tração dianteira: motor 1.8 ou 2.4 nos primeiros anos e 1.3 turbo de 2022 em diante. As diesel 2.0 têm tração 4x4 e câmbio automático de nove marchas na maioria das versões.",
+        "### O que conferir numa Toro usada",
+        "Na hora de ver a picape:\n- Na diesel, o registro das revisões com as trocas de óleo e de filtros.\n- Tração 4x4: peça para engatar e sentir o sistema.\n- Câmbio automático em arrancada e em rampa.\n- Caçamba, tampa e capota marítima.\n- Suspensão traseira e protetor de caçamba.",
+        "Nenhuma picape é anunciada sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Conte como você vai usar a picape, e a gente indica entre a flex e a diesel."
+      ]
+    },
+    {
+      "caminho": "/carros/toyota/corolla-cross",
+      "titulo": null,
+      "paragrafos": [
+        "Corolla Cross usado: 2.0 flex ou híbrido",
+        "O Corolla Cross é o SUV médio da Toyota, lançado em 2021 sobre a base do Corolla. Há duas mecânicas: o 2.0 flex com câmbio CVT e o híbrido, que junta um motor 1.8 flex a um motor elétrico. O híbrido gasta menos na cidade; o 2.0 anda mais na estrada.",
+        "### O que conferir num Corolla Cross usado",
+        "Na visita, confira:\n- Histórico de revisões na rede, com as datas e a quilometragem.\n- No híbrido, o funcionamento em modo elétrico em baixa velocidade e o painel sem alertas.\n- Câmbio em retomada.\n- Sensores, câmera e os assistentes de condução, se a versão tiver.\n- Pneus e alinhamento.",
+        "Nenhum carro entra na vitrine sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Se estiver em dúvida entre o flex e o híbrido, conte quanto você roda na cidade e na estrada."
+      ]
+    },
+    {
+      "caminho": "/carros/bmw/320i",
+      "titulo": null,
+      "paragrafos": [
+        "320i usado: a geração define o que você leva",
+        "O 320i é o sedã médio da BMW, de tração traseira. O de 2013 a 2018 tem motor 2.0 turbo e câmbio automático de oito marchas, e ganhou versão flex nesse período. O de 2019 em diante é maior e mais conectado, com o mesmo tipo de conjunto.",
+        "### O que conferir num 320i usado",
+        "Antes de fechar, confira:\n- Histórico de revisões, com nota. Pesa no valor do carro.\n- Histórico de óleo no prazo, que é o que conserva o motor turbo.\n- Pneus run flat, no estado dos quatro.\n- Toda a eletrônica: central, sensores, câmera e bancos elétricos.\n- Suspensão e rodas, em piso irregular.",
+        "A perícia independente acontece antes do anúncio, e o laudo fica com o vendedor, à disposição de quem pedir. Mande o ano e a versão que te interessam, e a gente conta como é a manutenção."
+      ]
+    },
+    {
+      "caminho": "/carros/jeep",
+      "titulo": null,
+      "paragrafos": [
+        "Jeep usado: o motor diz mais que o nome do modelo",
+        "Renegade, Compass e Commander dividem motores. Nas flex, o 1.8 e o 2.0 aspirados deram lugar ao 1.3 turbo a partir de 2022. As diesel usam motor 2.0 com câmbio automático de nove marchas e tração 4x4. Escolher o motor primeiro simplifica a comparação entre versões.",
+        "### O que conferir num Jeep usado",
+        "Antes de fechar, confira:\n- Registro das revisões, com as trocas de óleo no prazo nas turbo e nas diesel.\n- Câmbio automático em rampa e em retomada.\n- Tração 4x4, nas versões que têm: peça para engatar.\n- Sensores, câmeras e central multimídia.\n- Assoalho e caixas de roda.",
+        "A perícia independente vem antes do anúncio, e o laudo fica com o vendedor, à disposição de quem pedir. Conte como você vai usar o carro, e a gente indica o motor e a tração que fazem sentido."
+      ]
+    },
+    {
+      "caminho": "/carros/peugeot",
+      "titulo": null,
+      "paragrafos": [
+        "Peugeot usado: comece por motor e câmbio",
+        "Na Peugeot, o conjunto de motor e câmbio mudou várias vezes: 1.6 aspirado com automático de quatro e depois de seis marchas, THP turbo e, nos últimos anos, 1.0 aspirado manual e 1.0 turbo com CVT. A mecânica é compartilhada com a Citroën, o que ajuda na oferta de peças.",
+        "### O que conferir num Peugeot usado",
+        "Confira com calma:\n- Câmbio automático. Confirme qual é o do carro e avalie as trocas a frio.\n- Nos turbo, o histórico de óleo no prazo.\n- Parte elétrica: central multimídia, vidros, sensores e ar-condicionado digital.\n- Teto panorâmico, se houver: cortina e vedação.\n- Suspensão dianteira, em piso irregular.",
+        "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor; é só pedir. Se não houver Peugeot no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    }
+  ]
+}
