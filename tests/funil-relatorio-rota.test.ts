@@ -11,12 +11,27 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  *
  * O banco é um dublê em memória: os leads fechados, os abertos e as tabelas do
  * funil. A leitura dos abertos é a que traz `is("desfecho", null)`.
+ *
+ * São DOIS clientes, como na rota. O da sessão (`CLIENTE`) lê `leads` já com a
+ * RLS da migração 20261003130000: só o escopo de quem pede. O da chave de
+ * serviço (`SERVICO`) lê a loja inteira, e devolve só as colunas pedidas, que
+ * é como um nome de cliente apareceria aqui se a rota o pedisse.
  */
 
 const CLIENTE = { auth: { getUser: vi.fn() }, from: vi.fn() };
-vi.mock("../src/lib/supabase-server", () => ({ createServerSupabaseClient: async () => CLIENTE }));
+const SERVICO = { from: vi.fn() };
+vi.mock("../src/lib/supabase-server", () => ({
+  createServerSupabaseClient: async () => CLIENTE,
+  createAdminSupabaseClient: () => SERVICO,
+}));
 
 const { GET } = await import("../src/app/api/funil/relatorio/route");
+const { leadNoEscopo, visaoDeLeads } = await import("../src/lib/escopoDeLeads");
+const { COLUNAS_DE_AGREGADO } = await import("../src/lib/leadsDaLoja");
+
+/** Os `select` que cada cliente recebeu em `leads`. */
+let pedidosDaSessao: string[];
+let pedidosDoServico: string[];
 
 type Linha = Record<string, unknown>;
 
@@ -59,13 +74,26 @@ const ABERTOS: Linha[] = [
   { situacao: "novo", responsavel: null },
 ];
 
+/** Só as colunas pedidas: o que o `select` não trouxe não existe na resposta. */
+function recortar(linhas: unknown, colunas: string): unknown {
+  if (!Array.isArray(linhas) || colunas === "*") return linhas;
+  const quais = colunas.split(",").map((c) => c.trim());
+  return linhas.map((l: Linha) => Object.fromEntries(quais.map((c) => [c, l[c]])));
+}
+
 /** Um construtor de consulta do supabase-js: encadeia, e resolve no fim. */
-function consulta(ler: (soAbertos: boolean) => unknown) {
+function consulta(ler: (soAbertos: boolean) => unknown, anotar: (colunas: string) => void = () => {}) {
   let soAbertos = false;
-  const resposta = () => ({ data: ler(soAbertos), error: null });
+  let colunas = "*";
+  const resposta = () => ({ data: recortar(ler(soAbertos), colunas), error: null });
   const q = {
-    select: () => q,
+    select: (pedidas = "*") => {
+      colunas = pedidas;
+      anotar(pedidas);
+      return q;
+    },
     eq: () => q,
+    neq: () => q,
     not: () => q,
     gte: () => q,
     lt: () => q,
@@ -85,14 +113,37 @@ function consulta(ler: (soAbertos: boolean) => unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   autor = { role: "comercial", papeis: ["comercial"], full_name: "Ana" };
+  pedidosDaSessao = [];
+  pedidosDoServico = [];
   CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
   CLIENTE.from.mockImplementation((tabela: string) => {
     if (tabela === "profiles") return consulta(() => autor);
-    if (tabela === "leads") return consulta((soAbertos) => (soAbertos ? ABERTOS : FECHADOS));
-    if (tabela === "funil_etapas" || tabela === "funil_motivos") return consulta(() => []);
-    throw new Error(`tabela inesperada: ${tabela}`);
+    if (tabela === "leads") {
+      // A RLS por escopo: a sessão só lê o que o escopo de quem pede alcança.
+      const visao = visaoDeLeads(autor.papeis, autor.full_name);
+      return consulta(
+        (soAbertos) => (soAbertos ? ABERTOS : FECHADOS).filter((l) => leadNoEscopo(visao, l.responsavel as string | null)),
+        (colunas) => pedidosDaSessao.push(colunas),
+      );
+    }
+    if (tabela === "funil_etapas") return consulta(() => ETAPAS);
+    if (tabela === "funil_motivos") return consulta(() => []);
+    throw new Error(`a sessão não lê: ${tabela}`);
+  });
+  SERVICO.from.mockImplementation((tabela: string) => {
+    // A chave de serviço só serve ao agregado de leads.
+    if (tabela !== "leads") throw new Error(`a chave de serviço não lê: ${tabela}`);
+    return consulta(
+      (soAbertos) => (soAbertos ? ABERTOS : FECHADOS),
+      (colunas) => pedidosDoServico.push(colunas),
+    );
   });
 });
+
+const ETAPAS = [
+  { chave: "novo", rotulo: "Novo", tipo: "aberta", ordem: 1 },
+  { chave: "proposta", rotulo: "Proposta", tipo: "aberta", ordem: 2 },
+];
 
 interface Relatorio {
   total: number;
@@ -100,6 +151,7 @@ interface Relatorio {
   perdidos: number;
   descartados: number;
   valor_ganho: number;
+  funil_atual: Array<{ chave: string; quantidade: number }>;
   observacoes?: Array<{ nota: string; responsavel: string | null }>;
   por_vendedor?: Array<{ nome: string; ganhos: number; perdidos: number; valor: number; abertos: number }>;
 }
@@ -169,5 +221,83 @@ describe("GET /api/funil/relatorio — observações e recorte por vendedor, pel
     expect(d).not.toHaveProperty("observacoes");
     expect(d).not.toHaveProperty("por_vendedor");
     expect(d).toMatchObject(DA_LOJA);
+  });
+});
+
+const PAPEIS = [
+  { role: "admin", papeis: ["admin"], full_name: "Dono" },
+  { role: "gestor", papeis: ["gestor"], full_name: "Gil" },
+  { role: "sdr", papeis: ["sdr"], full_name: "Felipe" },
+  { role: "comercial", papeis: ["comercial"], full_name: "Ana" },
+  { role: "marketing", papeis: ["marketing"], full_name: "Mari" },
+  { role: "financeiro", papeis: ["financeiro"], full_name: "Fabi" },
+];
+
+describe("GET /api/funil/relatorio — o agregado é da loja, pela chave de serviço (RLS por escopo)", () => {
+  it("o topo e o funil de hoje são os da loja para todo perfil, mesmo com a sessão lendo só o escopo", async () => {
+    for (const quem of PAPEIS) {
+      const d = await relatorio(quem);
+      expect(d, quem.role).toMatchObject(DA_LOJA);
+      expect(d.funil_atual, quem.role).toEqual([
+        { chave: "novo", rotulo: "Novo", quantidade: 3 },
+        { chave: "proposta", rotulo: "Proposta", quantidade: 1 },
+      ]);
+    }
+  });
+
+  it("a chave de serviço só pede colunas sem pessoa: nem nome, nem nota, nem responsável", async () => {
+    for (const quem of PAPEIS) {
+      pedidosDoServico = [];
+      await relatorio(quem);
+      expect(pedidosDoServico, quem.role).toHaveLength(2);
+      for (const pedido of pedidosDoServico) {
+        for (const coluna of pedido.split(",").map((c) => c.trim())) {
+          expect(COLUNAS_DE_AGREGADO as readonly string[], `${quem.role}: ${coluna}`).toContain(coluna);
+        }
+        expect(pedido).not.toMatch(/nome|telefone|email|mensagem|desfecho_nota|responsavel|\*/);
+      }
+      expect(SERVICO.from.mock.calls.every(([tabela]) => tabela === "leads"), quem.role).toBe(true);
+    }
+  });
+
+  it("o que é por lead (nota, responsável) vem da SESSÃO; quem não vê pessoas nem a consulta", async () => {
+    await relatorio({ role: "comercial", papeis: ["comercial"], full_name: "Ana" });
+    expect(pedidosDaSessao).toHaveLength(2);
+    expect(pedidosDaSessao[0]).toContain("desfecho_nota");
+    expect(pedidosDaSessao[0]).not.toMatch(/nome|telefone|email|mensagem/);
+
+    pedidosDaSessao = [];
+    const d = await relatorio({ role: "marketing", papeis: ["marketing"], full_name: "Mari" });
+    expect(pedidosDaSessao).toEqual([]);
+    // Nenhum nome de quem atende, nenhuma nota, em lugar nenhum da resposta.
+    expect(JSON.stringify(d)).not.toMatch(/Ana|Bia|Cliente|queria prata|achou caro/);
+  });
+
+  it("sem sessão é 401, e quem não é da equipe é 403: a chave de serviço nem é chamada", async () => {
+    const pedir = () => GET({ nextUrl: new URL("http://x/api/funil/relatorio") } as never);
+
+    CLIENTE.auth.getUser.mockResolvedValue({ data: { user: null } });
+    expect((await pedir()).status).toBe(401);
+
+    CLIENTE.auth.getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
+    for (const fora of ["cliente", "investidor"]) {
+      autor = { role: fora, papeis: [], full_name: "Fulano" };
+      expect((await pedir()).status, fora).toBe(403);
+    }
+    expect(SERVICO.from).not.toHaveBeenCalled();
+  });
+
+  it("a porta é a da sessão: o perfil é lido pelo cliente de quem pede", async () => {
+    await relatorio({ role: "marketing", papeis: ["marketing"], full_name: "Mari" });
+    expect(CLIENTE.auth.getUser).toHaveBeenCalledTimes(1);
+    expect(CLIENTE.from.mock.calls.map(([tabela]) => tabela)).toContain("profiles");
+  });
+
+  it("chave de serviço que falha é 500, e não um relatório zerado", async () => {
+    SERVICO.from.mockImplementation(() => {
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY is not defined");
+    });
+    const r = await GET({ nextUrl: new URL("http://x/api/funil/relatorio") } as never);
+    expect(r.status).toBe(500);
   });
 });

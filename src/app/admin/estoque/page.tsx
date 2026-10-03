@@ -20,6 +20,7 @@ import TabelaDeEstoque from "../../../components/admin/TabelaDeEstoque";
 import { diasEmEstoque } from "../../../lib/dataLayer";
 import { perfisDe, podeFazer } from "../../../lib/permissoes";
 import { lerComoEquipe } from "../../../lib/colunasDoEstoque";
+import { lerLeadsDaLoja, passeDaEquipe } from "../../../lib/leadsDaLoja";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,15 @@ export default async function AdminEstoquePage() {
   // Leads por veículo: dado real desde a migração 20260807210000. `error`
   // ignorado de propósito — a tabela de estoque não pode deixar de abrir
   // porque a de leads falhou.
-  const { data: leads } = await supabase.from("leads").select("veiculo_id");
+  //
+  // A coluna é a procura do CARRO, um número da loja: para a equipe sai da
+  // chave de serviço, só `veiculo_id` (`leadsDaLoja.ts`). Pela sessão, a RLS de
+  // `leads` por escopo (20261003130000) contaria só os leads de quem abriu a
+  // tela, e o mesmo carro teria um número para cada vendedor.
+  const passe = passeDaEquipe(profile);
+  const { data: leads } = passe
+    ? await lerLeadsDaLoja<{ veiculo_id: string | number | null }>(passe, ["veiculo_id"])
+    : await supabase.from("leads").select("veiculo_id");
   const leadsPorVeiculo = contarLeadsPorVeiculo((leads ?? []) as Array<{ veiculo_id: any }>);
 
   const visitasPorVeiculo = mapaDeVisitas(paginas);

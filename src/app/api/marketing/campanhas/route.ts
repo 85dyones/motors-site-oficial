@@ -9,6 +9,7 @@ import {
   type LinhaDiario,
   type Rodada,
 } from "../../../../lib/midiaSync";
+import { lerLeadsDaLoja, passeDaEquipe } from "../../../../lib/leadsDaLoja";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ const PERIODOS = [7, 14, 30] as const;
  * a janela pedida (`?dias=7|14|30`, calendário de Curitiba, hoje incluído)
  * por anúncio e por campanha, no mesmo formato de `leitura`/`leituraCampanha`
  * que a tela já consumia — e conta, ao lado, os leads que chegaram em
- * `public.leads` com a `utm_campaign` da campanha.
+ * `public.leads` com a `utm_campaign` da campanha. Essa contagem é da LOJA:
+ * para a equipe sai da chave de serviço (`leadsDaLoja.ts`, só `utm_campaign`),
+ * porque a RLS de `leads` por escopo (20261003130000) zeraria a coluna para o
+ * Marketing e o Financeiro. Quem não é da equipe segue na leitura da sessão.
  *
  * Aberta a qualquer usuário logado (Financeiro vê o investido, matriz A17).
  */
@@ -34,6 +38,11 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
+
+    // Só para decidir de onde sai a contagem de leads; a porta da rota é a de
+    // cima e não muda.
+    const { data: profile } = await supabase.from("profiles").select("role, papeis").eq("id", user.id).maybeSingle();
+    const passe = passeDaEquipe(profile);
 
     const pedido = Number(request.nextUrl.searchParams.get("dias"));
     const dias = (PERIODOS as readonly number[]).includes(pedido) ? pedido : PERIODOS[0];
@@ -54,12 +63,16 @@ export async function GET(request: NextRequest) {
         .order("iniciada_em", { ascending: false })
         .limit(200),
       // Meia-noite de Curitiba do primeiro dia da janela.
-      supabase
-        .from("leads")
-        .select("utm_campaign")
-        .not("utm_campaign", "is", null)
-        .gte("created_at", `${janela.de}T00:00:00-03:00`)
-        .limit(5000),
+      passe
+        ? lerLeadsDaLoja<{ utm_campaign: string | null }>(passe, ["utm_campaign"], (c) =>
+            c.not("utm_campaign", "is", null).gte("created_at", `${janela.de}T00:00:00-03:00`).limit(5000),
+          )
+        : supabase
+            .from("leads")
+            .select("utm_campaign")
+            .not("utm_campaign", "is", null)
+            .gte("created_at", `${janela.de}T00:00:00-03:00`)
+            .limit(5000),
     ]);
 
     const erro = campRes.error ?? anunRes.error ?? diarioRes.error ?? rodadasRes.error;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { leadNoEscopo, visaoDeLeads } from "../../../../lib/escopoDeLeads";
+import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads } from "../../../../lib/escopoDeLeads";
+import { lerLeadsDaLoja, passeDaEquipe } from "../../../../lib/leadsDaLoja";
 import { type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
@@ -33,7 +34,23 @@ export const dynamic = "force-dynamic";
  * "o que foi ganho ou perdido em agosto", e não "o que entrou em agosto e já
  * fechou" — o segundo recorte esconde a venda demorada, que é justamente a
  * que interessa entender.
+ *
+ * **Duas leituras de `leads`, e não uma.** Os números do topo, os motivos e o
+ * funil de hoje são da LOJA: saem de `lerLeadsDaLoja` (chave de serviço, só
+ * colunas sem pessoa), porque a RLS de `leads` fechada por escopo
+ * (20261003130000) faria a sessão do vendedor somar só os leads dele, e a do
+ * Marketing, nenhum. As observações e o recorte por vendedor são POR LEAD:
+ * continuam na sessão de quem pede, pelo escopo dela.
  */
+
+/** O que o agregado da loja lê de cada lead fechado: nada que diga de quem é. */
+type FechadoDaLoja = Pick<LeadDoFunil, "situacao" | "created_at" | "desfecho" | "desfecho_motivo" | "desfecho_valor" | "desfecho_em">;
+
+/** O que a leitura pelo escopo traz: o que as observações e o recorte usam. */
+type FechadoDoEscopo = Pick<
+  LeadDoFunil,
+  "responsavel" | "desfecho" | "desfecho_motivo" | "desfecho_valor" | "desfecho_nota" | "desfecho_em"
+>;
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
@@ -62,15 +79,18 @@ export async function GET(request: NextRequest) {
     const de = janela(p.get("de"), -90);
     const ate = janela(p.get("ate"), 1);
 
+    const passe = passeDaEquipe(profile);
+    if (!passe) {
+      return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });
+    }
+
     const [fechados, abertos, config, motivosBanco] = await Promise.all([
-      supabase
-        .from("leads")
-        .select("id, nome, situacao, responsavel, created_at, desfecho, desfecho_motivo, desfecho_valor, desfecho_nota, desfecho_em")
-        .not("desfecho", "is", null)
-        .gte("desfecho_em", de)
-        .lt("desfecho_em", ate)
-        .limit(5000),
-      supabase.from("leads").select("situacao, responsavel").is("desfecho", null).limit(5000),
+      lerLeadsDaLoja<FechadoDaLoja>(
+        passe,
+        ["situacao", "created_at", "desfecho", "desfecho_motivo", "desfecho_valor", "desfecho_em"],
+        (c) => c.not("desfecho", "is", null).gte("desfecho_em", de).lt("desfecho_em", ate).limit(5000),
+      ),
+      lerLeadsDaLoja<{ situacao: string }>(passe, ["situacao"], (c) => c.is("desfecho", null).limit(5000)),
       supabase.from("funil_etapas").select("*").order("ordem"),
       supabase.from("funil_motivos").select("*").order("ordem"),
     ]);
@@ -82,7 +102,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: fechados.error.message }, { status: 500 });
     }
 
-    const leads = (fechados.data ?? []) as LeadDoFunil[];
+    const leads = fechados.data ?? [];
     const motivos = (motivosBanco.data ?? []) as MotivoDoFunil[];
     const etapas = ordenarEtapas((config.data ?? []) as EtapaDoFunil[]);
 
@@ -126,11 +146,38 @@ export async function GET(request: NextRequest) {
         .map((e) => ({
           chave: e.chave,
           rotulo: e.rotulo,
-          quantidade: contarPorEtapa((abertos.data ?? []) as { situacao: string }[])[e.chave] ?? 0,
+          quantidade: contarPorEtapa(abertos.data ?? [])[e.chave] ?? 0,
         })),
     };
 
     if (vePessoas || veGerencial) {
+      // Daqui para baixo é POR LEAD (nota livre, nome de quem atendeu): a
+      // leitura é a da sessão, com o escopo de quem pede no filtro. Com a RLS
+      // fechada o banco já devolve só isso; o filtro diz o mesmo antes dela, e
+      // `leadNoEscopo` tira o que o banco não enxerga (responsável só com
+      // espaços).
+      const [fechadosDoEscopo, abertosDoEscopo] = await Promise.all([
+        comEscopoDeLeads(
+          supabase
+            .from("leads")
+            .select("responsavel, desfecho, desfecho_motivo, desfecho_valor, desfecho_nota, desfecho_em")
+            .not("desfecho", "is", null)
+            .gte("desfecho_em", de)
+            .lt("desfecho_em", ate),
+          visao,
+        ).limit(5000),
+        comEscopoDeLeads(supabase.from("leads").select("responsavel").is("desfecho", null), visao).limit(5000),
+      ]);
+      if (fechadosDoEscopo.error) {
+        return NextResponse.json({ error: fechadosDoEscopo.error.message }, { status: 500 });
+      }
+      const meus = ((fechadosDoEscopo.data ?? []) as FechadoDoEscopo[]).filter((l) =>
+        leadNoEscopo(visao, l.responsavel),
+      );
+      const meusAbertos = ((abertosDoEscopo.data ?? []) as { responsavel: string | null }[]).filter((a) =>
+        leadNoEscopo(visao, a.responsavel),
+      );
+
       // As observações que os vendedores escreveram ao fechar (2026-08-28,
       // pedido do dono: *"deixe um campo de observação adicional além dos
       // motivos padrão"*). O número diz o quê; a frase diz o porquê que a
@@ -141,8 +188,7 @@ export async function GET(request: NextRequest) {
       // gente. Abri-lo a quem a matriz A17 mantém longe do contato individual
       // devolveria, pela porta lateral, exatamente o que o resto do relatório
       // toma o cuidado de não mostrar.
-      resposta.observacoes = leads
-        .filter((l) => leadNoEscopo(visao, l.responsavel))
+      resposta.observacoes = meus
         .filter((l) => l.desfecho !== "descartado")
         .filter((l) => (l.desfecho_nota ?? "").trim())
         .sort(
@@ -161,14 +207,13 @@ export async function GET(request: NextRequest) {
         }));
 
       const porVendedor = new Map<string, { ganhos: number; perdidos: number; valor: number }>();
-      for (const l of leads) {
+      for (const l of meus) {
         // Descartado fica de fora do recorte por vendedor pelo mesmo motivo
         // que fica de fora da taxa: contar spam contra quem atendeu seria
         // cobrar o vendedor por um robô. O `continue` vem ANTES do `else`,
         // porque um `else` que engole tudo que não é ganho é exatamente como
         // o descarte viraria perda de novo, em silêncio.
         if (l.desfecho === "descartado") continue;
-        if (!leadNoEscopo(visao, l.responsavel)) continue;
 
         const quem = l.responsavel?.trim() || "Sem responsável";
         const atual = porVendedor.get(quem) ?? { ganhos: 0, perdidos: 0, valor: 0 };
@@ -185,9 +230,7 @@ export async function GET(request: NextRequest) {
           nome,
           ...v,
           taxa_conversao: taxaDeConversao(v.ganhos, v.perdidos),
-          abertos: ((abertos.data ?? []) as { responsavel: string | null }[]).filter(
-            (a) => (a.responsavel?.trim() || "Sem responsável") === nome,
-          ).length,
+          abertos: meusAbertos.filter((a) => (a.responsavel?.trim() || "Sem responsável") === nome).length,
         }))
         .sort((a, b) => b.ganhos - a.ganhos || a.nome.localeCompare(b.nome, "pt-BR"));
     }

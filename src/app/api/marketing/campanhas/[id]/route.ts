@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { campanhaDoLead, somarDiario, type LinhaDiario } from "../../../../../lib/midiaSync";
+import { lerLeadsDaLoja, passeDaEquipe } from "../../../../../lib/leadsDaLoja";
 
 export const dynamic = "force-dynamic";
 
@@ -73,11 +74,16 @@ export async function GET(
         : null;
 
     // Leads do banco na vida da campanha. Erro tolerado (coluna mostra "—").
-    const leadsRes = await supabase
-      .from("leads")
-      .select("utm_campaign")
-      .not("utm_campaign", "is", null)
-      .limit(5000);
+    // É número da LOJA: para a equipe sai da chave de serviço, só a coluna
+    // `utm_campaign` (a RLS de `leads` por escopo, 20261003130000, zeraria a
+    // conta para o Marketing). Quem não é da equipe segue na leitura da sessão.
+    const { data: profile } = await supabase.from("profiles").select("role, papeis").eq("id", user.id).maybeSingle();
+    const passe = passeDaEquipe(profile);
+    const leadsRes = passe
+      ? await lerLeadsDaLoja<{ utm_campaign: string | null }>(passe, ["utm_campaign"], (c) =>
+          c.not("utm_campaign", "is", null).limit(5000),
+        )
+      : await supabase.from("leads").select("utm_campaign").not("utm_campaign", "is", null).limit(5000);
     const ref = [{ id, idExterno: campanha.id_externo, nome: campanha.nome }];
     const leadsBanco = leadsRes.error
       ? null

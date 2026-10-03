@@ -385,9 +385,17 @@ describe("a rota", () => {
   });
 
   it("mantém Marketing no agregado, sem nome de pessoa", () => {
-    const agregado = rota.slice(rota.indexOf("if (!podeVer)"), rota.indexOf("let atendentes"));
+    // O bloco do agregado sai ANTES da leitura da fila (a que traz pessoas).
+    const inicio = rota.indexOf("if (!podeVer) {");
+    const fim = rota.indexOf("// `created_at`, não `criado_em`");
+    expect(inicio).toBeGreaterThan(-1);
+    expect(fim).toBeGreaterThan(inicio);
+    const agregado = rota.slice(inicio, fim);
     expect(agregado).toContain("somenteAgregado");
     expect(agregado).not.toContain("nome");
+    // A contagem é da loja: chave de serviço, só a coluna da etapa.
+    expect(agregado).toContain('lerLeadsDaLoja<{ situacao: string }>(passe, ["situacao"]');
+    expect(agregado).not.toContain("supabase.from(");
   });
 });
 

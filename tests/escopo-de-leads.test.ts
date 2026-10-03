@@ -150,7 +150,7 @@ describe("as rotas aplicam a regra", () => {
 
   it("a fila e a busca por referência passam pelo mesmo filtro, depois do filtro da ref", () => {
     const ref = fila.indexOf('consulta.ilike("ag_uid", padraoDaRef(ref))');
-    const escopo = fila.indexOf("if (podeVer) consulta = comEscopoDeLeads(consulta, visao);");
+    const escopo = fila.indexOf("\n    consulta = comEscopoDeLeads(consulta, visao);");
     expect(ref).toBeGreaterThan(-1);
     expect(escopo).toBeGreaterThan(ref);
     // E antes de a consulta ir para o banco.

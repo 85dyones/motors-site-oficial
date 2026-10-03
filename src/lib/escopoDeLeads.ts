@@ -22,10 +22,16 @@
  * 20260807210000), e não chave para `profiles`. O "meu" é, portanto, o lead
  * cujo `responsavel` é igual ao `full_name` de quem está logado.
  *
- * ⚠️ O que isto NÃO fecha: a RLS de `leads` continua dando a tabela a toda a
- * equipe. Quem tem sessão de painel e sabe montar a chamada lê direto no
- * PostgREST, sem passar por estas rotas. Fechar isso é migração, e migração
- * em produção pede a aprovação do dono.
+ * A mesma regra no BANCO: a migração `20261003130000_leads_rls_por_escopo.sql`
+ * troca a RLS de `leads` (que era `is_staff`, a tabela inteira para toda a
+ * equipe) por este escopo, e quem monta a chamada direto no PostgREST passa a
+ * receber só o que a rota já entregava. Enquanto ela não for aplicada, a regra
+ * vale só nas rotas. Os dois lados precisam dizer a mesma coisa: mudou aqui,
+ * muda lá.
+ *
+ * Os AGREGADOS da loja (relatório do funil, leads por campanha e por veículo,
+ * a contagem do Marketing) não passam por este escopo: saem de
+ * `leadsDaLoja.ts`, com a chave de serviço e só em colunas sem pessoa.
  */
 
 export type EscopoDeLeads = "todos" | "designados" | "meus" | "nenhum";

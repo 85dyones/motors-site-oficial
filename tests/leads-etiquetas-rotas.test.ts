@@ -148,7 +148,12 @@ const CLIENTE = {
     return { data: null, error: erroDoRpc };
   },
 };
-vi.mock("../src/lib/supabase-server", () => ({ createServerSupabaseClient: async () => CLIENTE }));
+// A contagem do Marketing sai da chave de serviço (`leadsDaLoja.ts`): aqui o
+// cliente de serviço lê o mesmo banco em memória.
+vi.mock("../src/lib/supabase-server", () => ({
+  createServerSupabaseClient: async () => CLIENTE,
+  createAdminSupabaseClient: () => ({ from: (tabela: string) => consulta(tabela) }),
+}));
 
 const gerenciar = await import("../src/app/api/leads/gerenciar/route");
 const etiquetas = await import("../src/app/api/leads/etiquetas/route");

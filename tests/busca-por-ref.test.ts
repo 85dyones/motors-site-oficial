@@ -168,7 +168,12 @@ describe("resumoDaBusca — o aviso da busca que achou", () => {
 // ---------------------------------------------------------------------------
 
 const CLIENTE = { auth: { getUser: vi.fn() }, from: vi.fn() };
-vi.mock("../src/lib/supabase-server", () => ({ createServerSupabaseClient: async () => CLIENTE }));
+// A contagem do Marketing sai da chave de serviço (`leadsDaLoja.ts`): aqui o
+// cliente de serviço lê o mesmo banco em memória.
+vi.mock("../src/lib/supabase-server", () => ({
+  createServerSupabaseClient: async () => CLIENTE,
+  createAdminSupabaseClient: () => ({ from: (tabela: string) => CLIENTE.from(tabela) }),
+}));
 
 const { GET } = await import("../src/app/api/leads/gerenciar/route");
 
