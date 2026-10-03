@@ -100,6 +100,10 @@ describe("ficha antiga de anúncio que o banco não conhece", () => {
       expect(fonte, arquivo).toMatch(
         /ehFichaDoSiteAntigo\((slug|legado)\) \? await marcasConhecidasOuNada\(\) : null;[\s\S]{0,200}destinoDeFichaAntiga\(/,
       );
+      // O corte do sufixo não diferencia caixa em NENHUM ponto do arquivo:
+      // com um `.HTML` cortado só no `generateMetadata`, a ficha de um carro
+      // à venda levava 308 para o hub em vez de abrir.
+      expect(fonte, arquivo).not.toMatch(/\.html\$\/,/);
       // O ramo de não encontrado não lê o estoque inteiro (decisão de 13/09).
       const ramo = fonte.slice(fonte.indexOf("ehFichaDoSiteAntigo("), fonte.indexOf("ehFichaDoSiteAntigo(") + 500);
       expect(ramo, arquivo).not.toContain("recortesDoEstoque(");

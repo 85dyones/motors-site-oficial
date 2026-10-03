@@ -225,7 +225,7 @@ export default async function CarDetailsPage({ params }: PageProps) {
   }
 
   // Natively strip `.html` and parse the vehicle unique ID
-  const cleanSlug = slug.replace(/\.html$/, "");
+  const cleanSlug = slug.replace(/\.html$/i, "");
   
   let veiculo = await getVeiculoById(cleanSlug);
   if (!veiculo) {
