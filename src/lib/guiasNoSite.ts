@@ -29,6 +29,33 @@
  * O índice `/guias` é o único lugar que lê o banco, e lá o grupo vem daqui:
  * guia publicado pelo painel que ainda não está nesta lista entra em "Outros
  * guias", no fim, em vez de sumir.
+ *
+ * ---------------------------------------------------------------------------
+ * 03/10/2026: os seis guias órfãos ganham card
+ * ---------------------------------------------------------------------------
+ * Pedido do dono: ligar os guias que ainda não recebiam link de página nenhuma
+ * fora de `/guias`. Eram seis, e cada um entrou na página em que responde à
+ * próxima pergunta do leitor:
+ *
+ *  · `/avaliacao`: "Vender sozinho ou para a loja", "Consignação de carro" e
+ *    "Meu carro reprovou no laudo cautelar". Os dois primeiros são os outros
+ *    caminhos de quem veio avaliar. O terceiro fala do motivo da reprovação e
+ *    do dever de informar, e a linha de apoio não diz que a loja ou o Repasse
+ *    Motors recebe o carro recusado, porque não recebe
+ *    (`tests/guia-07-sem-repasse-de-recusado.test.ts`).
+ *  · `/garantia`: "Laudo cautelar: aprovado, com apontamento ou reprovado" e
+ *    "Carro de loja ou de particular". As linhas de apoio seguem a regra da
+ *    página e não explicam a garantia legal.
+ *  · `/seminovos-curitiba`: "Test-drive de carro usado".
+ *  · `/sobre`: "Laudo cautelar: aprovado, com apontamento ou reprovado", ao
+ *    lado do exame e do levantamento que a página já mostrava.
+ *
+ * Três guias continuam sem card de propósito, porque o linkador já os alcança
+ * no texto de `/garantia`: "Como saber se um carro passou por leilão", "Chassi
+ * remarcado" e "Laudo cautelar x vistoria de transferência". O teste de
+ * `tests/guias-no-site.test.ts` confere as duas coisas: todo guia publicado
+ * tem card em alguma página ou está nessa lista, e cada um da lista recebe
+ * mesmo o link do texto.
  */
 
 export type GrupoDeGuias = "procedencia" | "mecanica" | "garantia" | "venda";
@@ -172,6 +199,9 @@ export const GUIAS_DA_PAGINA = {
     guia("o-que-a-loja-assume-na-compra", "O que a loja resolve e o que sai do valor."),
     guia("documentos-para-vender-carro", "O que o vendedor precisa, na ordem, no Paraná."),
     guia("tabela-fipe-nao-e-preco-de-venda", "O que a tabela mede, e por que cada carro vale diferente dela."),
+    guia("vender-sozinho-ou-para-loja", "Preço, tempo, segurança, golpes e papelada, de um caminho e do outro."),
+    guia("consignacao-de-carro", "A loja vende por você: o valor combinado em contrato e os custos que saem dele."),
+    guia("carro-reprovado-cautelar-como-vender", "O que muda conforme o motivo da reprovação, e o que informar a quem comprar."),
   ],
   "/financiamento": [
     guia("vender-carro-financiado", "Quem ainda paga o carro atual também troca: a loja quita o banco."),
@@ -181,15 +211,19 @@ export const GUIAS_DA_PAGINA = {
     guia("garantia-carro-usado-loja", "O que a garantia de uma loja cobre e o que fica de fora."),
     guia("garantia-estendida-vale-a-pena", "Quando o plano opcional compensa, e o que perguntar antes."),
     guia("vicio-oculto-carro-usado", "O defeito que já existia na venda: até onde a perícia alcança e o que a garantia da loja banca."),
+    guia("resultados-laudo-cautelar", "Os três resultados do laudo, e como ler um apontamento."),
+    guia("carro-de-loja-ou-particular", "O que vem com o carro de loja e o que fica por sua conta na compra direta."),
   ],
   "/seminovos-curitiba": [
     guia("pericia-cautelar-curitiba", "Onde fazer, quanto demora e o que levar."),
     guia("vender-carro-curitiba", "Loja, consignação, anúncio ou troca: o que cada caminho pede."),
     guia("laudo-cautelar-carro-usado", "O que a perícia confere e o que fica de fora."),
+    guia("test-drive-carro-usado", "O roteiro da avaliação da loja, do motor frio à volta com o motor quente."),
   ],
   "/sobre": [
     guia("o-que-reprova-pericia-cautelar", "O levantamento por trás da seleção: 57 avaliados, 10 comprados, motivos em porcentagem."),
     guia("laudo-cautelar-carro-usado", "O exame que todo carro faz antes de entrar no estoque."),
+    guia("resultados-laudo-cautelar", "Como ler o laudo: os três resultados e o eixo em que o apontamento aparece."),
   ],
 } as const satisfies Record<string, readonly GuiaRelacionado[]>;
 
