@@ -1,0 +1,313 @@
+{
+  "_leia": "Terceiro lote de textos próprios (03/10/2026): os 28 hubs de marca e modelo do sitemap que ainda saíam com o texto gerado. Mesma forma dos dois primeiros (chamada, abertura, \"### subtítulo\", lista, fechamento) e a regra do dono de informar o que conferir sem argumentar contra o carro. AINDA NÃO GRAVADO em `textos_de_hub`: espera a aprovação do dono.",
+  "textos": [
+    {
+      "caminho": "/carros/nissan",
+      "titulo": null,
+      "paragrafos": [
+        "Nissan usado: comece pelo modelo e pelo câmbio",
+        "March, Versa e Kicks dividem o motor 1.6 aspirado, e os dois primeiros também tiveram o 1.0. Nos automáticos, o câmbio é CVT na maioria dos anos. Sentra e Frontier formam o outro lado da linha, maiores e com outra mecânica.",
+        "### O que conferir num Nissan usado",
+        "Na visita, confira:\n- Câmbio CVT em retomada e em subida, com a troca do fluido no histórico.\n- Histórico de revisões no prazo.\n- Suspensão dianteira, em piso irregular.\n- Ar-condicionado e central multimídia.\n- Na Frontier, a tração 4x4, se houver: peça para engatar.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Mande o ano que te interessa, e a gente conta qual motor e qual câmbio são."
+      ]
+    },
+    {
+      "caminho": "/carros/kia",
+      "titulo": null,
+      "paragrafos": [
+        "Kia usado: importado e bem equipado de série",
+        "Todo Kia vendido no Brasil é importado e costuma vir bem equipado de série. Soul, Cerato, Sportage e Sorento são os mais comuns no usado. Na hora de escolher, o histórico de manutenção do carro diz mais que o ano.",
+        "### O que conferir num Kia usado",
+        "Antes de fechar, confira:\n- Registro das revisões, com as datas e a quilometragem.\n- Câmbio automático em arrancada e em rampa.\n- Toda a eletrônica: central, sensores, câmera e teto solar, se houver.\n- Suspensão e rodas, em piso irregular.\n- Chave reserva e manual.",
+        "Nenhum carro é anunciado sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Se não houver Kia no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/mercedes-benz",
+      "titulo": null,
+      "paragrafos": [
+        "Mercedes-Benz usada: comece pelo histórico de manutenção",
+        "Classe A, Classe C, CLA e GLA são os modelos mais comuns no usado. Os de entrada, de 2013 em diante, usam motor turbo de quatro cilindros e, na maioria, câmbio automático de dupla embreagem; a Classe C usa automático convencional. A manutenção segue a tabela da marca.",
+        "### O que conferir numa Mercedes-Benz usada",
+        "Antes de fechar, confira:\n- Histórico de revisões, com nota. Pesa no valor do carro.\n- Câmbio em manobra, rampa e trânsito lento.\n- Toda a eletrônica: central, sensores, câmera e bancos elétricos.\n- Pneus e rodas. Muitas versões usam pneu run flat, sem estepe.\n- Suspensão, em piso irregular.",
+        "A perícia independente acontece antes do anúncio, e o laudo fica com o vendedor, à disposição de quem pedir. Mande o modelo e o ano que te interessam, e a gente conta como é a manutenção."
+      ]
+    },
+    {
+      "caminho": "/carros/mitsubishi",
+      "titulo": null,
+      "paragrafos": [
+        "Mitsubishi usado: a tração muda de uma versão para outra",
+        "A linha Mitsubishi no usado vai dos SUVs urbanos, como ASX, Outlander e Eclipse Cross, às picapes L200 e aos Pajero, feitos para sair do asfalto. Parte é fabricada em Catalão, em Goiás, e parte é importada. Em todos, a tração é o que mais muda de uma versão para outra.",
+        "### O que conferir num Mitsubishi usado",
+        "Na visita, confira:\n- Tração. Pergunte se é dianteira, integral ou 4x4 com reduzida, e peça para engatar.\n- Registro das revisões, com as trocas de óleo no prazo.\n- Câmbio automático ou CVT em retomada.\n- Assoalho e caixas de roda.\n- Sensores, câmera e central multimídia.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Conte como você vai usar o carro, e a gente indica a versão que faz sentido."
+      ]
+    },
+    {
+      "caminho": "/carros/toyota",
+      "titulo": null,
+      "paragrafos": [
+        "Toyota usada: revenda forte, do Etios à Hilux",
+        "A Toyota usada costuma custar mais que as concorrentes do mesmo ano e devolve parte disso na revenda. Etios e Yaris são os compactos; Corolla e Corolla Cross, os médios; Hilux e SW4, os de chassi, a diesel na maioria. Corolla e Corolla Cross também têm versão híbrida.",
+        "### O que conferir numa Toyota usada",
+        "Na visita, confira:\n- Histórico de revisões, com as datas e a quilometragem.\n- Câmbio automático ou CVT em retomada.\n- Nos híbridos, o funcionamento em modo elétrico em baixa velocidade e o painel sem alertas.\n- Nas diesel, o registro das trocas de óleo e de filtros, e a tração 4x4, se houver.\n- Pneus e alinhamento.",
+        "Nenhum carro é anunciado sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Se não houver Toyota no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/fox",
+      "titulo": null,
+      "paragrafos": [
+        "Fox usado: teto alto e mecânica simples",
+        "O Fox é um hatch compacto de teto alto, com posição de dirigir elevada e boa altura para quem senta atrás. Saiu com motor 1.0 e 1.6, quase sempre com câmbio manual; o 1.6 teve também o automatizado I-Motion. Foi vendido de 2003 a 2021.",
+        "### O que conferir num Fox usado",
+        "Na visita, confira:\n- Embreagem e câmbio. Pergunte se é manual ou I-Motion e dirija no trânsito lento.\n- Suspensão dianteira, em piso irregular.\n- Banco traseiro, que corre sobre trilhos em várias versões.\n- Ar-condicionado e vidros elétricos.\n- Histórico de revisões.",
+        "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor; é só pedir. Se não houver Fox no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/fusca",
+      "titulo": null,
+      "paragrafos": [
+        "Fusca: o clássico e o moderno são dois carros",
+        "O Fusca clássico, de motor traseiro refrigerado a ar, foi feito no Brasil até 1986 e voltou de 1993 a 1996. O moderno, importado na década passada, tem motor turbo na frente e câmbio manual ou de dupla embreagem. O que conferir muda de um para o outro.",
+        "### O que conferir num Fusca",
+        "Conforme o carro, confira:\n- No clássico, assoalho, caixas de ar e para-lamas.\n- No clássico, a originalidade: motor, cor e documento com as mesmas informações.\n- Parte elétrica e freios.\n- No moderno, o histórico de óleo no prazo e o câmbio em manobra.\n- Em qualquer um, o estado do interior e das borrachas.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Diga no WhatsApp qual dos dois você procura, e a gente manda as fotos reais."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/spacefox",
+      "titulo": null,
+      "paragrafos": [
+        "SpaceFox usada: a perua do Fox",
+        "A SpaceFox é a perua derivada do Fox, com o mesmo teto alto e um porta-malas bem maior. Usa motor 1.6, com câmbio manual ou automatizado I-Motion, e ficou em linha até o fim da década passada.",
+        "### O que conferir numa SpaceFox usada",
+        "Na visita, confira:\n- Embreagem e câmbio. Pergunte se é manual ou I-Motion.\n- Suspensão traseira, que trabalha mais com o carro carregado.\n- Porta-malas, tampa e assoalho do estepe.\n- Ar-condicionado e vidros elétricos.\n- Histórico de revisões.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor; é só pedir. Se não houver SpaceFox no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/parati",
+      "titulo": null,
+      "paragrafos": [
+        "Parati usada: a perua do Gol",
+        "A Parati é a perua do Gol, feita de 1982 a 2012. Usa a mesma mecânica dele, com peça de mecânica fácil de achar, e tem porta-malas grande. As mais antigas já são procuradas como carro de coleção.",
+        "### O que conferir numa Parati usada",
+        "Na visita, confira:\n- Lataria: assoalho, caixas de roda e tampa traseira.\n- Originalidade e documento com as mesmas informações.\n- Arrefecimento e parte elétrica.\n- Embreagem e câmbio.\n- Suspensão traseira.",
+        "A perícia independente acontece antes do anúncio, e o laudo fica com o vendedor, à disposição de quem pedir. Se não houver Parati no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/volkswagen/up",
+      "titulo": null,
+      "paragrafos": [
+        "Up usado: 1.0 aspirado ou TSI",
+        "O Up é o menor carro da Volkswagen, vendido de 2014 a 2021. O motor é sempre 1.0 de três cilindros, aspirado ou turbo, o TSI. O câmbio é manual, com opção do automatizado I-Motion no aspirado.",
+        "### O que conferir num Up usado",
+        "Na visita, confira:\n- No TSI, o histórico de óleo no prazo, que é o que conserva o motor turbo.\n- Embreagem e câmbio. Pergunte se é manual ou I-Motion.\n- Suspensão, em piso irregular.\n- Ar-condicionado e central multimídia.\n- Pneus e alinhamento.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Diga no WhatsApp qual versão te interessa, e a gente manda as fotos reais e o laudo."
+      ]
+    },
+    {
+      "caminho": "/carros/fiat/titano",
+      "titulo": null,
+      "paragrafos": [
+        "Titano usada: picape média a diesel",
+        "A Titano é a picape média da Fiat, lançada em 2024, com cabine dupla, motor turbodiesel 2.2 e tração 4x4. As primeiras têm câmbio manual ou automático de seis marchas; a linha seguinte passou a oito marchas no automático.",
+        "### O que conferir numa Titano usada",
+        "Na hora de ver a picape:\n- Registro das revisões na rede, com as datas e a quilometragem.\n- Tração 4x4 e reduzida: peça para engatar.\n- Câmbio em arrancada e em rampa.\n- Caçamba, tampa e protetor.\n- Pneus e alinhamento.",
+        "Nenhuma picape é anunciada sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Se não houver Titano no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/fiat/uno",
+      "titulo": null,
+      "paragrafos": [
+        "Uno usado: o quadrado e o Novo Uno",
+        "O Uno quadrado, que terminou como Mille, foi feito até 2013, quase sempre com motor 1.0. O Novo Uno, de 2010 a 2021, tem desenho arredondado e motor 1.0 ou 1.4, trocados depois por um 1.0 e um 1.3 mais novos. Nos dois, a manutenção é simples e a peça é fácil.",
+        "### O que conferir num Uno usado",
+        "Na visita, confira:\n- Embreagem e câmbio, com engates macios.\n- Arrefecimento e parte elétrica.\n- Buchas e amortecedores, em piso irregular.\n- Lataria: assoalho e caixas de roda, no Mille.\n- Ar-condicionado e direção assistida, que dependem da versão.",
+        "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor; é só pedir. Diga no WhatsApp qual dos dois você procura, e a gente manda as fotos reais."
+      ]
+    },
+    {
+      "caminho": "/carros/ford/f-250",
+      "titulo": null,
+      "paragrafos": [
+        "F-250 usada: picape grande a diesel",
+        "A F-250 é uma picape grande, feita no Brasil de 1998 a 2011. As diesel usaram motor MWM de seis cilindros e, depois, Cummins de quatro. Há cabine simples e dupla, com tração 4x2 ou 4x4.",
+        "### O que conferir numa F-250 usada",
+        "Na hora de ver a picape:\n- Registro das revisões, com as trocas de óleo e de filtros.\n- Embreagem e câmbio.\n- Tração 4x4, se houver: peça para engatar.\n- Chassi, feixes de mola e caçamba.\n- Direção e freios.",
+        "Nenhuma picape é anunciada sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Conte como você vai usar a picape, e a gente diz se a F-250 atende."
+      ]
+    },
+    {
+      "caminho": "/carros/renault/captur",
+      "titulo": null,
+      "paragrafos": [
+        "Captur usado: três motores e três câmbios",
+        "O Captur brasileiro foi lançado em 2017 sobre a base do Duster. Saiu com motor 1.6, manual ou CVT, e 2.0 com automático de quatro marchas; a partir de 2022, o topo da linha passou ao 1.3 turbo com CVT. Saber qual é o conjunto vem antes de comparar preço.",
+        "### O que conferir num Captur usado",
+        "Na visita, confira:\n- Câmbio. Confirme se é manual, automático ou CVT, e dirija em retomada.\n- No 1.3 turbo, o histórico de óleo no prazo.\n- Central multimídia e câmera de ré.\n- Suspensão, em piso irregular.\n- Pneus e rodas.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Se não houver Captur no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/renault/logan",
+      "titulo": null,
+      "paragrafos": [
+        "Logan usado: sedã com espaço de carro maior",
+        "O Logan é um sedã compacto com espaço interno e porta-malas de carro maior. Usa motor 1.0 ou 1.6 e, na maioria, câmbio manual; o 1.6 teve automático de quatro marchas, automatizado e, nos últimos anos, CVT.",
+        "### O que conferir num Logan usado",
+        "Na visita, confira:\n- Embreagem e câmbio. Pergunte qual é o do carro e dirija no trânsito lento.\n- Buchas e amortecedores, em piso irregular.\n- Ar-condicionado e vidros elétricos.\n- Porta-malas e assoalho do estepe.\n- Registro das revisões.",
+        "Nenhum carro é anunciado sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Mande o ano que te interessa, e a gente conta qual motor e qual câmbio são."
+      ]
+    },
+    {
+      "caminho": "/carros/bmw/x4",
+      "titulo": null,
+      "paragrafos": [
+        "X4 usado: SUV cupê de tração integral",
+        "O X4 é o SUV cupê da BMW, derivado do X3, sempre com tração integral e câmbio automático de oito marchas. As versões de entrada usam motor 2.0 turbo; a M40i, seis cilindros 3.0 turbo. A segunda geração chegou em 2018.",
+        "### O que conferir num X4 usado",
+        "Antes de fechar, confira:\n- Histórico de revisões, com nota. Pesa no valor do carro.\n- Histórico de óleo no prazo, que é o que conserva o motor turbo.\n- Pneus run flat, no estado dos quatro.\n- Toda a eletrônica: central, sensores, câmeras e bancos elétricos.\n- Suspensão e rodas, em piso irregular.",
+        "Todo X4 daqui passa por perícia cautelar independente antes do anúncio, e o laudo fica com o vendedor para quem pedir. Diga no WhatsApp qual versão te interessa, e a gente manda as fotos reais e o laudo."
+      ]
+    },
+    {
+      "caminho": "/carros/chevrolet/spin",
+      "titulo": null,
+      "paragrafos": [
+        "Spin usada: cinco ou sete lugares",
+        "A Spin é uma minivan compacta com versões de cinco e de sete lugares. O motor é 1.8 flex em toda a linha, com câmbio manual ou automático de seis marchas. É escolha comum de família grande.",
+        "### O que conferir numa Spin usada",
+        "Na visita, confira:\n- Bancos: rebatimento da segunda fileira e, se houver, da terceira.\n- Câmbio automático em arrancada e em rampa.\n- Suspensão traseira, que trabalha mais com o carro cheio.\n- Ar-condicionado, inclusive as saídas de trás, se houver.\n- Registro das revisões.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor; é só pedir. Diga quantos lugares você precisa, e a gente indica a versão."
+      ]
+    },
+    {
+      "caminho": "/carros/chevrolet/vectra",
+      "titulo": null,
+      "paragrafos": [
+        "Vectra usado: sedã médio de mecânica conhecida",
+        "O Vectra foi o sedã médio da Chevrolet de 1993 a 2011. O da segunda geração, até 2005, usa motor 2.0 ou 2.2; o último, maior, 2.0 ou 2.4, e ganhou a versão hatch GT. O câmbio automático é convencional, de quatro marchas.",
+        "### O que conferir num Vectra usado",
+        "Na visita, confira:\n- Câmbio automático em arrancada e nas trocas, ou embreagem, no manual.\n- Arrefecimento e parte elétrica.\n- Suspensão dianteira, em piso irregular.\n- Ar-condicionado e vidros elétricos.\n- Registro das revisões.",
+        "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor; é só pedir. Mande o ano que te interessa, e a gente conta qual geração é."
+      ]
+    },
+    {
+      "caminho": "/carros/chevrolet/celta",
+      "titulo": null,
+      "paragrafos": [
+        "Celta usado: simples e fácil de manter",
+        "O Celta foi feito de 2000 a 2015 como o carro de entrada da Chevrolet. O motor é 1.0 na grande maioria, com câmbio manual, e a mecânica vem do Corsa, com peça em qualquer autopeça. Direção hidráulica e ar-condicionado dependem da versão e do ano.",
+        "### O que conferir num Celta usado",
+        "Na visita, confira:\n- Embreagem e câmbio, com engates macios.\n- Arrefecimento e parte elétrica.\n- Buchas e amortecedores, em piso irregular.\n- Itens da versão: direção hidráulica, ar-condicionado e vidros.\n- Registro das revisões.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Diga no WhatsApp o que não pode faltar, direção hidráulica ou ar-condicionado, e a gente indica a versão."
+      ]
+    },
+    {
+      "caminho": "/carros/honda/city",
+      "titulo": null,
+      "paragrafos": [
+        "City usado: três gerações, sempre 1.5",
+        "O City é o sedã compacto da Honda, sempre com motor 1.5. O de 2009 a 2014 usa câmbio automático de cinco marchas; de 2015 em diante, CVT. A geração atual, de 2022, ganhou também a versão hatch.",
+        "### O que conferir num City usado",
+        "Na hora de ver o carro:\n- Câmbio. Pergunte se é manual, automático de cinco marchas ou CVT, e dirija em retomada.\n- Histórico de revisões, com a troca do fluido do câmbio.\n- Coxins do motor e suspensão dianteira.\n- Ar-condicionado e central multimídia.\n- Porta-malas e assoalho do estepe.",
+        "A perícia independente acontece antes do anúncio, e o laudo fica com o vendedor, à disposição de quem pedir. Diga no WhatsApp o ano que te interessa, e a gente conta qual geração e qual câmbio são."
+      ]
+    },
+    {
+      "caminho": "/carros/hyundai/tucson",
+      "titulo": null,
+      "paragrafos": [
+        "Tucson usado: o antigo e o New Tucson",
+        "O Tucson antigo usa motor 2.0 aspirado na grande maioria, com câmbio manual ou automático de quatro marchas. O New Tucson, que o substituiu, é outro carro: motor 1.6 turbo com injeção direta e câmbio automático de dupla embreagem de sete marchas.",
+        "### O que conferir num Tucson usado",
+        "Conforme a geração, confira:\n- No New Tucson, o histórico de óleo no prazo e o câmbio em manobra, rampa e trânsito lento.\n- No antigo, o câmbio automático nas trocas e o arrefecimento.\n- Suspensão, em piso irregular.\n- Sensores, câmera e central multimídia.\n- Pneus e alinhamento.",
+        "Nenhum carro é anunciado sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Mande o ano que te interessa, e a gente conta qual motor e qual câmbio são."
+      ]
+    },
+    {
+      "caminho": "/carros/nissan/march",
+      "titulo": null,
+      "paragrafos": [
+        "March usado: compacto de mecânica simples",
+        "O March foi vendido de 2011 a 2020, com motor 1.0 ou 1.6. O câmbio é manual na maioria; o 1.6 ganhou opção de CVT nos últimos anos.",
+        "### O que conferir num March usado",
+        "Na visita, confira:\n- Embreagem e câmbio. No CVT, dirija em retomada e em subida.\n- Buchas e amortecedores, em piso irregular.\n- Ar-condicionado e direção elétrica.\n- Registro das revisões.\n- Pneus e alinhamento.",
+        "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor; é só pedir. Se não houver March no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/nissan/versa",
+      "titulo": null,
+      "paragrafos": [
+        "Versa usado: sedã de porta-malas grande",
+        "O Versa é um sedã compacto de entre-eixos longo, com bom espaço atrás e porta-malas grande. A primeira geração usa motor 1.0 ou 1.6, com câmbio manual ou automático; a segunda, de 2020 em diante, é sempre 1.6, manual ou CVT.",
+        "### O que conferir num Versa usado",
+        "Na visita, confira:\n- Câmbio. Pergunte qual é o do carro e dirija em retomada.\n- Histórico de revisões, com a troca do fluido do câmbio nos automáticos.\n- Suspensão traseira e porta-malas.\n- Ar-condicionado e central multimídia.\n- Pneus e alinhamento.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor; é só pedir. Diga o ano que te interessa, e a gente conta qual câmbio é."
+      ]
+    },
+    {
+      "caminho": "/carros/kia/soul",
+      "titulo": null,
+      "paragrafos": [
+        "Soul usado: hatch alto, de desenho quadrado",
+        "O Soul é um hatch alto, de desenho quadrado, importado da Coreia. Usa motor 1.6, flex na maioria, com câmbio manual ou automático, e tem boa altura interna e posição de dirigir elevada. A segunda geração chegou em 2014.",
+        "### O que conferir num Soul usado",
+        "Na visita, confira:\n- Câmbio automático em arrancada e em rampa.\n- Banco traseiro e porta-malas, com o rebatimento.\n- Central multimídia, som e comandos do volante.\n- Suspensão e rodas, em piso irregular.\n- Histórico de revisões.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Se não houver Soul no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/kia/sorento",
+      "titulo": null,
+      "paragrafos": [
+        "Sorento usado: SUV grande de sete lugares",
+        "O Sorento é o SUV grande da Kia, com sete lugares na maioria das versões. Na geração de 2010 a 2020, a mais comum no usado, os motores são a gasolina, quatro cilindros 2.4 ou V6, com câmbio automático de seis marchas. Há versões de tração dianteira e integral.",
+        "### O que conferir num Sorento usado",
+        "Antes de fechar, confira:\n- Registro das revisões, com as datas e a quilometragem.\n- Tração. Pergunte se é dianteira ou integral.\n- Terceira fileira: rebatimento e cintos.\n- Toda a eletrônica: central, câmera, sensores e teto solar, se houver.\n- Suspensão e pneus.",
+        "A perícia independente acontece antes do anúncio, e o laudo fica com o vendedor, à disposição de quem pedir. Se não houver Sorento no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    },
+    {
+      "caminho": "/carros/mercedes-benz/classe-a",
+      "titulo": null,
+      "paragrafos": [
+        "Classe A usada: do monovolume ao hatch esportivo",
+        "A Classe A mudou de proposta. A de 1999 a 2005, feita em Juiz de Fora, é um monovolume compacto. De 2013 em diante virou hatch esportivo, com motor turbo e câmbio automático de dupla embreagem; A200 e A250 são as versões mais comuns.",
+        "### O que conferir numa Classe A usada",
+        "Antes de fechar, confira:\n- Histórico de revisões, com nota. Pesa no valor do carro.\n- Câmbio em manobra, rampa e trânsito lento.\n- Histórico de óleo no prazo, nos motores turbo.\n- Toda a eletrônica: central, sensores, câmera e bancos.\n- Pneus e rodas.",
+        "Nenhum carro é anunciado sem perícia cautelar independente, e o laudo fica com o vendedor para quem pedir. Mande o ano e a versão que te interessam, e a gente conta como é a manutenção."
+      ]
+    },
+    {
+      "caminho": "/carros/mitsubishi/outlander",
+      "titulo": null,
+      "paragrafos": [
+        "Outlander usado: SUV médio com opção de sete lugares",
+        "O Outlander é o SUV médio da Mitsubishi. A geração vendida de 2013 em diante tem motor 2.0 com câmbio CVT, V6 3.0 com automático de seis marchas e, mais tarde, diesel 2.2. As versões de topo têm sete lugares e tração integral.",
+        "### O que conferir num Outlander usado",
+        "Na visita, confira:\n- Câmbio. Confirme se é CVT ou automático e dirija em retomada.\n- Tração integral, nas versões que têm.\n- Terceira fileira, se houver: rebatimento e cintos.\n- Registro das revisões, com as trocas de óleo no prazo.\n- Sensores, câmera e central multimídia.",
+        "Uma empresa independente faz a perícia antes de o carro ser anunciado, e o laudo fica com o vendedor; é só pedir. Conte como você vai usar o carro, e a gente indica a versão que faz sentido."
+      ]
+    },
+    {
+      "caminho": "/carros/peugeot/208",
+      "titulo": null,
+      "paragrafos": [
+        "208 usado: a primeira geração e a atual",
+        "O 208 de 2013 a 2020 foi feito no estado do Rio, com motor 1.2 de três cilindros, 1.5 ou 1.6. O atual, de 2020 em diante, vem da Argentina: começou com o 1.6 e passou aos motores 1.0, aspirado manual e turbo com CVT.",
+        "### O que conferir num 208 usado",
+        "Na visita, confira:\n- Câmbio automático. Confirme qual é o do carro e avalie as trocas a frio.\n- No 1.0 turbo, o histórico de óleo no prazo.\n- Parte elétrica: central multimídia, vidros e sensores.\n- Teto panorâmico, se houver: cortina e vedação.\n- Suspensão dianteira, em piso irregular.",
+        "Periciamos por empresa independente antes de anunciar, e o laudo fica com o vendedor; é só pedir. Se não houver 208 no estoque hoje, diga o que procura, e a loja busca."
+      ]
+    }
+  ]
+}
