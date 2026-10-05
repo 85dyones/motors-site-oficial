@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ehTipoDeDesfecho,
   nivelDeEstagnacao,
@@ -60,8 +60,9 @@ import { NivelDoTituloDeBloco } from "./lead/TituloDeBloco";
  * Os blocos são os mesmos nos dois: cabeçalho (h), próximo passo (p), carros
  * de interesse (v), registro (c), histórico (t) e dados (d). Na gaveta a ordem
  * é h p v c t d: os carros sobem para junto do próximo passo, porque são
- * ferramenta do atendimento. Na página, v fica no alto da coluna dos dados
- * (h p c t v d no HTML), e os blocos se reposicionam por `grid-template-areas`.
+ * ferramenta do atendimento. Na página estreita (tablet) a ordem é a mesma. Na
+ * página de três colunas, v fica no alto da coluna dos dados (h p c t v d no
+ * HTML), e os blocos se reposicionam por `grid-template-areas`.
  *
  * Os dados vêm de `GET /api/leads/[id]`. Etapa, responsável e desfecho gravam
  * pelo `PATCH /api/leads/gerenciar`, com as travas de sempre; o registro, o
@@ -95,6 +96,20 @@ const AREA: Record<"h" | "p" | "c" | "t" | "d" | "v", string> = {
   d: "xl:[grid-area:d] xl:border-r xl:border-mt-regua-fina",
   v: "xl:border-t-0",
 };
+
+/** A partir daqui a página tem três colunas (o `xl` do Tailwind), e os carros vão para a dos dados. */
+const CONSULTA_DAS_COLUNAS = "(min-width: 1280px)";
+
+function assinarColunas(aoMudar: () => void): () => void {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const consulta = window.matchMedia(CONSULTA_DAS_COLUNAS);
+  consulta.addEventListener("change", aoMudar);
+  return () => consulta.removeEventListener("change", aoMudar);
+}
+const temColunas = () => typeof window.matchMedia === "function" && window.matchMedia(CONSULTA_DAS_COLUNAS).matches;
+
+/** A pergunta de quem sai com algo começado só nos carros de interesse. */
+const PERGUNTA_DO_DESCARTE_DOS_CARROS = "Há uma marcação nos carros de interesse que não foi salva. Descartar?";
 
 const FAIXA_DE_ERRO = "border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800";
 const FAIXA_DE_AVISO = "border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800";
@@ -150,6 +165,10 @@ export default function DetalheDoLead({
   const [resolvendo, setResolvendo] = useState(false);
   /** As gravações nos carros vão uma depois da outra: no servidor elas não são atômicas. */
   const filaDeCarros = useRef<Promise<unknown>>(Promise.resolve());
+  /** Há motivo, nota ou busca começados no bloco dos carros, e ainda não gravados. */
+  const [carrosEmAndamento, setCarrosEmAndamento] = useState(false);
+  /** A página tem largura para as três colunas? Estreita, os carros sobem para depois do próximo passo. */
+  const emColunas = useSyncExternalStore(assinarColunas, temColunas, () => false);
   const [form, setForm] = useState<FormDoRegistro>(FORM_DO_REGISTRO_VAZIO);
   /** FECHAR foi tocado com um registro começado: a gaveta pergunta antes. */
   const [querFechar, setQuerFechar] = useState(false);
@@ -267,7 +286,10 @@ export default function DetalheDoLead({
   // Com registro começado, Esc não fecha: uma tecla não pode apagar o que foi
   // escrito. E com uma caixa modal aberta (a de motivos, daqui ou do quadro), o
   // Esc é dela.
-  const emAndamento = registroEmAndamento(form);
+  // O mesmo vale para o que foi começado nos carros de interesse (motivo de
+  // descarte, a caixa de resolução, texto na busca).
+  const registroComecado = registroEmAndamento(form);
+  const emAndamento = registroComecado || carrosEmAndamento;
   useEffect(() => {
     if (layout !== "gaveta" || !aoFechar) return;
     const naTecla = (e: KeyboardEvent) => {
@@ -283,9 +305,22 @@ export default function DetalheDoLead({
   const mudarForm = useCallback(
     (novo: FormDoRegistro) => {
       setForm(novo);
-      aoMudarRascunho?.(registroEmAndamento(novo));
+      aoMudarRascunho?.(registroEmAndamento(novo) || carrosEmAndamento);
     },
-    [aoMudarRascunho],
+    [aoMudarRascunho, carrosEmAndamento],
+  );
+
+  /** O bloco dos carros passou a ter (ou deixou de ter) algo que se perderia ao sair. */
+  const aoMudarRascunhoAtual = useRef(aoMudarRascunho);
+  useEffect(() => {
+    aoMudarRascunhoAtual.current = aoMudarRascunho;
+  }, [aoMudarRascunho]);
+  const mudarRascunhoDosCarros = useCallback(
+    (comecado: boolean) => {
+      setCarrosEmAndamento(comecado);
+      aoMudarRascunhoAtual.current?.(registroComecado || comecado);
+    },
+    [registroComecado],
   );
 
   const pedirParaFechar = () => {
@@ -687,6 +722,7 @@ export default function DetalheDoLead({
         aoResolver={resolverCarros}
         aoAbrirResolucao={() => setResolvendo(true)}
         aoAdiarResolucao={() => setResolvendo(false)}
+        aoMudarRascunho={mudarRascunhoDosCarros}
       />
     );
     const blocoDosDados = (
@@ -745,7 +781,7 @@ export default function DetalheDoLead({
               aoConcluir={(passo) => comecarRegistro(formAoConcluir(passo))}
               aoRemarcar={(passo) => comecarRegistro(formAoRemarcar(passo))}
             />
-            {!naPagina && blocoDosCarros}
+            {!(naPagina && emColunas) && blocoDosCarros}
             <RegistroDeInteracao
               form={form}
               aoMudar={mudarForm}
@@ -758,9 +794,13 @@ export default function DetalheDoLead({
               aoRegistrar={() => void registrar()}
             />
             <HistoricoDoLead historico={dados.historico} className={area("t")} />
-            {naPagina ? (
+            {naPagina && emColunas ? (
               <div data-coluna="d" className={`flex min-w-0 flex-col ${AREA.d}`}>
                 {blocoDosCarros}
+                {blocoDosDados}
+              </div>
+            ) : naPagina ? (
+              <div data-coluna="d" className={`flex min-w-0 flex-col ${AREA.d}`}>
                 {blocoDosDados}
               </div>
             ) : (
@@ -843,7 +883,7 @@ export default function DetalheDoLead({
             data-descarte
             className="sticky top-[45px] z-10 flex flex-wrap items-center gap-3 border-b border-l-[3px] border-b-mt-regua-fina border-l-mt-accent bg-mt-accent-100 px-6 py-3 text-xs text-mt-accent-800"
           >
-            <span className="flex-1 font-semibold">{PERGUNTA_DO_DESCARTE}</span>
+            <span className="flex-1 font-semibold">{registroComecado ? PERGUNTA_DO_DESCARTE : PERGUNTA_DO_DESCARTE_DOS_CARROS}</span>
             <button
               type="button"
               onClick={() => {
@@ -859,11 +899,12 @@ export default function DetalheDoLead({
               onClick={() => {
                 setQuerFechar(false);
                 aoManter?.();
-                campoDoTexto.current?.focus();
+                if (registroComecado) campoDoTexto.current?.focus();
+                else caixa.current?.querySelector<HTMLElement>('[data-bloco="v"] :is(input, textarea, button[aria-pressed="true"])')?.focus();
               }}
               className="mt-btn mt-btn-tinta mt-foco px-3.5 py-[9px] text-[11px] pointer-coarse:min-h-11"
             >
-              Continuar escrevendo
+              {registroComecado ? "Continuar escrevendo" : "Continuar"}
             </button>
           </div>
         )}

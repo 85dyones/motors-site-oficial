@@ -917,6 +917,11 @@ rotuloDoVeiculoNaTela(rotulo)     // o retrato do banco na grafia da tela
 - Quem pode remover: a tela usa `podeRemoverResponsavel` do detalhe (só o
   Administrador o tem); a rota confere o perfil de novo.
 
+- Revisão das telas (05/10): motivo, nota ou busca começados nos carros contam
+  como rascunho da gaveta (Esc não fecha, FECHAR e a troca de card perguntam);
+  na página estreita o bloco `v` vem depois do próximo passo; o relatório só
+  aparece depois de a primeira resposta dizer que existe.
+
 Testes das telas: `tests/veiculos-de-interesse-telas.test.ts`.
 
 Testes: `tests/veiculos-de-interesse.test.ts` (a lib pura) e

@@ -95,6 +95,7 @@ export default function ResolucaoDosCarros({
   ocupado,
   aoSalvar,
   aoAdiar,
+  aoMudarRascunho,
 }: {
   pendencias: readonly PendenciaDeVeiculo[];
   /** Lead ganho e ainda sem carro escolhido: cada carro ganha o chip "Foi o escolhido". */
@@ -102,6 +103,8 @@ export default function ResolucaoDosCarros({
   ocupado: boolean;
   aoSalvar: (itens: ItemDaResolucao[]) => void;
   aoAdiar: () => void;
+  /** Há (ou deixou de haver) marcação ou nota por salvar. */
+  aoMudarRascunho?: (emAndamento: boolean) => void;
 }) {
   const [marcas, setMarcas] = useState<Record<string, Marca>>({});
   const [notas, setNotas] = useState<Record<string, string>>({});
@@ -112,6 +115,13 @@ export default function ResolucaoDosCarros({
   useEffect(() => {
     titulo.current?.focus();
   }, []);
+
+  // Só conta o que é de carro ainda pendente: o que já foi salvo saiu da lista.
+  const emAndamento = pendencias.some((p) => marcas[p.opcao] !== undefined || (notas[p.opcao] ?? "").trim() !== "");
+  useEffect(() => {
+    aoMudarRascunho?.(emAndamento);
+  }, [emAndamento, aoMudarRascunho]);
+  useEffect(() => () => aoMudarRascunho?.(false), [aoMudarRascunho]);
 
   const marcar = (opcao: string, marca: Marca) =>
     setMarcas((atual) => {
@@ -158,6 +168,12 @@ export default function ResolucaoDosCarros({
       role="group"
       aria-labelledby={idDoTitulo}
       data-resolucao
+      onKeyDown={(e) => {
+        if (e.key !== "Escape") return;
+        // O Esc é desta caixa, e só a fecha vazia: com algo marcado, nada se perde numa tecla.
+        e.stopPropagation();
+        if (!emAndamento) aoAdiar();
+      }}
       className="flex flex-col gap-3 border-l-[3px] border-mt-ink bg-mt-surface p-3"
     >
       <div className="flex flex-col gap-1">

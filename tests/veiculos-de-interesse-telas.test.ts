@@ -17,7 +17,7 @@ import {
   type VeiculoDeInteresse,
 } from "../src/lib/veiculosDeInteresse";
 import { lerCodigo } from "./fonte";
-import { assentar, clicar, definirLargura, detalheDeTeste, leadDeTeste, mudar, zerarRota } from "./quadroDeLeadsDeTeste";
+import { assentar, clicar, definirLargura, detalheDeTeste, leadDeTeste, mudar, teclar, zerarRota } from "./quadroDeLeadsDeTeste";
 
 /**
  * As telas dos veículos de interesse (pedido do dono em 05/10/2026): o bloco
@@ -185,13 +185,13 @@ function dublarFetch() {
 let container: HTMLDivElement;
 let root: Root;
 
-async function montarDetalhe() {
+async function montarDetalhe(extra: Record<string, unknown> = {}) {
   const { default: DetalheDoLead } = await import("../src/components/admin/DetalheDoLead");
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root.render(createElement(DetalheDoLead, { key: "l1", id: "l1", layout: "pagina" }));
+    root.render(createElement(DetalheDoLead, { key: "l1", id: "l1", layout: "pagina", ...extra } as never));
   });
   await assentar();
 }
@@ -406,14 +406,17 @@ describe("a busca do carro: escolher buscando, sem digitar código", () => {
     await mudar(campo, "onix");
     await esperarABusca();
 
-    // Enter sem carro marcado não escolhe nada.
-    await teclarNo(campo, "Enter");
-    expect(escritas()).toHaveLength(0);
+    const rolagens: unknown[] = [];
+    Element.prototype.scrollIntoView = function (opcoes?: unknown) {
+      rolagens.push([(this as Element).id, opcoes]);
+    };
 
     await teclarNo(campo, "ArrowDown");
     const [, plus, vendido] = achados();
     expect(campo.getAttribute("aria-activedescendant")).toBe(plus.id);
     expect(plus.getAttribute("aria-selected")).toBe("true");
+    // O carro marcado rola para dentro da lista.
+    expect(rolagens).toEqual([[plus.id, { block: "nearest" }]]);
     await teclarNo(campo, "ArrowDown");
     expect(campo.getAttribute("aria-activedescendant")).toBe(vendido.id);
     // Do último, a seta volta ao primeiro que dá para escolher.
@@ -432,11 +435,25 @@ describe("a busca do carro: escolher buscando, sem digitar código", () => {
     expect(document.activeElement).toBe(botao("+ Adicionar carro", carros()));
   });
 
-  it("Esc fecha a busca e devolve o foco, sem gravar", async () => {
+  it("Enter sem carro marcado escolhe o primeiro que dá para escolher", async () => {
     await montarDetalhe();
     await clicar(botao("+ Adicionar carro", carros()));
     await mudar(campoDaBusca()!, "onix");
     await esperarABusca();
+    await teclarNo(campoDaBusca()!, "Enter");
+    // O primeiro da lista (101) já está no lead: vale o seguinte.
+    expect(escritas().map((c) => [c.metodo, c.url, c.corpo])).toEqual([["POST", "/api/leads/l1/veiculos", { veiculo_id: 102 }]]);
+  });
+
+  it("Esc fecha a busca vazia e devolve o foco; com texto digitado, não fecha", async () => {
+    await montarDetalhe();
+    await clicar(botao("+ Adicionar carro", carros()));
+    await mudar(campoDaBusca()!, "onix");
+    await esperarABusca();
+    await teclarNo(campoDaBusca()!, "Escape");
+    expect(campoDaBusca()!.value).toBe("onix");
+
+    await mudar(campoDaBusca()!, "");
     await teclarNo(campoDaBusca()!, "Escape");
 
     expect(campoDaBusca()).toBeNull();
@@ -752,6 +769,149 @@ describe("fechar o lead com carros em avaliação: 'Feche os carros deste atendi
   });
 });
 
+describe("o que foi começado nos carros não se perde ao fechar a gaveta", () => {
+  let aoFechar: ReturnType<typeof vi.fn>;
+  let aoMudarRascunho: ReturnType<typeof vi.fn>;
+  const montarGaveta = async () => {
+    aoFechar = vi.fn();
+    aoMudarRascunho = vi.fn();
+    await montarDetalhe({ layout: "gaveta", aoFechar, aoMudarRascunho });
+  };
+  const pergunta = () => container.querySelector<HTMLElement>('[role="alert"][data-descarte]');
+  const rascunho = () => aoMudarRascunho.mock.calls.at(-1)?.[0];
+
+  it("descarte com motivo marcado: Esc não fecha nem a caixa nem a gaveta, e FECHAR pergunta na própria gaveta", async () => {
+    await montarGaveta();
+    await clicar(botao("Descartar", linha(101)));
+    const caixa = () => linha(101).querySelector<HTMLElement>("li > [data-descarte]");
+    expect(rascunho()).not.toBe(true);
+    await clicar(botao("Cor", caixa()!));
+    expect(rascunho()).toBe(true);
+
+    await teclarNo(botao("Cor", caixa()!)!, "Escape");
+    expect(caixa()).not.toBeNull();
+    await teclar("Escape");
+    expect(aoFechar).not.toHaveBeenCalled();
+
+    await clicar(botao("FECHAR ✕"));
+    expect(aoFechar).not.toHaveBeenCalled();
+    expect(texto(pergunta())).toContain("Há uma marcação nos carros de interesse que não foi salva. Descartar?");
+    await clicar(botao("Continuar", pergunta()!));
+    expect(pergunta()).toBeNull();
+    expect(botao("Cor", caixa()!)!.getAttribute("aria-pressed")).toBe("true");
+
+    await clicar(botao("FECHAR ✕"));
+    await clicar(botao("Descartar", pergunta()!));
+    expect(aoFechar).toHaveBeenCalledTimes(1);
+    expect(escritas()).toHaveLength(0);
+  });
+
+  it("descarte só com a nota escrita também conta; vazio, o Esc fecha a caixa e o seguinte fecha a gaveta", async () => {
+    await montarGaveta();
+    await clicar(botao("Descartar", linha(101)));
+    const nota = linha(101).querySelector("textarea")!;
+    await mudar(nota, "achou caro");
+    expect(rascunho()).toBe(true);
+    await teclarNo(nota, "Escape");
+    expect(linha(101).querySelector("textarea")).not.toBeNull();
+
+    await mudar(nota, "");
+    expect(rascunho()).toBe(false);
+    await teclarNo(nota, "Escape");
+    expect(linha(101).querySelector("textarea")).toBeNull();
+    expect(aoFechar).not.toHaveBeenCalled();
+    await teclar("Escape");
+    expect(aoFechar).toHaveBeenCalledTimes(1);
+  });
+
+  it("busca com texto digitado: Esc não fecha a gaveta, e FECHAR pergunta", async () => {
+    await montarGaveta();
+    await clicar(botao("+ Adicionar carro", carros()));
+    await mudar(campoDaBusca()!, "on");
+    expect(rascunho()).toBe(true);
+    await teclar("Escape");
+    expect(aoFechar).not.toHaveBeenCalled();
+    await clicar(botao("FECHAR ✕"));
+    expect(pergunta()).not.toBeNull();
+    expect(aoFechar).not.toHaveBeenCalled();
+
+    // Busca cancelada: não há mais o que perder.
+    await clicar(botao("Cancelar", carros().querySelector<HTMLElement>("[data-busca-de-carro]")!));
+    expect(rascunho()).toBe(false);
+    expect(pergunta()).toBeNull();
+    await teclar("Escape");
+    expect(aoFechar).toHaveBeenCalledTimes(1);
+  });
+
+  it("'Feche os carros deste atendimento' com marcação: Esc não fecha nada e FECHAR pergunta; vazia, o Esc só fecha a caixa", async () => {
+    opcoes = [opcao("op-1", 101, { principal: true }), opcao("op-2", 102)];
+    await montarGaveta();
+    await fecharComo("Perdido");
+    const caixa = () => carros().querySelector<HTMLElement>("[data-resolucao]");
+    const cor = () => botao("Cor", caixa()!.querySelector<HTMLElement>('[data-pendencia="op-1"]')!)!;
+
+    await clicar(cor());
+    expect(rascunho()).toBe(true);
+    await teclarNo(cor(), "Escape");
+    expect(caixa()).not.toBeNull();
+    await teclar("Escape");
+    expect(aoFechar).not.toHaveBeenCalled();
+    await clicar(botao("FECHAR ✕"));
+    expect(pergunta()).not.toBeNull();
+    await clicar(botao("Continuar", pergunta()!));
+
+    // Desmarcado, não há o que perder: o Esc fecha a caixa, e a gaveta fica.
+    await clicar(cor());
+    expect(rascunho()).toBe(false);
+    await teclarNo(cor(), "Escape");
+    expect(caixa()).toBeNull();
+    expect(botao("2 carros sem resolução", carros())).toBeDefined();
+    expect(aoFechar).not.toHaveBeenCalled();
+  });
+
+  it("salvar a resolução limpa o rascunho", async () => {
+    opcoes = [opcao("op-1", 101, { principal: true }), opcao("op-2", 102)];
+    await montarGaveta();
+    await fecharComo("Perdido");
+    const caixa = () => carros().querySelector<HTMLElement>("[data-resolucao]")!;
+    await clicar(botao("Cor", caixa().querySelector<HTMLElement>('[data-pendencia="op-1"]')!));
+    await clicar(botao("Salvar", caixa()));
+    expect(rascunho()).toBe(false);
+    await clicar(botao("FECHAR ✕"));
+    expect(aoFechar).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("o aviso do desfecho e a página estreita", () => {
+  it("o `aviso` que o PATCH do desfecho devolve aparece na faixa de aviso, e não como erro", async () => {
+    forcar["PATCH /api/leads/gerenciar"] = {
+      status: 200,
+      corpo: { ok: true, aviso: "O lead foi fechado, mas não deu para conferir os carros de interesse." },
+    };
+    await montarDetalhe();
+    await fecharComo("Perdido");
+    const faixa = [...container.querySelectorAll<HTMLElement>('[role="status"]')].find((f) => texto(f).includes("não deu para conferir os carros"))!;
+    expect(faixa).toBeDefined();
+    expect(faixa.className).toContain("border-l-[3px]");
+    expect(botao("×", faixa)!.getAttribute("aria-label")).toBe("Fechar o aviso");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("na página estreita (tablet) os carros vêm logo depois do próximo passo, como na gaveta", async () => {
+    definirLargura(false);
+    await montarDetalhe();
+    const ordem = () => [...container.querySelectorAll<HTMLElement>("[data-bloco]")].map((b) => b.dataset.bloco);
+    expect(ordem()).toEqual(["h", "p", "v", "c", "t", "d"]);
+    expect(carros().closest('[data-coluna="d"]')).toBeNull();
+  });
+
+  it("na página de três colunas eles ficam no alto da coluna dos dados", async () => {
+    definirLargura(true);
+    await montarDetalhe();
+    expect([...container.querySelectorAll<HTMLElement>('[data-coluna="d"] [data-bloco]')].map((b) => b.dataset.bloco)).toEqual(["v", "d"]);
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RELATORIO: RelatorioDoVeiculo = {
@@ -890,10 +1050,37 @@ describe("o relatório 'Interesse e objeções' do carro", () => {
     expect(container.querySelector("dl")).toBeNull();
   });
 
-  it("antes da migração (veiculos_disponivel: false) não desenha nada", async () => {
+  it("antes da migração (veiculos_disponivel: false) não desenha nada, nem enquanto a leitura não volta", async () => {
+    let soltar!: () => void;
+    const dublado = globalThis.fetch;
+    globalThis.fetch = (async (...a: Parameters<typeof fetch>) => {
+      await new Promise<void>((pronto) => (soltar = pronto));
+      return dublado(...a);
+    }) as never;
     relatorio = corpo(null, false);
     await montarRelatorio();
+    // A leitura ainda não voltou: nem título nem "Carregando".
     expect(container.innerHTML).toBe("");
+
+    await act(async () => soltar());
+    await assentar();
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("com o relatório disponível, o bloco só aparece quando a primeira resposta chega", async () => {
+    let soltar!: () => void;
+    const dublado = globalThis.fetch;
+    globalThis.fetch = (async (...a: Parameters<typeof fetch>) => {
+      await new Promise<void>((pronto) => (soltar = pronto));
+      return dublado(...a);
+    }) as never;
+    relatorio = corpo(RELATORIO);
+    await montarRelatorio();
+    expect(container.innerHTML).toBe("");
+
+    await act(async () => soltar());
+    await assentar();
+    expect(container.querySelector("h2")!.textContent).toBe("Interesse e objeções");
   });
 
   it("leitura que falha: a faixa de erro, e 'Tentar de novo' relê", async () => {

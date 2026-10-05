@@ -24,11 +24,14 @@ export default function BuscaDeCarro({
   jaNaLista,
   aoEscolher,
   aoCancelar,
+  aoMudarRascunho,
 }: {
   /** Os `estoque_motors.id` que o lead já tem. */
   jaNaLista: readonly number[];
   aoEscolher: (carro: CarroDaBusca) => void;
   aoCancelar: () => void;
+  /** Há (ou deixou de haver) texto digitado: quem monta não fecha por cima dele. */
+  aoMudarRascunho?: (temTexto: boolean) => void;
 }) {
   const [texto, setTexto] = useState("");
   const [resposta, setResposta] = useState<Resposta | null>(null);
@@ -70,6 +73,19 @@ export default function BuscaDeCarro({
     };
   }, [termo, valido, chave]);
 
+  const temTexto = texto.trim() !== "";
+  useEffect(() => {
+    aoMudarRascunho?.(temTexto);
+  }, [temTexto, aoMudarRascunho]);
+  useEffect(() => () => aoMudarRascunho?.(false), [aoMudarRascunho]);
+
+  // O carro marcado pelas setas fica à vista dentro da lista, que rola.
+  useEffect(() => {
+    if (ativo < 0) return;
+    const marcado = campo.current?.closest("[data-busca-de-carro]")?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+    if (typeof marcado?.scrollIntoView === "function") marcado.scrollIntoView({ block: "nearest" });
+  }, [ativo]);
+
   const atual = valido && resposta?.chave === chave ? resposta : null;
   const veiculos = atual && "veiculos" in atual ? atual.veiculos : [];
   const erro = atual && "erro" in atual ? atual.erro : "";
@@ -88,10 +104,11 @@ export default function BuscaDeCarro({
 
   const naTecla = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
-      // O Esc é desta caixa: a gaveta do lead não fecha junto.
+      // O Esc é desta caixa: a gaveta do lead não fecha junto. E ele só fecha
+      // a busca vazia: uma tecla não apaga o que foi escrito.
       e.preventDefault();
       e.stopPropagation();
-      aoCancelar();
+      if (!temTexto) aoCancelar();
       return;
     }
     if (!aberta) return;
@@ -99,9 +116,13 @@ export default function BuscaDeCarro({
       e.preventDefault();
       const baixo = e.key === "ArrowDown";
       setAtivo(vizinho(ativo === -1 ? (baixo ? -1 : 0) : ativo, baixo ? 1 : -1));
-    } else if (e.key === "Enter" && ativo >= 0 && veiculos[ativo] && !repetido(veiculos[ativo])) {
+    } else if (e.key === "Enter") {
+      // Sem carro marcado, o Enter fica com o primeiro que dá para escolher.
+      const indice = ativo >= 0 ? ativo : vizinho(-1, 1);
+      const carro = veiculos[indice];
+      if (!carro || repetido(carro)) return;
       e.preventDefault();
-      aoEscolher(veiculos[ativo]);
+      aoEscolher(carro);
     }
   };
 

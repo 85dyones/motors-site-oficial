@@ -66,6 +66,7 @@ export default function CarrosDeInteresse({
   aoResolver,
   aoAbrirResolucao,
   aoAdiarResolucao,
+  aoMudarRascunho,
 }: {
   veiculos: readonly VeiculoDeInteresse[];
   /** `false`: o lead tem um carro só (a lista ainda não existe no banco). */
@@ -88,12 +89,18 @@ export default function CarrosDeInteresse({
   aoResolver: (itens: ItemDaResolucao[]) => void;
   aoAbrirResolucao: () => void;
   aoAdiarResolucao: () => void;
+  /** Há (ou deixou de haver) algo começado e não gravado neste bloco: motivo, nota ou texto de busca. */
+  aoMudarRascunho?: (emAndamento: boolean) => void;
 }) {
   const [buscando, setBuscando] = useState(false);
   const [descartando, setDescartando] = useState<number | null>(null);
   const [removendo, setRemovendo] = useState<number | null>(null);
   const [motivo, setMotivo] = useState<MotivoDeDescarte | null>(null);
   const [nota, setNota] = useState("");
+  /** A nota com que a caixa de descarte abriu: só o que foi mexido conta como rascunho. */
+  const [notaInicial, setNotaInicial] = useState("");
+  const [buscaComTexto, setBuscaComTexto] = useState(false);
+  const [resolucaoEmAndamento, setResolucaoEmAndamento] = useState(false);
   const raiz = useRef<HTMLElement>(null);
   /** Para onde o foco vai depois da próxima pintura (um seletor dentro do bloco). */
   const focoPendente = useRef<string | null>(null);
@@ -106,6 +113,12 @@ export default function CarrosDeInteresse({
     alvo?.focus();
   });
 
+  const descarteEmAndamento = descartando !== null && (motivo !== null || nota !== notaInicial);
+  const emAndamento = descarteEmAndamento || (buscando && buscaComTexto) || (resolvendo && resolucaoEmAndamento);
+  useEffect(() => {
+    aoMudarRascunho?.(emAndamento);
+  }, [emAndamento, aoMudarRascunho]);
+
   const focar = (seletor: string) => {
     focoPendente.current = seletor;
   };
@@ -115,6 +128,7 @@ export default function CarrosDeInteresse({
     setRemovendo(null);
     setMotivo(null);
     setNota(v.nota ?? "");
+    setNotaInicial(v.nota ?? "");
     setDescartando(v.veiculo_id);
     focar(`${linhaDe(v.veiculo_id)} [data-descarte] button`);
   };
@@ -166,6 +180,7 @@ export default function CarrosDeInteresse({
           podeEscolher={podeEscolherAoResolver}
           ocupado={ocupado}
           aoSalvar={aoResolver}
+          aoMudarRascunho={setResolucaoEmAndamento}
           aoAdiar={() => {
             aoAdiarResolucao();
             focar('[data-acao="resolver"]');
@@ -320,9 +335,10 @@ export default function CarrosDeInteresse({
                     aria-label={`Descartar ${v.rotulo}`}
                     onKeyDown={(e) => {
                       if (e.key !== "Escape") return;
-                      // O Esc é desta caixa: a gaveta do lead não fecha junto.
+                      // O Esc é desta caixa: a gaveta do lead não fecha junto. E
+                      // ele só a fecha vazia: motivo ou nota não se perdem numa tecla.
                       e.stopPropagation();
-                      fecharDescarte(v.veiculo_id, false);
+                      if (!descarteEmAndamento) fecharDescarte(v.veiculo_id, false);
                     }}
                     className="flex flex-col gap-2 border-t border-mt-regua-fina pt-2"
                   >
@@ -401,6 +417,7 @@ export default function CarrosDeInteresse({
           jaNaLista={veiculos.map((v) => v.veiculo_id)}
           aoEscolher={escolherNaBusca}
           aoCancelar={fecharBusca}
+          aoMudarRascunho={setBuscaComTexto}
         />
       ) : (
         (disponivel || unico === null) && (

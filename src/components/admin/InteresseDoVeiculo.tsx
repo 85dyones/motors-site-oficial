@@ -24,11 +24,13 @@ import type { RelatorioDoVeiculo } from "../../lib/veiculosDeInteresse";
  * motivos e notas: nenhum lead é identificado. "Copiar resumo" leva os números
  * e os motivos em texto, sem as notas (são texto livre de vendedor).
  *
- * Sem a estrutura no banco (`veiculos_disponivel: false`), o bloco não existe.
+ * Sem a estrutura no banco (`veiculos_disponivel: false`), o bloco não existe,
+ * e ele só aparece depois de a primeira resposta dizer que existe.
  */
 
 type Leitura =
-  | { estado: "lendo" }
+  /** `aVista: false` é a primeira leitura: nada é desenhado até a rota dizer que o relatório existe. */
+  | { estado: "lendo"; aVista: boolean }
   | { estado: "erro"; mensagem: string }
   | { estado: "indisponivel" }
   | { estado: "pronto"; nome: string | null; relatorio: RelatorioDoVeiculo };
@@ -48,7 +50,7 @@ export default function InteresseDoVeiculo({
   nome?: string;
   className?: string;
 }) {
-  const [leitura, setLeitura] = useState<Leitura>({ estado: "lendo" });
+  const [leitura, setLeitura] = useState<Leitura>({ estado: "lendo", aVista: false });
   const [tentativa, setTentativa] = useState(0);
   const [copia, setCopia] = useState<Copia>({ estado: "nada" });
 
@@ -70,7 +72,9 @@ export default function InteresseDoVeiculo({
     };
   }, [veiculoId, tentativa]);
 
-  if (leitura.estado === "indisponivel") return null;
+  // Enquanto não se sabe se o relatório existe, o bloco não aparece: título e
+  // "Carregando" que somem em seguida eram um pisca em toda tela de carro.
+  if (leitura.estado === "indisponivel" || (leitura.estado === "lendo" && !leitura.aVista)) return null;
 
   const r = leitura.estado === "pronto" ? leitura.relatorio : null;
   const nomeDoCarro = nome ?? (leitura.estado === "pronto" ? leitura.nome : null);
@@ -114,7 +118,7 @@ export default function InteresseDoVeiculo({
           <button
             type="button"
             onClick={() => {
-              setLeitura({ estado: "lendo" });
+              setLeitura({ estado: "lendo", aVista: true });
               setTentativa((n) => n + 1);
             }}
             className="mt-foco cursor-pointer border-0 bg-transparent p-0 text-[11px] font-semibold text-mt-accent-800 underline pointer-coarse:min-h-11"
