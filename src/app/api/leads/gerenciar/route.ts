@@ -25,6 +25,7 @@ import {
   type InteracaoDoLead,
 } from "../../../../lib/gestaoDoLead";
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
+import { veiculosDepoisDoDesfecho } from "../../../../lib/veiculosDeInteresse-servidor";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
 import {
@@ -35,6 +36,7 @@ import {
 } from "../../../../lib/etiquetasDoLead";
 import {
   decidirDesfecho,
+  ehTipoDeDesfecho,
   ordenarEtapas,
   type EtapaDoDesfecho,
   type EtapaDoFunil,
@@ -545,6 +547,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
+    // O desfecho que ESTE pedido grava (ganho, perdido, descartado), ou nulo.
+    let desfechoGravado: string | null = null;
     if (situacao !== undefined) atualizacao.situacao = situacao;
     // Aparado: a validação acima já apara para comparar, e o nome gravado com
     // espaço sobrando não casaria com o `full_name` de ninguém — o vendedor
@@ -649,6 +653,10 @@ export async function PATCH(request: NextRequest) {
         );
       }
       Object.assign(atualizacao, decisao.campos);
+      const tipoDaEtapa = (etapa as EtapaDoDesfecho | null)?.tipo;
+      if (tipoDaEtapa && ehTipoDeDesfecho(tipoDaEtapa) && "desfecho_motivo" in decisao.campos) {
+        desfechoGravado = tipoDaEtapa;
+      }
     }
 
     // A passagem do SDR (ver o bloco depois do `update`): quantos resgates o
@@ -666,6 +674,23 @@ export async function PATCH(request: NextRequest) {
     const { error } = await comEscopoDeLeads(supabase.from("leads").update(atualizacao).eq("id", id), visaoDoAutor);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // ------------------------------------------------------------------------
+    // Os veículos de interesse depois do desfecho (2026-10-05)
+    // ------------------------------------------------------------------------
+    // Fechar NÃO é bloqueado por opção pendente nesta versão (decisão da
+    // entrega): o desfecho acima já valeu. O que acontece aqui é o que a tela
+    // não precisa perguntar: fechado como GANHO um lead com um carro só, ainda
+    // em avaliação, ele é o escolhido. O resto (o que segue em avaliação) vai
+    // na resposta, para a tela abrir a resolução em lote
+    // (`POST /api/leads/[id]/veiculos/resolver`). Sem a tabela, sem opção ou
+    // com falha, os dois campos simplesmente não vêm.
+    const dosVeiculos: Record<string, unknown> = {};
+    if (desfechoGravado) {
+      const depois = await veiculosDepoisDoDesfecho(supabase, visaoDoAutor, String(id), desfechoGravado);
+      if (depois.veiculo_escolhido) dosVeiculos.veiculo_escolhido = depois.veiculo_escolhido;
+      if (depois.pendencias_de_veiculo.length > 0) dosVeiculos.pendencias_de_veiculo = depois.pendencias_de_veiculo;
     }
 
     // ------------------------------------------------------------------------
@@ -692,6 +717,7 @@ export async function PATCH(request: NextRequest) {
       if (resgatesAntes === null || resgatesDepois === null) {
         return NextResponse.json({
           ok: true,
+          ...dosVeiculos,
           aviso:
             "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não foram para o Chatwoot.",
         });
@@ -699,6 +725,7 @@ export async function PATCH(request: NextRequest) {
       if (resgatesDepois <= resgatesAntes) {
         return NextResponse.json({
           ok: true,
+          ...dosVeiculos,
           aviso:
             "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no Chatwoot.",
         });
@@ -706,12 +733,13 @@ export async function PATCH(request: NextRequest) {
       const passagem = await etiquetarPassagemDoSdr(supabase, id, configDoChatwoot());
       return NextResponse.json({
         ok: true,
+        ...dosVeiculos,
         ...(passagem.etiquetas ? { etiquetas: passagem.etiquetas } : {}),
         ...(passagem.aviso ? { aviso: passagem.aviso } : {}),
       });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, ...dosVeiculos });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

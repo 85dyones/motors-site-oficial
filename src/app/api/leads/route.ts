@@ -19,6 +19,7 @@ import { registrarFalha } from "../../../lib/observabilidade";
 import { ERROS_DO_REPASSE } from "../../../lib/paginaDoRepasse";
 import { carroDoContato, carroDoExame, gravarInscricao } from "../../../lib/repasseNaRotaDeLeads";
 import { colunaDoPerfilAusente, montarPerfilDoLead, type PerfilDoLead } from "../../../lib/perfilDoLead";
+import { registrarInteresseDaCaptura } from "../../../lib/veiculosDeInteresse-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -355,6 +356,11 @@ export async function POST(request: NextRequest) {
       } else {
         const idGravado = (leadGravado as { id?: unknown } | null)?.id;
         idDoLead = typeof idGravado === "string" ? idGravado : null;
+        // O carro da ficha vira a primeira opção do lead em `leads_veiculos`
+        // (05/10/2026): é dela que sai o relatório por veículo. Nunca lança e
+        // não bloqueia; antes da migração 20261005120000 a tabela não existe e
+        // a chamada é silêncio.
+        await registrarInteresseDaCaptura(supabaseAdmin, idDoLead, veiculo?.id, interesse);
       }
     } catch (erroPersistencia: any) {
       erroDoLead = String(erroPersistencia?.message ?? "exceção");

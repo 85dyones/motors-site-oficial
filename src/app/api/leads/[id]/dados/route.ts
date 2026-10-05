@@ -3,6 +3,11 @@ import { comEscopoDeLeads } from "../../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente, mensagemDeMigracaoPendente } from "../../../../../lib/erroDeSchema";
 import { CAMPOS_DOS_DADOS, decidirDados } from "../../../../../lib/gestaoDoLead";
 import { lerLeadNoEscopo, MIGRACAO_DA_GESTAO, sessaoDeLeads } from "../../../../../lib/gestaoDoLead-servidor";
+import {
+  adicionarVeiculoAoLead,
+  lerOpcoesDoLead,
+  respostaDoErroDeVeiculos,
+} from "../../../../../lib/veiculosDeInteresse-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +21,13 @@ export const dynamic = "force-dynamic";
  * cada um (motivo obrigatório, só o Administrador tira o dono). Um campo de
  * fora aqui é recusado, e não ignorado.
  *
+ * O `veiculo_id` daqui é o caminho ANTIGO do carro de interesse, mantido para
+ * a tela que ainda o usa (05/10/2026). Com `leads_veiculos` no banco, um
+ * número passa pela mesma regra de `POST …/veiculos` com `principal: true`: o
+ * carro entra nas opções do lead (se ainda não está) e vira o principal. Sem a
+ * tabela (antes da migração `20261005120000`), grava só a coluna, como sempre.
+ * `null` continua limpando só o principal: as opções ficam.
+ *
  * Mexer nestes dados não reinicia o relógio da estagnação: o gatilho do lead
  * só conta etapa, responsável, anotação, desfecho e próximo passo como toque.
  * Completar o cadastro não é atender.
@@ -26,7 +38,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { supabase, visao, recusa } = await sessaoDeLeads();
     if (recusa) return recusa;
 
-    const guarda = await lerLeadNoEscopo(supabase, visao, id, "id, responsavel");
+    const guarda = await lerLeadNoEscopo(supabase, visao, id, "id, responsavel, veiculo_id");
     if (guarda.recusa) return guarda.recusa;
 
     const decisao = decidirDados(await request.json().catch(() => null));
@@ -49,6 +61,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           { error: "Este carro não está no estoque.", codigo: "veiculo_desconhecido" },
           { status: 422 },
         );
+      }
+    }
+
+    // O carro entra nas opções do lead antes de virar o principal. Quem aponta
+    // `leads.veiculo_id` é o `update` logo abaixo, junto com os outros campos.
+    if (typeof decisao.campos.veiculo_id === "number") {
+      const leitura = await lerOpcoesDoLead(supabase, id);
+      if (leitura.disponivel) {
+        if (leitura.erro) return respostaDoErroDeVeiculos(leitura.erro);
+        const feito = await adicionarVeiculoAoLead(
+          supabase,
+          visao,
+          { id, veiculo_id: guarda.lead.veiculo_id as number | string | null },
+          { veiculo_id: decisao.campos.veiculo_id, principal: true },
+          leitura.linhas,
+          { apontarPrincipal: false },
+        );
+        if (!feito.ok) return feito.resposta;
       }
     }
 
