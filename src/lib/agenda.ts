@@ -26,6 +26,10 @@
  * nenhum acesso a `supabase` — é o que permite testar a regra sem banco.
  */
 
+import type { EscopoDeLeads } from "./escopoDeLeads";
+import { urlDoLead } from "./filaDoFunil";
+import { ACAO_GERENCIAR_AGENDA, ACAO_VER_AGENDA, podeFazer, type Perfil } from "./permissoes";
+
 /** De qual cadastro a linha veio. É a chave de tudo neste arquivo. */
 export type OrigemDaAgenda = "financeiro" | "ciclo" | "rede" | "investidores" | "lead";
 
@@ -119,9 +123,90 @@ export const ORIGENS: Record<
     // está a conversa; mover de etapa, anotar e fechar o negócio acontece lá,
     // onde o motivo do desfecho é pedido e o rastro é escrito. Editar contato
     // de lead de passagem aqui criaria um segundo caminho para o mesmo dado.
+    //
+    // `casa` é onde o cadastro mora, e não um link a oferecer a qualquer um:
+    // quem decide se a linha leva ao lead é `ligacaoDoLead`, logo abaixo.
     casa: "/admin/leads",
   },
 };
+
+// ---------------------------------------------------------------------------
+// Quem vê, quem gerencia, e o que do lead acompanha a pessoa
+// ---------------------------------------------------------------------------
+//
+// Decisão do dono em 05/10/2026: *"A agenda precisa ser vista por todos, o lead
+// não. São coisas diferentes."* São duas perguntas, e cada uma tem a sua régua:
+//
+//   · a AGENDA (quem é a pessoa e como falar com ela) é de toda a equipe
+//     ativa: a linha "Ver clientes e fornecedores" da matriz;
+//   · o LEAD (etapa do funil, anotações de quem atende, a tela dele) segue o
+//     escopo de `lib/escopoDeLeads.ts`.
+//
+// A view entrega as duas coisas na mesma linha: na pessoa de origem "lead",
+// `especialidade` é a etapa e `observacoes` é o interesse com as anotações.
+// A migração 20261005150000 manda as duas NULL para quem não enxerga o lead; a
+// rota repete o corte com `paraQuemPergunta`, porque a RLS por escopo
+// (20261003130000) pode ainda não estar aplicada e a regra não pode depender
+// da ordem das migrações.
+
+/** Lê a agenda? Toda a equipe do painel. Conta ativa é com quem chama. */
+export function podeVerAgenda(perfis: readonly Perfil[]): boolean {
+  return podeFazer([...perfis], ACAO_VER_AGENDA) === "faz";
+}
+
+/**
+ * Cadastra, edita, desativa e exclui? Quem já podia antes de a leitura abrir:
+ * Admin, Gestor, Comercial e Financeiro. Marketing e SDR só leem.
+ */
+export function podeGerenciarAgenda(perfis: readonly Perfil[]): boolean {
+  return podeFazer([...perfis], ACAO_GERENCIAR_AGENDA) === "faz";
+}
+
+const preenchido = (v: string | null | undefined) => typeof v === "string" && v.trim() !== "";
+
+/**
+ * A pessoa veio de um lead que quem pergunta consegue abrir?
+ *
+ * Escopo "nenhum" (Marketing, Financeiro): nunca. Nos outros, o sinal é a
+ * etapa do funil (`especialidade`): `leads.situacao` é NOT NULL, então ela só
+ * chega vazia quando o lead ficou fora do alcance de quem pergunta.
+ */
+export function leadAVista(p: Pick<PessoaDaAgenda, "origem" | "especialidade">, escopo: EscopoDeLeads): boolean {
+  return p.origem === "lead" && escopo !== "nenhum" && preenchido(p.especialidade);
+}
+
+/**
+ * Para onde a linha leva: a tela do lead, ou `null`.
+ *
+ * `null` é "mostre a pessoa sem link": oferecer a quem não vê o lead um link
+ * que responde "Lead não encontrado" é anunciar o que a tela vai negar.
+ */
+export function ligacaoDoLead(
+  p: Pick<PessoaDaAgenda, "origem" | "id" | "especialidade">,
+  escopo: EscopoDeLeads,
+): string | null {
+  return leadAVista(p, escopo) ? urlDoLead(p.id) : null;
+}
+
+/**
+ * As linhas do jeito que ESTA pessoa pode recebê-las.
+ *
+ * Só mexe na pessoa de origem "lead", e só no que é registro do atendimento:
+ * etapa e anotações saem quando o lead não está em `leadsAVista` (os ids que
+ * o escopo de quem pergunta alcança, respondidos pelo módulo de leads). Nome,
+ * telefone e e-mail ficam: é a agenda.
+ */
+export function paraQuemPergunta<T extends PessoaDaAgenda>(
+  pessoas: readonly T[],
+  escopo: EscopoDeLeads,
+  leadsAVista: ReadonlySet<string>,
+): T[] {
+  return pessoas.map((p) => {
+    if (p.origem !== "lead") return p;
+    if (escopo !== "nenhum" && leadsAVista.has(p.id)) return p;
+    return { ...p, especialidade: null, observacoes: null };
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Filtro por papel
@@ -177,10 +262,43 @@ export function termoDeBusca(bruto?: string | null): string | null {
 /** As colunas que a busca varre, na ordem em que fazem sentido para quem procura. */
 export const COLUNAS_DE_BUSCA = ["nome", "documento", "email", "telefone"] as const;
 
-/** O filtro `or` do PostgREST para um termo já limpo por `termoDeBusca`. */
-export function filtroDeBusca(termo: string): string {
-  return COLUNAS_DE_BUSCA.map((c) => `${c}.ilike.*${termo}*`).join(",");
+/**
+ * O filtro `or` do PostgREST para um termo já limpo por `termoDeBusca`.
+ *
+ * `comDocumento: false` é para quem só lê a agenda (Marketing, SDR): quem não
+ * recebe o CPF/CNPJ também não o procura. Buscar por documento e ver a linha
+ * aparecer é ler o documento por tentativa.
+ */
+export function filtroDeBusca(termo: string, comDocumento = true): string {
+  return COLUNAS_DE_BUSCA.filter((c) => comDocumento || c !== "documento")
+    .map((c) => `${c}.ilike.*${termo}*`)
+    .join(",");
 }
+
+/**
+ * As colunas de um `select` da agenda, sem `documento` para quem só lê.
+ *
+ * O CPF/CNPJ foi a razão de o Marketing ficar fora da agenda até 05/10/2026;
+ * a leitura abriu, o documento não. Ele nem é pedido ao banco, e
+ * `semDocumento` repete o corte na resposta.
+ */
+export function colunasParaQuemLe(colunas: string, podeGerenciar: boolean): string {
+  if (podeGerenciar) return colunas;
+  return colunas
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => c !== "documento")
+    .join(", ");
+}
+
+/** As linhas sem o CPF/CNPJ, para quem só lê. Quem gerencia recebe inteiras. */
+export function semDocumento<T extends PessoaDaAgenda>(pessoas: readonly T[], podeGerenciar: boolean): T[] {
+  return podeGerenciar ? [...pessoas] : pessoas.map((p) => ({ ...p, documento: null }));
+}
+
+/** O que a lista diz quando não conseguiu perguntar pelos leads. */
+export const AVISO_DE_LEADS_INDISPONIVEIS =
+  "Não deu para conferir os leads agora: a etapa e o link dos leads podem estar faltando nesta página. Tente de novo em instantes.";
 
 // ---------------------------------------------------------------------------
 // Roteamento da edição

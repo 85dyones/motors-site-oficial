@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "./supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "./permissoes";
-import { leadNoEscopo, visaoDeLeads, type VisaoDeLeads } from "./escopoDeLeads";
+import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads, type VisaoDeLeads } from "./escopoDeLeads";
 import { ehTabelaOuColunaAusente, mensagemDeMigracaoPendente } from "./erroDeSchema";
 import { itemDaInteracao, ultimaInteracaoPorLead, type InteracaoDoLead, type ItemDoHistorico, type UltimaInteracao } from "./gestaoDoLead";
 
@@ -92,6 +92,54 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const naoEncontrado = () => NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
 
 type Linha = Record<string, unknown>;
+
+/** Quantos ids vão num `in (...)`: cada UUID pesa ~37 bytes na URL do PostgREST. */
+const LEADS_POR_CONSULTA = 100;
+
+export interface LeadsAVista {
+  aVista: Set<string>;
+  /**
+   * A leitura falhou? Quem chama usa `aVista` para decidir o que MOSTRAR do
+   * lead e, na dúvida, não mostra. Mas precisa DIZER que não mostrou: etapa e
+   * link que somem sem aviso se leem como "este lead não é seu".
+   */
+  falhou: boolean;
+}
+
+/**
+ * Quais destes leads quem pergunta enxerga. É a porta para os OUTROS módulos
+ * (a agenda de pessoas, 05/10/2026): eles não leem `leads`, perguntam aqui.
+ *
+ * Escopo "nenhum" e lista vazia respondem sem ir ao banco. Os ids vão em
+ * lotes de `LEADS_POR_CONSULTA`: uma página de 200 pessoas num `in` só pode
+ * estourar o tamanho da URL, e o erro viraria "nenhum lead à vista".
+ */
+export async function leadsAVistaDe(
+  supabase: ClienteDaSessao,
+  visao: VisaoDeLeads,
+  ids: readonly string[],
+): Promise<LeadsAVista> {
+  const validos = [...new Set(ids.filter((id) => UUID.test(id)))];
+  const aVista = new Set<string>();
+  if (visao.escopo === "nenhum" || validos.length === 0) return { aVista, falhou: false };
+
+  let falhou = false;
+  for (let i = 0; i < validos.length; i += LEADS_POR_CONSULTA) {
+    const { data, error } = await comEscopoDeLeads(
+      supabase.from("leads").select("id, responsavel").in("id", validos.slice(i, i + LEADS_POR_CONSULTA)),
+      visao,
+    );
+    if (error || !data) {
+      console.error("[leadsAVistaDe] leitura de leads falhou:", error?.message);
+      falhou = true;
+      continue;
+    }
+    for (const l of data as { id: string; responsavel: string | null }[]) {
+      if (leadNoEscopo(visao, l.responsavel)) aVista.add(l.id);
+    }
+  }
+  return { aVista, falhou };
+}
 
 /**
  * O lead, se quem pede o enxerga. É a guarda que vem ANTES do histórico e da

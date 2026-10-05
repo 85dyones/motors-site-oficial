@@ -351,9 +351,9 @@ describe("as bordas da agenda concordam entre si", () => {
 
   it("o proxy guarda a porta que o menu abre", () => {
     // O menu ganhou "Clientes e fornecedores". Se o gate do proxy não ganhar
-    // a rota junto, o item some para o Marketing no trilho e continua
-    // alcançável por URL — o "negado some da interface" viraria "negado fica
-    // escondido".
+    // a rota junto, o que a tela esconde (desde 05/10/2026: a escrita, de
+    // Marketing e SDR) continua alcançável por URL — o "negado some da
+    // interface" viraria "negado fica escondido".
     //
     // A asserção olha a CONDIÇÃO, não o arquivo. A primeira versão deste teste
     // só procurava a string "/api/pessoas" em `proxy.ts` — e ela também
@@ -370,13 +370,16 @@ describe("as bordas da agenda concordam entre si", () => {
     expect(trilho).toContain('href: "/admin/clientes"');
   });
 
-  it("a matriz A17 tem a linha, e o Marketing não vê contato individual", () => {
+  it("a matriz A17 tem as duas linhas: ver é de todos, gerenciar não é do Marketing", () => {
     const acoes = MATRIZ_DE_PERMISSOES.map((l) => l.acao);
+    expect(acoes).toContain("Ver clientes e fornecedores");
     expect(acoes).toContain("Gerenciar clientes e fornecedores");
 
-    // A régua vem da linha vizinha: "Marketing vê só o volume agregado" de
-    // leads. Uma agenda de CPF e telefone não pode ser a porta lateral que
-    // devolve o que o kanban nega.
+    // Até 05/10/2026 o Marketing nem via a agenda. Naquele dia o dono separou
+    // as duas coisas (*"A agenda precisa ser vista por todos, o lead não"*):
+    // ele lê o contato e continua sem cadastrar, editar ou ver o registro do
+    // lead. O resto está em `agenda-para-toda-a-equipe.test.ts`.
+    expect(podeFazer("marketing", "Ver clientes e fornecedores")).toBe("faz");
     expect(podeFazer("marketing", "Gerenciar clientes e fornecedores")).toBe("nao_ve");
     for (const p of ["admin", "gestor", "comercial", "financeiro"] as const) {
       expect(podeFazer(p, "Gerenciar clientes e fornecedores")).toBe("faz");

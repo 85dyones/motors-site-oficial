@@ -81,9 +81,13 @@
 --   · `registrar_contato_do_lead`, `registrar_interacao_do_lead` e
 --     `registrar_etiquetas_do_lead` são SECURITY DEFINER com guarda de equipe:
 --     continuam alcançando qualquer lead pelo id.
---   · As views `agenda_de_pessoas` e `saude_da_atribuicao_dos_leads` são
---     `security_invoker`: passam a devolver só o que o escopo de quem pergunta
---     alcança. Nenhuma linha de view muda aqui.
+--   · A view `agenda_de_pessoas` NÃO encolhe: desde a 20261005150000 (aplicar
+--     ANTES desta) a pessoa de origem lead — nome, telefone, e-mail — é lida
+--     por toda a equipe ativa, por `pessoas_dos_leads()`; só a etapa e as
+--     observações passam a seguir o escopo de quem pergunta.
+--   · A view `saude_da_atribuicao_dos_leads` é `security_invoker`: passa a
+--     devolver só o que o escopo de quem pergunta alcança.
+--     Nenhuma linha de view muda aqui.
 --
 -- ⚠️ ORDEM DE APLICAÇÃO. Depois do deploy das rotas que já filtram por escopo
 -- (PR de 03/10). E antes de aplicar, ler a lista de leituras agregadas que

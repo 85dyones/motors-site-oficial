@@ -5,6 +5,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { PERFIS_QUE_TRIAM_ERROS } from "../../lib/filaDeErros";
 import { ABAS_DO_SITE } from "../../lib/abasDeConfiguracao";
+import { PERFIS } from "../../lib/permissoes";
 
 interface SidebarNavProps {
   /**
@@ -37,6 +38,13 @@ interface SidebarNavProps {
  * que ainda não foram construídas (leads, fotos e mídia, SEO), e link morto
  * no painel é pior que ausência.
  */
+/**
+ * Quem vê a Visão geral, Leads e Ganhos e perdas. Era a lista de papéis do
+ * grupo Geral até 05/10/2026, quando o SDR entrou no grupo só para alcançar a
+ * agenda de pessoas: o nome separa "vê o grupo" de "vê estes itens".
+ */
+const QUEM_VE_O_GERAL = ["admin", "gestor", "comercial", "marketing", "financeiro"] as const;
+
 /** Onde o navegador guarda os grupos que a pessoa abriu ou fechou. */
 const CHAVE_DOS_GRUPOS = "mt_painel_grupos";
 const EVENTO_DOS_GRUPOS = "mt-painel-grupos";
@@ -69,27 +77,31 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       // Grupo GERAL do doc. Marketing entra porque a matriz A17 lhe dá o
       // volume agregado de leads — a rota devolve contagem sem nome nem
       // telefone para esse perfil.
+      //
+      // O SDR entrou no grupo em 05/10/2026 por causa da agenda, e só por
+      // ela: os outros itens e a Visão geral seguem com `QUEM_VE_O_GERAL`,
+      // que é quem os via até então.
       title: "Geral",
-      roles: ["admin", "gestor", "comercial", "marketing", "financeiro"],
+      roles: [...QUEM_VE_O_GERAL, "sdr"],
       items: [
         // A Visão geral saiu da lista do grupo em 03/10/2026: ela é a porta
         // do painel e fica fixa no topo do trilho, fora dos grupos que abrem e
-        // fecham. Quem a vê continua sendo quem vê o grupo Geral.
-        { name: "Leads", href: "/admin/leads" },
+        // fecham. Quem a vê é `QUEM_VE_O_GERAL`.
+        { name: "Leads", href: "/admin/leads", roles: [...QUEM_VE_O_GERAL] },
         // A agenda de pessoas (2026-08-24). Ela mora em GERAL, e não dentro
         // de Financeiro, porque o dono a pediu como área própria: *"o revenda
         // tem uma área de clientes sejam internos ou externos,
         // fornecedores"*. Quem vende usa a mesma lista que quem paga.
         //
-        // `roles` no ITEM estreita o grupo: Marketing enxerga o grupo Geral
-        // (a Visão geral e o volume de leads são dele), mas não esta lista —
-        // ela é CPF, telefone e e-mail, e a linha "Ver e mover leads no
-        // kanban" da A17 já lhe nega o contato individual. O proxy repete a
-        // mesma régua; as duas camadas precisam concordar.
+        // De toda a equipe desde 05/10/2026 (decisão do dono: *"A agenda
+        // precisa ser vista por todos, o lead não"*): `PERFIS` inteiro, a
+        // linha "Ver clientes e fornecedores" da matriz. Marketing e SDR
+        // leem; quem cadastra e edita continua sendo quem era. O proxy repete
+        // a mesma régua; as duas camadas precisam concordar.
         {
           name: "Clientes e fornecedores",
           href: "/admin/clientes",
-          roles: ["admin", "gestor", "comercial", "financeiro"],
+          roles: [...PERFIS],
         },
         // O funil de vendas (2026-08-28). Os dois itens vivem sob Leads e não
         // em Configurações: quem mexe na régua do funil é quem opera o funil,
@@ -100,7 +112,7 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // nome nem telefone, e é a resposta para "por que a gente perde
         // venda". A rota omite o recorte por vendedor para quem a matriz A17
         // mantém longe do contato individual.
-        { name: "Ganhos e perdas", href: "/admin/leads/relatorio" },
+        { name: "Ganhos e perdas", href: "/admin/leads/relatorio", roles: [...QUEM_VE_O_GERAL] },
         // Configurar, não: a régua vale para a equipe inteira.
         {
           name: "Configurar funil",
@@ -328,9 +340,10 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
     }
   };
 
-  // Pelo nome do grupo, e não pela posição: reordenar os grupos não pode
-  // mudar quem vê a porta do painel.
-  const veAVisaoGeral = (menuGroups.find((g) => g.title === "Geral")?.roles ?? []).some((r) => perfis.includes(r));
+  // Por uma lista com nome, e não pela posição nem pelos papéis do grupo:
+  // reordenar os grupos, ou abrir o Geral a mais alguém por causa de um item,
+  // não pode mudar quem vê a porta do painel.
+  const veAVisaoGeral = QUEM_VE_O_GERAL.some((r) => perfis.includes(r));
   const classeDoItem = (active: boolean) =>
     /* A marca do item ativo é uma régua de 3px encostada na borda do trilho. */
     `mt-foco flex min-h-11 items-center border-l-[3px] pl-[17px] pr-5 text-[13px] no-underline transition-colors ${
