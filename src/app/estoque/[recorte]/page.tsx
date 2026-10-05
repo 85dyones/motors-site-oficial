@@ -5,13 +5,16 @@ import ContagemDeEstoque from "../../../components/ContagemDeEstoque";
 import { getCachedSettings } from "../../../lib/settings";
 import { montarCompartilhamento } from "../../../lib/compartilhamento";
 import {
+  acharHubDeCambio,
   acharHubDeCarroceria,
   acharHubDeFaixa,
   acharHubDePerfil,
   FAIXAS_DE_PRECO,
+  hubsDeCambio,
   hubsDeCarroceria,
   hubsDeMarca,
   RECORTES_APOSENTADOS,
+  RECORTES_DE_CAMBIO,
   recortesDoEstoque,
 } from "../../../lib/hubsDeEstoque";
 import {
@@ -23,6 +26,7 @@ import {
 import { schemaDaLoja, schemaDoSite } from "../../../lib/schemaLoja";
 import {
   perguntasDeCategoria,
+  textoDeCambio,
   textoDeCarroceria,
   textoDeFaixaDePreco,
   textoDePerfil,
@@ -48,6 +52,10 @@ import { linkWhatsApp } from "../../../lib/whatsapp";
  * A diferença entre as duas: carroceria só existe se a loja já teve alguma
  * (histórico), faixa existe sempre. A lista de faixas é fechada e pequena, não
  * há espaço de URL infinito a proteger.
+ *
+ * Desde 05/10/2026 são quatro famílias: carroceria, perfil de uso, faixa de
+ * preço e câmbio (`/estoque/automatico`, lista fechada em
+ * `lib/recortesDeCambio.ts`). O câmbio se comporta como a faixa: existe sempre.
  */
 
 /**
@@ -135,11 +143,17 @@ async function resolver(slug: string) {
 
   const faixa = acharHubDeFaixa(disponiveis, slug);
   if (faixa) {
+    // "usados" entrou nos três textos em 05/10/2026: o Planejador de
+    // Palavras-chave (`conteudo-seo/palavras-chave.md`) mediu "carros usados
+    // curitiba" em 2.900 buscas por mês contra 1.600 de "seminovos curitiba",
+    // e a faixa de preço é a página de quem procura pelo orçamento. O `<title>`
+    // fica só com "Usados" para não estourar a largura do resultado na faixa
+    // do meio ("de R$ 60 mil a R$ 100 mil").
     const recorte: RecorteResolvido = {
-      titulo: `Seminovos ${faixa.nome} em Curitiba`,
-      tituloSeo: `Carros Seminovos ${faixa.nome} em Curitiba | Motors Store`,
+      titulo: `Carros usados e seminovos ${faixa.nome} em Curitiba`,
+      tituloSeo: `Carros Usados ${faixa.nome} em Curitiba | Motors Store`,
       descricao:
-        `Carros seminovos ${faixa.nome} em Curitiba, com perícia cautelar independente e ` +
+        `Carros usados e seminovos ${faixa.nome} em Curitiba, com perícia cautelar independente e ` +
         "laudo disponível com o vendedor. Troca e financiamento. Loja no Bacacheri.",
       rotulo: faixa.nome,
       veiculos: faixa.veiculos,
@@ -151,13 +165,41 @@ async function resolver(slug: string) {
     return { recorte, historico, disponiveis };
   }
 
+  // Câmbio por último (05/10/2026). A ordem não decide nada: os quatro dividem
+  // o mesmo espaço de URL e `tests/perfis-de-uso.test.ts` prende que nenhum
+  // slug colide. Como a faixa, o recorte existe sempre, mesmo com a grade
+  // vazia: a lista é fechada e hoje tem uma entrada só, `automatico`.
+  //
+  // Os textos estão escritos para ESSA entrada, e não montados a partir do
+  // nome: "Carros automáticos usados" não sai de `Carros ${nome}s usados` sem
+  // repetir o erro dos plurais de carroceria. Uma segunda entrada na lista
+  // precisa de textos próprios aqui, e o `if` abaixo a deixa em 404 até lá.
+  const cambio = acharHubDeCambio(disponiveis, slug);
+  if (cambio && cambio.slug === "automatico") {
+    const recorte: RecorteResolvido = {
+      titulo: "Carros automáticos usados e seminovos em Curitiba",
+      tituloSeo: "Carros Automáticos Usados em Curitiba | Motors Store",
+      descricao:
+        "Carros automáticos usados e seminovos em Curitiba, com perícia cautelar independente e " +
+        "laudo disponível com o vendedor. Troca e financiamento. Loja no Bacacheri.",
+      rotulo: cambio.nome,
+      veiculos: cambio.veiculos,
+      introducao: textoDeCambio("automático", "automáticos", cambio.veiculos),
+      rotuloNasPerguntas: "carros automáticos",
+      // "carros" é o substantivo desta página, como nas faixas de preço.
+      genero: "m",
+    };
+    return { recorte, historico, disponiveis };
+  }
+
   return null;
 }
 
 export async function generateStaticParams() {
-  // Só as faixas: a lista é fechada e não depende do banco. As carrocerias
-  // continuam sob demanda (`dynamicParams`), como os hubs de marca.
-  return FAIXAS_DE_PRECO.map((f) => ({ recorte: f.slug }));
+  // Só as faixas e o câmbio: as duas listas são fechadas e não dependem do
+  // banco. As carrocerias continuam sob demanda (`dynamicParams`), como os
+  // hubs de marca.
+  return [...FAIXAS_DE_PRECO, ...RECORTES_DE_CAMBIO].map((r) => ({ recorte: r.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -262,6 +304,17 @@ export default async function RecorteDoEstoquePage({ params }: PageProps) {
               rotulo: f.nome,
               href: `/estoque/${f.slug}`,
             })),
+          },
+          // O câmbio tem bloco próprio, e não um chip a mais em "Por faixa de
+          // preço": o título do bloco é texto público e "Automáticos" não é
+          // faixa. É por aqui que as carrocerias, os perfis e as faixas levam a
+          // `/estoque/automatico`; na própria página o bloco fica sem link e a
+          // `PaginaDeEstoque` não o desenha.
+          {
+            titulo: "Por câmbio",
+            links: hubsDeCambio(disponiveis)
+              .filter((c) => c.slug !== slug)
+              .map((c) => ({ rotulo: c.plural, href: `/estoque/${c.slug}`, total: c.veiculos.length })),
           },
           {
             titulo: "Por carroceria",

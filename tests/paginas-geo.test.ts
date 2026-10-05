@@ -186,7 +186,11 @@ describe("o texto geo não põe o repasse no lugar do carro recusado (spec 2026-
   it("o filtro continua dito, e a frase termina nele", () => {
     const curitiba = PAGINAS_GEO.find((p) => p.slug === "seminovos-curitiba");
     expect(curitiba, "a página de Curitiba").toBeDefined();
-    expect(curitiba!.paragrafos[0]).toMatch(/de cada dez veículos avaliados, três entram\.$/);
+    // A frase ganhou "na vitrine" em 05/10/2026, junto com "loja de carros
+    // usados e seminovos" na abertura. O que a trava cobra não mudou: a
+    // proporção fecha o parágrafo, sem oração sobre os outros sete depois dela.
+    expect(curitiba!.paragrafos[0]).toMatch(/De cada dez veículos avaliados, três entram na vitrine\.$/);
+    expect(curitiba!.paragrafos[0]).toMatch(/loja de carros usados e seminovos/);
   });
 });
 
@@ -199,7 +203,14 @@ describe("as páginas de região não ficam órfãs (02/10/2026)", () => {
       expect(links.map((l) => l.href).sort()).toEqual(
         PAGINAS_GEO.filter((x) => x.slug !== p.slug).map((x) => `/${x.slug}`).sort(),
       );
-      for (const l of links) expect(l.rotulo).toMatch(/^Seminovos /);
+      // Era `/^Seminovos /` até 05/10/2026, quando a de Curitiba virou "Carros
+      // usados e seminovos em Curitiba". O que importa é a âncora ser o TÍTULO
+      // da página de destino, e não o nome solto do lugar.
+      for (const l of links) {
+        const destino = PAGINAS_GEO.find((x) => `/${x.slug}` === l.href);
+        expect(l.rotulo).toBe(destino?.titulo);
+        expect(l.rotulo).toMatch(/seminovos /i);
+      }
     }
   });
 

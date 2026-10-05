@@ -7,6 +7,7 @@ import {
   CARROCERIAS_COM_HUB,
   FAIXAS_DE_PRECO,
   RECORTES_APOSENTADOS,
+  RECORTES_DE_CAMBIO,
 } from "../src/lib/hubsDeEstoque";
 import { PERFIS_DE_USO } from "../src/lib/perfisDeUso";
 import { slugificar } from "../src/lib/veiculoUrl";
@@ -211,6 +212,7 @@ describe("recorte aposentado redireciona em vez de sumir", () => {
       ...CARROCERIAS_COM_HUB.map((c) => slugificar(c)),
       ...PERFIS_DE_USO.map((p) => p.slug),
       ...FAIXAS_DE_PRECO.map((f) => f.slug),
+      ...RECORTES_DE_CAMBIO.map((c) => c.slug),
     ]);
     for (const [origem, destino] of Object.entries(RECORTES_APOSENTADOS)) {
       expect(vivos.has(destino), `${origem} -> ${destino}`).toBe(true);

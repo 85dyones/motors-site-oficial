@@ -9,6 +9,10 @@ import { PERFIS_DE_USO, type PerfilDeUso } from "./perfisDeUso";
 // e a etiqueta de promoção acabam discordando na mesma tela.
 import { disponiveisDe, precoVigente } from "./regrasEstoque";
 import { FAIXAS_DE_PRECO, type FaixaDePreco } from "./faixasDePreco";
+import { RECORTES_DE_CAMBIO, type RecorteDeCambio } from "./recortesDeCambio";
+// A régua de "é automático" é a do Garagem Profiler, e não uma nova: ver a nota
+// em `hubsDeCambio`.
+import { ehAutomatico } from "./fichaDoMotor";
 // `fichaPerdida` importa daqui SÓ tipos (ele é lido por um client component e
 // não pode arrastar o Supabase). A volta, de valores, é deste lado — servidor.
 import { indiceDeMarcas, patioEmDestaque, type MarcaConhecida } from "./fichaPerdida";
@@ -549,6 +553,12 @@ export function caminhosDosHubs(historico: Veiculo[], disponiveis: Veiculo[]): s
     caminhos.push(`/estoque/${faixa.slug}`);
   }
 
+  // O câmbio também entra sempre, pelo mesmo motivo das faixas: lista fechada
+  // (`lib/recortesDeCambio.ts`), página que responde com a grade vazia.
+  for (const cambio of RECORTES_DE_CAMBIO) {
+    caminhos.push(`/estoque/${cambio.slug}`);
+  }
+
   return caminhos;
 }
 
@@ -624,6 +634,57 @@ export function hubsDeFaixa(disponiveis: Veiculo[]): HubDeFaixa[] {
 
 export function acharHubDeFaixa(disponiveis: Veiculo[], slug: string): HubDeFaixa | null {
   return hubsDeFaixa(disponiveis).find((f) => f.slug === slug) ?? null;
+}
+
+/**
+ * Os hubs de câmbio. Hoje, só `/estoque/automatico` (05/10/2026).
+ *
+ * A lista vive em `lib/recortesDeCambio.ts`, sem nenhum import, pelo mesmo
+ * motivo da das faixas: `lib/dataLayer.ts` também a lê, no cliente.
+ *
+ * ---------------------------------------------------------------------------
+ * O que conta como automático
+ * ---------------------------------------------------------------------------
+ * `ehAutomatico(v) === true`, de `lib/fichaDoMotor.ts`, a mesma régua do
+ * "Só automático" do Garagem Profiler. Ela lê `Veiculo.cambio` sem acento e em
+ * minúsculas, e responde:
+ *
+ *   - `false` se o texto contém "manual";
+ *   - `true` se contém "autom" ou "cvt": "Automático", "Automático CVT",
+ *     "Automático PDK", "Automático DSG", "Automatizado" e "CVT" solto;
+ *   - `null` se o campo está vazio ou não diz nada que ela reconheça.
+ *
+ * Automatizado e CVT entram de propósito: quem procura "carro automático"
+ * procura carro sem pedal de embreagem, e os dois não têm. O `=== true` deixa
+ * de fora o `null`: carro sem câmbio cadastrado não aparece numa página que
+ * afirma o câmbio dele. O mapper (`formatCambio`, em `lib/supabase.ts`) não
+ * inventa mais padrão para o campo vazio, então o vazio chega aqui vazio.
+ *
+ * "Manual" vem antes de "autom" na régua, então um texto como "manual
+ * automatizado" fica de fora. No banco os valores hoje são "automatico" e
+ * "manual", e nenhum cai nesse caso; se o feed passar a mandar, a correção é em
+ * `ehAutomatico`, para o quiz e a vitrine mudarem juntos.
+ *
+ * Sai de `disponiveis`, como as faixas: câmbio não tem histórico a preservar,
+ * a página existe porque a lista é fechada.
+ */
+export { RECORTES_DE_CAMBIO, type RecorteDeCambio };
+
+export interface HubDeCambio extends RecorteDeCambio {
+  veiculos: Veiculo[];
+}
+
+export function hubsDeCambio(disponiveis: Veiculo[]): HubDeCambio[] {
+  return RECORTES_DE_CAMBIO.map((cambio) => ({
+    ...cambio,
+    // Um ramo por slug quando houver o segundo. Com um só, a lista inteira é
+    // "automático", e `tests/recorte-de-cambio.test.ts` prende que é um só.
+    veiculos: disponiveis.filter((v) => ehAutomatico(v) === true),
+  }));
+}
+
+export function acharHubDeCambio(disponiveis: Veiculo[], slug: string): HubDeCambio | null {
+  return hubsDeCambio(disponiveis).find((c) => c.slug === slug) ?? null;
 }
 
 /**

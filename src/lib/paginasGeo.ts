@@ -58,18 +58,27 @@ export const PAGINAS_GEO: PaginaGeo[] = [
   {
     slug: "seminovos-curitiba",
     nome: "Curitiba",
-    titulo: "Seminovos em Curitiba",
-    tituloSeo: "Seminovos em Curitiba | Motors Store Bacacheri",
+    // "usados" entrou no título, no `<title>`, na descrição e na abertura em
+    // 05/10/2026. O Planejador de Palavras-chave (`conteudo-seo/palavras-chave.md`)
+    // mediu "carros usados curitiba" em 2.900 buscas por mês contra 1.600 de
+    // "seminovos curitiba", e a página só dizia a segunda. O slug e a URL não
+    // mudam: endereço indexado não se renomeia por causa de título.
+    titulo: "Carros usados e seminovos em Curitiba",
+    tituloSeo: "Carros Usados e Seminovos em Curitiba | Motors Store",
     descricao:
-      "Loja de carros seminovos em Curitiba com perícia cautelar independente em todo o " +
+      "Loja de carros usados e seminovos em Curitiba com perícia cautelar independente em todo o " +
       `estoque. ${ENDERECO}, Bacacheri. Avaliação do seu usado e financiamento.`,
     paragrafos: [
       // Até 25/09 terminava em "Os outros sete vão para repasse antes de chegar
       // à vitrine.", que fazia o leitor supor que o carro de repasse é o
       // recusado na perícia (spec 2026-09-24 §10). A oração saiu; a trava está
       // em `tests/paginas-geo.test.ts`.
-      "A Motors Store atende Curitiba inteira a partir do showroom no Bacacheri e se diferencia " +
-        "das outras revendas da cidade pelo filtro: de cada dez veículos avaliados, três entram.",
+      // 05/10/2026: a abertura passou a dizer "loja de carros usados e
+      // seminovos", que é como a maior parte de Curitiba procura (2.900 buscas
+      // por mês contra 1.600, ver a nota do título). A comparação com "as
+      // outras revendas da cidade" saiu junto; a proporção de dez para três ficou.
+      "A Motors Store é uma loja de carros usados e seminovos no Bacacheri e atende Curitiba " +
+        "inteira. De cada dez veículos avaliados, três entram na vitrine.",
       // Forma escaneável desde 30/09/2026 (o dono: "blocos imensos de texto
       // (...) maçantes para os leitores"). Só o parágrafo acima fica sobre a
       // grade; do "###" em diante a `PaginaDeEstoque` desenha depois dos
@@ -511,7 +520,7 @@ export const PAGINAS_GEO: PaginaGeo[] = [
 /**
  * Os links de uma página de região para as outras (02/10/2026).
  *
- * O rótulo é o título da página ("Seminovos em Curitiba"), e não o nome solto
+ * O rótulo é o título da página ("Seminovos no Bacacheri"), e não o nome solto
  * do lugar: é a âncora que diz para onde o link leva, e são os únicos links
  * que essas páginas trocam entre si.
  */

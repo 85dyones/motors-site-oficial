@@ -311,6 +311,45 @@ export function textoDeFaixaDePreco(faixa: string, veiculos: Veiculo[]): string[
 }
 
 /**
+ * Texto do hub de câmbio. Hoje, só `/estoque/automatico` (05/10/2026).
+ *
+ * No molde de `textoDeFaixaDePreco`, sem a frase do "carro de R$ 30 mil": ela
+ * fala de preço, e aqui o recorte é o câmbio. É o texto GERADO, o que a página
+ * mostra enquanto a loja não escreve o dela em `textos_de_hub`.
+ *
+ * `singular` e `plural` chegam escritos ("automático", "automáticos") e
+ * concordam com "veículo", que é masculino. Tirar o "s" do plural aqui seria o
+ * mesmo erro dos plurais de carroceria montados com `+ "s"`.
+ */
+export function textoDeCambio(singular: string, plural: string, veiculos: Veiculo[]): string[] {
+  const r = resumir(veiculos);
+  const paragrafos: string[] = [];
+
+  if (r.total === 0) {
+    paragrafos.push(
+      `Sem veículos ${plural} em estoque neste momento. O giro é semanal, então vale conferir o ` +
+        "catálogo completo ou falar com um consultor para ser avisado quando entrar.",
+    );
+  } else {
+    const anos = trechoDeAnos(r);
+    const marcas = enumerar([...new Set(veiculos.map((v) => v.marca))].slice(0, 6));
+    const carrocerias = enumerar(
+      [...new Set(veiculos.map((v) => (v.tipo ?? "").trim()).filter(Boolean))].slice(0, 4),
+    );
+    paragrafos.push(
+      `${r.total} ${r.total === 1 ? `veículo ${singular}` : `veículos ${plural}`} em ` +
+        `${CIDADE_DA_LOJA}${anos ? `, ${anos}` : ""}.` +
+        (marcas ? ` Marcas: ${marcas}.` : "") +
+        (carrocerias ? ` Carrocerias: ${carrocerias}.` : ""),
+    );
+  }
+
+  paragrafos.push(SUBTITULO_DA_LEITURA);
+  paragrafos.push(paragrafoDaSelecao());
+  return paragrafos;
+}
+
+/**
  * Texto do hub de perfil de uso.
  *
  * O argumento aqui é diferente do da carroceria e do da faixa. Carroceria é o

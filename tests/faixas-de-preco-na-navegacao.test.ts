@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import FaixasDePreco from "../src/components/modernist/FaixasDePreco";
 import { FAIXAS_DE_PRECO } from "../src/lib/faixasDePreco";
+import { RECORTES_DE_CAMBIO } from "../src/lib/recortesDeCambio";
 import { AREAS_DA_HOME, normalizarAreas, areasVisiveis } from "../src/lib/areasDoSite";
 import type { Veiculo } from "../src/types";
 
@@ -20,8 +21,9 @@ import type { Veiculo } from "../src/types";
  * renderizar sem subir Supabase, e a condição passa a estar sob teste.
  */
 
-function veiculo(id: string, preco: number): Veiculo {
+function veiculo(id: string, preco: number, cambio = "Manual"): Veiculo {
   return {
+    cambio,
     id,
     marca: "Fiat",
     modelo: "Argo",
@@ -54,10 +56,20 @@ describe("o bloco de faixas leva às três páginas", () => {
   it("um link por faixa, e todos apontam para o hub certo", () => {
     const saida = hrefs(bloco(PATIO));
 
-    expect(saida).toHaveLength(FAIXAS_DE_PRECO.length);
+    // Mais o chip de câmbio, desde 05/10/2026: ver o caso logo abaixo.
+    expect(saida).toHaveLength(FAIXAS_DE_PRECO.length + RECORTES_DE_CAMBIO.length);
     for (const faixa of FAIXAS_DE_PRECO) {
       expect(saida, `sem link para ${faixa.slug}`).toContain(`/estoque/${faixa.slug}`);
     }
+  });
+
+  it("o chip Automáticos leva a /estoque/automatico, depois das faixas, com a contagem real", () => {
+    // É a entrada da página nova pela home e por `/estoque`. Sem ela,
+    // `/estoque/automatico` só teria o sitemap e os blocos dos outros recortes.
+    const html = bloco([veiculo("1", 45000, "Automático CVT"), veiculo("2", 85000), veiculo("3", 150000, "Automático")]);
+
+    expect(hrefs(html).at(-1)).toBe("/estoque/automatico");
+    expect(html).toMatch(/href="\/estoque\/automatico"[^>]*>Automáticos<span[^>]*>2<\/span>/);
   });
 
   it("as três aparecem mesmo quando uma está zerada — são hubs perenes", () => {
@@ -65,7 +77,7 @@ describe("o bloco de faixas leva às três páginas", () => {
     // porque a página existe e responde.
     const saida = hrefs(bloco([veiculo("1", 45000)]));
 
-    expect(saida).toHaveLength(3);
+    expect(saida.filter((h) => h !== "/estoque/automatico")).toHaveLength(3);
   });
 
   it("com o pátio vazio, o bloco inteiro some", () => {
@@ -77,8 +89,9 @@ describe("o bloco de faixas leva às três páginas", () => {
   it("a contagem de cada faixa é a real", () => {
     const html = bloco(PATIO);
 
-    // Um carro em cada faixa: nenhuma contagem pode sair diferente de 1.
-    expect([...html.matchAll(/>(\d+)<\/span>/g)].map((m) => m[1])).toEqual(["1", "1", "1"]);
+    // Um carro em cada faixa: nenhuma contagem pode sair diferente de 1. O
+    // quarto número é o chip de câmbio, e os três do pátio são manuais.
+    expect([...html.matchAll(/>(\d+)<\/span>/g)].map((m) => m[1])).toEqual(["1", "1", "1", "0"]);
   });
 });
 

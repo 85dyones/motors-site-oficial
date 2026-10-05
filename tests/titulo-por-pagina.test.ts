@@ -71,7 +71,11 @@ describe("o catálogo e os hubs dizem o que vendem e onde", () => {
     ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /`\$\{hub\.marca\} \$\{hub\.nome\} \$\{Usado\} em Curitiba \| Motors Store`/],
     ["src/app/[categoria]/[marca]/[modelo]/page.tsx", /const usadoNoGenero = usado\(hub\.genero\)/],
     ["src/app/estoque/[recorte]/page.tsx", /\$\{Novas\} em Curitiba/],
-    ["src/app/estoque/[recorte]/page.tsx", /Seminovos \$\{faixa\.nome\} em Curitiba/],
+    // A faixa de preço diz "usados" desde 05/10/2026: "carros usados curitiba"
+    // tem 2.900 buscas por mês contra 1.600 de "seminovos curitiba".
+    ["src/app/estoque/[recorte]/page.tsx", /titulo: `Carros usados e seminovos \$\{faixa\.nome\} em Curitiba`/],
+    ["src/app/estoque/[recorte]/page.tsx", /tituloSeo: `Carros Usados \$\{faixa\.nome\} em Curitiba \| Motors Store`/],
+    ["src/app/estoque/[recorte]/page.tsx", /tituloSeo: "Carros Automáticos Usados em Curitiba \| Motors Store"/],
     ["src/app/financiamento/page.tsx", /Financiamento de Carro Seminovo em Curitiba/],
     ["src/app/garantia/page.tsx", /Garantia do Seminovo em Curitiba/],
   ])("%s", (arquivo, esperado) => {

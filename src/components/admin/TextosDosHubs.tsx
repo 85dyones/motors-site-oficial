@@ -48,6 +48,7 @@ const ROTULO_DO_TIPO: Record<string, string> = {
   carroceria: "Carroceria",
   perfil: "Perfil de uso",
   faixa: "Faixa de preço",
+  cambio: "Câmbio",
 };
 
 const rotuloCampo = "text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-700";

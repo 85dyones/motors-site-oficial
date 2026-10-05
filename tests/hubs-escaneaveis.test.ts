@@ -8,6 +8,7 @@ import { blocosDoParagrafo } from "../src/lib/blocosDoGuia";
 import {
   SUBTITULO_DA_LEITURA,
   textoDeCarroceria,
+  textoDeCambio,
   textoDeFaixaDePreco,
   textoDeMarca,
   textoDeModelo,
@@ -145,6 +146,7 @@ describe("o texto gerado também abre a leitura", () => {
       textoDeModelo("Chevrolet", "Onix", []),
       textoDeCarroceria("SUV", [], "SUVs"),
       textoDeFaixaDePreco("de R$ 60 a 100 mil", []),
+      textoDeCambio("automático", "automáticos", []),
       ...PERFIS_DE_USO.map((perfil) => textoDePerfil(perfil, [])),
     ]) {
       const i = p.indexOf(SUBTITULO_DA_LEITURA);
