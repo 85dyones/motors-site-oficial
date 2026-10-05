@@ -122,16 +122,30 @@ export const AVISO_DE_VEICULOS_INDISPONIVEL =
  *   42P01 ..... o Postgres não acha a relação (a consulta chegou a rodar)
  *   42883 ..... o Postgres não acha a função
  *
- * Sem código (um proxy que só repassa o texto), vale a frase do PostgREST.
- * Coluna ausente (`42703`) e permissão negada (`42501`) NÃO entram: são
- * defeito, e têm de aparecer como erro.
+ * Os dois do Postgres só valem quando a MENSAGEM nomeia um dos três objetos
+ * da migração: `42P01` de outra relação (uma tabela que um gatilho lê, a view
+ * do estoque) é defeito de verdade, e chamá-lo de "ainda não ativo"
+ * esconderia o erro atrás de uma tela que parece normal.
+ *
+ * Sem código (um proxy que só repassa o texto), vale a frase do PostgREST,
+ * com a mesma exigência do nome. Coluna ausente (`42703`) e permissão negada
+ * (`42501`) NÃO entram: são defeito, e têm de aparecer como erro.
  */
+export const OBJETOS_DOS_VEICULOS_DE_INTERESSE = [
+  "leads_veiculos",
+  "resumo_de_interesse_do_veiculo",
+  "interesse_por_veiculo",
+] as const;
+
 export function ehVeiculosIndisponivel(erro: unknown): boolean {
   if (!erro || typeof erro !== "object") return false;
   const { code, message } = erro as { code?: unknown; message?: unknown };
-  if (code === "PGRST205" || code === "PGRST202" || code === "42P01" || code === "42883") return true;
+  if (code === "PGRST205" || code === "PGRST202") return true;
+  const texto = typeof message === "string" ? message : "";
+  const nomeia = OBJETOS_DOS_VEICULOS_DE_INTERESSE.some((nome) => texto.includes(nome));
+  if (code === "42P01" || code === "42883") return nomeia;
   if (typeof code === "string" && code !== "") return false;
-  return typeof message === "string" && /could not find the (table|function) .* in the schema cache/i.test(message);
+  return nomeia && /could not find the (table|function) .* in the schema cache/i.test(texto);
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +503,19 @@ export function sucessorDoPrincipal(opcoes: readonly LinhaDaOpcao[]): number | n
 }
 
 /**
+ * O lead está, na prática, SEM principal? Sem `veiculo_id`, ou com o principal
+ * apontando para uma opção já descartada: o carro que o cliente não quis não
+ * segura o lugar do próximo que entrar ou for reaberto.
+ */
+export function semPrincipalValido(
+  opcoes: readonly Pick<LinhaDaOpcao, "veiculo_id" | "situacao">[],
+  principal: number | string | null | undefined,
+): boolean {
+  if (principal === null || principal === undefined) return true;
+  return opcoes.some((o) => mesmoCarro(o.veiculo_id, principal) && o.situacao === "descartado");
+}
+
+/**
  * Uma ou várias resoluções → os passos, na ordem que o banco aceita, e o
  * veículo principal que resulta.
  *
@@ -503,6 +530,8 @@ export function sucessorDoPrincipal(opcoes: readonly LinhaDaOpcao[]): number | n
  *     novo por último;
  *   · descartar o principal passa o principal para a opção em avaliação mais
  *     antiga, se houver; sem nenhuma, o principal fica onde está;
+ *   · reabrir uma opção com o lead sem principal válido (`semPrincipalValido`:
+ *     o principal é um carro descartado) torna a reaberta o principal;
  *   · `principal: true` numa opção a torna o principal, desde que não haja
  *     outro carro escolhido (o escolhido é sempre o principal).
  */
@@ -581,6 +610,12 @@ export function planejarResolucoes(
       return p.campos.situacao === "descartado" && o.situacao !== "descartado" && mesmoCarro(o.veiculo_id, principalAtual);
     });
     if (descartouOPrincipal) principal = sucessorDoPrincipal(finais) ?? undefined;
+    else if (!escolhidoFinal && semPrincipalValido(finais, principalAtual)) {
+      const reaberta = pedidos.find(
+        (p) => p.campos.situacao === "em_avaliacao" && porId.get(p.opcao)!.situacao !== "em_avaliacao",
+      );
+      if (reaberta) principal = Number(porId.get(reaberta.opcao)!.veiculo_id);
+    }
   }
   if (principal !== undefined && mesmoCarro(principal, principalAtual)) principal = undefined;
 
@@ -762,8 +797,8 @@ export interface PendenciasAoFechar {
   /** As opções que ainda pedem resolução (seguem em avaliação). */
   pendentes: PendenciaDeVeiculo[];
   /**
-   * A opção que o fechamento como ganho escolhe sozinho: a única do lead,
-   * ainda em avaliação. Não entra em `pendentes`.
+   * A opção que o fechamento como ganho escolhe sozinho: o ÚNICO carro do
+   * lead, ainda em avaliação. Não entra em `pendentes`.
    */
   escolha_automatica: string | null;
   /** Fechado como ganho e nenhum carro escolhido (nem por escolher sozinho). */
@@ -780,7 +815,10 @@ type OpcaoResumida = Pick<VeiculoDeInteresse, "id" | "veiculo_id" | "rotulo" | "
  * Esta versão NÃO bloqueia o desfecho: a tela usa a resposta para oferecer a
  * resolução em lote logo antes ou logo depois de fechar.
  *
- * A opção sem linha (`id: null`) não entra: não há o que resolver nela.
+ * A opção sem linha (`id: null`) não entra em `pendentes`: não há o que
+ * resolver nela. Mas ela CONTA como carro do lead: o ganho só escolhe sozinho
+ * quando a tela mostra um carro só. Com o principal sem linha ao lado de uma
+ * opção, são dois carros, e quem diz qual foi comprado é o vendedor.
  */
 export function pendenciasAoFechar(
   opcoes: readonly OpcaoResumida[],
@@ -789,7 +827,10 @@ export function pendenciasAoFechar(
   const comLinha = opcoes.filter((o): o is OpcaoResumida & { id: string } => typeof o.id === "string");
   const ganho = desfecho === "ganho";
   const temEscolhido = comLinha.some((o) => o.situacao === "escolhido");
-  const sozinha = ganho && comLinha.length === 1 && comLinha[0].situacao === "em_avaliacao" ? comLinha[0].id : null;
+  const sozinha =
+    ganho && opcoes.length === 1 && comLinha.length === 1 && comLinha[0].situacao === "em_avaliacao"
+      ? comLinha[0].id
+      : null;
   return {
     pendentes: comLinha
       .filter((o) => o.situacao === "em_avaliacao" && o.id !== sozinha)
@@ -800,12 +841,21 @@ export function pendenciasAoFechar(
 }
 
 /**
- * A opção que o fechamento como ganho escolhe sozinho, lida das LINHAS: existe
- * exatamente uma, e ela segue em avaliação. Uma opção já descartada não é
- * escolhida por cima: alguém disse por que o cliente não quis aquele carro.
+ * A opção que o fechamento como ganho escolhe sozinho, lida das LINHAS e do
+ * principal do lead: o lead tem UM carro ao todo, e ele segue em avaliação.
+ *
+ * "Ao todo" é o que a tela mostra: as linhas, mais o principal que não tem
+ * linha. Uma linha e um principal apontando para OUTRO carro são dois carros.
+ * Uma opção já descartada não é escolhida por cima: alguém disse por que o
+ * cliente não quis aquele carro.
  */
-export function opcaoQueOGanhoEscolhe(linhas: readonly Pick<LinhaDaOpcao, "id" | "situacao">[]): string | null {
-  return linhas.length === 1 && linhas[0].situacao === "em_avaliacao" ? linhas[0].id : null;
+export function opcaoQueOGanhoEscolhe(
+  linhas: readonly Pick<LinhaDaOpcao, "id" | "situacao" | "veiculo_id">[],
+  principal: number | string | null | undefined,
+): string | null {
+  if (linhas.length !== 1 || linhas[0].situacao !== "em_avaliacao") return null;
+  const principalSemLinha = principal !== null && principal !== undefined && !mesmoCarro(linhas[0].veiculo_id, principal);
+  return principalSemLinha ? null : linhas[0].id;
 }
 
 // ---------------------------------------------------------------------------
@@ -996,8 +1046,8 @@ export interface FiltroDaBuscaDeCarro {
  *
  * Cada palavra é procurada em marca, modelo e versão (contém, sem distinguir
  * caixa). Palavra só de dígitos vale também como ano e como código do carro
- * (`id`, igualdade). Com `comPlaca`, palavra com cara de placa é procurada
- * também na placa.
+ * (`id`, igualdade). Com `comPlaca`, palavra com CARA DE PLACA é procurada
+ * também na placa (`ramosDaPlaca`): "fox" é um carro, e não a placa FOX1234.
  *
  * ---------------------------------------------------------------------------
  * Curingas e a gramática do `or`
@@ -1028,14 +1078,35 @@ export function filtroDaBuscaDeCarro(
       if (termo.length === 4) ramo.push(`ano.eq.${termo}`);
       ramo.push(`id.eq.${Number(termo)}`);
     }
-    if (opcoes.comPlaca && /^[a-z0-9-]{3,8}$/i.test(termo)) {
-      ramo.push(`placa.ilike.*${termo}*`);
-      const semHifen = termo.replace(/-/g, "");
-      if (semHifen !== termo && semHifen.length >= 3) ramo.push(`placa.ilike.*${semHifen}*`);
-    }
+    if (opcoes.comPlaca) ramo.push(...ramosDaPlaca(termo));
     return ramo.join(",");
   });
   return { termos, ramos };
+}
+
+/**
+ * Os ramos de placa para uma palavra, ou nenhum se ela não tem cara de placa.
+ *
+ *   · a placa inteira, nos dois formatos do Brasil: três letras, um dígito,
+ *     letra ou dígito, dois dígitos ("ABC1D23", "ABC1234", "abc-1234").
+ *     Procurada sem hífen e com ele ("ABC-1234"), porque o cadastro pode
+ *     guardar das duas formas;
+ *   · o final, que é o que a tela mostra (`placa_final`): dígito, letra ou
+ *     dígito, dois dígitos ("1D23", "9876"), casando só o FIM da placa.
+ *
+ * Fora disso, nada: "fox", "onix" e "hb20" são carros, "8203724" é código, e
+ * nenhum deles é procurado na placa.
+ */
+const PLACA_INTEIRA = /^[a-z]{3}\d[a-z0-9]\d{2}$/i;
+const FINAL_DA_PLACA = /^\d[a-z0-9]\d{2}$/i;
+
+export function ramosDaPlaca(termo: string): string[] {
+  const limpa = termo.replace(/-/g, "");
+  if (PLACA_INTEIRA.test(limpa)) {
+    return [`placa.ilike.*${limpa}*`, `placa.ilike.*${limpa.slice(0, 3)}-${limpa.slice(3)}*`];
+  }
+  if (FINAL_DA_PLACA.test(termo)) return [`placa.ilike.*${termo}`];
+  return [];
 }
 
 /** Os quatro últimos caracteres da placa, sem hífen nem espaço, ou `null`. */

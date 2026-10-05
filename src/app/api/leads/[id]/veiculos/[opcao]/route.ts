@@ -78,8 +78,9 @@ export async function PATCH(request: NextRequest, { params }: Contexto) {
  * gesto de todo dia é DESCARTAR, que deixa o motivo no relatório do veículo; a
  * policy de exclusão da tabela diz o mesmo.
  *
- * Se a opção apagada era o principal, o principal passa ao escolhido, senão à
- * opção em avaliação mais antiga, senão fica vazio.
+ * Se a opção apagada era o principal, no MESMO pedido o principal passa ao
+ * escolhido, senão à opção em avaliação mais antiga, senão fica vazio. A troca
+ * vem antes do apagar, e é desfeita se o apagar falhar.
  */
 export async function DELETE(_request: NextRequest, { params }: Contexto) {
   try {
@@ -107,29 +108,38 @@ export async function DELETE(_request: NextRequest, { params }: Contexto) {
     const atual = leitura.linhas.find((l) => l.id === opcao);
     if (!atual) return opcaoNaoEncontrada();
 
+    // O principal sai da opção ANTES de ela ser apagada: se a troca falhar,
+    // nada foi apagado e o lead não fica apontando para um carro que já não é
+    // opção dele. Se quem falhar for o apagar, o principal volta ao lugar.
+    const principal = guarda.lead.veiculo_id as number | string | null;
+    const eraOPrincipal = principal !== null && principal !== undefined && String(principal) === String(atual.veiculo_id);
+    if (eraOPrincipal) {
+      const sucessor = sucessorDoPrincipal(leitura.linhas.filter((l) => l.id !== opcao));
+      const feito = await definirPrincipal(supabase, visao, id, sucessor);
+      if (!feito.ok) {
+        console.warn("[Veículos do lead] Principal não atualizado antes de apagar:", feito.erro);
+        return NextResponse.json(
+          {
+            error: "Não deu para passar o carro principal do lead a outra opção, e por isso nada foi apagado. Tente de novo.",
+            codigo: "principal_nao_atualizado",
+          },
+          { status: 500 },
+        );
+      }
+    }
+
     const { data: apagadas, error } = await supabase
       .from("leads_veiculos")
       .delete()
       .eq("id", opcao)
       .eq("lead_id", id)
       .select("id");
-    if (error) return respostaDoErroDeVeiculos(error);
-    if ((apagadas ?? []).length === 0) return opcaoNaoEncontrada();
-
-    const principal = guarda.lead.veiculo_id as number | string | null;
-    if (principal !== null && principal !== undefined && String(principal) === String(atual.veiculo_id)) {
-      const sucessor = sucessorDoPrincipal(leitura.linhas.filter((l) => l.id !== opcao));
-      const feito = await definirPrincipal(supabase, visao, id, sucessor);
-      if (!feito.ok) {
-        console.warn("[Veículos do lead] Principal não atualizado depois de apagar:", feito.erro);
-        return NextResponse.json(
-          {
-            error: "A opção foi apagada, mas não deu para atualizar o carro principal do lead. Tente de novo.",
-            codigo: "principal_nao_atualizado",
-          },
-          { status: 500 },
-        );
+    if (error || (apagadas ?? []).length === 0) {
+      if (eraOPrincipal) {
+        const desfeito = await definirPrincipal(supabase, visao, id, Number(atual.veiculo_id));
+        if (!desfeito.ok) console.warn("[Veículos do lead] Principal não devolvido depois de o apagar falhar:", desfeito.erro);
       }
+      return error ? respostaDoErroDeVeiculos(error) : opcaoNaoEncontrada();
     }
 
     return NextResponse.json({ ok: true, apagada: opcao, ...(await relerVeiculosDoLead(supabase, id)) });

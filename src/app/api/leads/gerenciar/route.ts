@@ -691,7 +691,11 @@ export async function PATCH(request: NextRequest) {
       const depois = await veiculosDepoisDoDesfecho(supabase, visaoDoAutor, String(id), desfechoGravado);
       if (depois.veiculo_escolhido) dosVeiculos.veiculo_escolhido = depois.veiculo_escolhido;
       if (depois.pendencias_de_veiculo.length > 0) dosVeiculos.pendencias_de_veiculo = depois.pendencias_de_veiculo;
+      // A escolha que cabia e não foi feita não fica só no log do servidor.
+      if (depois.aviso) dosVeiculos.aviso = depois.aviso;
     }
+    /** O aviso dos veículos, se houver, junto com o aviso próprio de cada resposta. */
+    const comAviso = (aviso: string) => [dosVeiculos.aviso, aviso].filter(Boolean).join(" ");
 
     // ------------------------------------------------------------------------
     // A passagem do SDR para o Comercial (2026-09-25)
@@ -718,16 +722,18 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({
           ok: true,
           ...dosVeiculos,
-          aviso:
+          aviso: comAviso(
             "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não foram para o Chatwoot.",
+          ),
         });
       }
       if (resgatesDepois <= resgatesAntes) {
         return NextResponse.json({
           ok: true,
           ...dosVeiculos,
-          aviso:
+          aviso: comAviso(
             "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no Chatwoot.",
+          ),
         });
       }
       const passagem = await etiquetarPassagemDoSdr(supabase, id, configDoChatwoot());
@@ -735,7 +741,7 @@ export async function PATCH(request: NextRequest) {
         ok: true,
         ...dosVeiculos,
         ...(passagem.etiquetas ? { etiquetas: passagem.etiquetas } : {}),
-        ...(passagem.aviso ? { aviso: passagem.aviso } : {}),
+        ...(passagem.aviso ? { aviso: comAviso(passagem.aviso) } : {}),
       });
     }
 

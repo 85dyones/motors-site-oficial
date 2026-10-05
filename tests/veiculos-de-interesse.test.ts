@@ -20,6 +20,8 @@ import {
   percentual,
   planejarResolucoes,
   principalComoOpcao,
+  ramosDaPlaca,
+  semPrincipalValido,
   rotuloDoMotivo,
   rotuloDoVeiculoNaTela,
   sucessorDoPrincipal,
@@ -94,7 +96,29 @@ describe("ehVeiculosIndisponivel — a tabela ou a função ainda não existe", 
 
   it("sem código, vale a frase do PostgREST", () => {
     expect(ehVeiculosIndisponivel({ message: "Could not find the table 'public.leads_veiculos' in the schema cache" })).toBe(true);
-    expect(ehVeiculosIndisponivel({ message: "Could not find the function public.x in the schema cache" })).toBe(true);
+    expect(ehVeiculosIndisponivel({ message: "Could not find the function public.interesse_por_veiculo in the schema cache" })).toBe(true);
+    // A frase sobre OUTRO objeto não é dos veículos de interesse.
+    expect(ehVeiculosIndisponivel({ message: "Could not find the function public.x in the schema cache" })).toBe(false);
+  });
+
+  it("42P01 e 42883 de OUTRO objeto são erro de verdade, e não 'ainda não ativo'", () => {
+    // Uma relação que o gatilho lê, a view do estoque, uma função qualquer:
+    // tratar como migração pendente esconderia o defeito atrás de uma tela normal.
+    for (const [code, message] of [
+      ["42P01", 'relation "public.estoque_motors" does not exist'],
+      ["42P01", 'relation "public.leads" does not exist'],
+      ["42P01", 'relation "public.estoque_motors_equipe" does not exist'],
+      ["42883", "function public.autor_atual() does not exist"],
+      ["42883", "function public.rotulo_de_veiculo(text, text, text, integer) does not exist"],
+      ["42P01", ""],
+    ]) {
+      expect(ehVeiculosIndisponivel({ code, message }), message).toBe(false);
+    }
+    expect(ehVeiculosIndisponivel({ code: "42P01" })).toBe(false);
+    expect(erroDeVeiculosNaTela({ code: "42P01", message: 'relation "public.estoque_motors" does not exist' })).toMatchObject({
+      status: 500,
+      codigo: "erro_do_banco",
+    });
   });
 
   it.each([
@@ -396,6 +420,36 @@ describe("planejarResolucoes — a ordem das gravações e o veículo principal"
     ).toMatchObject({ ok: false, status: 400, codigo: "opcao_repetida" });
   });
 
+  it("principal num carro DESCARTADO é como não ter principal: a opção reaberta assume", () => {
+    const descartado = { situacao: "descartado", motivo_descarte: "km" as const };
+    const opcoes = [linha(A, 1, descartado), linha(B, 2, descartado)];
+    // O principal (A) está descartado; reabrir B o torna o principal.
+    const plano = planejarResolucoes(opcoes, 1, [{ opcao: B, campos: { situacao: "em_avaliacao", motivo_descarte: null } }]);
+    expect(plano.ok && plano.principal).toBe(2);
+    // Reabrir o próprio principal: ele já é o principal.
+    const oProprio = planejarResolucoes(opcoes, 1, [{ opcao: A, campos: { situacao: "em_avaliacao", motivo_descarte: null } }]);
+    expect(oProprio.ok && oProprio.principal).toBeUndefined();
+    // Com o principal em avaliação, reabrir outro não o desloca.
+    const valido = planejarResolucoes([linha(A, 1), linha(B, 2, descartado)], 1, [
+      { opcao: B, campos: { situacao: "em_avaliacao", motivo_descarte: null } },
+    ]);
+    expect(valido.ok && valido.principal).toBeUndefined();
+    // Só anotar a opção descartada não é reabrir.
+    const anotar = planejarResolucoes(opcoes, 1, [{ opcao: B, campos: { nota: "x" } }]);
+    expect(anotar.ok && anotar.principal).toBeUndefined();
+  });
+
+  it("semPrincipalValido: sem `veiculo_id`, ou com ele numa opção descartada", () => {
+    const descartada = linha(A, 1, { situacao: "descartado", motivo_descarte: "km" });
+    expect(semPrincipalValido([linha(A, 1)], null)).toBe(true);
+    expect(semPrincipalValido([], undefined)).toBe(true);
+    expect(semPrincipalValido([descartada, linha(B, 2)], 1)).toBe(true);
+    expect(semPrincipalValido([descartada, linha(B, 2)], "2")).toBe(false);
+    expect(semPrincipalValido([linha(A, 1, { situacao: "escolhido" })], 1)).toBe(false);
+    // Principal sem linha: é um carro de verdade, e segura o lugar.
+    expect(semPrincipalValido([descartada], 9)).toBe(false);
+  });
+
   it("sucessorDoPrincipal: o escolhido, senão a em avaliação mais antiga, senão nulo", () => {
     expect(sucessorDoPrincipal([linha(B, 2), linha(A, 1)])).toBe(1);
     expect(sucessorDoPrincipal([linha(A, 1), linha(B, 2, { situacao: "escolhido" })])).toBe(2);
@@ -571,12 +625,25 @@ describe("pendenciasAoFechar", () => {
     expect(pendenciasAoFechar([], "perdido")).toEqual({ pendentes: [], escolha_automatica: null, falta_escolhido: false });
   });
 
-  it("opcaoQueOGanhoEscolhe: exatamente uma, e em avaliação", () => {
-    expect(opcaoQueOGanhoEscolhe([{ id: A, situacao: "em_avaliacao" }])).toBe(A);
-    expect(opcaoQueOGanhoEscolhe([{ id: A, situacao: "descartado" }])).toBeNull();
-    expect(opcaoQueOGanhoEscolhe([{ id: A, situacao: "escolhido" }])).toBeNull();
-    expect(opcaoQueOGanhoEscolhe([{ id: A, situacao: "em_avaliacao" }, { id: B, situacao: "descartado" }])).toBeNull();
-    expect(opcaoQueOGanhoEscolhe([])).toBeNull();
+  it("o principal sem linha CONTA como carro: com ele ao lado de uma opção, o ganho não escolhe sozinho", () => {
+    // É o que a tela mostra: dois carros. Quem diz qual foi comprado é o vendedor.
+    const r = pendenciasAoFechar([o(null, "em_avaliacao", 9), o(A, "em_avaliacao", 1)], "ganho");
+    expect(r).toEqual({ pendentes: [{ opcao: A, veiculo_id: 1, rotulo: "Carro 1" }], escolha_automatica: null, falta_escolhido: true });
+    // Só o principal sem linha: nada a escolher nem a resolver.
+    expect(pendenciasAoFechar([o(null, "em_avaliacao", 9)], "ganho")).toEqual({ pendentes: [], escolha_automatica: null, falta_escolhido: true });
+  });
+
+  it("opcaoQueOGanhoEscolhe: UM carro ao todo (linhas + principal sem linha), e em avaliação", () => {
+    const uma = (situacao: string) => [{ id: A, situacao, veiculo_id: 1 }];
+    expect(opcaoQueOGanhoEscolhe(uma("em_avaliacao"), null)).toBe(A);
+    expect(opcaoQueOGanhoEscolhe(uma("em_avaliacao"), 1)).toBe(A);
+    expect(opcaoQueOGanhoEscolhe(uma("em_avaliacao"), "1")).toBe(A);
+    // O principal aponta para OUTRO carro, que não tem linha: são dois carros.
+    expect(opcaoQueOGanhoEscolhe(uma("em_avaliacao"), 9)).toBeNull();
+    expect(opcaoQueOGanhoEscolhe(uma("descartado"), 1)).toBeNull();
+    expect(opcaoQueOGanhoEscolhe(uma("escolhido"), 1)).toBeNull();
+    expect(opcaoQueOGanhoEscolhe([...uma("em_avaliacao"), { id: B, situacao: "descartado", veiculo_id: 2 }], 1)).toBeNull();
+    expect(opcaoQueOGanhoEscolhe([], 1)).toBeNull();
   });
 });
 
@@ -770,10 +837,24 @@ describe("filtroDaBuscaDeCarro — o seletor de carro", () => {
     expect(filtroDaBuscaDeCarro("abc1d23")!.ramos[0]).not.toContain("placa");
     expect(filtroDaBuscaDeCarro("abc1d23", { comPlaca: false })!.ramos[0]).not.toContain("placa");
     expect(filtroDaBuscaDeCarro("abc1d23", { comPlaca: true })!.ramos[0]).toContain("placa.ilike.*abc1d23*");
-    // Com hífen, a placa é procurada das duas formas.
-    expect(filtroDaBuscaDeCarro("abc-1234", { comPlaca: true })!.ramos[0]).toMatch(/placa\.ilike\.\*abc-1234\*,placa\.ilike\.\*abc1234\*$/);
-    // Palavra que não tem cara de placa não é procurada nela.
-    expect(filtroDaBuscaDeCarro("1.0", { comPlaca: true })!.ramos[0]).not.toContain("placa");
+  });
+
+  it("só o que tem CARA de placa é procurado na placa: 'fox' é um carro, não a placa FOX1234", () => {
+    const daPlaca = (q: string) => filtroDaBuscaDeCarro(q, { comPlaca: true })!.ramos.flatMap((r) => r.split(",").filter((x) => x.startsWith("placa.")));
+    // Nome de carro, palavra sem dígito, cilindrada, código, pedaço solto: nada.
+    for (const q of ["fox", "onix", "gol", "up", "hb20", "x1", "1.0", "abc1d", "foxabcd", "8203724", "12", "abcd", "t-cross", "abc12345", "a1b2c3d", "d123"]) {
+      expect(daPlaca(q), q).toEqual([]);
+    }
+    expect(ramosDaPlaca("fox")).toEqual([]);
+    // A placa inteira: sete letras e números com dígito. Sem hífen e com ele.
+    expect(daPlaca("abc1d23")).toEqual(["placa.ilike.*abc1d23*", "placa.ilike.*abc-1d23*"]);
+    expect(daPlaca("ABC1234")).toEqual(["placa.ilike.*ABC1234*", "placa.ilike.*ABC-1234*"]);
+    expect(daPlaca("abc-1234")).toEqual(["placa.ilike.*abc1234*", "placa.ilike.*abc-1234*"]);
+    // O final: quatro com dígito, casando só o FIM da placa.
+    expect(daPlaca("1d23")).toEqual(["placa.ilike.*1d23"]);
+    expect(daPlaca("9876")).toEqual(["placa.ilike.*9876"]);
+    // Cada palavra é julgada sozinha.
+    expect(daPlaca("fox 1d23")).toEqual(["placa.ilike.*1d23"]);
   });
 
   it("menos de dois caracteres úteis: não busca", () => {

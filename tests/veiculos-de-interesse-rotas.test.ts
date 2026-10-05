@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 /**
  * As rotas dos veículos de interesse, EXECUTADAS (05/10/2026).
@@ -727,9 +725,33 @@ describe("GET /api/leads/[id] — os veículos de interesse", () => {
     falhas.leads_veiculos = { code: "57014", message: "canceling statement due to statement timeout" };
     const { status, d } = await lerDetalhe(DA_ANA);
     expect(status).toBe(200);
-    expect(d).toMatchObject({ veiculos: [], veiculos_disponivel: true });
+    // Erro de verdade não é "este lead não tem carro": o principal vem como
+    // opção única, sem linha, e o aviso diz o que houve.
+    expect(d.veiculos_disponivel).toBe(true);
+    expect(d.veiculos).toHaveLength(1);
+    expect(d.veiculos[0]).toMatchObject({ id: null, veiculo_id: ONIX, principal: true, preco_atual: 59900, no_estoque: true });
+    expect(d.pendencias_de_veiculo).toEqual([]);
     expect(d.avisos).toEqual(["Não deu para ler os veículos de interesse: canceling statement due to statement timeout"]);
     expect(d.veiculo).toMatchObject({ id: ONIX });
+    // Lead sem carro: aí sim, vazio, mas ainda com o aviso.
+    const semCarro = await lerDetalhe(DA_ANA_SEM_CARRO);
+    expect(semCarro.d.veiculos).toEqual([]);
+    expect(semCarro.d.avisos).toHaveLength(1);
+  });
+
+  it("42P01 de OUTRA relação não é 'tabela ainda não existe': aviso no detalhe, 500 na escrita", async () => {
+    // Uma relação que o gatilho ou a policy lê sumiu: é defeito, e aparece.
+    falhas.leads_veiculos = { code: "42P01", message: 'relation "public.orgs" does not exist' };
+    const { d } = await lerDetalhe(DA_ANA);
+    expect(d.veiculos_disponivel).toBe(true);
+    expect(d.avisos).toEqual(['Não deu para ler os veículos de interesse: relation "public.orgs" does not exist']);
+    const escrita = await adicionar(DA_ANA, { veiculo_id: HB20 });
+    expect(escrita.status).toBe(500);
+    expect(escrita.d.codigo).toBe("erro_do_banco");
+    // E o PATCH de dados não cai no caminho antigo, calado.
+    const r = await resposta(await dados.PATCH(pedido("PATCH", { veiculo_id: HB20 }), ctx(DA_ANA)));
+    expect(r.status).toBe(500);
+    expect(doLead(DA_ANA).veiculo_id).toBe(ONIX);
   });
 });
 
@@ -848,6 +870,17 @@ describe("POST /api/leads/[id]/veiculos — adicionar", () => {
     expect(doLead(DA_ANA).veiculo_id).toBe(ONIX);
     expect(gravacoes()).toEqual(["insert leads_veiculos"]);
     expect(d.pendencias_de_veiculo).toHaveLength(3);
+  });
+
+  it("principal num carro já DESCARTADO é como não ter principal: o carro novo assume", async () => {
+    Object.assign(aOpcao(OP_ONIX), { situacao: "descartado", motivo_descarte: "preco", resolvido_em: "2026-10-01T12:00:00Z" });
+    Object.assign(aOpcao(OP_UNO), { situacao: "descartado", motivo_descarte: "km", resolvido_em: "2026-10-01T12:00:00Z" });
+    const { status, d } = await adicionar(DA_ANA, { veiculo_id: HB20 });
+    expect(status).toBe(200);
+    expect(d.principal_veiculo_id).toBe(HB20);
+    expect(doLead(DA_ANA).veiculo_id).toBe(HB20);
+    expect(d.veiculos[0]).toMatchObject({ veiculo_id: HB20, principal: true, situacao: "em_avaliacao" });
+    expect(gravacoes()).toEqual(["insert leads_veiculos", "update leads"]);
   });
 
   it("`principal: true` adiciona e já torna o principal", async () => {
@@ -1022,6 +1055,19 @@ describe("PATCH /api/leads/[id]/veiculos/[opcao] — resolver, reabrir, tornar p
     expect(d.veiculos[1]).toMatchObject({ situacao: "em_avaliacao", motivo_descarte: null, motivo_rotulo: null, nota: "rodado demais", resolvido_por: null, resolvido_em: null });
   });
 
+  it("reabrir uma opção com o principal descartado: a reaberta vira o principal", async () => {
+    Object.assign(aOpcao(OP_ONIX), { situacao: "descartado", motivo_descarte: "preco", resolvido_em: "2026-10-01T12:00:00Z" });
+    Object.assign(aOpcao(OP_UNO), { situacao: "descartado", motivo_descarte: "km", resolvido_em: "2026-10-01T12:00:00Z" });
+    const { status, d } = await resolver(DA_ANA, OP_UNO, { situacao: "em_avaliacao" });
+    expect(status).toBe(200);
+    expect(d.principal_veiculo_id).toBe(UNO);
+    expect(doLead(DA_ANA).veiculo_id).toBe(UNO);
+    expect(d.veiculos[0]).toMatchObject({ id: OP_UNO, situacao: "em_avaliacao", principal: true });
+    // Com o principal em avaliação, reabrir outra opção não o desloca.
+    Object.assign(aOpcao(OP_ONIX), { situacao: "descartado", motivo_descarte: "preco", resolvido_em: "2026-10-01T12:00:00Z" });
+    expect((await resolver(DA_ANA, OP_ONIX, { situacao: "em_avaliacao" })).d.principal_veiculo_id).toBe(UNO);
+  });
+
   it("`principal: true` troca o principal sem mexer na opção", async () => {
     const antes = copia(aOpcao(OP_UNO));
     const { status, d } = await resolver(DA_ANA, OP_UNO, { principal: true });
@@ -1118,6 +1164,48 @@ describe("DELETE /api/leads/[id]/veiculos/[opcao] — só o Administrador", () =
     const ultimo = await apagar(DA_ANA, OP_UNO);
     expect(ultimo.d).toMatchObject({ veiculos: [], principal_veiculo_id: null });
     expect(doLead(DA_ANA).veiculo_id).toBeNull();
+  });
+
+  it("apagar o principal: a troca do principal vai no MESMO pedido, e antes de apagar", async () => {
+    usuario = "u-admin";
+    const { status, d } = await apagar(DA_ANA, OP_ONIX);
+    expect(status).toBe(200);
+    expect(gravacoes()).toEqual(["update leads", "delete leads_veiculos"]);
+    expect(d.veiculos.map((v: Linha) => [v.id, v.principal])).toEqual([[OP_UNO, true]]);
+    // Em nenhum momento o lead aponta para um carro que não é mais opção dele.
+    expect(banco.leads_veiculos.some((v) => v.lead_id === DA_ANA && v.veiculo_id === doLead(DA_ANA).veiculo_id)).toBe(true);
+  });
+
+  it("apagar o principal sem outra opção em avaliação: o principal fica vazio, e não num descartado", async () => {
+    usuario = "u-admin";
+    Object.assign(aOpcao(OP_UNO), { situacao: "descartado", motivo_descarte: "km", resolvido_em: "2026-10-01T12:00:00Z" });
+    const { d } = await apagar(DA_ANA, OP_ONIX);
+    expect(d.principal_veiculo_id).toBeNull();
+    expect(doLead(DA_ANA).veiculo_id).toBeNull();
+    expect(d.veiculos.map((v: Linha) => [v.id, v.principal])).toEqual([[OP_UNO, false]]);
+  });
+
+  it("a troca do principal falhou: NADA é apagado", async () => {
+    usuario = "u-admin";
+    falhasAoGravar.leads = { code: "57014", message: "timeout" };
+    const { status, d } = await apagar(DA_ANA, OP_ONIX);
+    expect(status).toBe(500);
+    expect(d.codigo).toBe("principal_nao_atualizado");
+    expect(d.error).toContain("nada foi apagado");
+    expect(aOpcao(OP_ONIX)).toBeDefined();
+    expect(doLead(DA_ANA).veiculo_id).toBe(ONIX);
+    expect(linhaDoTempo).not.toContain("delete leads_veiculos");
+  });
+
+  it("o apagar falhou depois da troca: o principal volta ao lugar", async () => {
+    usuario = "u-admin";
+    falhasAoGravar.leads_veiculos = { code: "57014", message: "timeout" };
+    const { status, d } = await apagar(DA_ANA, OP_ONIX);
+    expect(status).toBe(500);
+    expect(d.codigo).toBe("erro_do_banco");
+    expect(aOpcao(OP_ONIX)).toBeDefined();
+    expect(doLead(DA_ANA).veiculo_id).toBe(ONIX);
+    expect(gravacoes()).toEqual(["update leads", "delete leads_veiculos", "update leads"]);
   });
 
   it("opção que não existe: 404", async () => {
@@ -1258,9 +1346,28 @@ describe("PATCH /api/leads/[id]/dados — `veiculo_id` passa por adicionar + tor
   });
 
   it("`null` limpa só o principal; as opções ficam", async () => {
+    const antes = copia(banco.leads_veiculos);
     expect((await gravar(DA_ANA, { veiculo_id: null })).status).toBe(200);
     expect(doLead(DA_ANA).veiculo_id).toBeNull();
-    expect(banco.leads_veiculos.filter((v) => v.lead_id === DA_ANA)).toHaveLength(2);
+    expect(banco.leads_veiculos).toEqual(antes);
+    expect(gravacoes()).toEqual(["update leads"]);
+  });
+
+  it("`null` com um carro ESCOLHIDO: 409, com frase clara, e nada muda (nem os outros campos)", async () => {
+    aOpcao(OP_ONIX).situacao = "escolhido";
+    const { status, d } = await gravar(DA_ANA, { veiculo_id: null, faixa_entrada: "ate_5k" });
+    expect(status).toBe(409);
+    expect(d).toEqual({
+      error: "Este lead tem um carro escolhido, e ele é o carro principal. Reabra a escolha antes de tirar o carro do lead.",
+      codigo: "principal_ja_escolhido",
+    });
+    expect(gravacoes()).toEqual([]);
+    expect(doLead(DA_ANA)).toMatchObject({ veiculo_id: ONIX });
+    expect(doLead(DA_ANA).faixa_entrada).toBeUndefined();
+    // O escolhido de OUTRO lead não conta.
+    aOpcao(OP_ONIX).situacao = "em_avaliacao";
+    aOpcao(OP_DA_BIA).situacao = "escolhido";
+    expect((await gravar(DA_ANA, { veiculo_id: null })).status).toBe(200);
   });
 
   it("sem `veiculo_id` no pedido, `leads_veiculos` nem é lida", async () => {
@@ -1338,9 +1445,58 @@ describe("PATCH /api/leads/gerenciar — o ganho e os veículos", () => {
     falhasAoGravar.leads_veiculos = { code: "57014", message: "timeout" };
     const { status, d } = await fechar(DA_BIA, "ganho", "a_vista");
     expect(status).toBe(200);
-    expect(d.ok).toBe(true);
-    expect(d.veiculo_escolhido).toBeUndefined();
     expect(doLead(DA_BIA).situacao).toBe("fechado");
+    // E a falha não fica só no log: o vendedor é avisado, e a opção segue pendente.
+    expect(d).toEqual({
+      ok: true,
+      pendencias_de_veiculo: [{ opcao: OP_DA_BIA, veiculo_id: HB20, rotulo: "Hyundai HB20 Comfort 1.0 2019" }],
+      aviso: "O negócio foi fechado, mas não deu para marcar o carro do lead como escolhido. Abra o lead e marque o carro escolhido.",
+    });
+    expect(aOpcao(OP_DA_BIA).situacao).toBe("em_avaliacao");
+  });
+
+  it("a opção foi escolhida e o principal não acompanhou: avisa, dizendo o que ficou", async () => {
+    DA_BIA_DA_ANA();
+    doLead(DA_BIA).veiculo_id = null;
+    // O desfecho grava em `leads`; só a gravação SEGUINTE (o principal) falha.
+    const real = CLIENTE.from;
+    let gravacoesEmLeads = 0;
+    CLIENTE.from = (tabela: string) => {
+      const q = real(tabela);
+      if (tabela !== "leads") return q;
+      const update = q.update;
+      q.update = (campos: Linha) => {
+        gravacoesEmLeads += 1;
+        if (gravacoesEmLeads === 2) falhasAoGravar.leads = { code: "57014", message: "timeout" };
+        return update(campos);
+      };
+      return q;
+    };
+    try {
+      const { status, d } = await fechar(DA_BIA, "ganho", "a_vista");
+      expect(status).toBe(200);
+      expect(d).toEqual({
+        ok: true,
+        veiculo_escolhido: OP_DA_BIA,
+        aviso: "O carro foi marcado como escolhido, mas não deu para atualizar o carro principal do lead. Abra o lead e confira o carro principal.",
+      });
+    } finally {
+      CLIENTE.from = real;
+    }
+    expect(aOpcao(OP_DA_BIA).situacao).toBe("escolhido");
+    expect(doLead(DA_BIA).veiculo_id).toBeNull();
+  });
+
+  it("uma linha MAIS o principal sem linha são dois carros: o ganho não escolhe sozinho", async () => {
+    // É o que a tela mostra: o Onix (principal, sem linha) e o HB20 (a opção).
+    DA_BIA_DA_ANA();
+    doLead(DA_BIA).veiculo_id = ONIX;
+    const { status, d } = await fechar(DA_BIA, "ganho", "a_vista");
+    expect(status).toBe(200);
+    expect(d).toEqual({ ok: true, pendencias_de_veiculo: [{ opcao: OP_DA_BIA, veiculo_id: HB20, rotulo: "Hyundai HB20 Comfort 1.0 2019" }] });
+    expect(aOpcao(OP_DA_BIA).situacao).toBe("em_avaliacao");
+    expect(doLead(DA_BIA).veiculo_id).toBe(ONIX);
+    expect(linhaDoTempo).not.toContain("update leads_veiculos");
   });
 
   /** O lead da Bia passa a ser da Ana: um lead com UMA opção, à vista de quem pede. */
@@ -1389,20 +1545,30 @@ describe("GET /api/estoque/busca — o seletor de carro", () => {
   });
 
   it("pela placa, com ou sem hífen; a resposta só leva os quatro últimos", async () => {
-    for (const q of ["ABC1D23", "abc1d", "xyz-9876", "9876"]) {
-      const { d } = await buscar(q);
-      expect(d.veiculos, q).toHaveLength(1);
+    // A placa inteira, com ou sem hífen (gravada das duas formas), e o final.
+    for (const [q, id] of [["ABC1D23", ONIX], ["abc-1d23", ONIX], ["xyz-9876", UNO], ["XYZ9876", UNO], ["9876", UNO], ["1d23", ONIX]] as const) {
+      expect((await buscar(q)).d.veiculos.map((v: Linha) => v.id), q).toEqual([id]);
     }
-    // Digitada com hífen, a placa é procurada também sem ele.
-    expect((await buscar("abc-1d23")).d.veiculos.map((v: Linha) => v.id)).toEqual([ONIX]);
-    // O contrário o banco não faz: placa GRAVADA com hífen não casa com a
-    // digitada sem (não há coluna normalizada). Fica registrado no contrato.
-    expect((await buscar("XYZ9876")).d.veiculos).toEqual([]);
+    // Um pedaço que não é placa inteira nem final não é procurado na placa.
+    expect((await buscar("abc1d")).d.veiculos).toEqual([]);
+    // O final casa só o FIM: "ABC1" está no começo da placa do Onix.
+    expect((await buscar("abc1")).d.veiculos).toEqual([]);
     const texto = JSON.stringify((await buscar("chevrolet")).d) + JSON.stringify((await buscar("fiat")).d);
     for (const inteira of ["ABC1D23", "XYZ-9876", "XYZ9876", "QWE4R56"]) expect(texto).not.toContain(inteira);
     expect(texto).toContain('"placa_final":"1D23"');
     expect(texto).toContain('"placa_final":"9876"');
     expect(texto).not.toContain('"placa"');
+  });
+
+  it("'fox' acha o Fox, e não o carro de placa FOX1234", async () => {
+    banco.estoque_motors.push(
+      { id: 8300001, marca: "volkswagen", modelo: "fox", versao: "1.6", ano: 2014, quilometragem: 98000, preco: 38900, vendido: false, estado_cadastro: "publicado", url_imagem: null, placa: "AAA0A00" },
+      { id: 8300002, marca: "renault", modelo: "sandero", versao: "1.0", ano: 2016, quilometragem: 80000, preco: 41900, vendido: false, estado_cadastro: "publicado", url_imagem: null, placa: "FOX1234" },
+    );
+    expect((await buscar("fox")).d.veiculos.map((v: Linha) => v.id)).toEqual([8300001]);
+    expect(filtrosOr.join(",")).not.toContain("placa");
+    // A placa inteira continua achando.
+    expect((await buscar("fox1234")).d.veiculos.map((v: Linha) => v.id)).toEqual([8300002]);
   });
 
   it("a placa vem pela view da equipe, e chassi, renavam e custo nem são pedidos", async () => {
@@ -1593,66 +1759,57 @@ describe("GET /api/estoque/[id]/interesse e /api/estoque/interesse — o relató
 // ----------------------------------------------------------------------------
 
 describe("registrarInteresseDaCaptura — o lead do site ganha a primeira opção", () => {
-  type Passo = { linha: Linha; erro: Erro | null };
+  // A rota de captura, EXECUTADA, está em `tests/captura-registra-o-interesse.test.ts`.
   const cliente = (respostas: Array<Erro | null>) => {
-    const passos: Passo[] = [];
+    const linhas: Linha[] = [];
     return {
-      passos,
+      linhas,
       from: (tabela: string) => ({
         insert: async (linha: Linha) => {
           expect(tabela).toBe("leads_veiculos");
-          const erro = respostas[passos.length] ?? null;
-          passos.push({ linha, erro });
-          return { data: null, error: erro };
+          linhas.push(linha);
+          return { data: null, error: respostas[linhas.length - 1] ?? null };
         },
       }),
     };
   };
-  const chamar = (c: ReturnType<typeof cliente>, ...resto: [string | null | undefined, unknown, (string | null)?]) =>
-    registrarInteresseDaCaptura(c as never, ...resto);
 
-  it("grava lead e carro, e deixa o retrato para o gatilho", async () => {
+  it("grava só lead e carro: o retrato é do gatilho, do estoque", async () => {
     const c = cliente([null]);
-    await chamar(c, DA_ANA, "8203724", "Onix 2020");
-    expect(c.passos.map((p) => p.linha)).toEqual([{ lead_id: DA_ANA, veiculo_id: ONIX }]);
+    await registrarInteresseDaCaptura(c as never, DA_ANA, "8203724");
+    expect(c.linhas).toEqual([{ lead_id: DA_ANA, veiculo_id: ONIX }]);
   });
 
-  it("carro que já saiu do estoque (o `not null` do rótulo): tenta de novo com o interesse do lead", async () => {
-    const c = cliente([{ code: "23502", message: 'null value in column "veiculo_rotulo"' }, null]);
-    await chamar(c, DA_ANA, FORA_DO_ESTOQUE, "  Ford Ka 2018 ");
-    expect(c.passos.map((p) => p.linha)).toEqual([
-      { lead_id: DA_ANA, veiculo_id: FORA_DO_ESTOQUE },
-      { lead_id: DA_ANA, veiculo_id: FORA_DO_ESTOQUE, veiculo_rotulo: "Ford Ka 2018" },
-    ]);
-    const semInteresse = cliente([{ code: "23502", message: "null value" }, null]);
-    await chamar(semInteresse, DA_ANA, FORA_DO_ESTOQUE, null);
-    expect(semInteresse.passos[1].linha.veiculo_rotulo).toBe(`Veículo nº ${FORA_DO_ESTOQUE}`);
+  it("carro fora do estoque (o `not null` do rótulo recusa): a opção não nasce, e não há segunda tentativa", async () => {
+    const avisos = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const c = cliente([{ code: "23502", message: 'null value in column "veiculo_rotulo" violates not-null constraint' }, null]);
+      await registrarInteresseDaCaptura(c as never, DA_ANA, FORA_DO_ESTOQUE);
+      expect(c.linhas).toEqual([{ lead_id: DA_ANA, veiculo_id: FORA_DO_ESTOQUE }]);
+      // Nenhuma linha leva rótulo: texto do pedido nunca vira nome de carro.
+      for (const linha of c.linhas) expect(Object.keys(linha).sort()).toEqual(["lead_id", "veiculo_id"]);
+      expect(avisos).not.toHaveBeenCalled();
+    } finally {
+      avisos.mockRestore();
+    }
+  });
+
+  it("a função não tem por onde receber texto do pedido", () => {
+    expect(registrarInteresseDaCaptura.length).toBe(3);
   });
 
   it("sem lead ou sem carro: não grava", async () => {
     const c = cliente([]);
-    await chamar(c, null, ONIX);
-    await chamar(c, DA_ANA, null);
-    await chamar(c, DA_ANA, "onix-2020-slug");
-    await chamar(c, DA_ANA, 0);
-    expect(c.passos).toEqual([]);
-  });
-
-  it("a captura chama, depois de gravar o lead, fora do caminho de erro, e sem depender do resultado", () => {
-    // A rota de captura tem dependências demais para rodar aqui; a fiação é
-    // conferida no texto: a chamada vem logo depois de o id do lead existir,
-    // no ramo em que a gravação deu certo, e o retorno dela não é lido.
-    const fonte = readFileSync(join(__dirname, "..", "src", "app", "api", "leads", "route.ts"), "utf8");
-    const trecho = fonte.slice(fonte.indexOf("if (erroLead) {"), fonte.indexOf("} catch (erroPersistencia"));
-    expect(trecho).toMatch(
-      /\} else \{[\s\S]*idDoLead = typeof idGravado === "string" \? idGravado : null;[\s\S]*\n\s+await registrarInteresseDaCaptura\(supabaseAdmin, idDoLead, veiculo\?\.id, interesse\);/,
-    );
-    expect(fonte.match(/registrarInteresseDaCaptura\(/g)).toHaveLength(1);
+    await registrarInteresseDaCaptura(c as never, null, ONIX);
+    await registrarInteresseDaCaptura(c as never, DA_ANA, null);
+    await registrarInteresseDaCaptura(c as never, DA_ANA, "onix-2020-slug");
+    await registrarInteresseDaCaptura(c as never, DA_ANA, 0);
+    expect(c.linhas).toEqual([]);
   });
 
   it("nunca lança: tabela ausente, erro do banco e cliente que explode", async () => {
-    await expect(chamar(cliente([PGRST205]), DA_ANA, ONIX)).resolves.toBeUndefined();
-    await expect(chamar(cliente([{ code: "57014", message: "timeout" }]), DA_ANA, ONIX)).resolves.toBeUndefined();
+    await expect(registrarInteresseDaCaptura(cliente([PGRST205]) as never, DA_ANA, ONIX)).resolves.toBeUndefined();
+    await expect(registrarInteresseDaCaptura(cliente([{ code: "57014", message: "timeout" }]) as never, DA_ANA, ONIX)).resolves.toBeUndefined();
     const explode = { from: () => { throw new Error("sem chave de serviço"); } };
     await expect(registrarInteresseDaCaptura(explode as never, DA_ANA, ONIX)).resolves.toBeUndefined();
   });

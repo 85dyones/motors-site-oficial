@@ -26,7 +26,8 @@ export const dynamic = "force-dynamic";
  * número passa pela mesma regra de `POST …/veiculos` com `principal: true`: o
  * carro entra nas opções do lead (se ainda não está) e vira o principal. Sem a
  * tabela (antes da migração `20261005120000`), grava só a coluna, como sempre.
- * `null` continua limpando só o principal: as opções ficam.
+ * `null` limpa só o principal (as opções ficam), a menos que haja um carro
+ * ESCOLHIDO: o escolhido é o principal, e tirá-lo por aqui é recusado (409).
  *
  * Mexer nestes dados não reinicia o relógio da estagnação: o gatilho do lead
  * só conta etapa, responsável, anotação, desfecho e próximo passo como toque.
@@ -79,6 +80,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           { apontarPrincipal: false },
         );
         if (!feito.ok) return feito.resposta;
+      }
+    }
+
+    // Tirar o carro do lead: só o principal sai, e nunca por cima de uma
+    // escolha. Com um carro escolhido, o caminho é reabrir a opção.
+    if (decisao.campos.veiculo_id === null) {
+      const leitura = await lerOpcoesDoLead(supabase, id);
+      if (leitura.disponivel) {
+        if (leitura.erro) return respostaDoErroDeVeiculos(leitura.erro);
+        if (leitura.linhas.some((l) => l.situacao === "escolhido")) {
+          return NextResponse.json(
+            {
+              error: "Este lead tem um carro escolhido, e ele é o carro principal. Reabra a escolha antes de tirar o carro do lead.",
+              codigo: "principal_ja_escolhido",
+            },
+            { status: 409 },
+          );
+        }
       }
     }
 

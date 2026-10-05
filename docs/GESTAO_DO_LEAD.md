@@ -235,8 +235,10 @@ tabela dos veículos de interesse no banco, um número aqui faz o mesmo que
 `POST /api/leads/[id]/veiculos` com `principal: true` (§7.4): o carro entra nas
 opções do lead, se ainda não está, e vira o principal. Erros a mais nesse caso:
 `409 principal_ja_escolhido` (há outro carro escolhido) e `400
-principal_descartado`. `null` limpa só o principal; as opções ficam. Sem a
-tabela, grava só a coluna, como sempre.
+principal_descartado`. `null` limpa só o principal (as opções ficam), a menos
+que o lead tenha um carro **escolhido**: aí é `409 principal_ja_escolhido`
+("Reabra a escolha antes de tirar o carro do lead"), e nada do pedido é
+gravado. Sem a tabela, grava só a coluna, como sempre.
 
 ### 2.5 `GET /api/leads/gerenciar`: o que mudou
 
@@ -522,7 +524,10 @@ coluna. Nenhum gatilho a reescreve; quem a mantém são estas rotas (§7.3).
 
 O código vai ao ar **antes** de a migração ser aplicada. Até lá a tabela e as
 funções não existem, e cada rota sabe disso (`ehVeiculosIndisponivel`: PostgREST
-`PGRST205` / `PGRST202`, Postgres `42P01` / `42883`):
+`PGRST205` / `PGRST202`; Postgres `42P01` / `42883` **só quando a mensagem
+nomeia** `leads_veiculos`, `resumo_de_interesse_do_veiculo` ou
+`interesse_por_veiculo`. O mesmo código sobre outro objeto é erro de verdade:
+`500`, ou aviso no detalhe):
 
 | Rota | Sem a tabela |
 |---|---|
@@ -571,6 +576,10 @@ A ordem: o principal primeiro, depois na ordem em que os carros entraram.
 falhou). Ela aparece para o carro não sumir da tela, mas não pode ser resolvida
 nem apagada. Para criar a linha: `POST …/veiculos` com `{ "veiculo_id", "principal": true }`.
 
+Se a leitura das opções **falhar de verdade** (não é a tabela ausente), o
+detalhe não devolve lista vazia: traz o principal como essa opção única e a
+frase em `avisos`.
+
 `pendencias_de_veiculo`: as opções (com linha) que seguem `em_avaliacao`, como
 `{ opcao, veiculo_id, rotulo }`. É o que a tela oferece resolver ao fechar.
 
@@ -578,7 +587,9 @@ nem apagada. Para criar a linha: `POST …/veiculos` com `{ "veiculo_id", "princ
 
 Regra única, em `planejarResolucoes` (puro):
 
-- o **primeiro** carro adicionado a um lead sem principal vira o principal;
+- o **primeiro** carro adicionado a um lead sem principal vira o principal.
+  Principal apontando para uma opção **descartada** conta como "sem principal"
+  (`semPrincipalValido`): o carro adicionado, ou a opção **reaberta**, assume;
 - **escolher** um carro o torna o principal. Se havia outro escolhido, ele é
   reaberto (`em_avaliacao`) antes: só um escolhido por lead;
 - **descartar o principal** passa o principal à opção em avaliação mais antiga.
@@ -586,8 +597,10 @@ Regra única, em `planejarResolucoes` (puro):
 - `principal: true` troca o principal, desde que não haja outro carro
   **escolhido** (o escolhido é sempre o principal) e o carro não esteja
   descartado;
-- **apagar** o principal (Admin) passa ao escolhido, senão à opção em avaliação
-  mais antiga, senão `leads.veiculo_id` fica nulo.
+- **apagar** o principal (Admin) passa, no mesmo pedido, ao escolhido, senão à
+  opção em avaliação mais antiga, senão `leads.veiculo_id` fica nulo. A troca
+  é gravada **antes** de apagar: se ela falhar, nada é apagado (`500
+  principal_nao_atualizado`); se o apagar falhar, o principal volta ao lugar.
 
 ### 7.4 As rotas do lead
 
@@ -696,10 +709,15 @@ Códigos próprios: `400 lote_invalido` (o corpo não é lista), `lote_vazio`,
 Nesta versão o desfecho **não é bloqueado** por opção pendente: fechar continua
 no `PATCH /api/leads/gerenciar`, com as regras de sempre. O que mudou nele:
 
-- fechado como **ganho** um lead com **exatamente uma** opção, ainda em
-  avaliação, ela vira a escolhida (e o principal). A resposta traz
-  `"veiculo_escolhido": "<id da opção>"`. Uma opção única já **descartada** não
-  é escolhida por cima;
+- fechado como **ganho** um lead com **exatamente um carro ao todo**, ainda em
+  avaliação, ele vira o escolhido (e o principal). A resposta traz
+  `"veiculo_escolhido": "<id da opção>"`. "Ao todo" é o que a tela mostra: as
+  opções **mais** o principal sem linha (`id: null`); uma opção e um principal
+  sem linha são dois carros, e nada é escolhido. Uma opção única já
+  **descartada** não é escolhida por cima;
+- se essa escolha cabia e **falhou**, a resposta traz `"aviso"` com a frase
+  para a tela (o carro não foi marcado, ou foi marcado e o principal não
+  acompanhou) e a opção segue em `pendencias_de_veiculo`;
 - em qualquer desfecho (ganho, perdido, descartado), se sobram opções em
   avaliação a resposta traz `"pendencias_de_veiculo": [ … ]`. É a deixa para a
   tela abrir a resolução em lote (`POST …/veiculos/resolver`);
@@ -723,8 +741,10 @@ pendenciasAoFechar(opcoes, desfecho): { pendentes, escolha_automatica, falta_esc
 Porta: a dos leads (equipe ativa que vê lead; Marketing e Financeiro, `403`).
 Mínimo de 2 caracteres. Cada palavra é procurada em marca, modelo e versão
 (contém, sem distinguir caixa) e o carro tem de casar com **todas**; palavra só
-de dígitos vale também como ano (4 dígitos) e como código do carro; palavra com
-cara de placa é procurada na placa. Até 12 carros, os à venda primeiro.
+de dígitos vale também como ano (4 dígitos) e como código do carro. Na placa só
+é procurada a palavra com **cara de placa**: a placa inteira (`ABC1D23`,
+`ABC1234`, com ou sem hífen) ou o final de quatro (`1D23`, `9876`, casando o
+fim). "fox" acha o Fox, e não o carro de placa FOX1234. Até 12 carros, os à venda primeiro.
 
 ```jsonc
 {
@@ -753,8 +773,8 @@ Erros: `400 busca_curta` (menos de 2 caracteres úteis), `401`, `403`.
   antes de ele virar filtro (viram espaço). "100%" procura "100".
 - **Acento**: a busca **distingue** acento ("citroen" não acha "citroën"). Não
   há coluna normalizada nem `unaccent` no banco, a mesma falta de §4.
-- **Hífen na placa**: digitada com hífen, é procurada com e sem. Placa
-  **gravada** com hífen não casa com a digitada sem.
+- **Hífen na placa**: a placa inteira é procurada com e sem hífen, digitada de
+  um jeito ou de outro.
 
 #### `GET /api/estoque/[id]/interesse`: o relatório de um carro
 
@@ -858,16 +878,19 @@ rotuloDoVeiculoNaTela(rotulo)     // o retrato do banco na grafia da tela
   seguro, a reabertura implícita é desfeita se a escolha falhar, e a resposta de
   erro diz o que ficou (`gravadas`, `principal_nao_atualizado`). A saída é uma
   função no banco que junte tudo numa transação; depende de migração.
-- **O lead que nasce no site.** `POST /api/leads` passou a registrar o carro da
-  ficha como primeira opção (`registrarInteresseDaCaptura`, com a chave de
-  serviço, sem autor). Não bloqueia a captura: se falhar, o lead fica com o
-  principal sem linha (a opção `id: null` de §7.2) e não conta no relatório
-  até alguém criar a opção. Um gatilho em `leads` fecharia o buraco; a migração
-  escolheu não ter.
+- **O lead que nasce no site.** `POST /api/leads` registra o carro da ficha
+  como primeira opção (`agendarInteresseDaCaptura`, com a chave de serviço, sem
+  autor). Roda **depois da resposta** (`after()`): a captura não espera nem
+  depende dela. Só `lead_id` e `veiculo_id` são gravados; o rótulo é do
+  gatilho, do estoque, e **nenhum texto do pedido** vira nome de carro. Carro
+  que não está no estoque não ganha opção. Se a gravação falhar, o lead fica
+  com o principal sem linha (a opção `id: null` de §7.2) e não conta no
+  relatório até alguém criar a opção. Um gatilho em `leads` fecharia o buraco;
+  a migração escolheu não ter.
 - **Lead perdido antes da entrega.** A carga inicial deixou as opções dos leads
   já perdidos em `em_avaliacao` (o motivo de perda do lead não é o motivo de
   descarte do carro). O relatório as conta em `sem_resolucao`.
-- **Busca sem acento e placa com hífen**: §7.6.
+- **Busca sem acento**: §7.6.
 - **O "+N" no card do quadro.** `GET /api/leads/gerenciar` não devolve quantos
   carros o lead tem, e a tela não busca isso card a card. Entra quando a fila
   trouxer a contagem.
