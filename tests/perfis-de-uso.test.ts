@@ -9,6 +9,7 @@ import {
 } from "../src/lib/perfisDeUso";
 import { CARROCERIAS } from "../src/lib/classificacaoVeiculo";
 import { FAIXAS_DE_PRECO } from "../src/lib/faixasDePreco";
+import { RECORTES_DE_CAMBIO } from "../src/lib/recortesDeCambio";
 import { CAMPOS_NOSSOS } from "../src/lib/estoqueEscrita";
 import { ACAO_DO_CAMPO_DE_VEICULO } from "../src/lib/permissoes";
 import { checkTagMatchesVehicle } from "../src/lib/regrasEstoque";
@@ -56,17 +57,18 @@ describe("1 · o vocabulário", () => {
     expect(perfilPorSlug("performance")?.titulo).toBe("Carros de performance");
   });
 
-  it("o slug não colide com carroceria nem com faixa de preço", () => {
-    // Os três moram em `/estoque/{slug}`. Uma colisão não daria erro: serviria
+  it("o slug não colide com carroceria, faixa de preço nem câmbio", () => {
+    // Os quatro moram em `/estoque/{slug}` (o câmbio desde 05/10/2026). Uma colisão não daria erro: serviria
     // uma vitrine no lugar da outra, e o ramo que perdesse ficaria inalcançável.
     const slugCarroceria = (n: string) =>
       n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-");
     const ocupados = new Set([
       ...CARROCERIAS.map(slugCarroceria),
       ...FAIXAS_DE_PRECO.map((f) => f.slug),
+      ...RECORTES_DE_CAMBIO.map((c) => c.slug),
     ]);
     for (const slug of SLUGS_DE_PERFIL) {
-      expect(ocupados.has(slug), `${slug} já é carroceria ou faixa`).toBe(false);
+      expect(ocupados.has(slug), `${slug} já é carroceria, faixa ou câmbio`).toBe(false);
     }
   });
 

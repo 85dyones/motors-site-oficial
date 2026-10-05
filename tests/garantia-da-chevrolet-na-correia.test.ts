@@ -68,6 +68,7 @@ describe("garantia da Chevrolet para a correia, nos hubs da marca", () => {
     "textos-de-hub-lote-procura.json",
     "textos-de-hub-lote-procura-2.json",
     "textos-de-hub-lote-procura-3.json",
+    "textos-de-hub-lote-procura-4.json",
   ].flatMap((arquivo) => JSON.parse(readFileSync(join(PASTA, arquivo), "utf8")).textos);
   const frasesDoPrazo = (h: { paragrafos: string[] }) =>
     h.paragrafos

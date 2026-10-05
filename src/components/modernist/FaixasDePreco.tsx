@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Veiculo } from "../../types";
-import { hubsDeFaixa } from "../../lib/hubsDeEstoque";
+import { hubsDeCambio, hubsDeFaixa } from "../../lib/hubsDeEstoque";
 
 /**
  * Os três hubs de faixa como bloco de navegação — home e vitrine.
@@ -26,6 +26,17 @@ import { hubsDeFaixa } from "../../lib/hubsDeEstoque";
  * enfileirados não comunicam recorte, comunicam loja fechada — e o pátio vazio
  * acontece de verdade (sync fora do ar). É o mesmo critério que o `<h1>` das
  * faixas já aplica ao zero.
+ *
+ * ---------------------------------------------------------------------------
+ * O chip "Automáticos", desde 05/10/2026
+ * ---------------------------------------------------------------------------
+ * `/estoque/automatico` nasceu nesse dia e precisava de entrada pela home e por
+ * `/estoque`: página perene sem link interno é órfã, e o sitemap sozinho não
+ * sustenta. Entra neste bloco, em linha própria abaixo das faixas e com o
+ * rótulo "Por câmbio", porque é o mesmo tipo de atalho (recorte perene de
+ * lista fechada, com contagem) e os dois lugares que montam este bloco já são
+ * os de maior alcance do site. Segue a
+ * regra das faixas: aparece mesmo zerado, some com o pátio vazio.
  */
 export default function FaixasDePreco({
   disponiveis,
@@ -63,6 +74,27 @@ export default function FaixasDePreco({
             {faixa.nome}
             <span className="text-[11px] font-semibold text-mt-cobre">
               {faixa.veiculos.length}
+            </span>
+          </Link>
+        ))}
+      </div>
+      {/* Câmbio em linha própria, com rótulo próprio (revisão de 05/10/2026):
+          "Automáticos" não é faixa de preço, e o chip dentro da fileira das
+          faixas ficava sob um título que fala de orçamento. O rótulo é o mesmo
+          do bloco de links das páginas de recorte ("Por câmbio"). */}
+      <p className="m-0 mt-4 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-cobre">
+        Por câmbio
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {hubsDeCambio(disponiveis).map((cambio) => (
+          <Link
+            key={cambio.slug}
+            href={`/estoque/${cambio.slug}`}
+            className="mt-foco flex items-baseline gap-1.5 border border-mt-regua px-2.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-ink no-underline hover:border-mt-accent"
+          >
+            {cambio.plural}
+            <span className="text-[11px] font-semibold text-mt-cobre">
+              {cambio.veiculos.length}
             </span>
           </Link>
         ))}

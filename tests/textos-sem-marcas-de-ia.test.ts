@@ -6,6 +6,7 @@ import {
   PERGUNTAS_POR_CAMINHO,
   perguntasDeCategoria,
   textoDeCarroceria,
+  textoDeCambio,
   textoDeFaixaDePreco,
   textoDeMarca,
   textoDeModelo,
@@ -122,6 +123,8 @@ describe("hubs gerados pelo código", () => {
     ["carroceria sem estoque", textoDeCarroceria("Van", [], "Vans", "f")],
     ["faixa com estoque", textoDeFaixaDePreco("de R$ 60 a 100 mil", COM)],
     ["faixa sem estoque", textoDeFaixaDePreco("acima de R$ 100 mil", [])],
+    ["câmbio com estoque", textoDeCambio("automático", "automáticos", COM.slice(1))],
+    ["câmbio sem estoque", textoDeCambio("automático", "automáticos", [])],
     ...PERFIS_DE_USO.slice(0, 3).map((p) => [`perfil ${p.nome}`, textoDePerfil(p, COM)] as [string, string[]]),
     ["perfil sem estoque", textoDePerfil(PERFIS_DE_USO[0], [])],
   ];

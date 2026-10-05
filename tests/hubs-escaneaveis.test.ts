@@ -8,6 +8,7 @@ import { blocosDoParagrafo } from "../src/lib/blocosDoGuia";
 import {
   SUBTITULO_DA_LEITURA,
   textoDeCarroceria,
+  textoDeCambio,
   textoDeFaixaDePreco,
   textoDeMarca,
   textoDeModelo,
@@ -100,11 +101,21 @@ const loteProcura = [
   "textos-de-hub-lote-procura.json",
   "textos-de-hub-lote-procura-2.json",
   "textos-de-hub-lote-procura-3.json",
+  "textos-de-hub-lote-procura-4.json",
 ].flatMap(
   (arquivo) =>
     (JSON.parse(readFileSync(join(__dirname, "..", "conteudo-seo", arquivo), "utf8")) as { textos: Texto[] })
       .textos,
 );
+
+// Reescritas (05/10/2026): caminho que JÁ tem texto e ganha versão nova. Ficam
+// fora de `loteProcura`, que por regra não repete caminho, e passam pela mesma
+// régua de forma. Ao aprovar, a gravação é UPDATE.
+const reescritas = (
+  JSON.parse(
+    readFileSync(join(__dirname, "..", "conteudo-seo", "textos-de-hub-reescritas-05out.json"), "utf8"),
+  ) as { textos: Texto[] }
+).textos.map((t) => ({ ...t, rotulo: `${t.caminho} (reescrita de 05/10)` }));
 
 describe("os 31 textos da loja na forma escaneável", () => {
   it("são os 31 caminhos", () => {
@@ -117,7 +128,17 @@ describe("os 31 textos da loja na forma escaneável", () => {
     expect(new Set(loteProcura.map((t) => t.caminho)).size).toBe(loteProcura.length);
   });
 
-  for (const { caminho, paragrafos: p } of [...textos, ...loteProcura]) {
+  it("a reescrita só troca texto de caminho que já existe", () => {
+    const jaTem = new Set([...textos, ...loteProcura].map((t) => t.caminho));
+    expect(reescritas.length).toBeGreaterThan(0);
+    expect(reescritas.filter((t) => !jaTem.has(t.caminho))).toEqual([]);
+  });
+
+  for (const { caminho, paragrafos: p } of [
+    ...textos,
+    ...loteProcura,
+    ...reescritas.map((t) => ({ ...t, caminho: t.rotulo })),
+  ]) {
     it(caminho, () => {
       expect(p.length).toBeGreaterThanOrEqual(4);
       expect(p[0].startsWith("###"), "p[0] é a chamada").toBe(false);
@@ -145,6 +166,7 @@ describe("o texto gerado também abre a leitura", () => {
       textoDeModelo("Chevrolet", "Onix", []),
       textoDeCarroceria("SUV", [], "SUVs"),
       textoDeFaixaDePreco("de R$ 60 a 100 mil", []),
+      textoDeCambio("automático", "automáticos", []),
       ...PERFIS_DE_USO.map((perfil) => textoDePerfil(perfil, [])),
     ]) {
       const i = p.indexOf(SUBTITULO_DA_LEITURA);

@@ -1,0 +1,16 @@
+{
+  "_leia": "Lote de 05/10/2026, aprovado pelo dono em 05/10/2026. Sai da leitura do Planejador de Palavras-chave (conteudo-seo/palavras-chave.md): 'carro automático mais barato' 260, 'carro automático até 50 mil' 170. Um texto: /estoque/automatico, recorte novo deste PR (ao aprovar é insert em `textos_de_hub`). Escrito com o humanizer na forma escaneável. Nada gravado no banco.",
+  "textos": [
+    {
+      "caminho": "/estoque/automatico",
+      "titulo": null,
+      "paragrafos": [
+        "Automático usado: o tipo de câmbio muda o que conferir",
+        "Os câmbios sem pedal de embreagem mais comuns são o automático convencional (com conversor de torque), o CVT, o automatizado de uma embreagem e o de dupla embreagem. Cada um se comporta de um jeito no trânsito e tem a sua manutenção. Pergunte qual é o do carro antes do test drive.",
+        "### O que conferir num automático usado",
+        "No test drive, confira:\n- Trocas a frio e a quente, em arrancada, rampa e manobra.\n- Saída de ré e de primeira: veja como o carro responde e pergunte ao vendedor o que é próprio daquele câmbio.\n- Histórico de troca do óleo do câmbio, quando o plano de manutenção do modelo prevê.\n- No CVT, aceleração contínua, sem trepidação na saída.",
+        "A perícia cautelar independente vem antes do anúncio, e o laudo fica com o vendedor para quem pedir. Diga no WhatsApp quanto quer gastar, e a gente manda os automáticos do estoque nessa faixa, com fotos reais e o laudo."
+      ]
+    }
+  ]
+}

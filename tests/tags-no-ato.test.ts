@@ -118,6 +118,7 @@ describe("a régua de page_type tem uma fonte só, lida de dois lugares", () => 
     "/estoque/60-a-100-mil",
     "/estoque/acima-100-mil",
     "/estoque/familia",
+    "/estoque/automatico",
     "/destaques/baixa-quilometragem",
     "/avaliacao",
     "/financiamento",
@@ -168,6 +169,7 @@ describe("a régua de page_type tem uma fonte só, lida de dois lugares", () => 
       "inventory",
       "bodytype",
       "pricerange",
+      "transmission",
       "highlight",
       "appraisal",
       "financing",
@@ -371,6 +373,7 @@ describe("o script servido, executado contra um DOM de mentira", () => {
       ["/estoque", "inventory"],
       ["/estoque/ate-60-mil", "pricerange"],
       ["/estoque/suv", "bodytype"],
+      ["/estoque/automatico", "transmission"],
       ["/seminovos-bacacheri", "geo"],
       ["/admin/estoque", "internal"],
     ] as const) {

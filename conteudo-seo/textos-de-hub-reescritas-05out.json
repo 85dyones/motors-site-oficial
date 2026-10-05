@@ -1,0 +1,16 @@
+{
+  "_leia": "Reescrita de 05/10/2026, RASCUNHO para o dono aprovar. /estoque/ate-60-mil JÁ tem linha em `textos_de_hub` (texto de 30/09, em textos-de-hub-humanizados.json): ao aprovar é UPDATE, não insert. Motivo: o Planejador de Palavras-chave (conteudo-seo/palavras-chave.md) mostra 'carros usados baratos curitiba' 480 e 'carros até 50 mil' 210 buscas por mês, e o texto anterior não dizia 'usados', 'baratos' nem citava os de menos de R$ 50 mil. Mesma regra do dono: informar sem argumentar contra o carro. Nada gravado no banco. Aprovado pelo dono em 05/10/2026, com 'barato' trocado por 'custo-benefício' a pedido dele.",
+  "textos": [
+    {
+      "caminho": "/estoque/ate-60-mil",
+      "titulo": null,
+      "paragrafos": [
+        "Carro usado com custo-benefício: comece pela procedência",
+        "Esta página reúne os carros de menor preço do estoque, e é onde ficam os de menos de R$ 50 mil quando há. É a faixa do primeiro carro e do segundo carro da casa. Antes de escolher, separe do orçamento a documentação e o seguro.",
+        "### O que conferir num carro usado de bom custo-benefício",
+        "Num carro com mais anos de uso, vale olhar o histórico. Confira:\n- Laudo cautelar, que mostra sinistro, passagem por leilão e a numeração de chassi e motor.\n- Revisões com registro por escrito.\n- Estado de pneus, freios e embreagem.\n- Manual e chave reserva.",
+        "De cada dez veículos que avaliamos, três entram, e o critério é o mesmo em qualquer preço. A perícia independente vem antes do anúncio, e o laudo fica com o vendedor: peça antes mesmo de ver o carro."
+      ]
+    }
+  ]
+}

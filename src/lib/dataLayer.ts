@@ -1,6 +1,7 @@
 // Os dois módulos abaixo não importam nada — é o que permite lê-los daqui,
 // que roda no navegador, sem arrastar o cliente do Supabase para o bundle.
 import { ehSlugDeFaixa, faixaDoPreco, FAIXAS_DE_PRECO } from "./faixasDePreco";
+import { ehSlugDeCambio, RECORTES_DE_CAMBIO } from "./recortesDeCambio";
 import { SEGMENTOS_DE_PDP } from "./veiculoUrl";
 
 /**
@@ -114,6 +115,11 @@ export type TipoDePagina =
   | "model"
   | "bodytype"
   | "pricerange"
+  // `/estoque/automatico`, desde 05/10/2026. Não está no §4.2.1 do plano: a
+  // página nasceu depois dele. No GTM, a variável `js - dynx pagetype` precisa
+  // da linha `transmission: "searchresults"` (`docs/GTM_CONFIGURACAO.md`); sem
+  // ela a página sai como "other" no remarketing dinâmico.
+  | "transmission"
   | "highlight"
   | "vehicle_detail"
   | "appraisal"
@@ -216,7 +222,14 @@ export function tipoDaPagina(caminho: string): TipoDePagina {
     // recortes diferentes, e quem lê o relatório precisa separá-los: "SUV" fala
     // de produto, "até 60 mil" fala de orçamento, e a campanha que traz um não
     // é a que traz o outro. Reconhecida pela LISTA, não por padrão de slug.
-    return ehSlugDeFaixa(partes[1]) ? "pricerange" : "bodytype";
+    if (ehSlugDeFaixa(partes[1])) return "pricerange";
+    // Câmbio é o terceiro recorte da rota (05/10/2026), e ganhou tipo próprio
+    // pelo mesmo motivo que separou a faixa da carroceria: quem chega por
+    // "carro automático usado" responde a outra campanha. Sem este ramo,
+    // `/estoque/automatico` cairia em `bodytype` por omissão, e o relatório de
+    // carroceria passaria a contar uma página que não é de carroceria.
+    if (ehSlugDeCambio(partes[1])) return "transmission";
+    return "bodytype";
   }
   const direto = TIPO_POR_PRIMEIRO_SEGMENTO[primeiro];
   if (direto) return direto;
@@ -257,7 +270,7 @@ export function tipoDaPagina(caminho: string): TipoDePagina {
  *
  * Daí este gerador. **Ele não repete a regra: a monta a partir das mesmas
  * constantes** — `SEGMENTOS_INTERNOS`, `TIPO_POR_PRIMEIRO_SEGMENTO`,
- * `SEGMENTOS_DE_PDP` e os slugs de `FAIXAS_DE_PRECO`. Acrescentar um tipo de
+ * `SEGMENTOS_DE_PDP` e os slugs de `FAIXAS_DE_PRECO` e `RECORTES_DE_CAMBIO`. Acrescentar um tipo de
  * página muda a constante, e os dois lados acompanham.
  *
  * O que sobra de duplicado é o ESQUELETO (a ordem dos ramos), e é o que
@@ -270,6 +283,7 @@ export function fonteDoTipoDePagina(): string {
     diretos: TIPO_POR_PRIMEIRO_SEGMENTO,
     pdp: [...SEGMENTOS_DE_PDP],
     faixas: FAIXAS_DE_PRECO.map((f) => f.slug),
+    cambios: RECORTES_DE_CAMBIO.map((c) => c.slug),
   });
 
   return `function(caminho){
@@ -281,7 +295,9 @@ export function fonteDoTipoDePagina(): string {
     if(D.internos.indexOf(p)>-1)return "internal";
     if(p==="estoque"){
       if(partes.length===1)return "inventory";
-      return D.faixas.indexOf(partes[1])>-1?"pricerange":"bodytype";
+      if(D.faixas.indexOf(partes[1])>-1)return "pricerange";
+      if(D.cambios.indexOf(partes[1])>-1)return "transmission";
+      return "bodytype";
     }
     if(D.diretos[p])return D.diretos[p];
     if(p.indexOf("seminovos-")===0)return "geo";

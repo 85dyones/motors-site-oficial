@@ -472,6 +472,7 @@ function () {
     model: "searchresults",
     bodytype: "searchresults",
     pricerange: "searchresults",
+    transmission: "searchresults",
     highlight: "searchresults",
     geo: "searchresults",
     vehicle_detail: "offerdetail",

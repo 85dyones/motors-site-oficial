@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import {
+  hubsDeCambio,
   hubsDeCarroceria,
   hubsDeFaixa,
   hubsDeMarca,
@@ -14,6 +15,7 @@ import {
 import { SEGMENTOS_DE_PDP } from "../../../../lib/veiculoUrl";
 import {
   perguntasDeCategoria,
+  textoDeCambio,
   textoDeCarroceria,
   textoDeFaixaDePreco,
   textoDeMarca,
@@ -132,8 +134,24 @@ async function catalogoDeHubs() {
       rotulo: f.nome,
       tipo: "faixa",
       veiculos: f.veiculos.length,
-      tituloGerado: `Seminovos ${f.nome} em Curitiba`,
+      tituloGerado: `Carros usados e seminovos ${f.nome} em Curitiba`,
       paragrafosGerados: textoDeFaixaDePreco(f.nome, f.veiculos),
+    });
+  }
+
+  // O câmbio (`/estoque/automatico`, 05/10/2026) entra no catálogo porque o
+  // `PUT` abaixo recusa caminho que não esteja nele: fora daqui, a página nova
+  // ficaria para sempre com o texto gerado, e o texto próprio dela é justamente
+  // o que o dono vai escrever depois de aprovar o rascunho. Só `automatico`,
+  // como na rota, que só tem título escrito para ele.
+  for (const c of hubsDeCambio(disponiveis).filter((h) => h.slug === "automatico")) {
+    hubs.push({
+      caminho: `/estoque/${c.slug}`,
+      rotulo: c.nome,
+      tipo: "cambio",
+      veiculos: c.veiculos.length,
+      tituloGerado: "Carros automáticos usados e seminovos em Curitiba",
+      paragrafosGerados: textoDeCambio("automático", "automáticos", c.veiculos),
     });
   }
 

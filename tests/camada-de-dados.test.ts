@@ -60,6 +60,9 @@ describe("tipo da página", () => {
     ["/estoque/ate-60-mil", "pricerange"],
     ["/estoque/60-a-100-mil", "pricerange"],
     ["/estoque/acima-100-mil", "pricerange"],
+    // O câmbio é o terceiro recorte da rota (05/10/2026) e tem tipo próprio:
+    // sem o ramo dele, cairia em `bodytype` por omissão.
+    ["/estoque/automatico", "transmission"],
     ["/financiamento", "financing"],
     ["/garantia", "institutional"],
     ["/carros/jeep", "brand"],
@@ -100,6 +103,9 @@ describe("a camada roda no navegador — e não pode arrastar o servidor junto",
     // traria o cliente do banco para o bundle do navegador.
     expect(importes).not.toContain("hubsDeEstoque");
     expect(importes).not.toContain("supabase");
+    // Mesma regra para a lista de câmbio, lida daqui desde 05/10/2026.
+    expect(importes).toContain("recortesDeCambio");
+    expect(lerFonte("src/lib/recortesDeCambio.ts")).not.toMatch(/^import /m);
 
     for (const modulo of importes) {
       expect(lerFonte(`src/lib/${modulo}.ts`)).not.toMatch(/^import .*from "\.\/supabase"/m);
