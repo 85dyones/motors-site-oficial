@@ -34,7 +34,7 @@ const L_FORA = "22222222-2222-4222-8222-222222222222";
 
 /** O que `GET /api/pessoas` devolve a quem vê o primeiro lead e não o segundo. */
 const PESSOAS = [
-  { origem: "financeiro", id: "p-1", nome: "AutoPeças Curitiba", papel: "fornecedor", telefone: "4130000000", ativo: true },
+  { origem: "financeiro", id: "p-1", nome: "AutoPeças Curitiba", papel: "fornecedor", documento: "12345678000190", telefone: "4130000000", ativo: true },
   { origem: "lead", id: L_NO_ESCOPO, nome: "Carla", papel: "lead", especialidade: "Em negociação", telefone: "41911110000", ativo: true },
   { origem: "lead", id: L_FORA, nome: "Davi", papel: "lead", especialidade: null, observacoes: null, telefone: "41922220000", ativo: true },
 ];
@@ -44,12 +44,16 @@ const SEM_LEADS = PESSOAS.map((p) => (p.origem === "lead" ? { ...p, especialidad
 let raiz: Root;
 let caixa: HTMLDivElement;
 let pedidos: Array<{ url: string; metodo: string }>;
+/** O que a rota de duplicatas responde, e o aviso que a lista pode trazer. */
+let grupos: unknown[];
+let avisoDaRota: string | undefined;
 
-async function montar(props: { podeGerenciar: boolean; escopoDeLeads: "todos" | "designados" | "meus" | "nenhum" }, pessoas = PESSOAS) {
+async function montar(props: { podeGerenciar: boolean; escopoDeLeads: "todos" | "designados" | "meus" | "nenhum" }, pessoas: object[] = PESSOAS) {
   pedidos = [];
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     pedidos.push({ url, metodo: init?.method ?? "GET" });
-    return new Response(JSON.stringify({ pessoas, total: pessoas.length, pagina: 1, limite: 50 }), { status: 200 });
+    if (url.includes("/duplicatas")) return new Response(JSON.stringify({ grupos, analisadas: 3, completo: true }), { status: 200 });
+    return new Response(JSON.stringify({ pessoas, total: pessoas.length, pagina: 1, limite: 50, aviso: avisoDaRota }), { status: 200 });
   });
   caixa = document.createElement("div");
   document.body.appendChild(caixa);
@@ -69,7 +73,19 @@ const CONTROLES_DE_ESCRITA = ["+ Novo cadastro", "Editar", "Desativar", "Reativa
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  grupos = [];
+  avisoDaRota = undefined;
 });
+
+const cabecalhos = () => [...caixa.querySelectorAll("th")].map((th) => th.textContent);
+const grupoDeNome = (nome: string) => ({ motivo: "nome", chave: nome, pessoas: [PESSOAS[0], { ...PESSOAS[0], origem: "rede", id: `r-${nome}` }] });
+async function conferirRepetidos() {
+  const botao = [...caixa.querySelectorAll("button")].find((b) => b.textContent?.includes("Procurar cadastros repetidos")) as HTMLButtonElement;
+  await act(async () => {
+    botao.click();
+    await new Promise((r) => setTimeout(r, 20));
+  });
+}
 afterEach(async () => {
   await act(async () => raiz.unmount());
   vi.unstubAllGlobals();
@@ -98,6 +114,49 @@ describe("a tela para quem só lê", () => {
   });
 });
 
+describe("o CPF/CNPJ na tela de quem só lê", () => {
+  it("não há coluna, nem o número, nem a promessa de buscar por documento", async () => {
+    // Mesmo que a resposta trouxesse o documento, a tela não o desenha.
+    await montar({ podeGerenciar: false, escopoDeLeads: "nenhum" }, PESSOAS);
+
+    expect(cabecalhos()).not.toContain("CPF / CNPJ");
+    expect(caixa.textContent).not.toContain("12345678000190");
+    expect(caixa.textContent).toContain("Buscar por nome, e-mail ou telefone");
+    expect(caixa.textContent).not.toMatch(/documento|CNPJ/i);
+    expect(caixa.querySelector("input")?.getAttribute("placeholder")).not.toMatch(/\d{2}\.\d{3}/);
+  });
+});
+
+describe("os textos da tela", () => {
+  it("são cinco cadastros, e o visível não leva travessão", async () => {
+    await montar({ podeGerenciar: true, escopoDeLeads: "todos" });
+    expect(caixa.textContent).toContain("os cinco cadastros da casa");
+    expect(caixa.textContent).toContain("Varre os cinco cadastros de uma vez:");
+    expect(caixa.textContent).not.toContain("quatro");
+    // O travessão que sobra é o marcador de célula vazia da tabela.
+    const foraDaTabela = [...caixa.children[0].children].filter((el) => !el.querySelector("table")).map((el) => el.textContent).join(" ");
+    expect(foraDaTabela).not.toContain("—");
+  });
+
+  it("repetição no singular e no plural", async () => {
+    await montar({ podeGerenciar: true, escopoDeLeads: "todos" });
+    grupos = [grupoDeNome("a")];
+    await conferirRepetidos();
+    expect(caixa.textContent).toContain("1 possível repetição");
+    expect(caixa.textContent).toContain("Mesmo nome: confira se é a mesma pessoa");
+    grupos = [grupoDeNome("a"), grupoDeNome("b")];
+    await conferirRepetidos();
+    expect(caixa.textContent).toContain("2 possíveis repetições");
+    expect(caixa.textContent).not.toMatch(/\(is\)|\(ões\)/);
+  });
+
+  it("o aviso da rota sobre os leads aparece na tela", async () => {
+    avisoDaRota = "Não deu para conferir os leads agora.";
+    await montar({ podeGerenciar: true, escopoDeLeads: "meus" });
+    expect(caixa.querySelector('[data-agenda="aviso-da-lista"]')?.textContent).toBe(avisoDaRota);
+  });
+});
+
 describe("a tela para quem gerencia", () => {
   it("Financeiro: os controles de sempre no fornecedor; o lead é contato, com a etiqueta Lead e sem link", async () => {
     await montar({ podeGerenciar: true, escopoDeLeads: "nenhum" }, SEM_LEADS);
@@ -114,6 +173,9 @@ describe("a tela para quem gerencia", () => {
       expect(linha.textContent, nome).not.toContain("Em negociação");
     }
     expect(caixa.querySelector('[data-agenda="so-leitura"]')).toBeNull();
+    // Quem gerencia vê o CPF/CNPJ, como sempre.
+    expect(cabecalhos()).toContain("CPF / CNPJ");
+    expect(linhaDe("AutoPeças Curitiba").textContent).toContain("12345678000190");
   });
 
   it("escopo nenhum não ganha link nem etapa, mesmo que a etapa chegue na resposta", async () => {

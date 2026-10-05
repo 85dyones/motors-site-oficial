@@ -47,8 +47,9 @@
 -- arquivos divergirem.
 --
 -- ⚠️ A fase 3 troca a policy de leitura de `leads`: pede a trava exclusiva da
--- tabela enquanto o bloco roda (um instante). Não rodar no meio de um pico de
--- atendimento.
+-- tabela enquanto o bloco roda (um instante). Com `lock_timeout = '3s'`: se
+-- `leads` estiver presa por uma transação longa, o ensaio não entra na fila —
+-- para em "TRAVA OCUPADA … tente de novo em instantes; nada foi aplicado".
 -- ⚠️ Nomes e telefones não saem no resumo: só ids de perfil, papéis e contagens.
 -- ============================================================================
 do $$
@@ -86,6 +87,9 @@ declare
   v_politicas  jsonb;
   v_resumo     jsonb;
 begin
+  -- Nada aqui espera por `leads` mais de 3s: a fase 3 pede a trava EXCLUSIVA
+  -- da tabela, e ficar na fila dela pararia o formulário público de lead.
+  set local lock_timeout = '3s';
 
   -- 0. O que este arquivo pressupõe ------------------------------------------
   if to_regclass('public.agenda_de_pessoas') is null
@@ -600,4 +604,9 @@ begin
   );
 
   raise exception 'ENSAIO_DESFEITO %', v_resumo::text;
+exception
+  when lock_not_available then
+    raise exception
+      'TRAVA OCUPADA: public.leads está presa por outra transação há mais de 3s. '
+      'Tente de novo em instantes; nada foi aplicado.';
 end $$;

@@ -36,6 +36,10 @@ let usuario: string | null;
 let rlsPorEscopo: boolean;
 /** Tudo o que tocou o banco, na ordem: `select leads`, `insert parceiros`… */
 let linhaDoTempo: string[];
+/** O que cada leitura pediu: colunas, o `or` da busca e o tamanho de cada `in`. */
+let pedidosAoBanco: Array<{ tabela: string; colunas: string; or: string | null; tamanhoDoIn: number | null }>;
+/** `leads` fora do ar: a leitura devolve erro. */
+let leadsForaDoAr: boolean;
 
 const { leadNoEscopo, visaoDeLeads, escopoDeLeads } = await import("../src/lib/escopoDeLeads");
 
@@ -74,6 +78,8 @@ function consulta(tabela: string) {
   let valores: Linha | null = null;
   let colunas = "*";
   let faixa: [number, number] | null = null;
+  let expressaoDoOr: string | null = null;
+  let tamanhoDoIn: number | null = null;
 
   const base = () =>
     tabela === "agenda_de_pessoas" ? agendaDeQuemPergunta() : tabela === "leads" ? leadsPelaRls() : (banco[tabela] ??= []);
@@ -82,6 +88,8 @@ function consulta(tabela: string) {
 
   const executar = async () => {
     linhaDoTempo.push(`${gesto} ${tabela}`);
+    if (gesto === "select") pedidosAoBanco.push({ tabela, colunas, or: expressaoDoOr, tamanhoDoIn });
+    if (tabela === "leads" && leadsForaDoAr) return { data: null, error: { message: "fora do ar" }, count: null };
     if (gesto === "insert") {
       const nova = { id: `novo-${banco[tabela]?.length ?? 0}`, ...valores };
       (banco[tabela] ??= []).push(nova);
@@ -132,13 +140,17 @@ function consulta(tabela: string) {
       return q;
     },
     in: (coluna: string, lista: unknown[]) => {
+      tamanhoDoIn = lista.length;
       filtros.push((l) => lista.includes(l[coluna]));
       return q;
     },
-    or: () => q,
+    or: (expressao: string) => {
+      expressaoDoOr = expressao;
+      return q;
+    },
     single: async () => {
       const r = await executar();
-      return { data: r.data[0] ?? null, error: null };
+      return { data: r.data?.[0] ?? null, error: null };
     },
     then: (ok: (v: unknown) => unknown, erro?: (e: unknown) => unknown) => executar().then(ok, erro),
   };
@@ -176,7 +188,8 @@ const duplicatas = await import("../src/app/api/pessoas/duplicatas/route");
 const umaPessoa = await import("../src/app/api/pessoas/[id]/route");
 const { proxy } = await import("../src/proxy");
 const { default: ClientesPage } = await import("../src/app/admin/clientes/page");
-const { ligacaoDoLead, leadAVista, paraQuemPergunta, podeGerenciarAgenda, podeVerAgenda } = await import("../src/lib/agenda");
+const { AVISO_DE_LEADS_INDISPONIVEIS, filtroDeBusca, ligacaoDoLead, leadAVista, paraQuemPergunta, podeGerenciarAgenda, podeVerAgenda } =
+  await import("../src/lib/agenda");
 const { ACAO_GERENCIAR_AGENDA, ACAO_VER_AGENDA, MATRIZ_DE_PERMISSOES, PERFIS, podeFazer } = await import(
   "../src/lib/permissoes"
 );
@@ -196,6 +209,8 @@ beforeEach(() => {
   usuario = null;
   rlsPorEscopo = false;
   linhaDoTempo = [];
+  pedidosAoBanco = [];
+  leadsForaDoAr = false;
   caminho = "/admin/clientes";
   banco = {
     profiles: [
@@ -240,10 +255,10 @@ const pedido = (url: string, method = "GET", corpo?: unknown) =>
     ...(corpo ? { body: JSON.stringify(corpo), headers: { "content-type": "application/json" } } : {}),
   });
 
-async function lerAgenda(quem: string | null) {
+async function lerAgenda(quem: string | null, query = "ativo=todos") {
   usuario = quem;
-  const res = await lista.GET(pedido("/api/pessoas?ativo=todos"));
-  const corpo = (await res.json()) as { pessoas?: Linha[]; total?: number; error?: string };
+  const res = await lista.GET(pedido(`/api/pessoas?${query}`));
+  const corpo = (await res.json()) as { pessoas?: Linha[]; total?: number; error?: string; aviso?: string };
   return { status: res.status, corpo, porId: (id: string) => corpo.pessoas?.find((p) => p.id === id) };
 }
 
@@ -499,6 +514,104 @@ describe("o registro do lead só acompanha a pessoa para quem enxerga o lead", (
     ]);
     expect(paraQuemPergunta([lead], "meus", new Set([L_DA_ANA]))).toEqual([lead]);
     expect(paraQuemPergunta([lead], "meus", new Set())[0]).toMatchObject({ telefone: "41", especialidade: null, observacoes: null });
+  });
+});
+
+// ----------------------------------------------------------------------------
+// O CPF/CNPJ
+// ----------------------------------------------------------------------------
+
+describe("o CPF/CNPJ é de quem gerencia", () => {
+  const daAgenda = () => pedidosAoBanco.filter((p) => p.tabela === "agenda_de_pessoas");
+
+  it("Marketing e SDR não recebem `documento`, e a coluna nem é pedida ao banco", async () => {
+    for (const quem of SO_LEEM) {
+      pedidosAoBanco = [];
+      const { status, corpo, porId } = await lerAgenda(quem);
+      expect(status, quem).toBe(200);
+      for (const p of corpo.pessoas ?? []) expect(p.documento ?? null, `${quem} ${p.id}`).toBeNull();
+      expect(JSON.stringify(corpo), quem).not.toContain("12345678000190");
+      expect(daAgenda()[0].colunas, quem).not.toMatch(/documento/);
+      // O resto do contato segue inteiro.
+      expect(porId("p-1"), quem).toMatchObject({ nome: "AutoPeças Curitiba", telefone: "4130000000", cidade: "Curitiba" });
+    }
+  });
+
+  it("Marketing e SDR não buscam por documento", async () => {
+    for (const quem of SO_LEEM) {
+      pedidosAoBanco = [];
+      await lerAgenda(quem, "busca=12345678000190");
+      expect(daAgenda()[0].or, quem).toBe(filtroDeBusca("12345678000190", false));
+      expect(daAgenda()[0].or, quem).not.toMatch(/documento/);
+    }
+    expect(filtroDeBusca("x", false)).toBe("nome.ilike.*x*,email.ilike.*x*,telefone.ilike.*x*");
+  });
+
+  it("a conferência de repetidos de quem só lê sai pelo nome, sem o número", async () => {
+    // Dois cadastros com o mesmo CNPJ e nomes diferentes: prova para quem
+    // gerencia, nada para quem só lê.
+    banco.cadastros.push({ ...banco.cadastros[0], origem: "rede", id: "r-1", nome: "Auto Pecas CWB" });
+    for (const quem of SO_LEEM) {
+      usuario = quem;
+      pedidosAoBanco = [];
+      const corpo = await (await duplicatas.GET()).json();
+      expect(corpo.grupos, quem).toEqual([]);
+      expect(corpo.porDocumento, quem).toBe(false);
+      expect(JSON.stringify(corpo), quem).not.toContain("12345678000190");
+      expect(daAgenda()[0].colunas, quem).not.toMatch(/documento/);
+    }
+    usuario = "financeiro";
+    const corpo = await (await duplicatas.GET()).json();
+    expect(corpo.grupos).toMatchObject([{ motivo: "documento", chave: "12345678000190" }]);
+  });
+
+  it("quem gerencia recebe o documento e busca por ele, como antes", async () => {
+    for (const quem of QUEM_GERENCIA) {
+      pedidosAoBanco = [];
+      const { porId } = await lerAgenda(quem, "busca=12345678000190");
+      expect(porId("p-1")?.documento, quem).toBe("12345678000190");
+      expect(daAgenda()[0].or, quem).toMatch(/documento\.ilike/);
+    }
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Página grande, e o módulo de leads fora do ar
+// ----------------------------------------------------------------------------
+
+describe("perguntar pelos leads não falha calado", () => {
+  const uuid = (n: number) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, "0")}`;
+
+  it("página de 200 pessoas: os ids vão em lotes de até 100, e todos os leads do escopo voltam", async () => {
+    banco.leads = Array.from({ length: 199 }, (_, i) => ({
+      id: uuid(i), nome: `Lead ${String(i).padStart(3, "0")}`, telefone: "41", email: null, situacao: "Novo", observacoes: null, responsavel: "Ana",
+    }));
+    const { corpo } = await lerAgenda("gestor", "ativo=todos&limite=200");
+    const perguntas = pedidosAoBanco.filter((p) => p.tabela === "leads");
+    expect(perguntas.map((p) => p.tamanhoDoIn)).toEqual([100, 99]);
+    const leads = (corpo.pessoas ?? []).filter((p) => p.origem === "lead");
+    expect(leads).toHaveLength(199);
+    expect(leads.every((p) => p.especialidade === "Novo")).toBe(true);
+    expect(corpo.aviso).toBeUndefined();
+  });
+
+  it("leads fora do ar: a agenda responde, sem etapa nem link, e DIZ que não conferiu", async () => {
+    leadsForaDoAr = true;
+    const erros = vi.spyOn(console, "error").mockImplementation(() => {});
+    // A view também não entrega as colunas comerciais sem `leads`: o que a
+    // rota faz é não confiar no que vier e avisar.
+    const { status, corpo, porId } = await lerAgenda("comercial");
+    expect(status).toBe(200);
+    expect(porId(L_DA_ANA)).toMatchObject({ nome: "Carla", telefone: "41911110000", especialidade: null, observacoes: null });
+    expect(ligacaoDoLead(porId(L_DA_ANA) as never, "meus")).toBeNull();
+    expect(corpo.aviso).toBe(AVISO_DE_LEADS_INDISPONIVEIS);
+    expect(erros).toHaveBeenCalled();
+    erros.mockRestore();
+  });
+
+  it("escopo nenhum não pergunta pelos leads, então não há o que avisar", async () => {
+    leadsForaDoAr = true;
+    expect((await lerAgenda("marketing")).corpo.aviso).toBeUndefined();
   });
 });
 

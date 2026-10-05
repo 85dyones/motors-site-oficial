@@ -107,8 +107,14 @@
 --     segue o escopo de quem pergunta.
 --
 -- ⚠️ O aceite pede, por um instante e dentro de uma subtransação desfeita, a
--- trava exclusiva de `leads` (trocar a policy de leitura). Não aplicar no meio
--- de um pico de atendimento.
+-- trava exclusiva de `leads` (trocar a policy de leitura). Com
+-- `lock_timeout = '3s'`: se `leads` estiver presa por uma transação longa, a
+-- migração NÃO entra na fila (a fila pararia o formulário público de lead) —
+-- para em "TRAVA OCUPADA … tente de novo em instantes; nada foi aplicado".
+-- "Nada foi aplicado" vale para os dois caminhos do README, que aplicam o
+-- arquivo numa transação só (`aplicar-migracao.js`, `db push`). Num `psql -f`
+-- sem `-1`, a função e a view do bloco 1 já estariam gravadas quando o aceite
+-- parasse: inofensivo (é o estado final), e basta reaplicar.
 --
 -- ⚠️ DESFAZER (devolve o ramo de leads da 20260828160000; rode com a view no
 -- estado desta migração — os outros ramos são reaproveitados do banco):
@@ -158,6 +164,11 @@ declare
   v_atual   text;
   v_estado  text;
 begin
+  -- Nada aqui espera por `leads` mais de 3s: quem fica na fila de uma trava
+  -- segura atrás de si todo mundo que chega depois — inclusive o formulário
+  -- público de lead. Passou disso, desiste (ver o `exception` no fim do bloco).
+  set local lock_timeout = '3s';
+
   -- 0. O que este arquivo pressupõe ------------------------------------------
   if to_regclass('public.agenda_de_pessoas') is null
      or to_regclass('public.leads') is null
@@ -393,6 +404,11 @@ begin
     || 'vem NULL para os demais (2026-10-05). Lead ativo = em aberto ou ganho. '
     || 'Fontes unidas neste banco: ' || array_to_string(v_fontes, ', ')
     || '. Fonte ausente aqui significa tabela ausente no banco, não filtro.');
+exception
+  when lock_not_available then
+    raise exception
+      'TRAVA OCUPADA: public.leads está presa por outra transação há mais de 3s. '
+      'Tente de novo em instantes; nada foi aplicado.';
 end $agenda$;
 
 comment on function public.pessoas_dos_leads() is
@@ -562,6 +578,12 @@ begin
 
   -- Efeito — tudo daqui até o sentinela é desfeito ---------------------------
   begin
+    -- A troca da policy de leitura, na segunda volta, pede a trava EXCLUSIVA
+    -- de `leads`. Atrás de uma transação longa ela ficaria na fila, e a fila
+    -- pararia o formulário público. Três segundos, e desiste. (O `set local`
+    -- também é desfeito pelo sentinela.)
+    set local lock_timeout = '3s';
+
     foreach q in array array['admin', 'gestor', 'sdr', 'coma', 'comb', 'mkt', 'fin',
                              'cli', 'inv', 'inativo'] loop
       insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
@@ -780,6 +802,10 @@ begin
   exception
     -- O sentinela, e só ele. Qualquer outro erro sobe e para a migração.
     when sqlstate 'AGE01' then null;
+    when lock_not_available then
+      raise exception
+        'TRAVA OCUPADA: public.leads está presa por outra transação há mais de 3s. '
+        'Tente de novo em instantes; nada foi aplicado.';
   end;
 
   -- O veredito, lido das variáveis que sobreviveram ao rollback ---------------

@@ -262,10 +262,43 @@ export function termoDeBusca(bruto?: string | null): string | null {
 /** As colunas que a busca varre, na ordem em que fazem sentido para quem procura. */
 export const COLUNAS_DE_BUSCA = ["nome", "documento", "email", "telefone"] as const;
 
-/** O filtro `or` do PostgREST para um termo já limpo por `termoDeBusca`. */
-export function filtroDeBusca(termo: string): string {
-  return COLUNAS_DE_BUSCA.map((c) => `${c}.ilike.*${termo}*`).join(",");
+/**
+ * O filtro `or` do PostgREST para um termo já limpo por `termoDeBusca`.
+ *
+ * `comDocumento: false` é para quem só lê a agenda (Marketing, SDR): quem não
+ * recebe o CPF/CNPJ também não o procura. Buscar por documento e ver a linha
+ * aparecer é ler o documento por tentativa.
+ */
+export function filtroDeBusca(termo: string, comDocumento = true): string {
+  return COLUNAS_DE_BUSCA.filter((c) => comDocumento || c !== "documento")
+    .map((c) => `${c}.ilike.*${termo}*`)
+    .join(",");
 }
+
+/**
+ * As colunas de um `select` da agenda, sem `documento` para quem só lê.
+ *
+ * O CPF/CNPJ foi a razão de o Marketing ficar fora da agenda até 05/10/2026;
+ * a leitura abriu, o documento não. Ele nem é pedido ao banco, e
+ * `semDocumento` repete o corte na resposta.
+ */
+export function colunasParaQuemLe(colunas: string, podeGerenciar: boolean): string {
+  if (podeGerenciar) return colunas;
+  return colunas
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => c !== "documento")
+    .join(", ");
+}
+
+/** As linhas sem o CPF/CNPJ, para quem só lê. Quem gerencia recebe inteiras. */
+export function semDocumento<T extends PessoaDaAgenda>(pessoas: readonly T[], podeGerenciar: boolean): T[] {
+  return podeGerenciar ? [...pessoas] : pessoas.map((p) => ({ ...p, documento: null }));
+}
+
+/** O que a lista diz quando não conseguiu perguntar pelos leads. */
+export const AVISO_DE_LEADS_INDISPONIVEIS =
+  "Não deu para conferir os leads agora: a etapa e o link dos leads podem estar faltando nesta página. Tente de novo em instantes.";
 
 // ---------------------------------------------------------------------------
 // Roteamento da edição

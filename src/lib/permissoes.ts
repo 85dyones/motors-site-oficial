@@ -416,7 +416,7 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   linha(
     ACAO_VER_AGENDA,
     ["faz", "faz", "faz", "faz", "faz", "faz"],
-    "Toda a equipe ativa — o contato, e não o registro do lead",
+    "Toda a equipe ativa: o contato, e não o registro do lead",
   ),
   // GERENCIAR (cadastrar, editar, desativar, excluir) fica com quem já tinha:
   // o Comercial porque é quem atende, o Financeiro porque metade da agenda é
@@ -424,7 +424,7 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   linha(
     ACAO_GERENCIAR_AGENDA,
     ["faz", "faz", "nao_ve", "faz", "faz"],
-    "Cadastro único — Marketing e SDR só leem",
+    "Cadastro único: Marketing e SDR só leem, e sem CPF/CNPJ",
   ),
   // Linha ACRESCENTADA em 2026-08-28, pedido do dono: *"temos que ser capazes
   // de editar o funil de vendas de acordo com a necessidade"*.

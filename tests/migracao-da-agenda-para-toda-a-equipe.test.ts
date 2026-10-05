@@ -134,6 +134,23 @@ describe("migração: a agenda para toda a equipe", () => {
     expect(junto(aceite)).toContain("if v_txt is distinct from v_politicas then");
   });
 
+  it("não entra na fila de `leads`: lock_timeout antes de tudo que a trava, e a recusa diz o que fazer", () => {
+    const TRAVA = "set local lock_timeout = '3s';";
+    const RECUSA = "Tente de novo em instantes; nada foi aplicado.";
+    // No bloco da view: a primeira instrução, antes de ler ou recriar qualquer coisa.
+    expect(junto(oQueFica)).toMatch(/v_estado text; begin set local lock_timeout = '3s'; if to_regclass/);
+    // No aceite: dentro da sonda (o sentinela o desfaz) e antes da troca de policy.
+    const aceite = sql.slice(sql.indexOf("do $aceite$"));
+    expect(aceite.indexOf(TRAVA)).toBeGreaterThan(aceite.indexOf("\n  begin\n"));
+    expect(aceite.indexOf(TRAVA)).toBeLessThan(aceite.search(/(create|drop)\s+policy/i));
+    expect(sql.match(/when lock_not_available then/g)?.length).toBe(2);
+    expect(sql.split(RECUSA).length - 1).toBe(2);
+    // No ensaio: a primeira instrução do bloco único.
+    expect(junto(ensaio)).toMatch(/v_resumo jsonb; begin set local lock_timeout = '3s';/);
+    expect(junto(ensaio)).toContain("when lock_not_available then");
+    expect(ensaio).toContain(RECUSA);
+  });
+
   it("o mundo do escopo que o aceite simula é o da 20261003130000, letra por letra", () => {
     const policy = (texto: string) =>
       junto(texto.match(/create policy leads_leitura_por_escopo on public\.leads[\s\S]*?\n\s*\);/)?.[0] ?? "");
@@ -196,7 +213,7 @@ describe("ensaio: a agenda para toda a equipe", () => {
 
   it("é um bloco só, e termina no erro que desfaz tudo", () => {
     expect(ensaio.match(/^do \$\$/gm)?.length).toBe(1);
-    expect(junto(ensaio)).toMatch(/raise exception 'ENSAIO_DESFEITO %', v_resumo::text; end \$\$;$/);
+    expect(junto(ensaio)).toMatch(/raise exception 'ENSAIO_DESFEITO %', v_resumo::text; exception when lock_not_available then raise exception 'TRAVA OCUPADA: [^$]*nada foi aplicado\.'; end \$\$;$/);
     expect(ensaio).not.toContain("schema_migrations");
     expect(ensaio).not.toMatch(/\bcommit\b/i);
   });

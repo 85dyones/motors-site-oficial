@@ -119,6 +119,8 @@ export default function AgendaDePessoas({
 
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
+  // O que a rota avisa sobre a página carregada (ex.: não conferiu os leads).
+  const [avisoDaLista, setAvisoDaLista] = useState("");
 
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -159,6 +161,7 @@ export default function AgendaDePessoas({
       }
       setPessoas(dados.pessoas ?? []);
       setTotal(dados.total ?? 0);
+      setAvisoDaLista(typeof dados.aviso === "string" ? dados.aviso : "");
     } catch (e: any) {
       setErro(`Erro de rede: ${e.message}`);
     } finally {
@@ -294,7 +297,7 @@ export default function AgendaDePessoas({
         setErro(dados.error || "Não foi possível mudar o estado.");
         return;
       }
-      setAviso(p.ativo ? "Desativado — some das listas, fica no histórico." : "Reativado.");
+      setAviso(p.ativo ? "Desativado: some das listas, fica no histórico." : "Reativado.");
       buscarPessoas();
       setTimeout(() => setAviso(""), 4000);
     } catch (e: any) {
@@ -308,7 +311,7 @@ export default function AgendaDePessoas({
       title: "Excluir cadastro",
       message:
         `Excluir "${p.nome}" em definitivo? Se ele já apareceu em algum ` +
-        "lançamento, prefira DESATIVAR — o histórico continua legível.",
+        "lançamento, prefira DESATIVAR: o histórico continua legível.",
       confirmLabel: "Sim, excluir",
       cancelLabel: "Cancelar",
       type: "danger",
@@ -343,8 +346,8 @@ export default function AgendaDePessoas({
         <div className="mt-rotulo mt-rotulo-accent">Relacionamento</div>
         <h1 className="mt-titulo text-3xl md:text-4xl">Clientes e fornecedores</h1>
         <p className="mt-1 max-w-[640px] text-sm text-mt-neutral-800">
-          Quem compra, quem fornece, quem presta serviço e quem investe — os quatro
-          cadastros da casa numa lista só. A coluna <em>Cadastro</em> diz de onde cada
+          Quem compra, quem fornece, quem presta serviço, quem investe e quem pediu
+          contato: os cinco cadastros da casa numa lista só. A coluna <em>Cadastro</em> diz de onde cada
           um vem{podeGerenciar ? ", porque é ela que decide o que dá para editar por aqui" : ""}.
         </p>
         {!podeGerenciar && (
@@ -360,6 +363,11 @@ export default function AgendaDePessoas({
           {erro}
         </div>
       )}
+      {avisoDaLista && (
+        <div data-agenda="aviso-da-lista" role="status" className="border border-mt-accent-300 bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent select-none">
+          {avisoDaLista}
+        </div>
+      )}
       {aviso && (
         <div className="border border-mt-regua-fina bg-mt-surface px-4 py-3 text-xs font-bold text-mt-accent-800 select-none">
           {aviso}
@@ -371,13 +379,13 @@ export default function AgendaDePessoas({
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex min-w-[220px] flex-1 flex-col gap-1">
             <label className="text-[9px] font-bold uppercase tracking-wider text-mt-neutral-700">
-              Buscar por nome, documento, e-mail ou telefone
+              {podeGerenciar ? "Buscar por nome, documento, e-mail ou telefone" : "Buscar por nome, e-mail ou telefone"}
             </label>
             <input
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Ex: AutoPeças, 12.345.678/0001-90, (41) 9…"
+              placeholder={podeGerenciar ? "Ex: AutoPeças, 12.345.678/0001-90, (41) 9…" : "Ex: AutoPeças, (41) 9…"}
               className="h-10 border border-mt-regua-fina bg-mt-bg px-3.5 text-xs text-mt-ink outline-none focus:border-mt-accent"
             />
           </div>
@@ -463,8 +471,9 @@ export default function AgendaDePessoas({
             {conferindo ? "Conferindo…" : "Procurar cadastros repetidos"}
           </button>
           <span className="text-[10px] text-mt-neutral-600">
-            Varre os quatro cadastros de uma vez — o mesmo CNPJ pode estar como
-            fornecedor aqui e como oficina na rede.
+            {podeGerenciar
+              ? "Varre os cinco cadastros de uma vez: o mesmo CNPJ pode estar como fornecedor aqui e como oficina na rede."
+              : "Varre os cinco cadastros de uma vez, pelo nome."}
           </span>
         </div>
 
@@ -478,11 +487,11 @@ export default function AgendaDePessoas({
             ) : (
               <>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-mt-ink">
-                  {duplicatas.length} possível(is) repetição(ões)
+                  {duplicatas.length === 1 ? "1 possível repetição" : `${duplicatas.length} possíveis repetições`}
                 </span>
                 {!duplicatasCompletas && (
                   <span className="text-[10px] text-mt-accent">
-                    A base é maior que o limite da varredura — esta análise é parcial.
+                    A base é maior que o limite da varredura: esta análise é parcial.
                   </span>
                 )}
                 {duplicatas.map((g) => (
@@ -493,7 +502,7 @@ export default function AgendaDePessoas({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-mt-neutral-700">
                       {g.motivo === "documento"
                         ? `Mesmo documento (${g.chave})`
-                        : `Mesmo nome — confira se é a mesma pessoa`}
+                        : "Mesmo nome: confira se é a mesma pessoa"}
                     </span>
                     <div className="flex flex-wrap gap-2">
                       {g.pessoas.map((p) => (
@@ -532,7 +541,7 @@ export default function AgendaDePessoas({
                   <th className="pb-3 pl-2">Nome</th>
                   <th className="pb-3">Papel</th>
                   <th className="pb-3">Cadastro</th>
-                  <th className="pb-3">CPF / CNPJ</th>
+                  {podeGerenciar && <th className="pb-3">CPF / CNPJ</th>}
                   <th className="pb-3">Contato</th>
                   {podeGerenciar && <th className="pb-3 pr-2 text-right">Ações</th>}
                 </tr>
@@ -577,9 +586,12 @@ export default function AgendaDePessoas({
                       <td className="py-3 text-[11px] text-mt-neutral-700">
                         {ORIGENS[p.origem].rotulo}
                       </td>
-                      <td className="py-3 font-mono text-mt-neutral-700">
-                        {p.documento || "—"}
-                      </td>
+                      {/* O CPF/CNPJ é de quem gerencia: quem só lê nem o recebe. */}
+                      {podeGerenciar && (
+                        <td className="py-3 font-mono text-mt-neutral-700">
+                          {p.documento || "—"}
+                        </td>
+                      )}
                       <td className="py-3 text-mt-neutral-700">
                         <div className="flex flex-col leading-tight">
                           <span>{p.telefone || "—"}</span>
@@ -716,7 +728,7 @@ function FormularioDaPessoa({
       <div className="flex max-h-[90vh] w-full max-w-md flex-col gap-4 overflow-y-auto border border-mt-regua-fina bg-mt-surface p-6">
         <div className="flex items-center justify-between border-b border-mt-regua-fina pb-3">
           <h3 className="text-xs font-extrabold uppercase tracking-wider text-mt-ink">
-            {novo ? "Novo cadastro" : `Editar — ${ORIGENS[rascunho.origem].rotulo}`}
+            {novo ? "Novo cadastro" : `Editar: ${ORIGENS[rascunho.origem].rotulo}`}
           </h3>
           <button onClick={fechar} className="cursor-pointer font-bold text-mt-neutral-700 hover:text-mt-ink">
             ✕

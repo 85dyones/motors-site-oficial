@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sessaoDaAgenda } from "../../../../lib/agenda-servidor";
-import { acharDuplicatas, type PessoaDaAgenda } from "../../../../lib/agenda";
+import { acharDuplicatas, colunasParaQuemLe, type PessoaDaAgenda } from "../../../../lib/agenda";
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +39,14 @@ const TETO_DE_LOTES = 20;
 export async function GET() {
   try {
     // Leitura: é de toda a equipe ativa (05/10/2026). A varredura só pede
-    // colunas de diretório (nome, papel, documento), nada do registro do lead.
+    // colunas de diretório, nada do registro do lead.
+    //
+    // O CPF/CNPJ é de quem gerencia. Para quem só lê (Marketing, SDR) a
+    // coluna nem é pedida: a conferência sai só pelo nome, e nenhum grupo
+    // "mesmo documento" (que traz o número como chave) chega à resposta.
     const sessao = await sessaoDaAgenda("leitura");
     if (sessao.recusa) return sessao.recusa;
-    const { supabase } = sessao;
+    const { supabase, podeGerenciar } = sessao;
 
     const pessoas: PessoaDaAgenda[] = [];
     let completo = true;
@@ -55,7 +59,7 @@ export async function GET() {
       const inicio = lote * POR_LOTE;
       const { data, error } = await supabase
         .from("agenda_de_pessoas")
-        .select("origem, id, nome, papel, documento, ativo")
+        .select(colunasParaQuemLe("origem, id, nome, papel, documento, ativo", podeGerenciar))
         .order("id", { ascending: true })
         .range(inicio, inicio + POR_LOTE - 1);
 
@@ -76,6 +80,7 @@ export async function GET() {
 
     return NextResponse.json({
       grupos,
+      porDocumento: podeGerenciar,
       analisadas: pessoas.length,
       completo,
     });
