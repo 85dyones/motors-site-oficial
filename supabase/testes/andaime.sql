@@ -419,3 +419,44 @@ create unique index parametros_avaliacao_um_vigente
 
 revoke all on public.orgs, public.parametros_avaliacao from anon;
 revoke truncate on public.orgs, public.parametros_avaliacao from authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Recorte de `estoque_motors`: só o que os veículos de interesse do lead leem
+-- ---------------------------------------------------------------------------
+-- Entra pela migração `20261005120000_veiculos_de_interesse.sql`, que LÊ o
+-- estoque (o retrato do carro na opção do lead, o ranking por veículo) e não
+-- escreve nele. A baseline do estoque (20260803120000) não entra na CADEIA:
+-- ela e as que vêm depois trazem o sync, a ficha do painel e as fotos.
+--
+-- Copiado da baseline, só as colunas lidas — a chave é `bigint` (o código do
+-- anúncio no RevendaMais), e é ela que `leads.veiculo_id` guarda, sem FK:
+--   * id, marca, modelo, versao, ano, preco ... 20260803120000_baseline_inventario.sql:42-57
+--   * vendido .................................. supabase_schema.sql:230 (bootstrap)
+--
+-- Dois carros de semente, em minúsculas como o sync grava: o aceite da
+-- migração precisa de UM carro de verdade para provar a inclusão com sessão
+-- (o gatilho recusa carro que não existe), e ele não grava no estoque nem na
+-- sonda. O segundo tem a versão embutida no modelo, o caso de `nomeDoVeiculo`.
+--
+-- RLS ligada e sem policy: quem lê aqui são funções SECURITY DEFINER. Em
+-- produção a tabela tem policies e grants por coluna (20261001150000) que este
+-- recorte não reproduz.
+--
+-- ⚠️ Mesma regra dos outros recortes: se a baseline entrar na cadeia um dia,
+-- este sai daqui.
+create table public.estoque_motors (
+  id       bigint primary key,
+  marca    text,
+  modelo   text,
+  versao   text,
+  ano      integer,
+  preco    numeric,
+  vendido  boolean default false
+);
+alter table public.estoque_motors enable row level security;
+revoke all on public.estoque_motors from anon, authenticated;
+
+insert into public.estoque_motors (id, marca, modelo, versao, ano, preco, vendido) values
+  (7950008, 'fiat', 'uno', 'mille fire economy', 2013, 28900, false),
+  (7950009, 'bmw',  'x4 m40i 3.0 m sport', 'm40i 3.0 m sport', 2022, 489900, false);

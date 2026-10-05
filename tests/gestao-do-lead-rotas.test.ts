@@ -300,7 +300,13 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(AGORA);
   usuario = "u-ana";
-  falhas = {};
+  // `leads_veiculos` (20261005120000) ainda não existe neste banco, como em
+  // produção no dia em que o código dos veículos de interesse foi ao ar: o
+  // detalhe e os dados têm de responder como sempre. O banco COM a tabela é o
+  // de `tests/veiculos-de-interesse-rotas.test.ts`.
+  falhas = {
+    leads_veiculos: { code: "PGRST205", message: "Could not find the table 'public.leads_veiculos' in the schema cache" },
+  };
   falhasAoGravar = {};
   linhaDoTempo = [];
   rpcs = [];

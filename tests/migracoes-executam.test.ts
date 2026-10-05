@@ -136,6 +136,16 @@ const CADEIA = [
   // seguram — privilégio, RLS e SECURITY DEFINER só se provam num banco de
   // verdade. Usa `org_padrao` e o guarda do recorte da F0 no andaime.
   "20260928120000_parametros_financiamento.sql",
+  // Os veículos de interesse do lead (2026-10-05): vários carros por lead,
+  // cada um escolhido ou descartado com motivo, e o relatório por veículo.
+  // Entra na cadeia porque o aceite prova cada regra tentando gravar o
+  // inválido, veste admin, dois vendedores, marketing, cliente, desativado e
+  // anônimo para provar que a opção acompanha a visibilidade do lead, e
+  // confere que os relatórios não devolvem dado de pessoa. Aqui ela roda com
+  // a RLS de `leads` por `is_staff` — a de produção hoje; o `describe` do fim
+  // do arquivo aplica a 20261003130000 e a reaplica no outro mundo. Lê
+  // `estoque_motors` (sem escrever): o recorte dela entrou no andaime junto.
+  "20261005120000_veiculos_de_interesse.sql",
 ];
 
 /**
@@ -222,9 +232,14 @@ const PREFIXO = process.env.PSQL_TESTE
       return r.status === 0 ? ["psql"] : ["su", "postgres", "-c", "PSQL"];
     })();
 
+/**
+ * A saída de cada migração, para as asserções lerem os avisos. No módulo, e
+ * não dentro do primeiro `describe`: o dos veículos de interesse, no fim,
+ * compara a saída da cadeia com a da reaplicação.
+ */
+const saidas = new Map<string, string>();
+
 describe.skipIf(!temBanco)("as migrações aplicam num Postgres limpo", () => {
-  /** A saída de cada migração, para as asserções lerem os avisos. */
-  const saidas = new Map<string, string>();
 
   beforeAll(() => {
     // Banco descartável: `dropdb` antes garante que o teste parte do zero
@@ -338,6 +353,245 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
     expect(
       ehVerdade(
         `(select count(*)=${CADEIA.length} from supabase_migrations.schema_migrations where version in (${versoes}))`,
+      ),
+    ).toBe(true);
+  });
+});
+
+/**
+ * Os veículos de interesse do lead (20261005120000), com DADO e nos dois
+ * mundos da RLS de `leads`.
+ *
+ * Na cadeia a migração roda num banco sem lead nenhum e com `leads` aberta a
+ * toda a equipe (`is_staff`) — produção em 2026-10-05. Aqui: entram leads com
+ * veículo, a tabela é esvaziada, a 20261003130000 (escopo) é aplicada e a
+ * migração é REAPLICADA. Isso prova três coisas que a cadeia sozinha não
+ * prova: a carga inicial com linhas de verdade, o aceite no mundo do escopo, e
+ * que reaplicar é seguro.
+ *
+ * Depois, os invariantes pelo lado de fora: cada violação tem de falhar, pelo
+ * nome da regra.
+ *
+ * ⚠️ Este bloco fica por último de propósito: ele muda a RLS de `leads` do
+ * banco de teste.
+ */
+describe.skipIf(!temBanco)("os veículos de interesse do lead, com dado e nos dois mundos", () => {
+  const MIGRACAO = "20261005120000_veiculos_de_interesse.sql";
+  const ESCOPO = "20261003130000_leads_rls_por_escopo.sql";
+  const UNO = 7950008; // os dois carros de semente do andaime
+  const BMW = 7950009;
+  let reaplicada = "";
+
+  /** A expressão é verdadeira? Lê a linha `t` do psql, e só ela. */
+  const vale = (expr: string): boolean => /^\s*t\s*$/m.test(psql!(`select (${expr}) as ok`));
+
+  /**
+   * A mesma pergunta, na sessão de alguém. O `case` garante a ordem: primeiro
+   * os claims, depois a expressão — as funções de relatório leem `auth.uid()`.
+   */
+  const valeNaSessaoDe = (email: string, expr: string): boolean =>
+    vale(
+      `case when (select set_config('request.jwt.claims',
+                     json_build_object('sub', p.id, 'role', 'authenticated')::text, true)
+                    from public.profiles p where p.email = '${email}') is not null
+            then (${expr}) end`,
+    );
+
+  /** A mensagem do erro, ou "" se o comando passou. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(sql);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  const opcao = (lead: string, carro: number) =>
+    `(select v.id from public.leads_veiculos v join public.leads l on l.id = v.lead_id
+       where l.nome = '${lead}' and v.veiculo_id = ${carro})`;
+
+  beforeAll(() => {
+    psql!(`
+      insert into auth.users (id, instance_id, aud, role, email) values
+        (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'lv-equipe@exemplo.invalido'),
+        (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'lv-cliente@exemplo.invalido');
+      update public.profiles set full_name = 'LV Marketing', papeis = array['marketing'], role = 'marketing', is_active = true
+       where email = 'lv-equipe@exemplo.invalido';
+      update public.profiles set full_name = 'LV Cliente', papeis = array['cliente'], role = 'cliente', is_active = true
+       where email = 'lv-cliente@exemplo.invalido';
+      insert into public.leads (nome, telefone, interesse, veiculo_id) values
+        ('LV aberto',   '5541900000001', 'Uno',              ${UNO}),
+        ('LV ganho',    '5541900000002', 'BMW',              ${BMW}),
+        ('LV perdido',  '5541900000003', 'Uno',              ${UNO}),
+        ('LV sumiu',    '5541900000004', '  Fiat Argo 2020 ', 111),
+        ('LV sem nome', '5541900000005', null,               222),
+        ('LV sem carro','5541900000006', 'qualquer',         null);
+      update public.leads set situacao = (select chave from public.funil_etapas where tipo = 'ganho' and ativa limit 1)
+       where nome = 'LV ganho';
+      update public.leads set situacao = (select chave from public.funil_etapas where tipo = 'perdido' and ativa limit 1)
+       where nome = 'LV perdido';
+      delete from public.leads_veiculos;
+    `);
+    arquivo(PREFIXO, join(DIR_MIGRACOES, ESCOPO));
+    reaplicada = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+  }, 120_000);
+
+  it("o aceite passa com leads por is_staff (a cadeia) e com leads por escopo (a reaplicação)", () => {
+    expect(saidas.get(MIGRACAO)).toContain("leads por is_staff (20261003130000 ainda não aplicada)");
+    expect(reaplicada).toContain("Aceite verificado");
+    expect(reaplicada).toContain("leads por escopo (20261003130000 aplicada)");
+    expect(reaplicada).not.toMatch(/^psql.*ERROR:/m);
+  });
+
+  it("a carga inicial: uma opção por lead com veículo, ganho vira escolhido, perda não vira descarte", () => {
+    expect(reaplicada).toContain("Carga inicial: 5 linha(s)");
+    expect(vale("(select count(*) from public.leads_veiculos) = 5")).toBe(true);
+    expect(
+      vale(`(select situacao = 'escolhido' and resolvido_em is not null from public.leads_veiculos where id = ${opcao("LV ganho", BMW)})`),
+    ).toBe(true);
+    expect(
+      vale(
+        `(select situacao = 'em_avaliacao' and motivo_descarte is null and resolvido_em is null
+            from public.leads_veiculos where id = ${opcao("LV perdido", UNO)})`,
+      ),
+    ).toBe(true);
+    expect(vale("(select count(*) from public.leads_veiculos where situacao = 'descartado') = 0")).toBe(true);
+    // Sem autor, e datada pelo lead.
+    expect(
+      vale(
+        `(select bool_and(v.adicionado_por is null and v.criado_em = l.created_at)
+            from public.leads_veiculos v join public.leads l on l.id = v.lead_id)`,
+      ),
+    ).toBe(true);
+  });
+
+  it("o retrato: rótulo do estoque, do interesse do lead ou genérico; preço só de carro que existe", () => {
+    expect(
+      vale(
+        `(select veiculo_rotulo = 'fiat uno mille fire economy 2013' and veiculo_preco = 28900
+            from public.leads_veiculos where id = ${opcao("LV aberto", UNO)})`,
+      ),
+    ).toBe(true);
+    // A versão embutida no modelo não se repete (a regra de nomeDoVeiculo).
+    expect(
+      vale(`(select veiculo_rotulo = 'bmw x4 m40i 3.0 m sport 2022' from public.leads_veiculos where id = ${opcao("LV ganho", BMW)})`),
+    ).toBe(true);
+    expect(
+      vale(
+        `(select veiculo_rotulo = 'Fiat Argo 2020' and veiculo_preco is null
+            from public.leads_veiculos where id = ${opcao("LV sumiu", 111)})`,
+      ),
+    ).toBe(true);
+    expect(
+      vale(`(select veiculo_rotulo = 'Veículo nº 222' from public.leads_veiculos where id = ${opcao("LV sem nome", 222)})`),
+    ).toBe(true);
+  });
+
+  it("reaplicar não refaz a carga: a opção que o admin apagou não volta", () => {
+    psql!(`delete from public.leads_veiculos where id = ${opcao("LV sem nome", 222)}`);
+    const denovo = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+    expect(denovo).toContain("Carga inicial pulada");
+    expect(denovo).toContain("Aceite verificado");
+    expect(vale("(select count(*) from public.leads_veiculos) = 4")).toBe(true);
+  });
+
+  it("violação falha: descartar pede motivo, o motivo é da lista, e 'outro' pede nota", () => {
+    const alvo = opcao("LV aberto", UNO);
+    expect(recusa(`update public.leads_veiculos set situacao = 'descartado' where id = ${alvo}`)).toContain(
+      "leads_veiculos_motivo_so_no_descarte",
+    );
+    expect(
+      recusa(`update public.leads_veiculos set situacao = 'descartado', motivo_descarte = 'feio' where id = ${alvo}`),
+    ).toContain("leads_veiculos_motivo_valido");
+    expect(
+      recusa(`update public.leads_veiculos set situacao = 'descartado', motivo_descarte = 'outro' where id = ${alvo}`),
+    ).toContain("leads_veiculos_outro_pede_nota");
+    expect(recusa(`update public.leads_veiculos set motivo_descarte = 'preco' where id = ${alvo}`)).toContain(
+      "leads_veiculos_motivo_so_no_descarte",
+    );
+    expect(recusa(`update public.leads_veiculos set situacao = 'talvez' where id = ${alvo}`)).toContain(
+      "leads_veiculos_situacao_valida",
+    );
+    // Nada disso passou.
+    expect(vale(`(select situacao = 'em_avaliacao' from public.leads_veiculos where id = ${alvo})`)).toBe(true);
+  });
+
+  it("violação falha: um escolhido por lead, o mesmo carro uma vez, e a opção não troca de carro", () => {
+    const novo = (situacao: string) =>
+      `insert into public.leads_veiculos (lead_id, veiculo_id, veiculo_rotulo, situacao)
+       select id, ${UNO}, 'fiat uno', '${situacao}' from public.leads where nome = 'LV ganho'`;
+    expect(recusa(novo("escolhido"))).toContain("leads_veiculos_um_escolhido_por_lead");
+    // Controle positivo: o segundo carro entra, em avaliação…
+    expect(recusa(novo("em_avaliacao"))).toBe("");
+    // …e não entra de novo.
+    expect(recusa(novo("em_avaliacao"))).toContain("leads_veiculos_lead_veiculo_unico");
+    expect(recusa(`update public.leads_veiculos set veiculo_id = ${BMW} where id = ${opcao("LV aberto", UNO)}`)).toContain(
+      "não troca de lead nem de carro",
+    );
+    // A opção vai embora com o lead (LGPD: a eliminação do lead leva tudo).
+    psql!(`delete from public.leads where nome = 'LV sumiu'`);
+    expect(vale("(select count(*) from public.leads_veiculos where veiculo_id = 111) = 0")).toBe(true);
+  });
+
+  it("o resumo do veículo: contagens, motivos e notas — para a equipe, e sem dado de pessoa", () => {
+    // O lead perdido descarta o Uno por preço, com nota.
+    psql!(
+      `update public.leads_veiculos
+          set situacao = 'descartado', motivo_descarte = 'preco', nota = 'achou caro para o ano'
+        where id = ${opcao("LV perdido", UNO)}`,
+    );
+    const resumo = `(select to_jsonb(r) from public.resumo_de_interesse_do_veiculo(${UNO}) r)`;
+    // Uno: LV aberto (em avaliação), LV perdido (descartado), LV ganho (em avaliação, do teste acima).
+    // Quem pergunta é do Marketing: no mundo do escopo não vê lead nenhum, e lê o resumo da loja inteira.
+    expect(
+      valeNaSessaoDe(
+        "lv-equipe@exemplo.invalido",
+        `${resumo} @> '{"total": 3, "em_avaliacao": 2, "sem_resolucao": 1, "escolhido": 0, "descartado": 1,
+                       "motivos": [{"motivo": "preco", "total": 1}]}'::jsonb
+         and ${resumo}->'notas'->0->>'nota' = 'achou caro para o ano'
+         and ${resumo}->'notas'->0->>'motivo' = 'preco'`,
+      ),
+    ).toBe(true);
+    // Nada de nome, telefone, lead ou autor na saída.
+    expect(
+      valeNaSessaoDe(
+        "lv-equipe@exemplo.invalido",
+        `${resumo}::text !~ 'LV (aberto|perdido|ganho)|55419|lead_id|adicionado_por|resolvido_por'`,
+      ),
+    ).toBe(true);
+    // O ranking traz os dois carros do estoque e o que já saiu dele.
+    expect(
+      valeNaSessaoDe(
+        "lv-equipe@exemplo.invalido",
+        `(select count(*) filter (where no_estoque) = 2
+                 and bool_or(veiculo_id = ${UNO} and total = 3 and motivo_principal = 'preco')
+            from public.interesse_por_veiculo())`,
+      ),
+    ).toBe(true);
+  });
+
+  it("quem não é da equipe não lê o relatório — nem cliente logado, nem chamada sem sessão", () => {
+    expect(recusa(`select total from public.resumo_de_interesse_do_veiculo(${UNO})`)).toContain("restrito à equipe");
+    expect(recusa(`select count(*) from public.interesse_por_veiculo()`)).toContain("restrito à equipe");
+    expect(
+      recusa(
+        `select case when (select set_config('request.jwt.claims',
+                             json_build_object('sub', p.id, 'role', 'authenticated')::text, true)
+                            from public.profiles p where p.email = 'lv-cliente@exemplo.invalido') is not null
+                     then (select total from public.resumo_de_interesse_do_veiculo(${UNO})) end`,
+      ),
+    ).toContain("restrito à equipe");
+  });
+
+  it("nada foi pendurado em estoque_motors nem em leads", () => {
+    expect(
+      vale(
+        `not exists (select 1 from pg_constraint
+                      where confrelid = 'public.estoque_motors'::regclass)
+         and not exists (select 1 from pg_trigger
+                          where tgrelid = 'public.estoque_motors'::regclass and not tgisinternal)
+         and (select count(*) = 2 from public.estoque_motors)`,
       ),
     ).toBe(true);
   });

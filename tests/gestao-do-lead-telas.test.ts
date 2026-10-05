@@ -430,17 +430,18 @@ describe("a Lista do dia", () => {
 });
 
 describe("o detalhe: um componente, dois layouts", () => {
-  it("na gaveta, uma coluna na ordem h p c t d, com o nome em h2", async () => {
+  it("na gaveta, uma coluna na ordem h p v c t d (os carros logo depois do próximo passo), com o nome em h2", async () => {
     await montarQuadro("Ana");
     await clicar(cardDe(container, "l1"));
     const g = gaveta()!;
 
-    expect(blocos(g)).toEqual(["h", "p", "c", "t", "d"]);
+    expect(blocos(g)).toEqual(["h", "p", "v", "c", "t", "d"]);
     expect(g.querySelector("[data-blocos]")!.className).toBe("flex flex-col");
     expect(g.querySelector("h2")!.textContent).toBe("Joana Atrasada");
     expect(g.querySelector("h1")).toBeNull();
     expect([...g.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
       "Próximo passo",
+      "Carro de interesse",
       "Registrar interação",
       "Histórico",
       "Dados do negócio",
@@ -456,13 +457,17 @@ describe("o detalhe: um componente, dois layouts", () => {
     await montarPagina("l1");
     const pagina = container.querySelector<HTMLElement>('[data-layout="pagina"]')!;
 
-    expect(blocos(pagina)).toEqual(["h", "p", "c", "t", "d"]);
+    // Os carros de interesse ficam no alto da coluna dos dados.
+    expect(blocos(pagina)).toEqual(["h", "p", "c", "t", "v", "d"]);
     const grade = pagina.querySelector("[data-blocos]")!.className;
     expect(grade).toContain("xl:grid-cols-[320px_minmax(0,1fr)_320px]");
     expect(grade).toContain("xl:[grid-template-areas:'h_h_h'_'d_c_p'_'d_t_p']");
-    for (const b of ["h", "p", "c", "t", "d"]) {
+    for (const b of ["h", "p", "c", "t"]) {
       expect(pagina.querySelector(`[data-bloco="${b}"]`)!.className, b).toContain(`xl:[grid-area:${b}]`);
     }
+    const colunaDosDados = pagina.querySelector<HTMLElement>('[data-coluna="d"]')!;
+    expect(colunaDosDados.className).toContain("xl:[grid-area:d]");
+    expect(blocos(colunaDosDados)).toEqual(["v", "d"]);
     expect(pagina.querySelector("h1")!.textContent).toBe("Joana Atrasada");
     expect([...pagina.querySelectorAll("h2")].map((h) => h.textContent)).toContain("Histórico");
     // Não é diálogo, e não tem FECHAR.
@@ -831,9 +836,12 @@ describe("os dados do negócio", () => {
     expect(texto(d)).not.toContain("E-mail");
 
     await clicar(botao("+ adicionar dado", d));
-    for (const campo of ["E-mail", "Carro de interesse", "Faixa de entrada", "Forma de pagamento pretendida"]) {
+    for (const campo of ["E-mail", "Faixa de entrada", "Forma de pagamento pretendida"]) {
       expect(texto(d), campo).toContain(campo);
     }
+    // O carro de interesse saiu dos dados: tem bloco próprio (05/10/2026).
+    expect(texto(d)).not.toContain("Carro de interesse");
+    expect(d.querySelector('input[name="codigo"]')).toBeNull();
     expect([...grupo("Forma de pagamento pretendida", d)!.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
       "À vista",
       "Financiado",

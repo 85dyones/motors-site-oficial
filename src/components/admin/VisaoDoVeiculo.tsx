@@ -16,6 +16,7 @@ import { descontoPct, precoEfetivo, temPromocao } from "../../lib/precoPromocion
 import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import { getVeiculoPdpUrl, mapVeiculoDbToVeiculo } from "../../lib/supabase";
 import { podeEditarOVeiculo } from "../../lib/veiculoNoPainel";
+import InteresseDoVeiculo from "./InteresseDoVeiculo";
 
 /**
  * A visão do veículo no painel: o cadastro inteiro em texto, sem um campo
@@ -294,6 +295,12 @@ export default function VisaoDoVeiculo({
           ))}
         </dl>
       </div>
+
+      {/* O que os atendimentos dizem do carro: quantos o consideraram e por
+          que ficou para trás. Vem antes do cadastro porque é o que decide
+          preço e conversa com o dono do consignado. Some sozinho enquanto o
+          banco não tem a estrutura. */}
+      <InteresseDoVeiculo veiculoId={v.id} />
 
       <Secao id="fotos" titulo="Fotos">
         {fotos.length === 0 ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ehTipoDeDesfecho,
   nivelDeEstagnacao,
@@ -29,8 +29,18 @@ import {
 import { criarMover } from "../../lib/leadsKanban";
 import { aplicarMudanca, type MudancaDeEtiquetas } from "../../lib/etiquetas";
 import { definirNomeNaTrilha } from "../../lib/nomeNaTrilha";
+import {
+  opcaoProvisoria,
+  opcoesDoDetalhe,
+  preverMudanca,
+  type CarroDaBusca,
+  type ItemDaResolucao,
+  type MudancaDaOpcao,
+} from "../../lib/carrosDeInteresseNaTela";
+import type { PendenciaDeVeiculo, VeiculoDeInteresse } from "../../lib/veiculosDeInteresse";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
 import CabecalhoDoLead from "./lead/CabecalhoDoLead";
+import CarrosDeInteresse from "./lead/CarrosDeInteresse";
 import DadosDoNegocio from "./lead/DadosDoNegocio";
 import HistoricoDoLead from "./lead/HistoricoDoLead";
 import ProximoPassoDoLead from "./lead/ProximoPassoDoLead";
@@ -47,12 +57,17 @@ import { NivelDoTituloDeBloco } from "./lead/TituloDeBloco";
  *     começado, Esc não fecha, e FECHAR ou a troca de card perguntam antes.
  *   · `pagina`: `/admin/leads/[id]`, o destino dos links e das telas estreitas.
  *
- * Os cinco blocos são os mesmos, na mesma ordem no HTML (h, p, c, t, d). Na
- * página larga, eles se reposicionam por `grid-template-areas`.
+ * Os blocos são os mesmos nos dois: cabeçalho (h), próximo passo (p), carros
+ * de interesse (v), registro (c), histórico (t) e dados (d). Na gaveta a ordem
+ * é h p v c t d: os carros sobem para junto do próximo passo, porque são
+ * ferramenta do atendimento. Na página estreita (tablet) a ordem é a mesma. Na
+ * página de três colunas, v fica no alto da coluna dos dados (h p c t v d no
+ * HTML), e os blocos se reposicionam por `grid-template-areas`.
  *
  * Os dados vêm de `GET /api/leads/[id]`. Etapa, responsável e desfecho gravam
  * pelo `PATCH /api/leads/gerenciar`, com as travas de sempre; o registro, o
- * "Chegou na loja" e os dados do negócio, pelas rotas do próprio lead.
+ * "Chegou na loja", os dados do negócio e os carros de interesse, pelas rotas
+ * do próprio lead (`docs/GESTAO_DO_LEAD.md`, seção 7 para os carros).
  *
  * A gravação segue o padrão do quadro: otimista, e em caso de falha o detalhe
  * relê o lead do servidor e SÓ DEPOIS mostra o erro (`falhou`). Restaurar um
@@ -72,13 +87,29 @@ class ErroDeLeitura extends Error {
 }
 
 /** Onde cada bloco cai na página larga. Na gaveta e na página estreita, a ordem do HTML. */
-const AREA: Record<"h" | "p" | "c" | "t" | "d", string> = {
+const AREA: Record<"h" | "p" | "c" | "t" | "d" | "v", string> = {
   h: "xl:[grid-area:h]",
   p: "xl:[grid-area:p] xl:border-l xl:border-mt-regua-fina",
   c: "xl:[grid-area:c] xl:border-t-0",
   t: "xl:[grid-area:t]",
-  d: "xl:[grid-area:d] xl:border-t-0 xl:border-r xl:border-mt-regua-fina",
+  // A coluna dos dados: os carros de interesse em cima, os dados embaixo.
+  d: "xl:[grid-area:d] xl:border-r xl:border-mt-regua-fina",
+  v: "xl:border-t-0",
 };
+
+/** A partir daqui a página tem três colunas (o `xl` do Tailwind), e os carros vão para a dos dados. */
+const CONSULTA_DAS_COLUNAS = "(min-width: 1280px)";
+
+function assinarColunas(aoMudar: () => void): () => void {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const consulta = window.matchMedia(CONSULTA_DAS_COLUNAS);
+  consulta.addEventListener("change", aoMudar);
+  return () => consulta.removeEventListener("change", aoMudar);
+}
+const temColunas = () => typeof window.matchMedia === "function" && window.matchMedia(CONSULTA_DAS_COLUNAS).matches;
+
+/** A pergunta de quem sai com algo começado só nos carros de interesse. */
+const PERGUNTA_DO_DESCARTE_DOS_CARROS = "Há uma marcação nos carros de interesse que não foi salva. Descartar?";
 
 const FAIXA_DE_ERRO = "border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800";
 const FAIXA_DE_AVISO = "border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800";
@@ -128,6 +159,16 @@ export default function DetalheDoLead({
   const [registrando, setRegistrando] = useState(false);
   const [chegando, setChegando] = useState(false);
   const [fechando, setFechando] = useState<EtapaDoFunil | null>(null);
+  /** Uma gravação nos carros de interesse está em curso. */
+  const [gravandoCarros, setGravandoCarros] = useState(false);
+  /** A caixa "Feche os carros deste atendimento" está aberta (ela só aparece com o lead fechado). */
+  const [resolvendo, setResolvendo] = useState(false);
+  /** As gravações nos carros vão uma depois da outra: no servidor elas não são atômicas. */
+  const filaDeCarros = useRef<Promise<unknown>>(Promise.resolve());
+  /** Há motivo, nota ou busca começados no bloco dos carros, e ainda não gravados. */
+  const [carrosEmAndamento, setCarrosEmAndamento] = useState(false);
+  /** A página tem largura para as três colunas? Estreita, os carros sobem para depois do próximo passo. */
+  const emColunas = useSyncExternalStore(assinarColunas, temColunas, () => false);
   const [form, setForm] = useState<FormDoRegistro>(FORM_DO_REGISTRO_VAZIO);
   /** FECHAR foi tocado com um registro começado: a gaveta pergunta antes. */
   const [querFechar, setQuerFechar] = useState(false);
@@ -245,7 +286,10 @@ export default function DetalheDoLead({
   // Com registro começado, Esc não fecha: uma tecla não pode apagar o que foi
   // escrito. E com uma caixa modal aberta (a de motivos, daqui ou do quadro), o
   // Esc é dela.
-  const emAndamento = registroEmAndamento(form);
+  // O mesmo vale para o que foi começado nos carros de interesse (motivo de
+  // descarte, a caixa de resolução, texto na busca).
+  const registroComecado = registroEmAndamento(form);
+  const emAndamento = registroComecado || carrosEmAndamento;
   useEffect(() => {
     if (layout !== "gaveta" || !aoFechar) return;
     const naTecla = (e: KeyboardEvent) => {
@@ -261,9 +305,22 @@ export default function DetalheDoLead({
   const mudarForm = useCallback(
     (novo: FormDoRegistro) => {
       setForm(novo);
-      aoMudarRascunho?.(registroEmAndamento(novo));
+      aoMudarRascunho?.(registroEmAndamento(novo) || carrosEmAndamento);
     },
-    [aoMudarRascunho],
+    [aoMudarRascunho, carrosEmAndamento],
+  );
+
+  /** O bloco dos carros passou a ter (ou deixou de ter) algo que se perderia ao sair. */
+  const aoMudarRascunhoAtual = useRef(aoMudarRascunho);
+  useEffect(() => {
+    aoMudarRascunhoAtual.current = aoMudarRascunho;
+  }, [aoMudarRascunho]);
+  const mudarRascunhoDosCarros = useCallback(
+    (comecado: boolean) => {
+      setCarrosEmAndamento(comecado);
+      aoMudarRascunhoAtual.current?.(registroComecado || comecado);
+    },
+    [registroComecado],
   );
 
   const pedirParaFechar = () => {
@@ -330,6 +387,14 @@ export default function DetalheDoLead({
         if (!res.ok) throw new Error(d.error || "Falha ao salvar");
         if (Array.isArray(d.etiquetas)) aplicar({ etiquetas: d.etiquetas });
         if (typeof d.aviso === "string" && d.aviso) setAviso(d.aviso);
+        // O lead foi fechado: os carros que seguem em avaliação vêm na
+        // resposta (ou na releitura logo abaixo), e a caixa de resolução
+        // aparece. O desfecho já valeu; a caixa não trava nada.
+        if ("desfecho_motivo" in campos) {
+          const pendentes: PendenciaDeVeiculo[] = Array.isArray(d.pendencias_de_veiculo) ? d.pendencias_de_veiculo : [];
+          setDados((atual) => (atual ? { ...atual, pendencias_de_veiculo: pendentes } : atual));
+          setResolvendo(true);
+        }
         // Etapa e responsável mudam o histórico, os vizinhos e as sugestões.
         if ("situacao" in campos || "responsavel" in campos) void recarregar();
       } catch (e: unknown) {
@@ -406,6 +471,104 @@ export default function DetalheDoLead({
       falhou(e instanceof Error ? e.message : "Falha ao gravar os dados do negócio");
     }
   };
+
+  /**
+   * Uma gravação nos carros de interesse (`/api/leads/[id]/veiculos…`).
+   *
+   * A lista muda na hora (`prever`) e é trocada pela que a rota devolve, relida
+   * do banco. Falhou, o lead é relido e a faixa de erro diz por quê.
+   */
+  const gravarCarros = (
+    prever: ((veiculos: VeiculoDeInteresse[]) => VeiculoDeInteresse[]) | null,
+    pedir: () => Promise<Response>,
+  ) => {
+    setGravandoCarros(true);
+    setErro("");
+    if (prever) setDados((atual) => (atual ? { ...atual, veiculos: prever(atual.veiculos ?? []) } : atual));
+    const vez = filaDeCarros.current.then(async () => {
+      try {
+        const res = await pedir();
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || "Falha ao gravar o carro de interesse");
+        setDados((atual) =>
+          atual
+            ? {
+                ...atual,
+                veiculos: Array.isArray(d.veiculos) ? d.veiculos : atual.veiculos,
+                pendencias_de_veiculo: Array.isArray(d.pendencias_de_veiculo) ? d.pendencias_de_veiculo : atual.pendencias_de_veiculo,
+              }
+            : atual,
+        );
+        if (d.principal_veiculo_id === null || typeof d.principal_veiculo_id === "number") {
+          aplicar({ veiculo_id: d.principal_veiculo_id });
+        }
+        if (typeof d.aviso === "string" && d.aviso) setAviso(d.aviso);
+        // Gravou e a rota não conseguiu reler a lista: o detalhe relê.
+        if (!Array.isArray(d.veiculos)) void recarregar();
+      } catch (e: unknown) {
+        falhou(e instanceof Error ? e.message : "Falha ao gravar o carro de interesse");
+      }
+    });
+    filaDeCarros.current = vez;
+    void vez.finally(() => {
+      if (filaDeCarros.current === vez) setGravandoCarros(false);
+    });
+  };
+
+  const rotaDosCarros = `/api/leads/${encodeURIComponent(id)}/veiculos`;
+  const comCorpo = (method: string, corpo: unknown): RequestInit => ({
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corpo),
+  });
+
+  /**
+   * O id da opção de um carro. O principal que ainda não tem linha no banco
+   * (`id: null`) ganha a dele antes de qualquer gesto.
+   */
+  const opcaoDe = async (v: VeiculoDeInteresse): Promise<string> => {
+    if (v.id) return v.id;
+    const res = await fetch(rotaDosCarros, comCorpo("POST", { veiculo_id: v.veiculo_id, principal: true }));
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || typeof d.opcao !== "string") throw new Error(d.error || "Falha ao gravar o carro de interesse");
+    return d.opcao;
+  };
+
+  const adicionarCarro = (carro: CarroDaBusca) =>
+    gravarCarros(
+      (lista) => (lista.some((v) => v.veiculo_id === carro.id) ? lista : [...lista, opcaoProvisoria(carro, lista.length === 0)]),
+      () => fetch(rotaDosCarros, comCorpo("POST", { veiculo_id: carro.id })),
+    );
+
+  const mudarCarro = (v: VeiculoDeInteresse, mudanca: MudancaDaOpcao) =>
+    gravarCarros(
+      (lista) => preverMudanca(lista, v.veiculo_id, mudanca),
+      async () => fetch(`${rotaDosCarros}/${encodeURIComponent(await opcaoDe(v))}`, comCorpo("PATCH", mudanca)),
+    );
+
+  const removerCarro = (v: VeiculoDeInteresse) => {
+    if (!v.id) return;
+    const opcao = v.id;
+    gravarCarros(
+      (lista) => lista.filter((o) => o.veiculo_id !== v.veiculo_id),
+      () => fetch(`${rotaDosCarros}/${encodeURIComponent(opcao)}`, { method: "DELETE" }),
+    );
+  };
+
+  const resolverCarros = (itens: ItemDaResolucao[]) =>
+    gravarCarros(
+      (lista) =>
+        itens.reduce((feita, item) => {
+          const alvo = feita.find((o) => o.id === item.opcao);
+          if (!alvo) return feita;
+          return preverMudanca(feita, alvo.veiculo_id, {
+            situacao: item.situacao,
+            motivo_descarte: item.motivo_descarte,
+            ...(item.nota ? { nota: item.nota } : {}),
+          });
+        }, lista),
+      () => fetch(`${rotaDosCarros}/resolver`, comCorpo("POST", itens)),
+    );
 
   /** O resumo que as rotas de registro devolvem: o card e o detalhe mudam juntos. */
   const aplicarResumo = (resumo: ResumoDoLead | null | undefined, item: ItemDoHistorico | null | undefined) => {
@@ -537,6 +700,44 @@ export default function DetalheDoLead({
       ),
     ].filter(Boolean);
 
+    // Os carros de interesse. As pendências só contam com o lead fechado:
+    // num lead aberto, carro em avaliação é o estado normal.
+    const carros = opcoesDoDetalhe(dados);
+    const pendencias = aberto ? [] : (dados.pendencias_de_veiculo ?? []);
+    const blocoDosCarros = (
+      <CarrosDeInteresse
+        veiculos={carros.veiculos}
+        disponivel={carros.disponivel}
+        pendencias={pendencias}
+        resolvendo={resolvendo}
+        podeEscolherAoResolver={lead.desfecho === "ganho" && !carros.veiculos.some((v) => v.situacao === "escolhido")}
+        // Quem apaga é o Administrador, e é ele quem vê todos os leads (a rota confere de novo).
+        podeRemover={dados.podeRemoverResponsavel}
+        ocupado={gravandoCarros}
+        className={area("v")}
+        aoAdicionar={adicionarCarro}
+        aoMudar={mudarCarro}
+        aoRemover={removerCarro}
+        aoTrocarOUnico={(veiculo_id) => void gravarDados({ veiculo_id })}
+        aoResolver={resolverCarros}
+        aoAbrirResolucao={() => setResolvendo(true)}
+        aoAdiarResolucao={() => setResolvendo(false)}
+        aoMudarRascunho={mudarRascunhoDosCarros}
+      />
+    );
+    const blocoDosDados = (
+      <DadosDoNegocio
+        lead={lead}
+        etiquetasDisponiveis={etiquetasDisponiveis}
+        etiquetasEditaveis={dados.etiquetasEditaveis}
+        ocupado={ocupado}
+        aoGravar={(campos) => void gravarDados(campos)}
+        aoIncluirEtiqueta={(e) => void salvarEtiquetas({ incluir: [e] })}
+        aoRetirarEtiqueta={(e) => void salvarEtiquetas({ retirar: [e] })}
+        aoSalvarAvaliacao={(campo, valor) => void gravar({ [campo]: valor }, { reiniciaORelogio: false })}
+      />
+    );
+
     conteudo = (
       <>
         {faixas.length > 0 && <div className={`flex flex-col gap-2 ${naPagina ? "" : "px-6 pt-4"}`}>{faixas}</div>}
@@ -580,6 +781,7 @@ export default function DetalheDoLead({
               aoConcluir={(passo) => comecarRegistro(formAoConcluir(passo))}
               aoRemarcar={(passo) => comecarRegistro(formAoRemarcar(passo))}
             />
+            {!(naPagina && emColunas) && blocoDosCarros}
             <RegistroDeInteracao
               form={form}
               aoMudar={mudarForm}
@@ -592,18 +794,18 @@ export default function DetalheDoLead({
               aoRegistrar={() => void registrar()}
             />
             <HistoricoDoLead historico={dados.historico} className={area("t")} />
-            <DadosDoNegocio
-              lead={lead}
-              veiculo={dados.veiculo}
-              etiquetasDisponiveis={etiquetasDisponiveis}
-              etiquetasEditaveis={dados.etiquetasEditaveis}
-              ocupado={ocupado}
-              className={area("d")}
-              aoGravar={(campos) => void gravarDados(campos)}
-              aoIncluirEtiqueta={(e) => void salvarEtiquetas({ incluir: [e] })}
-              aoRetirarEtiqueta={(e) => void salvarEtiquetas({ retirar: [e] })}
-              aoSalvarAvaliacao={(campo, valor) => void gravar({ [campo]: valor }, { reiniciaORelogio: false })}
-            />
+            {naPagina && emColunas ? (
+              <div data-coluna="d" className={`flex min-w-0 flex-col ${AREA.d}`}>
+                {blocoDosCarros}
+                {blocoDosDados}
+              </div>
+            ) : naPagina ? (
+              <div data-coluna="d" className={`flex min-w-0 flex-col ${AREA.d}`}>
+                {blocoDosDados}
+              </div>
+            ) : (
+              blocoDosDados
+            )}
           </div>
         </NivelDoTituloDeBloco.Provider>
       </>
@@ -681,7 +883,7 @@ export default function DetalheDoLead({
             data-descarte
             className="sticky top-[45px] z-10 flex flex-wrap items-center gap-3 border-b border-l-[3px] border-b-mt-regua-fina border-l-mt-accent bg-mt-accent-100 px-6 py-3 text-xs text-mt-accent-800"
           >
-            <span className="flex-1 font-semibold">{PERGUNTA_DO_DESCARTE}</span>
+            <span className="flex-1 font-semibold">{registroComecado ? PERGUNTA_DO_DESCARTE : PERGUNTA_DO_DESCARTE_DOS_CARROS}</span>
             <button
               type="button"
               onClick={() => {
@@ -697,11 +899,12 @@ export default function DetalheDoLead({
               onClick={() => {
                 setQuerFechar(false);
                 aoManter?.();
-                campoDoTexto.current?.focus();
+                if (registroComecado) campoDoTexto.current?.focus();
+                else caixa.current?.querySelector<HTMLElement>('[data-bloco="v"] :is(input, textarea, button[aria-pressed="true"])')?.focus();
               }}
               className="mt-btn mt-btn-tinta mt-foco px-3.5 py-[9px] text-[11px] pointer-coarse:min-h-11"
             >
-              Continuar escrevendo
+              {registroComecado ? "Continuar escrevendo" : "Continuar"}
             </button>
           </div>
         )}

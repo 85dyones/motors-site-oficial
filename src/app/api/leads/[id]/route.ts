@@ -27,6 +27,7 @@ import {
   type InteracaoDoLead,
 } from "../../../../lib/gestaoDoLead";
 import { lerLeadNoEscopo, sessaoDeLeads } from "../../../../lib/gestaoDoLead-servidor";
+import { lerOpcoesDoLead, montarVeiculosDoLead } from "../../../../lib/veiculosDeInteresse-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,12 @@ export const dynamic = "force-dynamic";
  * (`lerLeadNoEscopo`), e só então o histórico. `leads_interacoes` e
  * `leads_eventos` são legíveis por toda a equipe no banco; lidas antes da
  * guarda, entregariam as anotações de um lead a quem não o enxerga.
+ *
+ * Os veículos de interesse (05/10/2026) vêm em `veiculos`: as opções de
+ * `leads_veiculos`, lidas DEPOIS da guarda como o histórico. Antes da migração
+ * `20261005120000` a tabela não existe: a resposta é a de sempre, com o carro
+ * único como uma opção e `veiculos_disponivel: false`. `veiculo` (o principal)
+ * continua onde estava.
  *
  * Leitura que falha depois da guarda não derruba o detalhe: o lead vem, e a
  * falha vem em `avisos`, com a frase para a tela mostrar. Histórico vazio por
@@ -87,7 +94,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             .eq("id", veiculoId)
             .maybeSingle();
 
-    const [interacoes, eventos, atendimentos, etapasBanco, motivosBanco, perfis, vizinhos, veiculoLido] =
+    const [interacoes, eventos, atendimentos, etapasBanco, motivosBanco, perfis, vizinhos, veiculoLido, opcoesLidas] =
       await Promise.all([
         supabase
           .from("leads_interacoes")
@@ -110,6 +117,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         supabase.from("profiles").select("full_name, role, papeis, is_active"),
         vizinhanca,
         leituraDoVeiculo,
+        lerOpcoesDoLead(supabase, id),
       ]);
 
     // O funil: sem a tabela (migração pendente), o funil fixo de sempre.
@@ -183,6 +191,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       };
     }
 
+    // As opções do lead. `undefined` no carro principal: a leitura dele falhou,
+    // e a opção não afirma se ele está no estoque.
+    const dosVeiculos = await montarVeiculosDoLead(supabase, lead, opcoesLidas, veiculoLido.error ? undefined : veiculo);
+    avisos.push(...dosVeiculos.avisos);
+
     if (vizinhos.error) avisos.push(`Não deu para ler os vizinhos da coluna: ${vizinhos.error.message}`);
     const daColuna = ((vizinhos.data ?? []) as Array<{ id: string; responsavel: string | null }>)
       .filter((l) => leadNoEscopo(visao, l.responsavel))
@@ -196,6 +209,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       estagnacao,
       passo,
       veiculo,
+      veiculos: dosVeiculos.veiculos,
+      veiculos_disponivel: dosVeiculos.veiculos_disponivel,
+      // As opções ainda em avaliação: o que a tela oferece resolver ao fechar.
+      pendencias_de_veiculo: dosVeiculos.pendencias_de_veiculo,
       historico,
       // Só para lead aberto: fechado não pede próximo passo.
       sugestoes: aberto ? sugestoesDeProximoPasso(String(lead.situacao), agora) : [],

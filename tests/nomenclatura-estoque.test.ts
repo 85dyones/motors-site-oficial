@@ -182,7 +182,17 @@ describe("nomenclatura da tabela de inventário", () => {
     // carro escolhido como interesse existe antes de gravar o vínculo:
     // `leads.veiculo_id` não é chave estrangeira, e o banco aceitaria
     // qualquer número. Nenhuma das duas grava no estoque.
-    expect(comAcesso.length).toBe(13);
+    //
+    // O décimo quarto e o décimo quinto, em 2026-10-05 (veículos de
+    // interesse): `lib/veiculosDeInteresse-servidor.ts`, que lê `id,
+    // quilometragem, preco, vendido` dos carros que são opção de um lead
+    // (preço de hoje ao lado do preço da época), e
+    // `api/estoque/[id]/interesse/route.ts`, o cabeçalho do relatório de
+    // interesse de um carro (as mesmas colunas públicas do detalhe do lead).
+    // SELECT, só coluna pública, nenhuma grava. A busca do seletor
+    // (`api/estoque/busca`) lê a placa e por isso vai pela view da equipe:
+    // não é `.from("estoque_motors")` literal e não entra aqui.
+    expect(comAcesso.length).toBe(15);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -222,6 +232,9 @@ describe("nomenclatura da tabela de inventário", () => {
     //
     // E os acessos nº 17 e 18, em 2026-10-03, com os dois arquivos novos da
     // gestão do lead, acima.
-    expect(total).toBe(18);
+    //
+    // E os acessos nº 19 e 20, em 2026-10-05, com os dois arquivos dos
+    // veículos de interesse, acima.
+    expect(total).toBe(20);
   });
 });
