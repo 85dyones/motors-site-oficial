@@ -868,8 +868,33 @@ rotuloDoVeiculoNaTela(rotulo)     // o retrato do banco na grafia da tela
   já perdidos em `em_avaliacao` (o motivo de perda do lead não é o motivo de
   descarte do carro). O relatório as conta em `sem_resolucao`.
 - **Busca sem acento e placa com hífen**: §7.6.
-- **As telas.** O seletor com busca, a lista de opções, a caixa de resolução e
-  o relatório do veículo ainda não foram feitos: esta entrega é o servidor.
+- **O "+N" no card do quadro.** `GET /api/leads/gerenciar` não devolve quantos
+  carros o lead tem, e a tela não busca isso card a card. Entra quando a fila
+  trouxer a contagem.
+- **O relatório no repasse.** O carro de repasse tem id próprio (uuid), que não
+  é `estoque_motors.id`: a visão do repasse não mostra "Interesse e objeções".
+
+### 7.10 As telas (05/10/2026)
+
+- `components/admin/lead/CarrosDeInteresse.tsx`: o bloco `v` do detalhe. Na
+  gaveta vem logo depois do próximo passo (h p v c t d); na página, no alto da
+  coluna dos dados. Lista as opções, com escolher, descartar (na própria linha,
+  motivo em chips, nota obrigatória em "Outro"), reabrir, tornar principal e,
+  para o Administrador, remover. Com `veiculos_disponivel: false` é o carro
+  único, trocado pela busca via `PATCH …/dados`, sem as outras ações e sem aviso.
+- `components/admin/lead/BuscaDeCarro.tsx`: o seletor (combobox) sobre
+  `GET /api/estoque/busca`, com espera de 250 ms.
+- `components/admin/lead/ResolucaoDosCarros.tsx`: "Feche os carros deste
+  atendimento". Abre depois do desfecho gravado, quando sobram opções em
+  avaliação; "Depois" a fecha e fica a linha "N carros sem resolução".
+- `components/admin/InteresseDoVeiculo.tsx`: "Interesse e objeções", na visão do
+  veículo (`/admin/estoque/[id]`). "Copiar resumo" leva contagens e motivos; as
+  notas ficam de fora, porque são texto livre.
+- `lib/carrosDeInteresseNaTela.ts`: as frases, a previsão otimista e o resumo.
+- Quem pode remover: a tela usa `podeRemoverResponsavel` do detalhe (só o
+  Administrador o tem); a rota confere o perfil de novo.
+
+Testes das telas: `tests/veiculos-de-interesse-telas.test.ts`.
 
 Testes: `tests/veiculos-de-interesse.test.ts` (a lib pura) e
 `tests/veiculos-de-interesse-rotas.test.ts` (as rotas executadas num banco em

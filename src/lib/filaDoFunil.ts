@@ -9,6 +9,7 @@
  *
  * Tudo puro: todo "agora" entra por parâmetro, em milissegundos.
  */
+import type { PendenciaDeVeiculo, VeiculoDeInteresse } from "./veiculosDeInteresse";
 import { espera, nivelDeEstagnacao, type EtapaDoFunil, type LeadDoFunil, type MotivoDoFunil, type NivelDeEstagnacao } from "./funil";
 import {
   FUSO_DA_LOJA,
@@ -542,6 +543,12 @@ export function origemDoLead(lead: Pick<LeadDoDetalhe, "canal" | "utm_source" | 
 export interface DetalheDaApi {
   lead: LeadDoDetalhe;
   veiculo: VeiculoDoLead | null;
+  /** Os carros de interesse (`docs/GESTAO_DO_LEAD.md`, seção 7). Quem lê é `opcoesDoDetalhe`. */
+  veiculos?: VeiculoDeInteresse[];
+  /** `false` (ou ausente): a lista de carros ainda não existe no banco, e o lead tem um carro só. */
+  veiculos_disponivel?: boolean;
+  /** As opções ainda em avaliação: o que a tela oferece resolver ao fechar. */
+  pendencias_de_veiculo?: PendenciaDeVeiculo[];
   historico: ItemDoHistorico[];
   /** As sugestões do instante da leitura. A tela as recalcula ao desenhar a caixa. */
   sugestoes?: SugestaoDePasso[];

@@ -5,10 +5,8 @@ import { destinoDaConversa } from "../../../lib/funil";
 import { FAIXAS_DE_ENTRADA, PAGAMENTOS_PRETENDIDOS, type CampoDosDados } from "../../../lib/gestaoDoLead";
 import {
   formatarTelefone,
-  linhaDoVeiculo,
   origemDoLead,
   type LeadDoDetalhe,
-  type VeiculoDoLead,
 } from "../../../lib/filaDoFunil";
 
 import BlocoDaAvaliacao, { type CampoDoValorDaAvaliacao } from "../BlocoDaAvaliacao";
@@ -23,7 +21,10 @@ import TituloDeBloco from "./TituloDeBloco";
  * Mostra só o que está preenchido; o resto fica atrás de "+ adicionar dado",
  * para o bloco não virar um formulário vazio em todo lead novo. Cada campo
  * grava sozinho (ao sair do campo de texto, ao escolher numa lista) pelo
- * `PATCH /api/leads/[id]/dados`, que só aceita os cinco campos daqui.
+ * `PATCH /api/leads/[id]/dados`.
+ *
+ * O carro de interesse saiu daqui em 05/10/2026: virou o bloco próprio
+ * `CarrosDeInteresse`, com busca e várias opções.
  *
  * As etiquetas da conversa, a avaliação do site e o perfil do Profiler moravam
  * no card aberto e continuam aqui, com os mesmos componentes.
@@ -37,7 +38,6 @@ const CAMPO =
 
 export default function DadosDoNegocio({
   lead,
-  veiculo,
   etiquetasDisponiveis,
   etiquetasEditaveis,
   ocupado,
@@ -48,7 +48,6 @@ export default function DadosDoNegocio({
   aoSalvarAvaliacao,
 }: {
   lead: LeadDoDetalhe;
-  veiculo: VeiculoDoLead | null;
   etiquetasDisponiveis: readonly string[];
   etiquetasEditaveis: boolean;
   ocupado: boolean;
@@ -59,12 +58,9 @@ export default function DadosDoNegocio({
   aoSalvarAvaliacao: (campo: CampoDoValorDaAvaliacao, valor: number | null) => void;
 }) {
   const [mostrandoVazios, setMostrandoVazios] = useState(false);
-  const [trocandoCarro, setTrocandoCarro] = useState(false);
 
-  const temVeiculo = veiculo !== null || (lead.veiculo_id ?? null) !== null;
   const vazios = [
     !lead.email,
-    !temVeiculo,
     !lead.carro_na_troca,
     !lead.faixa_entrada,
     !lead.pagamento_pretendido,
@@ -82,15 +78,6 @@ export default function DadosDoNegocio({
       const novo = e.target.value.trim();
       if (novo !== (atual ?? "")) aoGravar({ [campo]: novo || null });
     };
-
-  const gravarCarro = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const codigo = new FormData(e.currentTarget).get("codigo");
-    const id = Number(String(codigo ?? "").trim());
-    if (!Number.isSafeInteger(id) || id <= 0) return;
-    setTrocandoCarro(false);
-    aoGravar({ veiculo_id: id });
-  };
 
   return (
     <section
@@ -119,55 +106,6 @@ export default function DadosDoNegocio({
               className={CAMPO}
             />
           </label>
-        )}
-
-        {mostra(temVeiculo) && (
-          <div className="flex flex-col gap-1">
-            <span className={ROTULO}>Carro de interesse</span>
-            {veiculo ? (
-              <div className="flex items-start gap-3 border border-mt-regua-fina bg-mt-surface p-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-semibold text-mt-ink [overflow-wrap:anywhere]">{veiculo.nome}</div>
-                  <div className="text-[11px] tabular-nums text-mt-neutral-700">{linhaDoVeiculo(veiculo)}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTrocandoCarro((v) => !v)}
-                  aria-expanded={trocandoCarro}
-                  className="mt-foco mt-alvo cursor-pointer border-0 bg-transparent p-0 text-[11px] text-mt-accent-hover hover:underline"
-                >
-                  Trocar
-                </button>
-              </div>
-            ) : (lead.veiculo_id ?? null) !== null ? (
-              <p className="m-0 text-[12px] leading-snug text-mt-neutral-700">
-                O carro de código <span className="tabular-nums">{lead.veiculo_id}</span> não está mais no estoque.
-              </p>
-            ) : null}
-            {(trocandoCarro || !veiculo) && (
-              <form onSubmit={gravarCarro} className="flex flex-wrap items-end gap-2">
-                <label className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-[11px] text-mt-neutral-700">Código do carro no estoque</span>
-                  <input name="codigo" type="text" inputMode="numeric" pattern="[0-9]*" required className={`${CAMPO} tabular-nums`} />
-                </label>
-                <button type="submit" className="mt-btn mt-btn-contorno mt-foco px-3.5 py-[9px] text-[11px] pointer-coarse:min-h-11">
-                  VINCULAR
-                </button>
-                {temVeiculo && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTrocandoCarro(false);
-                      aoGravar({ veiculo_id: null });
-                    }}
-                    className="mt-foco mt-alvo cursor-pointer border-0 bg-transparent p-0 text-[11px] text-mt-neutral-700 underline hover:text-mt-accent-hover"
-                  >
-                    desvincular
-                  </button>
-                )}
-              </form>
-            )}
-          </div>
         )}
 
         {mostra(Boolean(lead.carro_na_troca)) && (
