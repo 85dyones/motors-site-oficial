@@ -32,9 +32,10 @@ import { hubsDeCambio, hubsDeFaixa } from "../../lib/hubsDeEstoque";
  * ---------------------------------------------------------------------------
  * `/estoque/automatico` nasceu nesse dia e precisava de entrada pela home e por
  * `/estoque`: página perene sem link interno é órfã, e o sitemap sozinho não
- * sustenta. Entra na mesma fileira das faixas, depois delas, porque é o mesmo
- * tipo de atalho (recorte perene de lista fechada, com contagem) e os dois
- * lugares que montam este bloco já são os de maior alcance do site. Segue a
+ * sustenta. Entra neste bloco, em linha própria abaixo das faixas e com o
+ * rótulo "Por câmbio", porque é o mesmo tipo de atalho (recorte perene de
+ * lista fechada, com contagem) e os dois lugares que montam este bloco já são
+ * os de maior alcance do site. Segue a
  * regra das faixas: aparece mesmo zerado, some com o pátio vazio.
  */
 export default function FaixasDePreco({
