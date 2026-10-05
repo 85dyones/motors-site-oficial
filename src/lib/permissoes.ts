@@ -284,6 +284,14 @@ const linha = (
   observacao,
 });
 
+/**
+ * As duas linhas da agenda de pessoas, pelo nome: o proxy, as rotas, a página
+ * e o menu perguntam por elas, e um nome digitado errado em `podeFazer` nega
+ * em silêncio.
+ */
+export const ACAO_VER_AGENDA = "Ver clientes e fornecedores";
+export const ACAO_GERENCIAR_AGENDA = "Gerenciar clientes e fornecedores";
+
 /** A matriz do A17, na ordem do doc. */
 export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   linha(
@@ -390,19 +398,33 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "nao_ve", "faz"],
     "Saldo derivado do extrato, nunca digitado",
   ),
-  // Linha ACRESCENTADA em 2026-08-24, pedido do dono: *"precisamos ter uma aba
-  // clientes... o revenda tem uma área de clientes sejam internos ou externos,
-  // fornecedores... pra organizar tudo e termos como gerenciar"*.
+  // Linhas da agenda de pessoas. A de 2026-08-24 nasceu do pedido do dono:
+  // *"precisamos ter uma aba clientes... o revenda tem uma área de clientes
+  // sejam internos ou externos, fornecedores... pra organizar tudo e termos
+  // como gerenciar"*.
   //
-  // Marketing fica de fora e a razão está uma linha acima, em "Ver e mover
-  // leads no kanban": o perfil vê VOLUME, não contato. A agenda é uma lista de
-  // CPF, telefone e e-mail — dar aqui o que o kanban nega seria furar a régua
-  // por uma porta lateral. O Comercial entra porque é quem atende, e o
-  // Financeiro porque metade da agenda é fornecedor dele.
+  // Em 05/10/2026 ela se partiu em duas, por decisão do dono: *"A agenda
+  // precisa ser vista por todos, o lead não. São coisas diferentes."* VER a
+  // agenda (nome, telefone, e-mail de quem a loja conhece) é de toda a equipe
+  // ativa, Marketing e SDR inclusive. O registro do LEAD (etapa, anotações,
+  // responsável) continua em "Ver e mover leads no kanban" e em
+  // `lib/escopoDeLeads.ts`: a pessoa de origem lead aparece na agenda de quem
+  // não vê o lead só como contato, sem etapa, sem nota e sem link.
+  //
+  // Fornecedor e investidor seguem limitados pela regra de cada cadastro no
+  // banco: esta linha abre a tela, e não a tabela.
   linha(
-    "Gerenciar clientes e fornecedores",
+    ACAO_VER_AGENDA,
+    ["faz", "faz", "faz", "faz", "faz", "faz"],
+    "Toda a equipe ativa — o contato, e não o registro do lead",
+  ),
+  // GERENCIAR (cadastrar, editar, desativar, excluir) fica com quem já tinha:
+  // o Comercial porque é quem atende, o Financeiro porque metade da agenda é
+  // fornecedor dele. Marketing e SDR leem e não escrevem.
+  linha(
+    ACAO_GERENCIAR_AGENDA,
     ["faz", "faz", "nao_ve", "faz", "faz"],
-    "Cadastro único — Marketing vê volume de lead, não contato",
+    "Cadastro único — Marketing e SDR só leem",
   ),
   // Linha ACRESCENTADA em 2026-08-28, pedido do dono: *"temos que ser capazes
   // de editar o funil de vendas de acordo com a necessidade"*.

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
-import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { sessaoDaAgenda } from "../../../../lib/agenda-servidor";
 import { ORIGENS, rotearEdicao, type OrigemDaAgenda } from "../../../../lib/agenda";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +30,11 @@ interface RouteParams {
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    // Escrita: quem já editava antes de a leitura abrir para toda a equipe
+    // (05/10/2026). Marketing e SDR param aqui, antes de qualquer tabela.
+    const sessao = await sessaoDaAgenda("escrita");
+    if (sessao.recusa) return sessao.recusa;
+    const { supabase } = sessao;
 
     const { id } = await params;
     const body = await request.json();
@@ -107,11 +107,11 @@ const PORQUE_NAO_APAGA: Partial<Record<OrigemDaAgenda, string>> = {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    // Escrita: quem já editava antes de a leitura abrir para toda a equipe
+    // (05/10/2026). Marketing e SDR param aqui, antes de qualquer tabela.
+    const sessao = await sessaoDaAgenda("escrita");
+    if (sessao.recusa) return sessao.recusa;
+    const { supabase } = sessao;
 
     const { id } = await params;
     const origem = request.nextUrl.searchParams.get("origem") as OrigemDaAgenda | null;

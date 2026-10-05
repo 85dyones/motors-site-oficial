@@ -142,10 +142,27 @@ const CADEIA = [
   // inválido, veste admin, dois vendedores, marketing, cliente, desativado e
   // anônimo para provar que a opção acompanha a visibilidade do lead, e
   // confere que os relatórios não devolvem dado de pessoa. Aqui ela roda com
-  // a RLS de `leads` por `is_staff` — a de produção hoje; o `describe` do fim
-  // do arquivo aplica a 20261003130000 e a reaplica no outro mundo. Lê
+  // a RLS de `leads` por `is_staff` — a de produção hoje; a 20261003130000
+  // vem mais abaixo na cadeia, e o `describe` dos veículos, no fim do arquivo,
+  // a reaplica no outro mundo. Lê
   // `estoque_motors` (sem escrever): o recorte dela entrou no andaime junto.
   "20261005120000_veiculos_de_interesse.sql",
+  // A agenda de pessoas é de toda a equipe; o lead, não (2026-10-05). Entra na
+  // cadeia porque o aceite veste dez perfis e prova, NOS DOIS MUNDOS da RLS de
+  // `leads` (ele troca a policy de leitura dentro da sonda e a devolve), que a
+  // pessoa de origem lead é lida por toda a equipe ativa e que a etapa e as
+  // observações só aparecem para quem enxerga o lead — view security_invoker
+  // sobre função SECURITY DEFINER só se prova num banco de verdade. Aqui ela
+  // encontra `leads` por `is_staff` e a view da 20260828160000; o `describe`
+  // do fim a reaplica com dado, por cima do escopo.
+  "20261005150000_agenda_para_toda_a_equipe.sql",
+  // A RLS de `leads` vira o escopo (2026-10-03). Fica DEPOIS das duas de 05/10
+  // de propósito, fora da ordem dos carimbos: é a ordem recomendada em
+  // produção (a agenda primeiro, para o Financeiro e o Marketing não perderem
+  // gente no intervalo), e as duas acima provam o próprio aceite com `leads`
+  // ainda por `is_staff`. Entra na cadeia porque o aceite são 44 comandos na
+  // pele de onze perfis — leitura, passagem de lead e exclusão.
+  "20261003130000_leads_rls_por_escopo.sql",
 ];
 
 /**
@@ -364,7 +381,8 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
  *
  * Na cadeia a migração roda num banco sem lead nenhum e com `leads` aberta a
  * toda a equipe (`is_staff`) — produção em 2026-10-05. Aqui: entram leads com
- * veículo, a tabela é esvaziada, a 20261003130000 (escopo) é aplicada e a
+ * veículo, a tabela é esvaziada, a 20261003130000 (escopo — já aplicada no
+ * fim da cadeia, e aqui reaplicada, para o bloco não depender disso) e a
  * migração é REAPLICADA. Isso prova três coisas que a cadeia sozinha não
  * prova: a carga inicial com linhas de verdade, o aceite no mundo do escopo, e
  * que reaplicar é seguro.
@@ -372,8 +390,8 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
  * Depois, os invariantes pelo lado de fora: cada violação tem de falhar, pelo
  * nome da regra.
  *
- * ⚠️ Este bloco fica por último de propósito: ele muda a RLS de `leads` do
- * banco de teste.
+ * ⚠️ Este bloco e o da agenda, logo abaixo, ficam por último de propósito:
+ * contam com a RLS de `leads` por escopo no banco de teste.
  */
 describe.skipIf(!temBanco)("os veículos de interesse do lead, com dado e nos dois mundos", () => {
   const MIGRACAO = "20261005120000_veiculos_de_interesse.sql";
@@ -592,6 +610,201 @@ describe.skipIf(!temBanco)("os veículos de interesse do lead, com dado e nos do
          and not exists (select 1 from pg_trigger
                           where tgrelid = 'public.estoque_motors'::regclass and not tgisinternal)
          and (select count(*) = 2 from public.estoque_motors)`,
+      ),
+    ).toBe(true);
+  });
+});
+
+/**
+ * A agenda para toda a equipe (20261005150000), com DADO e por cima do escopo.
+ *
+ * Na cadeia ela roda com `leads` por `is_staff` e a view antiga. Aqui o banco
+ * já está no mundo do escopo (a 20261003130000 veio depois dela na cadeia), há
+ * leads de verdade e a migração é REAPLICADA: prova a idempotência, o aceite
+ * começando pelo outro mundo, e — pelo lado de fora, na sessão de cada um — o
+ * que a rota `/api/pessoas` vai receber.
+ */
+describe.skipIf(!temBanco)("a agenda para toda a equipe, com dado e por cima do escopo", () => {
+  const MIGRACAO = "20261005150000_agenda_para_toda_a_equipe.sql";
+  let reaplicada = "";
+
+  const vale = (expr: string): boolean => /^\s*t\s*$/m.test(psql!(`select (${expr}) as ok`));
+
+  /**
+   * A expressão, lida como `authenticated` na sessão de alguém — a pele que o
+   * PostgREST veste. Tudo num comando só: `set local` não sobrevive a ele.
+   */
+  const naSessaoDe = (email: string, expr: string): boolean =>
+    /^\s*t\s*$/m.test(
+      psql!(
+        `begin;
+         do $sessao$
+         begin
+           perform set_config('request.jwt.claims',
+                     json_build_object('sub', p.id, 'role', 'authenticated')::text, true)
+              from public.profiles p where p.email = '${email}';
+           if not found then
+             raise exception 'sem perfil para ${email}';
+           end if;
+         end $sessao$;
+         set local role authenticated;
+         select (${expr}) as ok;
+         rollback;`,
+      ),
+    );
+
+  const recusa = (sql: string): string => {
+    try {
+      psql!(sql);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  const LEADS = "origem = 'lead' and nome like 'AG lead %'";
+  const COMERCIAL = "(especialidade is not null or observacoes is not null)";
+
+  beforeAll(() => {
+    psql!(`
+      insert into auth.users (id, instance_id, aud, role, email)
+      select gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+             'ag-' || q || '@exemplo.invalido'
+        from unnest(array['admin', 'sdr', 'vendedor', 'financeiro', 'marketing', 'cliente', 'saiu']) q;
+      update public.profiles set full_name = 'AG Admin', papeis = array['admin'], role = 'admin', is_active = true
+       where email = 'ag-admin@exemplo.invalido';
+      update public.profiles set full_name = 'AG SDR', papeis = array['sdr'], role = 'sdr', is_active = true
+       where email = 'ag-sdr@exemplo.invalido';
+      update public.profiles set full_name = 'AG Vendedor', papeis = array['comercial'], role = 'comercial', is_active = true
+       where email = 'ag-vendedor@exemplo.invalido';
+      update public.profiles set full_name = 'AG Financeiro', papeis = array['financeiro'], role = 'financeiro', is_active = true
+       where email = 'ag-financeiro@exemplo.invalido';
+      update public.profiles set full_name = 'AG Marketing', papeis = array['marketing'], role = 'marketing', is_active = true
+       where email = 'ag-marketing@exemplo.invalido';
+      update public.profiles set full_name = 'AG Cliente', papeis = array['cliente'], role = 'cliente', is_active = true
+       where email = 'ag-cliente@exemplo.invalido';
+      update public.profiles set full_name = 'AG Saiu', papeis = array['financeiro'], role = 'financeiro', is_active = false
+       where email = 'ag-saiu@exemplo.invalido';
+      insert into public.leads (nome, telefone, email, interesse, observacoes, responsavel, desfecho) values
+        ('AG lead novo',    '5541900001001', 'ag1@exemplo.invalido', 'Onix',  'quer financiar', null,          null),
+        ('AG lead meu',     '5541900001002', 'ag2@exemplo.invalido', 'HB20',  'volta sábado',   'AG Vendedor', null),
+        ('AG lead alheio',  '5541900001003', 'ag3@exemplo.invalido', 'Corsa', 'pediu desconto', 'Outra Pessoa', null),
+        ('AG lead perdido', '5541900001004', 'ag4@exemplo.invalido', 'Gol',   'achou caro',     'Outra Pessoa', 'perdido');
+    `);
+    reaplicada = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+  }, 120_000);
+
+  it("o aceite passa nos dois pontos de partida: view antiga com is_staff, view nova com escopo", () => {
+    const naCadeia = saidas.get(MIGRACAO) ?? "";
+    expect(naCadeia).toContain("a view encontrada é a da 20260828160000");
+    expect(naCadeia).toContain("começando por [leads por is_staff (20261003130000 ainda não aplicada)] (80 casos)");
+    expect(reaplicada).toContain("a view encontrada é a desta migração (reaplicação)");
+    expect(reaplicada).toContain("começando por [leads por escopo (20261003130000 aplicada)] (80 casos)");
+    expect(reaplicada).not.toMatch(/^psql.*ERROR:/m);
+  });
+
+  it("as doze colunas da view são as mesmas, na ordem — o contrato com /api/pessoas", () => {
+    expect(
+      vale(
+        `(select string_agg(attname, ',' order by attnum) from pg_attribute
+           where attrelid = 'public.agenda_de_pessoas'::regclass and attnum > 0)
+         = 'origem,id,nome,papel,especialidade,documento,telefone,email,cidade,observacoes,ativo,created_at'`,
+      ),
+    ).toBe(true);
+  });
+
+  it("financeiro e marketing: as quatro pessoas, com contato, e nada do atendimento", () => {
+    for (const quem of ["ag-financeiro@exemplo.invalido", "ag-marketing@exemplo.invalido"]) {
+      expect(
+        naSessaoDe(
+          quem,
+          `(select count(*) = 4 and bool_and(telefone like '55419000010__' and email like 'ag_@exemplo.invalido')
+              from public.agenda_de_pessoas where ${LEADS})`,
+        ),
+      ).toBe(true);
+      expect(naSessaoDe(quem, `(select count(*) = 0 from public.agenda_de_pessoas where ${LEADS} and ${COMERCIAL})`)).toBe(true);
+      // O lead em si segue fechado para eles: a RLS de `leads` é quem manda.
+      expect(naSessaoDe(quem, "(select count(*) = 0 from public.leads)")).toBe(true);
+      // O filtro padrão da tela (`ativo=sim`) esconde o perdido de todo mundo.
+      expect(naSessaoDe(quem, `(select count(*) = 3 from public.agenda_de_pessoas where ${LEADS} and ativo)`)).toBe(true);
+    }
+  });
+
+  it("violação falha: quem não vê o lead não o acha buscando pela anotação nem pela etapa", () => {
+    const quem = "ag-financeiro@exemplo.invalido";
+    expect(naSessaoDe(quem, "(select count(*) = 0 from public.agenda_de_pessoas where observacoes ilike '%desconto%')")).toBe(true);
+    expect(
+      naSessaoDe(quem, "(select count(*) = 0 from public.agenda_de_pessoas where origem = 'lead' and especialidade is not null)"),
+    ).toBe(true);
+    // …e a busca por nome, que é diretório, acha.
+    expect(naSessaoDe(quem, "(select count(*) = 1 from public.agenda_de_pessoas where nome ilike '%lead alheio%')")).toBe(true);
+  });
+
+  it("o vendedor acha o contato de todos, e lê o atendimento só do lead dele", () => {
+    const quem = "ag-vendedor@exemplo.invalido";
+    expect(naSessaoDe(quem, `(select count(*) = 4 from public.agenda_de_pessoas where ${LEADS})`)).toBe(true);
+    expect(
+      naSessaoDe(
+        quem,
+        `(select count(*) = 1 and bool_and(nome = 'AG lead meu' and observacoes = 'HB20 — volta sábado')
+            from public.agenda_de_pessoas where ${LEADS} and ${COMERCIAL})`,
+      ),
+    ).toBe(true);
+  });
+
+  it("o SDR lê o atendimento dos que têm responsável; o admin, de todos", () => {
+    expect(
+      naSessaoDe("ag-sdr@exemplo.invalido", `(select count(*) = 3 from public.agenda_de_pessoas where ${LEADS} and ${COMERCIAL})`),
+    ).toBe(true);
+    expect(
+      naSessaoDe(
+        "ag-sdr@exemplo.invalido",
+        `(select count(*) = 1 from public.agenda_de_pessoas where nome = 'AG lead novo' and telefone is not null and not ${COMERCIAL})`,
+      ),
+    ).toBe(true);
+    expect(
+      naSessaoDe("ag-admin@exemplo.invalido", `(select count(*) = 4 from public.agenda_de_pessoas where ${LEADS} and ${COMERCIAL})`),
+    ).toBe(true);
+  });
+
+  it("violação falha: cliente e perfil desativado não leem ninguém, nem pela view nem pela função", () => {
+    for (const quem of ["ag-cliente@exemplo.invalido", "ag-saiu@exemplo.invalido"]) {
+      expect(naSessaoDe(quem, "(select count(*) = 0 from public.agenda_de_pessoas where origem = 'lead')")).toBe(true);
+      expect(naSessaoDe(quem, "(select count(*) = 0 from public.pessoas_dos_leads())")).toBe(true);
+    }
+  });
+
+  it("violação falha: anônimo é barrado na view e na função", () => {
+    expect(recusa("begin; set local role anon; select count(*) from public.agenda_de_pessoas; rollback;")).toContain(
+      "permission denied",
+    );
+    expect(recusa("begin; set local role anon; select count(*) from public.pessoas_dos_leads(); rollback;")).toContain(
+      "permission denied",
+    );
+  });
+
+  it("a função não devolve coluna comercial, e a migração não deixou policy nova em leads", () => {
+    expect(
+      vale(
+        `(select array_to_string(proargnames, ',') from pg_proc
+           where oid = 'public.pessoas_dos_leads()'::regprocedure) = 'id,nome,telefone,email,ativo,created_at'`,
+      ),
+    ).toBe(true);
+    expect(
+      vale(
+        `(select string_agg(policyname, ',' order by policyname) from pg_policies
+           where schemaname = 'public' and tablename = 'leads')
+         = 'leads_atualizacao_por_escopo,leads_exclusao_admin,leads_leitura_por_escopo'`,
+      ),
+    ).toBe(true);
+  });
+
+  it("quem lê sem sessão (chave de serviço, dono) segue lendo o lead inteiro, uma linha por lead", () => {
+    expect(
+      vale(
+        `(select count(*) = (select count(*) from public.leads) and count(*) = count(distinct id)
+                 and bool_and(especialidade is not null)
+            from public.agenda_de_pessoas where origem = 'lead')`,
       ),
     ).toBe(true);
   });

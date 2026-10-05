@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "./supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "./permissoes";
-import { leadNoEscopo, visaoDeLeads, type VisaoDeLeads } from "./escopoDeLeads";
+import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads, type VisaoDeLeads } from "./escopoDeLeads";
 import { ehTabelaOuColunaAusente, mensagemDeMigracaoPendente } from "./erroDeSchema";
 import { itemDaInteracao, ultimaInteracaoPorLead, type InteracaoDoLead, type ItemDoHistorico, type UltimaInteracao } from "./gestaoDoLead";
 
@@ -92,6 +92,34 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const naoEncontrado = () => NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
 
 type Linha = Record<string, unknown>;
+
+/**
+ * Quais destes leads quem pergunta enxerga. É a porta para os OUTROS módulos
+ * (a agenda de pessoas, 05/10/2026): eles não leem `leads`, perguntam aqui.
+ *
+ * Escopo "nenhum" e lista vazia respondem sem ir ao banco. Leitura que falhou
+ * devolve conjunto vazio: quem chama usa a resposta para decidir o que
+ * MOSTRAR do lead, e na dúvida não mostra.
+ */
+export async function leadsAVistaDe(
+  supabase: ClienteDaSessao,
+  visao: VisaoDeLeads,
+  ids: readonly string[],
+): Promise<Set<string>> {
+  const validos = [...new Set(ids.filter((id) => UUID.test(id)))];
+  if (visao.escopo === "nenhum" || validos.length === 0) return new Set();
+
+  const { data, error } = await comEscopoDeLeads(
+    supabase.from("leads").select("id, responsavel").in("id", validos),
+    visao,
+  );
+  if (error || !data) return new Set();
+  return new Set(
+    (data as { id: string; responsavel: string | null }[])
+      .filter((l) => leadNoEscopo(visao, l.responsavel))
+      .map((l) => l.id),
+  );
+}
 
 /**
  * O lead, se quem pede o enxerga. É a guarda que vem ANTES do histórico e da

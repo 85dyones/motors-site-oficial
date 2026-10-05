@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
-import { createServerSupabaseClient } from "../../../lib/supabase-server";
-import { filtroDeBusca, papeisQueContam, termoDeBusca } from "../../../lib/agenda";
+import { sessaoDaAgenda } from "../../../lib/agenda-servidor";
+import { leadsAVistaDe } from "../../../lib/gestaoDoLead-servidor";
+import { filtroDeBusca, papeisQueContam, paraQuemPergunta, termoDeBusca, type PessoaDaAgenda } from "../../../lib/agenda";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,14 @@ export const dynamic = "force-dynamic";
  * com `range` e `count: exact`, e o total viaja na resposta: a tela mostra
  * "1–50 de N" e ninguém precisa adivinhar se está vendo o conjunto ou uma
  * fatia dele.
+ *
+ * **Quem lê e quem escreve (05/10/2026).** Decisão do dono: *"A agenda precisa
+ * ser vista por todos, o lead não."* O GET é de toda a equipe ativa; o POST,
+ * de quem já cadastrava (`sessaoDaAgenda`). Na pessoa de origem "lead", a
+ * etapa e as anotações só viajam para quem enxerga aquele lead: a view já as
+ * manda NULL (migração 20261005150000) quando a RLS por escopo está de pé, e
+ * `paraQuemPergunta` repete o corte aqui para a regra não depender de a
+ * 20261003130000 estar aplicada.
  */
 
 const POR_PAGINA_PADRAO = 50;
@@ -32,11 +41,9 @@ const COLUNAS = "origem, id, nome, papel, especialidade, documento, telefone, em
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = await sessaoDaAgenda("leitura");
+    if (sessao.recusa) return sessao.recusa;
+    const { supabase, visao } = sessao;
 
     const p = request.nextUrl.searchParams;
 
@@ -91,8 +98,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const linhas = (pessoas ?? []) as unknown as PessoaDaAgenda[];
+    const leadsAVista = await leadsAVistaDe(
+      supabase,
+      visao,
+      linhas.filter((l) => l.origem === "lead").map((l) => l.id),
+    );
+
     return NextResponse.json({
-      pessoas: pessoas ?? [],
+      pessoas: paraQuemPergunta(linhas, visao.escopo, leadsAVista),
       total: count ?? 0,
       pagina,
       limite,
@@ -113,11 +127,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    const sessao = await sessaoDaAgenda("escrita");
+    if (sessao.recusa) return sessao.recusa;
+    const { supabase, userId } = sessao;
 
     const body = await request.json();
     const nome = typeof body.nome === "string" ? body.nome.trim() : "";
@@ -143,7 +155,7 @@ export async function POST(request: NextRequest) {
         email: body.email?.trim() || null,
         cidade: body.cidade?.trim() || null,
         observacoes: body.observacoes?.trim() || null,
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single();

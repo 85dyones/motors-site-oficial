@@ -4,7 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { createServerClient } from "@supabase/ssr";
 import { papelPadraoPorEmail } from "./lib/papelPadrao";
-import { ehInvestidor, ehStaff, perfisDe } from "./lib/permissoes";
+import { ACAO_GERENCIAR_AGENDA, ACAO_VER_AGENDA, ehInvestidor, ehStaff, perfisDe, podeFazer } from "./lib/permissoes";
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -175,7 +175,9 @@ export async function proxy(request: NextRequest) {
     path.startsWith("/api/users") ||
     // A agenda de pessoas (2026-08-24) devolve CPF, telefone e e-mail de
     // cliente. Ela entra aqui pelo mesmo motivo que os investidores: a RLS
-    // já barra no banco, e esta é a segunda tranca, na porta.
+    // já barra no banco, e esta é a segunda tranca, na porta. Desde
+    // 05/10/2026 a leitura é de toda a equipe; quem não é da equipe (cliente
+    // da Garagem, investidor) continua parando aqui.
     path.startsWith("/api/pessoas");
 
   if (isAdminPath || isInvestidorPath || isProtectedApi) {
@@ -299,18 +301,17 @@ export async function proxy(request: NextRequest) {
           }
         }
 
-        // Agenda de pessoas (2026-08-24): Admin, Gestor, Comercial e
-        // Financeiro. Marketing fica de fora com apoio na matriz A17 — a
-        // linha "Ver e mover leads no kanban" já lhe nega o contato
-        // individual ("Marketing vê só o volume agregado"), e a agenda é uma
-        // lista de CPF, telefone e e-mail. Dar aqui o que o kanban nega seria
-        // furar a própria régua por uma porta lateral.
+        // Agenda de pessoas. Até 05/10/2026 a porta fechava para Marketing
+        // e SDR; naquele dia o dono separou as duas coisas: *"A agenda
+        // precisa ser vista por todos, o lead não."* LER (a tela e os GET) é
+        // de toda a equipe, e quem chegou até aqui já é da equipe. ESCREVER
+        // (POST, PATCH, DELETE em /api/pessoas) segue com quem já escrevia:
+        // a linha "Gerenciar clientes e fornecedores" da matriz. A rota
+        // repete a recusa e confere a conta ativa (`sessaoDaAgenda`).
         if (path.startsWith("/admin/clientes") || path.startsWith("/api/pessoas")) {
-          if (
-            !perfis.includes("gestor") &&
-            !perfis.includes("comercial") &&
-            !perfis.includes("financeiro")
-          ) {
+          const soLeitura = request.method === "GET" || request.method === "HEAD";
+          const acao = soLeitura ? ACAO_VER_AGENDA : ACAO_GERENCIAR_AGENDA;
+          if (podeFazer(perfis, acao) !== "faz") {
             if (isAdminPath) {
               const url = request.nextUrl.clone();
               url.pathname = "/admin";

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { sessaoDaAgenda } from "../../../../lib/agenda-servidor";
 import { acharDuplicatas, type PessoaDaAgenda } from "../../../../lib/agenda";
 
 export const dynamic = "force-dynamic";
@@ -38,11 +38,11 @@ const TETO_DE_LOTES = 20;
 
 export async function GET() {
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
+    // Leitura: é de toda a equipe ativa (05/10/2026). A varredura só pede
+    // colunas de diretório (nome, papel, documento), nada do registro do lead.
+    const sessao = await sessaoDaAgenda("leitura");
+    if (sessao.recusa) return sessao.recusa;
+    const { supabase } = sessao;
 
     const pessoas: PessoaDaAgenda[] = [];
     let completo = true;

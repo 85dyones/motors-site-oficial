@@ -8,11 +8,13 @@ import {
   ROTULO_DO_PAPEL,
   CAMPOS_EDITAVEIS,
   chaveDaPessoa,
+  ligacaoDoLead,
   type GrupoDuplicado,
   type OrigemDaAgenda,
   type PapelNaAgenda,
   type PessoaDaAgenda,
 } from "@/lib/agenda";
+import type { EscopoDeLeads } from "@/lib/escopoDeLeads";
 
 /**
  * Clientes e fornecedores num lugar só.
@@ -39,6 +41,17 @@ import {
  * 3. **O aviso de duplicata é carregado à parte.** Duplicata é propriedade do
  *    CONJUNTO — procurá-la dentro de uma página seria procurar pares numa
  *    fatia e concluir que não há.
+ *
+ * Desde 05/10/2026 a tela é de toda a equipe (decisão do dono: *"A agenda
+ * precisa ser vista por todos, o lead não. São coisas diferentes."*), e duas
+ * props vindas da página dizem o que cada um recebe dela:
+ *
+ * - `podeGerenciar` falso (Marketing, SDR): a tela é de consulta. Cadastrar,
+ *   editar, desativar e excluir NÃO são desenhados, em vez de aparecerem
+ *   apagados: a rota recusaria, e botão que só existe para dizer "não" é ruído.
+ * - `escopoDeLeads`: a pessoa que veio de um lead mostra a etapa e leva à tela
+ *   do lead só para quem o enxerga. Para os outros ela é um contato com a
+ *   etiqueta "Lead", sem etapa, sem anotação e sem link.
  */
 
 const POR_PAGINA = 50;
@@ -84,7 +97,13 @@ const RASCUNHO_VAZIO: Rascunho = {
   ativo: true,
 };
 
-export default function AgendaDePessoas() {
+export default function AgendaDePessoas({
+  podeGerenciar,
+  escopoDeLeads,
+}: {
+  podeGerenciar: boolean;
+  escopoDeLeads: EscopoDeLeads;
+}) {
   const { confirm } = useConfirm();
 
   const [pessoas, setPessoas] = useState<PessoaDaAgenda[]>([]);
@@ -171,12 +190,14 @@ export default function AgendaDePessoas() {
   };
 
   const abrirNovo = () => {
+    if (!podeGerenciar) return;
     setErro("");
     setAviso("");
     setRascunho({ ...RASCUNHO_VAZIO });
   };
 
   const abrirEdicao = (p: PessoaDaAgenda) => {
+    if (!podeGerenciar) return;
     setErro("");
     setAviso("");
     setRascunho({
@@ -195,7 +216,7 @@ export default function AgendaDePessoas() {
 
   const salvar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rascunho) return;
+    if (!rascunho || !podeGerenciar) return;
     if (!rascunho.nome.trim()) {
       setErro("O nome é obrigatório.");
       return;
@@ -260,7 +281,7 @@ export default function AgendaDePessoas() {
   };
 
   const alternarAtivo = async (p: PessoaDaAgenda) => {
-    if (!CAMPOS_EDITAVEIS[p.origem].ativo) return;
+    if (!podeGerenciar || !CAMPOS_EDITAVEIS[p.origem].ativo) return;
     setErro("");
     try {
       const res = await fetch(`/api/pessoas/${p.id}`, {
@@ -282,6 +303,7 @@ export default function AgendaDePessoas() {
   };
 
   const excluir = async (p: PessoaDaAgenda) => {
+    if (!podeGerenciar) return;
     const ok = await confirm({
       title: "Excluir cadastro",
       message:
@@ -323,8 +345,14 @@ export default function AgendaDePessoas() {
         <p className="mt-1 max-w-[640px] text-sm text-mt-neutral-800">
           Quem compra, quem fornece, quem presta serviço e quem investe — os quatro
           cadastros da casa numa lista só. A coluna <em>Cadastro</em> diz de onde cada
-          um vem, porque é ela que decide o que dá para editar por aqui.
+          um vem{podeGerenciar ? ", porque é ela que decide o que dá para editar por aqui" : ""}.
         </p>
+        {!podeGerenciar && (
+          <p data-agenda="so-leitura" className="mt-1 max-w-[640px] text-xs text-mt-neutral-700">
+            Seu perfil consulta a agenda. Cadastrar e alterar é com o Comercial, o
+            Financeiro ou a gestão.
+          </p>
+        )}
       </div>
 
       {erro && (
@@ -413,13 +441,15 @@ export default function AgendaDePessoas() {
             </select>
           </div>
 
-          <button
-            type="button"
-            onClick={abrirNovo}
-            className="mt-foco h-10 cursor-pointer bg-mt-accent px-4 text-xs font-extrabold uppercase tracking-wider text-mt-inverso transition-all hover:bg-mt-accent-hover"
-          >
-            + Novo cadastro
-          </button>
+          {podeGerenciar && (
+            <button
+              type="button"
+              onClick={abrirNovo}
+              className="mt-foco h-10 cursor-pointer bg-mt-accent px-4 text-xs font-extrabold uppercase tracking-wider text-mt-inverso transition-all hover:bg-mt-accent-hover"
+            >
+              + Novo cadastro
+            </button>
+          )}
         </div>
 
         {/* Conferência de duplicatas */}
@@ -504,21 +534,31 @@ export default function AgendaDePessoas() {
                   <th className="pb-3">Cadastro</th>
                   <th className="pb-3">CPF / CNPJ</th>
                   <th className="pb-3">Contato</th>
-                  <th className="pb-3 pr-2 text-right">Ações</th>
+                  {podeGerenciar && <th className="pb-3 pr-2 text-right">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-mt-regua-fina">
                 {pessoas.map((p) => {
                   const editavel = Object.keys(CAMPOS_EDITAVEIS[p.origem]).length > 0;
                   const podeApagar = p.origem === "financeiro" || p.origem === "rede";
+                  // Só para quem abre o lead. Sem link, a linha é o contato e a
+                  // etiqueta "Lead" na coluna Papel: sem etapa e sem anotação,
+                  // que a rota já não manda.
+                  const lead = ligacaoDoLead(p, escopoDeLeads);
                   return (
                     <tr
                       key={chaveDaPessoa(p)}
                       className={`transition-colors hover:bg-mt-accent-100 ${p.ativo ? "" : "opacity-55"}`}
                     >
                       <td className="py-3 pl-2 font-bold text-mt-ink">
-                        {p.nome}
-                        {p.especialidade && (
+                        {lead ? (
+                          <Link href={lead} data-agenda="abrir-lead" className="mt-foco hover:text-mt-accent hover:underline">
+                            {p.nome}
+                          </Link>
+                        ) : (
+                          p.nome
+                        )}
+                        {p.especialidade && (p.origem !== "lead" || lead) && (
                           <span className="ml-2 font-normal text-[10px] text-mt-neutral-600">
                             {p.especialidade}
                           </span>
@@ -548,6 +588,7 @@ export default function AgendaDePessoas() {
                           )}
                         </div>
                       </td>
+                      {podeGerenciar && (
                       <td className="py-3 pr-2 text-right">
                         <div className="flex items-center justify-end gap-3">
                           {editavel && (
@@ -581,6 +622,7 @@ export default function AgendaDePessoas() {
                           )}
                         </div>
                       </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -629,7 +671,7 @@ export default function AgendaDePessoas() {
       </div>
 
       {/* Formulário */}
-      {rascunho && (
+      {rascunho && podeGerenciar && (
         <FormularioDaPessoa
           rascunho={rascunho}
           setRascunho={setRascunho}
