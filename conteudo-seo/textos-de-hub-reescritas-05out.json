@@ -1,0 +1,16 @@
+{
+  "_leia": "Reescrita de 05/10/2026, RASCUNHO para o dono aprovar. /estoque/ate-60-mil JÁ tem linha em `textos_de_hub` (texto de 30/09, em textos-de-hub-humanizados.json): ao aprovar é UPDATE, não insert. Motivo: o Planejador de Palavras-chave (conteudo-seo/palavras-chave.md) mostra 'carros usados baratos curitiba' 480 e 'carros até 50 mil' 210 buscas por mês, e o texto anterior não dizia 'usados', 'baratos' nem citava os de menos de R$ 50 mil. Mesma regra do dono: informar sem argumentar contra o carro. Nada gravado no banco.",
+  "textos": [
+    {
+      "caminho": "/estoque/ate-60-mil",
+      "titulo": null,
+      "paragrafos": [
+        "Carros usados até R$ 60 mil em Curitiba: comece pela procedência",
+        "Esta página reúne os carros mais baratos do estoque, inclusive os que custam menos de R$ 50 mil. É a faixa do primeiro carro, do segundo carro da casa e da ferramenta de trabalho. Antes de escolher, separe do orçamento a documentação, o seguro e a primeira revisão.",
+        "### O que conferir num carro usado barato",
+        "Nesta faixa o carro costuma ter passado por mais donos, e o histórico pesa mais que o ano. Confira:\n- Laudo cautelar, que mostra sinistro, passagem por leilão e a numeração de chassi e motor.\n- Revisões com registro por escrito.\n- Pneus, freios e embreagem, que são o primeiro gasto de quem compra.\n- Manual e chave reserva.",
+        "De cada dez veículos que avaliamos, três entram, e o critério é o mesmo em qualquer preço. A perícia independente vem antes do anúncio, e o laudo fica com o vendedor: peça antes mesmo de ver o carro."
+      ]
+    }
+  ]
+}
