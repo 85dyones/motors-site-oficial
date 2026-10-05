@@ -1,5 +1,5 @@
 {
-  "_leia": "Lote de 05/10/2026, RASCUNHO para o dono aprovar. Sai da leitura do Planejador de Palavras-chave (conteudo-seo/palavras-chave.md): 'carro automático mais barato' 260, 'carro automático até 50 mil' 170. Um texto: /estoque/automatico, recorte novo deste PR (ao aprovar é insert em `textos_de_hub`). Escrito com o humanizer na forma escaneável. Nada gravado no banco.",
+  "_leia": "Lote de 05/10/2026, aprovado pelo dono em 05/10/2026. Sai da leitura do Planejador de Palavras-chave (conteudo-seo/palavras-chave.md): 'carro automático mais barato' 260, 'carro automático até 50 mil' 170. Um texto: /estoque/automatico, recorte novo deste PR (ao aprovar é insert em `textos_de_hub`). Escrito com o humanizer na forma escaneável. Nada gravado no banco.",
   "textos": [
     {
       "caminho": "/estoque/automatico",
