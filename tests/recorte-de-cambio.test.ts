@@ -88,6 +88,14 @@ describe("o que conta como automático", () => {
     expect(hub?.veiculos.length === 1).toBe(entra);
   });
 
+  // Revisão de 05/10/2026: a página é de CARROS. Um scooter CVT passa em
+  // `ehAutomatico` e entrava na grade, na contagem do chip e no JSON-LD.
+  it.each(["Motocicleta", "Moto", "Scooter"])("%s automática fica de fora", (tipo) => {
+    const moto = { ...veiculo("m", "Automático CVT"), tipo } as Veiculo;
+    const hub = acharHubDeCambio([moto, veiculo("c", "Automático")], "automatico");
+    expect(hub?.veiculos.map((v) => v.id)).toEqual(["c"]);
+  });
+
   it("os valores crus do banco passam pelo mapper e caem do lado certo", () => {
     // No banco hoje só existem "automatico" e "manual"; o `null` é o carro que
     // chegou do feed sem o campo. O mapper não inventa câmbio para o vazio, e
@@ -103,8 +111,8 @@ describe("o que conta como automático", () => {
     // vitrine listar com outra. A lista de câmbio não tem import nenhum, então
     // a regra só pode estar em `hubsDeEstoque`, e tem de ser `ehAutomatico`.
     const hubs = lerCodigo("src/lib/hubsDeEstoque.ts");
-    expect(hubs).toMatch(/import \{ ehAutomatico \} from "\.\/fichaDoMotor"/);
-    expect(hubs).toMatch(/disponiveis\.filter\(\(v\) => ehAutomatico\(v\) === true\)/);
+    expect(hubs).toMatch(/import \{ ehAutomatico, ehMoto \} from "\.\/fichaDoMotor"/);
+    expect(hubs).toMatch(/disponiveis\.filter\(\(v\) => !ehMoto\(v\) && ehAutomatico\(v\) === true\)/);
 
     const patio = ["Automático", "Manual", "", "CVT", "Automatizado"].map((c, i) => veiculo(String(i), c));
     expect(hubsDeCambio(patio)[0].veiculos).toEqual(patio.filter((v) => ehAutomatico(v) === true));
@@ -228,6 +236,10 @@ describe("a página não fica órfã", () => {
 
   it("a home e /estoque linkam pelo bloco de faixas", () => {
     // O chip em si é renderizado em `faixas-de-preco-na-navegacao.test.ts`.
-    expect(lerCodigo("src/components/modernist/FaixasDePreco.tsx")).toMatch(/hubsDeCambio\(disponiveis\)\.map/);
+    const bloco = lerCodigo("src/components/modernist/FaixasDePreco.tsx");
+    expect(bloco).toMatch(/hubsDeCambio\(disponiveis\)\.map/);
+    // Em linha própria e com rótulo próprio: "Automáticos" não é faixa de preço.
+    expect(bloco.indexOf("Por câmbio")).toBeGreaterThan(bloco.indexOf("hubsDeFaixa(disponiveis).map"));
+    expect(bloco.indexOf("Por câmbio")).toBeLessThan(bloco.indexOf("hubsDeCambio(disponiveis).map"));
   });
 });

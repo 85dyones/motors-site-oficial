@@ -76,6 +76,15 @@ export default function FaixasDePreco({
             </span>
           </Link>
         ))}
+      </div>
+      {/* Câmbio em linha própria, com rótulo próprio (revisão de 05/10/2026):
+          "Automáticos" não é faixa de preço, e o chip dentro da fileira das
+          faixas ficava sob um título que fala de orçamento. O rótulo é o mesmo
+          do bloco de links das páginas de recorte ("Por câmbio"). */}
+      <p className="m-0 mt-4 text-[11px] font-extrabold uppercase tracking-[.06em] text-mt-cobre">
+        Por câmbio
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
         {hubsDeCambio(disponiveis).map((cambio) => (
           <Link
             key={cambio.slug}

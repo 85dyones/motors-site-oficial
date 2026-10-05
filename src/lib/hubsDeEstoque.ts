@@ -12,7 +12,7 @@ import { FAIXAS_DE_PRECO, type FaixaDePreco } from "./faixasDePreco";
 import { RECORTES_DE_CAMBIO, type RecorteDeCambio } from "./recortesDeCambio";
 // A régua de "é automático" é a do Garagem Profiler, e não uma nova: ver a nota
 // em `hubsDeCambio`.
-import { ehAutomatico } from "./fichaDoMotor";
+import { ehAutomatico, ehMoto } from "./fichaDoMotor";
 // `fichaPerdida` importa daqui SÓ tipos (ele é lido por um client component e
 // não pode arrastar o Supabase). A volta, de valores, é deste lado — servidor.
 import { indiceDeMarcas, patioEmDestaque, type MarcaConhecida } from "./fichaPerdida";
@@ -679,7 +679,12 @@ export function hubsDeCambio(disponiveis: Veiculo[]): HubDeCambio[] {
     ...cambio,
     // Um ramo por slug quando houver o segundo. Com um só, a lista inteira é
     // "automático", e `tests/recorte-de-cambio.test.ts` prende que é um só.
-    veiculos: disponiveis.filter((v) => ehAutomatico(v) === true),
+    //
+    // Moto fica de fora (revisão de 05/10/2026): a página se chama "Carros
+    // automáticos", e um scooter CVT passa em `ehAutomatico`. O quiz já
+    // descarta moto antes de olhar o câmbio (`lib/motorDoMatch.ts`); sem o
+    // mesmo corte aqui, a "mesma régua" não seria a mesma.
+    veiculos: disponiveis.filter((v) => !ehMoto(v) && ehAutomatico(v) === true),
   }));
 }
 
