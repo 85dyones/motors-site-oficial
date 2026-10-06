@@ -230,10 +230,20 @@ async function aplicar(
   // preso ao lead fechado, e a volta do cliente não apareceria no kanban —
   // o mesmo sintoma, por outra porta.
   let leadId: string | null = existente?.lead_id ?? null;
-  if (leadId && (await leadEncerrado(supabase, leadId))) leadId = null;
+  const vinculoEncerrado = leadId !== null && (await leadEncerrado(supabase, leadId));
+  if (vinculoEncerrado) leadId = null;
+
+  // A conversa que só está sendo RESOLVIDA, e cujo lead já foi encerrado, não
+  // sai à procura de outro lead (2026-10-06). É o evento que volta quando o
+  // painel encerra o lead e resolve a conversa (`conversaDoDesfecho`), e
+  // também o do consultor que resolve à mão depois de fechar o negócio. Não é
+  // o cliente voltando: pendurar esta conversa no outro lead aberto da mesma
+  // pessoa trocaria o atendimento mais recente dele, que é de onde a fila lê
+  // se o assistente ainda está na conversa. O vínculo fica como está.
+  const soResolveOQueJaEncerrou = vinculoEncerrado && evento.tipo === "conversa" && evento.encerrada;
 
   // 2. O lead ------------------------------------------------------------
-  if (!leadId && evento.telefone) {
+  if (!leadId && evento.telefone && !soResolveOQueJaEncerrou) {
     leadId = await acharLead(supabase, evento.telefone);
 
     // Só o cliente escrevendo, ou o consultor respondendo, justificam criar. Um
@@ -321,7 +331,11 @@ async function aplicar(
     acao: leadId ? "atendimento_vinculado" : "atendimento_sem_lead",
     conversa: conversaId,
     lead: leadId,
-    detalhe: leadId ? undefined : "conversa sem telefone reconhecível",
+    detalhe: leadId
+      ? undefined
+      : soResolveOQueJaEncerrou
+        ? "conversa resolvida de um lead já encerrado"
+        : "conversa sem telefone reconhecível",
   };
 }
 

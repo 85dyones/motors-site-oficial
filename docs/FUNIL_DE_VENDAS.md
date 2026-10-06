@@ -382,6 +382,34 @@ continua sendo no kanban — `CAMPOS_EDITAVEIS.lead` é `{}` de propósito.
 | `POST /api/funil/alertas` | n8n, com `FUNIL_MOTOR_TOKEN`. |
 | `PATCH /api/leads/gerenciar` | Ganhou desfecho, motivo, valor e `contato`. |
 
+### 4.5 Encerrar o lead resolve a conversa no Chatwoot (2026-10-06)
+
+Relato do dono: *"encerrei um lead como perdido no painel e a conversa não foi
+resolvida automaticamente no chatwoot"*. Desde então, o `PATCH
+/api/leads/gerenciar` que grava um desfecho (Ganho, Perdido ou Não é
+oportunidade) resolve, logo depois, as conversas abertas do lead
+(`lib/conversaDoDesfecho`).
+
+- **Quais conversas:** todas as linhas de `atendimentos` com o `lead_id` do
+  lead e `chatwoot_conversation_id`, menos as que `status_conversa` já diz
+  `resolved`.
+- **Antes de resolver, uma nota privada** na conversa: *"Lead encerrado no
+  painel: Perdido. Motivo: Achou caro. Por Ana."* Sempre `private: true`:
+  nunca é mensagem para o cliente.
+- **O desfecho nunca espera o Chatwoot.** O lead é gravado primeiro. As
+  chamadas têm prazo curto e rodam dentro da resposta; se falharem, a resposta
+  leva `conversa_resolvida: false` e um `aviso`, que o quadro e o detalhe do
+  lead mostram na faixa de avisos de sempre.
+- **Reabrir o lead não reabre a conversa.**
+- **A volta pelo webhook:** a nota e a resolução voltam como eventos em
+  `/api/chatwoot/eventos`. A nota é reconhecida pelo começo do texto e
+  ignorada (senão contaria como resposta de consultor e criaria um lead
+  novo). A conversa resolvida de um lead já encerrado só atualiza o espelho em
+  `atendimentos`, sem procurar outro lead da mesma pessoa.
+- **Depende de `CHATWOOT_API_TOKEN`** com permissão de escrever na conversa.
+  Sem ele, o lead que tem conversa aberta é encerrado com o aviso de resolver
+  por lá.
+
 ---
 
 ## 5. O n8n
