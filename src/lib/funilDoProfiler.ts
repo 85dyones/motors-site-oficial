@@ -1,5 +1,3 @@
-import { rastreamentoRecusado } from "./telemetry";
-
 /**
  * O funil do Garagem Profiler (`/carro-perfeito`), contado por dia — sem
  * identificador nenhum.
@@ -16,10 +14,12 @@ import { rastreamentoRecusado } from "./telemetry";
  * `profiler_funil_diario` (migração 20261006120000). Nada de ag_uid, IP,
  * sessão ou horário: um número por passo por dia.
  *
- * Quem recusou o rastreamento em /privacidade não envia passo. Contar também
- * essa pessoa é a pergunta 8 da spec ("o contador anônimo roda mesmo com
- * recusa de rastreamento?"), ainda em aberto com o dono: até ele responder,
- * vale a leitura mais estreita da recusa.
+ * Quem recusou o rastreamento em /privacidade também conta. Era a pergunta 8
+ * da spec ("o contador anônimo roda mesmo com recusa de rastreamento?"), e o
+ * dono decidiu em 06/10: "inclua tudo". Dá para contar porque não há ninguém
+ * a rastrear — nada fica no navegador e nada identifica a pessoa — e a
+ * /privacidade diz que essa contagem continua com a medição desligada. É
+ * justamente quem o GA4 perde.
  *
  * Cada passo conta UMA vez por rodada do quiz: quem volta da 03 para a 02 não
  * vira duas pessoas na 02. A rodada recomeça no REFAZER.
@@ -70,8 +70,7 @@ export const ROTA_DO_FUNIL = "/api/profiler/passo";
  */
 export function enviarPassoDoFunil(passo: PassoDoFunil): void {
   if (typeof window === "undefined") return;
-  // Pergunta 8 da spec em aberto: por ora, recusa é recusa.
-  if (rastreamentoRecusado()) return;
+  // Sem olhar a recusa: o dono decidiu contar todos (06/10), e o corpo é só o passo.
   const corpo = JSON.stringify({ passo });
   // O beacon pode recusar (`false`) ou lançar — nos dois casos, o `fetch`.
   try {

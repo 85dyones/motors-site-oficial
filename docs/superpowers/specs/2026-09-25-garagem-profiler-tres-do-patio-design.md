@@ -432,7 +432,8 @@ consultor consegue separar por lead) e não entrou.
   sem identificador, e conta uma vez por rodada `intro`, `q1`…`q5`,
   `results`, `por_mes` e o lead aceito por modo (`lib/funilDoProfiler.ts`,
   rota `/api/profiler/passo`, limitada por IP no proxy). Quem recusou o
-  rastreamento não envia, até o dono responder a pergunta 8 abaixo.
+  rastreamento também conta: o dono respondeu a pergunta 8 abaixo em 06/10
+  ("inclua tudo"), e a `/privacidade` passou a dizer isso.
 
 **POR MÊS (27/09), com as respostas do dono de 25/09:** "as taxas são
 estimadas, verifique a média de mercado em pelo menos 5 bancos"; a troca
@@ -603,6 +604,7 @@ esperadas: o cliente não vê essas duas propostas, mas as outras dependem delas
 7. **Cadastro.** Quem completa no RevendaMais as 9 fichas sem opcionais (Polo
    2025, Argo 2025, 320i, Ka Sedan SE, Saveiro Robust, X4, Uno, Fusca, F-250)?
 8. **Contador anônimo.** O contador agregado do funil, sem cookie e sem IP,
-   roda mesmo com recusa de rastreamento? Qual a retenção de `leads.perfil`?
+   roda mesmo com recusa de rastreamento? ✅ Decidido em 06/10: sim, "inclua
+   tudo". Qual a retenção de `leads.perfil`? (segue em aberto)
 9. **Operação.** O consultor dá conta de confirmar pedidos de visita e separar
    até 3 carros por lead?

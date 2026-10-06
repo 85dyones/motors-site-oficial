@@ -575,8 +575,11 @@ describe("B.4 · a última decisão da pessoa é a que vale", () => {
     // alternativa antiga, "apagados na hora", não casava com texto nenhum da
     // página. Agora são duas afirmações, cada uma presa à sua frase: o
     // parágrafo da oposição, logo acima do controle, e o do código do anúncio.
+    // Em 2026-10-06 a frase ganhou "dessas ferramentas": o contador anônimo do
+    // funil do Profiler segue com a medição desligada (decisão do dono), e a
+    // página diz isso logo depois da lista de ferramentas.
     expect(politica, "a política não avisa que a oposição apaga os identificadores")
-      .toMatch(/interrompe\s+a\s+medição\s+neste\s+navegador\s+e\s+apaga\s+na\s+hora\s+os\s+identificadores/);
+      .toMatch(/interrompe\s+a\s+medição\s+dessas\s+ferramentas\s+neste\s+navegador\s+e\s+apaga\s+na\s+hora\s+os\s+identificadores/);
     expect(politica, "a política não avisa que desligar apaga o código do anúncio")
       .toMatch(/desligar\s+a\s+medição,\s+ele\s+é\s+apagado/);
   });

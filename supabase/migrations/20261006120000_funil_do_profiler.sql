@@ -31,11 +31,12 @@
 -- rota usa para recusar o corpo antes de chamar o banco. Quem conta uma vez
 -- por rodada do quiz é o navegador (`criarContadorDaRodada`); o banco só soma.
 --
--- Contar ou não quem recusou o rastreamento em /privacidade é decisão do
--- SITE, não desta tabela. É o item 8 das "Decisões do dono" na spec, ainda em
--- aberto com ele. Por ora o site respeita a recusa e não envia passo de quem
--- recusou: o contador, como o GA4, não vê essas pessoas. Se o dono decidir
--- contar todo mundo, muda o código do site, não o schema.
+-- Quem recusou o rastreamento em /privacidade também conta. Era o item 8 das
+-- "Decisões do dono" na spec, e o dono decidiu em 06/10: "inclua tudo". Isso
+-- só é possível porque a tabela não guarda identificador nenhum: não há
+-- ninguém a rastrear, só um número por passo por dia. A /privacidade passa a
+-- dizer que essa contagem anônima continua mesmo com a medição desligada. É
+-- aqui que o contador vê quem o GA4 perde.
 --
 --   * `dia` é o dia em America/Sao_Paulo, calculado pela função. O servidor
 --     do Supabase roda em UTC: com `current_date`, toda visita das 21h à

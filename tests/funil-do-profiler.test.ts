@@ -168,9 +168,10 @@ describe("o que o quiz manda", () => {
 
 describe("a recusa de rastreamento", () => {
   // Pergunta 8 da spec ("o contador anônimo roda mesmo com recusa de
-  // rastreamento?") segue em aberto com o dono: por ora, quem recusou em
-  // /privacidade não envia passo nenhum.
-  it("quem recusou não envia; quem não recusou envia só o nome do passo", async () => {
+  // rastreamento?"): o dono decidiu em 06/10, "inclua tudo". Quem recusou em
+  // /privacidade também conta — e manda o mesmo corpo de quem não recusou,
+  // só o nome do passo. A /privacidade diz isso (teste abaixo).
+  it("quem recusou também conta, com o mesmo corpo: só o nome do passo", async () => {
     const enviados: { url: string; corpo: string }[] = [];
     const armazenamento = new Map<string, string>();
     vi.stubGlobal("window", {});
@@ -191,13 +192,25 @@ describe("a recusa de rastreamento", () => {
       armazenamento.delete("ag_cookie_consent");
       enviarPassoDoFunil("q2");
       await new Promise((r) => setTimeout(r, 0));
-      expect(enviados).toEqual([{ url: "/api/profiler/passo", corpo: '{"passo":"q2"}' }]);
+      expect(enviados).toEqual([
+        { url: "/api/profiler/passo", corpo: '{"passo":"q1"}' },
+        { url: "/api/profiler/passo", corpo: '{"passo":"q2"}' },
+      ]);
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("beacon que lança cai no fetch, em vez de perder o passo calado", async () => {
+  it("a /privacidade avisa que a contagem anônima continua com a medição desligada", () => {
+    const pagina = readFileSync(join(__dirname, "..", "src", "app", "privacidade", "page.tsx"), "utf8")
+      .replace(/\s+/g, " ");
+    expect(pagina).toContain("continua mesmo com a medição desligada");
+    expect(pagina).toContain("só o dia, o nome da etapa e o total");
+    // E o botão não promete parar "a medição" inteira: para a das ferramentas.
+    expect(pagina).toContain("A opção interrompe a medição dessas ferramentas neste navegador");
+  });
+
+    it("beacon que lança cai no fetch, em vez de perder o passo calado", async () => {
     const pelos: string[] = [];
     vi.stubGlobal("window", {});
     vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });

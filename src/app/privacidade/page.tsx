@@ -395,7 +395,7 @@ export default async function PrivacidadePage() {
             <p>
               Se você preferir não participar, pode se opor a esse uso em
               &ldquo;Desligar neste navegador&rdquo;, logo abaixo. A opção interrompe a medição
-              neste navegador e apaga na hora os identificadores de campanha guardados nele, e a
+              dessas ferramentas neste navegador e apaga na hora os identificadores de campanha guardados nele, e a
               escolha vale para as próximas visitas neste dispositivo.
             </p>
             <ControleDeRastreamento />
@@ -494,6 +494,30 @@ export default async function PrivacidadePage() {
                 quem preenche o formulário é uma pessoa, não um robô.
               </li>
             </ul>
+            {/* 06/10/2026 — o contador diário do funil do Garagem Profiler
+                (`lib/funilDoProfiler.ts`, rota `/api/profiler/passo`, tabela
+                `profiler_funil_diario`). O dono decidiu contar também quem
+                desligou a medição ("inclua tudo"), então a página tem de
+                dizer que essa conta não para no botão acima — por isso o
+                "dessas ferramentas" no parágrafo do botão. Cada frase daqui
+                é conferível: o navegador manda só `{ passo }` (sem cookie
+                nem `localStorage`); a tabela guarda (org, dia, passo) →
+                contagem; o IP só chave o limitador do proxy
+                (`funilRatelimit`, janela de 1 h, sem analytics), cujas chaves
+                o `@upstash/ratelimit` expira em 2 × janela + 1 s. Se alguma
+                dessas coisas mudar, este parágrafo muda junto. */}
+            <p>
+              <strong className="text-mt-ink">Uma contagem nossa não depende dessa
+              escolha.</strong> No Garagem Profiler, o quiz do{" "}
+              <Link href="/carro-perfeito" className="underline underline-offset-2">Carro Perfeito</Link>,
+              somamos por dia quantas vezes se chega a cada etapa e quantos pedidos de contato
+              saem dali, para saber em que pergunta as pessoas desistem. Essa conta não guarda
+              nada no seu navegador nem nada que identifique você — nem cookie, nem IP, nem
+              horário, nem as suas respostas: só o dia, o nome da etapa e o total. Por isso ela
+              continua mesmo com a medição desligada. O endereço de rede da sua conexão é usado
+              por no máximo duas horas, só para barrar envios abusivos, e não fica junto da
+              contagem.
+            </p>
             {/* Até 15/09/2026 esta orientação dizia "para revogar o
                 consentimento, apague os dados de navegação" — instrução de um
                 regime de aceite que não existe mais. Conferido contra
