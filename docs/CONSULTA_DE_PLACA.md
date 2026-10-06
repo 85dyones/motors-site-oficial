@@ -18,6 +18,38 @@ ou na troca. Pedido do dono em 06/10/2026.
 
 O veredito é o dos registros. Vistoria e perícia cautelar continuam valendo.
 
+## A aba "Por modelo" (sem custo)
+
+A tela abre nesta aba. Ela responde, antes de gastar uma consulta de placa:
+**vale olhar este modelo, e para onde a tabela dele está indo?**
+
+Escolhe-se marca, modelo e ano-modelo (a mesma cascata da `/avaliacao`). A tela mostra:
+
+- **O alerta de tendência**, com forma, cor e rótulo escrito: `Estável`,
+  `Atenção` (desvalorizando) ou `Alerta` (desvalorizando cada vez mais rápido).
+  Nenhum percentual de "caiu muito" está no código: o alerta só compara a
+  série com ela mesma (últimos seis meses contra os seis anteriores) e a queda
+  de um ano com a diferença de preço para o ano-modelo seguinte.
+- **O que a tendência custa**: meses seguidos de queda, quanto de tabela cada
+  mês de pátio leva, a FIPE em três meses se o ritmo continuar, e a faixa do
+  período.
+- **A faixa de compra** pela curva de deságio vigente, a mesma da aba da placa.
+- **Três gráficos**: FIPE e valor de compra em 24 meses com projeção, variação
+  mês a mês, e o mesmo modelo ano a ano (com a tabela dos mesmos números).
+
+De onde vem: só a tabela FIPE pública (Parallelum v2, token gratuito
+`FIPE_API_TOKEN`, o mesmo da `/avaliacao`). Cada mês lido fica em
+`fipe_historico`, e valor de tabela de mês fechado não muda: a primeira
+análise de um modelo gasta cerca de 30 chamadas do teto diário do token, e as
+seguintes, nenhuma (no mês seguinte, só os meses novos). Sem a migração
+`20261006190000_fipe_historico` a aba funciona, mas não guarda nada.
+
+O que ela NÃO sabe: nada do carro em si. Leilão, sinistro, gravame e débito só
+existem na aba da placa.
+
+Miolo em `src/lib/mercadoPorModelo.ts` (puro) e
+`src/lib/mercadoPorModelo-servidor.ts`; rota `POST /api/consulta-placa/modelo`.
+
 ## De onde vem cada dado
 
 | Dado | Fonte | Custo |
@@ -56,7 +88,8 @@ paga)" da matriz. Trilho, página, rota e RLS cobram a mesma régua.
 
 ## Para ligar
 
-1. Aplicar a migração `20261006180000_consultas_de_placa`.
+1. Aplicar as migrações `20261006180000_consultas_de_placa` (aba da placa) e
+   `20261006190000_fipe_historico` (aba do modelo).
 2. Na Vercel, `APIBRASIL_TOKEN` em Production. Em Preview e Development,
    também `APIBRASIL_HOMOLOGACAO=1`: o fornecedor responde com um carro de
    exemplo e não cobra.

@@ -26,7 +26,16 @@ export const COR_DO_ESTADO: Record<EstadoDaChecagem, string> = {
   nao_conferido: "var(--cp-neutro)",
 };
 
-export default function SinalDeEstado({ estado, tamanho = 20 }: { estado: EstadoDaChecagem; tamanho?: number }) {
+export default function SinalDeEstado({
+  estado,
+  tamanho = 20,
+  rotulo,
+}: {
+  estado: EstadoDaChecagem;
+  tamanho?: number;
+  /** O nome lido em voz alta, quando a forma é usada fora do quadro de checagens (o "Alerta" da tendência). */
+  rotulo?: string;
+}) {
   const cor = COR_DO_ESTADO[estado];
   const traco = { fill: "none", stroke: "#fff", strokeWidth: 2.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
@@ -35,7 +44,7 @@ export default function SinalDeEstado({ estado, tamanho = 20 }: { estado: Estado
       height={tamanho}
       viewBox="0 0 24 24"
       role="img"
-      aria-label={ROTULO_DO_ESTADO[estado]}
+      aria-label={rotulo ?? ROTULO_DO_ESTADO[estado]}
       className="shrink-0"
       data-estado={estado}
     >

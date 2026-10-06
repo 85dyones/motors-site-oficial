@@ -1,29 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "../ConfirmDialog";
-import {
-  ROTULO_CONSERVACAO,
-  ROTULO_MECANICA,
-  recomendarAvaliacao,
-  type EstadoConservacao,
-  type EstadoMecanico,
-  type ParametrosDaCurva,
-} from "../../../lib/avaliacaoRecomendacao";
+import type { ParametrosDaCurva } from "../../../lib/avaliacaoRecomendacao";
 import { formatarCnpj } from "../../../lib/cnpj";
 import {
   leituraAcimaDoHodometro,
   normalizarPlaca,
   quadroDeChecagens,
   qualificarCompra,
-  serieDoGrafico,
-  tendenciaDaFipe,
   type EstadoDaChecagem,
   type NivelDaQualificacao,
 } from "../../../lib/consultaDePlaca";
 import type { ConsultaGuardada, LeituraDasRecentes } from "../../../lib/consultaDePlaca-servidor";
-import GraficoDaFipe from "./GraficoDaFipe";
+import FaixaDeCompra, { useAvaliacao } from "./FaixaDeCompra";
+import PainelDaFipe from "./PainelDaFipe";
 import SinalDeEstado, { COR_DO_ESTADO, ROTULO_DO_ESTADO } from "./SinalDeEstado";
 
 /**
@@ -47,10 +39,7 @@ import SinalDeEstado, { COR_DO_ESTADO, ROTULO_DO_ESTADO } from "./SinalDeEstado"
 const reais = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const centavos = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const km = (n: number) => `${n.toLocaleString("pt-BR")} km`;
-const pct = (n: number) => `${n > 0 ? "+" : ""}${n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
-const pp = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 
-const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 function dataCurta(iso: string | null | undefined): string {
   const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -78,9 +67,6 @@ const TITULO_DO_NIVEL: Record<NivelDaQualificacao, string> = {
   apto: "Sem impedimento",
 };
 
-const MECANICA: EstadoMecanico[] = ["excelente", "bom", "atencao", "ruim"];
-const CONSERVACAO: EstadoConservacao[] = ["impecavel", "riscos", "reparos", "avariado"];
-const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 type Retorno = { tipo: "erro" | "aviso"; texto: string } | null;
 
@@ -108,9 +94,9 @@ export default function ConsultaDePlaca({
   // Um relógio só por montagem: a idade da consulta não precisa andar sozinha.
   const [agora] = useState(() => Date.now());
 
-  const [kmInformado, setKmInformado] = useState("");
-  const [mecanica, setMecanica] = useState<EstadoMecanico>("bom");
-  const [conservacao, setConservacao] = useState<EstadoConservacao>("riscos");
+  const retrato = consulta?.retrato ?? null;
+  const fipeAtual = retrato?.fipe?.valorAtual ?? null;
+  const avaliacao = useAvaliacao(fipeAtual, retrato?.veiculo.anoModelo ?? null, curva);
 
   const pedir = async (corpo: { placa: string; soGuardada?: boolean; refazer?: boolean }) => {
     const res = await fetch("/api/consulta-placa", {
@@ -132,9 +118,7 @@ export default function ConsultaDePlaca({
     setConsulta(c);
     setVeioGuardada(guardada);
     setPlaca(c.placa);
-    setKmInformado("");
-    setMecanica("bom");
-    setConservacao("riscos");
+    avaliacao.zerar();
   };
 
   /** Primeiro o que já está guardado, de graça; só depois, com confirmação, o fornecedor. */
@@ -192,61 +176,18 @@ export default function ConsultaDePlaca({
     }
   };
 
-  const retrato = consulta?.retrato ?? null;
-
-  // ── A avaliação ao vivo ────────────────────────────────────────────────────
-  const kmNumero = /^\d{1,7}$/.test(kmInformado.replace(/\D/g, "")) ? Number(kmInformado.replace(/\D/g, "")) : null;
-  const fipeAtual = retrato?.fipe?.valorAtual ?? null;
-  const recomendacao = useMemo(
-    () =>
-      retrato && fipeAtual !== null
-        ? recomendarAvaliacao({
-            estadoMecanico: mecanica,
-            estadoConservacao: conservacao,
-            quilometragem: kmNumero,
-            anoModelo: retrato.veiculo.anoModelo,
-            // `recomendarAvaliacao` lê a FIPE como texto com centavos.
-            fipeValor: fipeAtual.toFixed(2),
-            parametros: curva,
-          })
-        : null,
-    [retrato, fipeAtual, mecanica, conservacao, kmNumero, curva],
-  );
-  const leituraAcima = retrato ? leituraAcimaDoHodometro(retrato.leiturasDeKm, kmNumero) : null;
+  const leituraAcima = retrato ? leituraAcimaDoHodometro(retrato.leiturasDeKm, avaliacao.kmNumero) : null;
   const qualificacao = retrato
-    ? qualificarCompra(retrato, { acimaDoTeto: recomendacao?.acima_do_teto === true, leituraAcima })
+    ? qualificarCompra(retrato, { acimaDoTeto: avaliacao.recomendacao?.acima_do_teto === true, leituraAcima })
     : null;
   const checagens = retrato ? quadroDeChecagens(retrato) : [];
-  const tendencia = retrato?.fipe ? tendenciaDaFipe(retrato.fipe.historico) : null;
-  const pontos = useMemo(
-    () =>
-      retrato?.fipe
-        ? serieDoGrafico(
-            retrato.fipe.historico,
-            recomendacao && !recomendacao.acima_do_teto ? { min: recomendacao.desconto_min, max: recomendacao.desconto_max } : null,
-          )
-        : [],
-    [retrato, recomendacao],
-  );
-  // O aviso do site sobre documento não se aplica aqui: esta tela conferiu.
-  const sinais = (recomendacao?.sinais ?? []).filter((s) => !s.startsWith("documento e procedência"));
 
   const rotulo = "mt-rotulo";
   const dica = "m-0 text-[11px] leading-relaxed text-mt-neutral-700";
   const secao = "flex flex-col gap-4 border-t-2 border-mt-regua pt-5";
 
   return (
-    <div className="mt-consulta flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-1.5 border-b-2 border-mt-regua pb-5">
-        <div className="mt-rotulo mt-rotulo-accent">Estoque</div>
-        <h1 className="mt-titulo text-3xl md:text-4xl">Consulta de placa</h1>
-        <p className="mt-1 max-w-[680px] text-sm text-mt-neutral-800">
-          O retrato do carro oferecido à loja, para compra ou na troca: o que impede, o que pede atenção, para onde
-          vai a FIPE e quanto a curva de deságio manda pagar. Placa nova é cobrada pelo fornecedor; placa já
-          consultada reabre sem custo.
-        </p>
-      </div>
-
+    <div className="mt-consulta flex w-full flex-col gap-6">
       {homologacao && (
         <div className="flex items-start gap-3 border border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">
           <SinalDeEstado estado="nao_conferido" />
@@ -419,175 +360,16 @@ export default function ConsultaDePlaca({
             </section>
           )}
 
-          {/* ── A faixa de compra, ao vivo ────────────────────────────────── */}
-          <section aria-label="Faixa de compra" className={secao}>
-            <h2 className={`${rotulo} m-0`}>FAIXA DE COMPRA</h2>
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <div className="flex flex-col gap-4">
-                <label className="flex flex-col gap-1">
-                  <span className={rotulo}>KM NO PAINEL</span>
-                  <input
-                    className="mt-campo-caixa mt-foco w-44 tabular-nums"
-                    inputMode="numeric"
-                    value={kmInformado}
-                    onChange={(e) => {
-                      const d = e.target.value.replace(/\D/g, "").slice(0, 7);
-                      setKmInformado(d ? Number(d).toLocaleString("pt-BR") : "");
-                    }}
-                    placeholder="0"
-                  />
-                  <span className={dica}>
-                    {retrato.leiturasDeKm.length > 0
-                      ? `Última leitura registrada: ${km(retrato.leiturasDeKm[retrato.leiturasDeKm.length - 1].km)} em ${dataCurta(retrato.leiturasDeKm[retrato.leiturasDeKm.length - 1].data)}.`
-                      : "A consulta não trouxe leitura anterior de km."}
-                  </span>
-                </label>
-                {leituraAcima && (
-                  <div className="flex items-start gap-3 border-l-[3px] bg-mt-surface px-3 py-2 text-xs" style={{ borderColor: COR_DO_ESTADO.impeditivo }}>
-                    <SinalDeEstado estado="impeditivo" />
-                    <span>
-                      O km informado é MENOR que uma leitura anterior: {km(leituraAcima.km)} em {dataCurta(leituraAcima.data)}.
-                      Hodômetro não anda para trás.
-                    </span>
-                  </div>
-                )}
-                <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-                  <legend className={`${rotulo} mb-1.5 block`}>MECÂNICA</legend>
-                  <div className="mt-seg flex-wrap">
-                    {MECANICA.map((v) => (
-                      <label key={v} className="mt-seg-opt">
-                        <input type="radio" name="mecanica" checked={mecanica === v} onChange={() => setMecanica(v)} />
-                        <span>{maiuscula(ROTULO_MECANICA[v].replace(/^mecânica /, ""))}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-                  <legend className={`${rotulo} mb-1.5 block`}>FUNILARIA</legend>
-                  <div className="mt-seg flex-wrap">
-                    {CONSERVACAO.map((v) => (
-                      <label key={v} className="mt-seg-opt">
-                        <input type="radio" name="conservacao" checked={conservacao === v} onChange={() => setConservacao(v)} />
-                        <span>{maiuscula(ROTULO_CONSERVACAO[v].replace(/^funilaria /, ""))}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              </div>
+          <FaixaDeCompra avaliacao={avaliacao} fipeAtual={fipeAtual} leiturasDeKm={retrato.leiturasDeKm} leituraAcima={leituraAcima} />
 
-              <div className="flex flex-col gap-3">
-                {fipeAtual === null ? (
-                  <p className="m-0 text-sm text-mt-neutral-800">A consulta não trouxe o valor FIPE: não há faixa para calcular.</p>
-                ) : !recomendacao ? (
-                  <p className="m-0 text-sm text-mt-neutral-800">
-                    Não deu para ler a curva de deságio vigente (<code className="font-mono">parametros_avaliacao</code>), então a
-                    tela não sugere faixa. A FIPE do mês é {reais(fipeAtual)}.
-                  </p>
-                ) : (
-                  <>
-                    <div className="flex items-start gap-3">
-                      {/* Só o sinal de recusa: a faixa é uma conta, e um "ok" verde ao
-                          lado do preço se leria como "pode comprar" num carro com impeditivo. */}
-                      {recomendacao.acima_do_teto && <SinalDeEstado estado="impeditivo" tamanho={28} />}
-                      <div className="flex flex-col">
-                        {recomendacao.valor_sugerido_min !== null && recomendacao.valor_sugerido_max !== null ? (
-                          <span className="mt-titulo text-2xl tabular-nums md:text-3xl" data-faixa-de-compra>
-                            {recomendacao.valor_sugerido_min === recomendacao.valor_sugerido_max
-                              ? reais(recomendacao.valor_sugerido_max)
-                              : `${reais(recomendacao.valor_sugerido_min)} a ${reais(recomendacao.valor_sugerido_max)}`}
-                          </span>
-                        ) : (
-                          <span className="mt-titulo text-2xl">Fora da faixa de compra</span>
-                        )}
-                        <span className="text-xs text-mt-neutral-800">
-                          {recomendacao.faixa_label} · FIPE {reais(fipeAtual)}
-                        </span>
-                      </div>
-                    </div>
-                    <table className="mt-tabela text-xs">
-                      <thead>
-                        <tr>
-                          <th scope="col">Componente</th>
-                          <th scope="col">Por quê</th>
-                          <th scope="col" className="mt-num">p.p.</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recomendacao.componentes.map((c) => (
-                          <tr key={c.nome}>
-                            <td className="font-semibold">{maiuscula(c.nome)}</td>
-                            <td>{c.motivo}</td>
-                            <td className="mt-num">{c.pp_min === c.pp_max ? pp(c.pp_min) : `${pp(c.pp_min)} a ${pp(c.pp_max)}`}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {sinais.length > 0 && (
-                      <ul className="m-0 flex list-none flex-col gap-1 p-0 text-xs text-mt-neutral-800">
-                        {sinais.map((s) => (
-                          <li key={s}>{maiuscula(s)}.</li>
-                        ))}
-                      </ul>
-                    )}
-                    <p className={dica}>
-                      Curva vigente desde {dataCurta(recomendacao.parametros_desde)}. Preparação e margem entram depois da
-                      vistoria; este é o valor da curva, antes delas.
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* ── A FIPE e a tendência ──────────────────────────────────────── */}
-          {tendencia && retrato.fipe && (
-            <section aria-label="FIPE e tendência" className={secao}>
-              <h2 className={`${rotulo} m-0`}>FIPE E TENDÊNCIA DO VALOR DE COMPRA</h2>
-              <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                <div className="flex flex-col gap-0.5 border border-mt-regua-fina bg-mt-surface p-3">
-                  <dt className={rotulo}>FIPE DE {MESES[Number(tendencia.referencia.slice(5)) - 1].toUpperCase()}/{tendencia.referencia.slice(2, 4)}</dt>
-                  <dd className="mt-titulo m-0 text-xl tabular-nums">{reais(retrato.fipe.valorAtual ?? tendencia.valorAtual)}</dd>
-                  <span className="text-[11px] text-mt-neutral-700">
-                    {retrato.gratuito?.fipeOficial ? "Conferida na tabela pública" : "Valor do fornecedor"}
-                  </span>
-                </div>
-                {tendencia.variacoes.map((v) => (
-                  <div key={v.meses} className="flex flex-col gap-0.5 border border-mt-regua-fina bg-mt-surface p-3">
-                    <dt className={rotulo}>EM {v.meses} MESES</dt>
-                    <dd className="mt-titulo m-0 inline-flex items-center gap-1.5 text-xl tabular-nums">
-                      <span aria-hidden>{v.pct < 0 ? "▼" : v.pct > 0 ? "▲" : "■"}</span>
-                      {pct(v.pct)}
-                    </dd>
-                    <span className="text-[11px] tabular-nums text-mt-neutral-700">Era {reais(v.de)}</span>
-                  </div>
-                ))}
-                <div className="flex flex-col gap-0.5 border border-mt-regua-fina bg-mt-surface p-3">
-                  <dt className={rotulo}>DESDE O PICO</dt>
-                  <dd className="mt-titulo m-0 text-xl tabular-nums">{pct(tendencia.pico.pct)}</dd>
-                  <span className="text-[11px] tabular-nums text-mt-neutral-700">
-                    {reais(tendencia.pico.valor)} em {MESES[tendencia.pico.mes - 1]}/{String(tendencia.pico.ano).slice(2)}
-                  </span>
-                </div>
-              </dl>
-              {tendencia.ritmo && (
-                <div className="flex items-center gap-3 text-sm">
-                  <SinalDeEstado estado={tendencia.ritmo === "acelerando" ? "atencao" : "ok"} />
-                  <span>
-                    {tendencia.ritmo === "acelerando"
-                      ? "A queda está acelerando: os últimos 6 meses caíram mais que os 6 anteriores. Cada mês de pátio custa mais."
-                      : tendencia.ritmo === "desacelerando"
-                        ? "A queda está perdendo força: os últimos 6 meses caíram menos que os 6 anteriores."
-                        : "A queda segue no mesmo ritmo dos 6 meses anteriores."}
-                  </span>
-                </div>
-              )}
-              <GraficoDaFipe pontos={pontos} />
-              <p className={dica}>
-                A FIPE anda atrás do mercado: o gráfico mostra o que já aconteceu com a tabela. A projeção é conta, e não
-                previsão.
-                {retrato.fipe.valorZeroKm !== null ? ` Zero km hoje: ${reais(retrato.fipe.valorZeroKm)}.` : ""}
-              </p>
-            </section>
+          {retrato.fipe && (
+            <PainelDaFipe
+              historico={retrato.fipe.historico}
+              fipeAtual={fipeAtual}
+              desagio={avaliacao.desagio}
+              origem={retrato.gratuito?.fipeOficial ? "Conferida na tabela pública" : "Valor do fornecedor"}
+              zeroKm={retrato.fipe.valorZeroKm}
+            />
           )}
 
           {/* ── O carro e a origem ────────────────────────────────────────── */}
