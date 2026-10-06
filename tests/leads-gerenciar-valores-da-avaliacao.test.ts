@@ -51,7 +51,9 @@ interface Gravado {
   eq: () => Gravado;
   neq: () => Gravado;
   not: () => Gravado;
-  then: (ok: (r: { error: null }) => unknown, falha?: (e: unknown) => unknown) => Promise<unknown>;
+  /** Desde 06/10 a rota pede a linha gravada, para saber se alcançou o lead. */
+  select: () => Gravado;
+  then: (ok: (r: { data: { id: string }[]; error: null }) => unknown, falha?: (e: unknown) => unknown) => Promise<unknown>;
 }
 
 function gravado(): Gravado {
@@ -59,7 +61,8 @@ function gravado(): Gravado {
     eq: () => q,
     neq: () => q,
     not: () => q,
-    then: (ok, falha) => Promise.resolve({ error: null }).then(ok, falha),
+    select: () => q,
+    then: (ok, falha) => Promise.resolve({ data: [{ id: "lead-1" }], error: null }).then(ok, falha),
   };
   return q;
 }

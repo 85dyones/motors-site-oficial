@@ -100,7 +100,9 @@ interface Gravacao {
   eq: (coluna: string, valor: unknown) => Gravacao;
   neq: (coluna: string, valor: unknown) => Gravacao;
   not: (coluna: string, operador: string, valor: unknown) => Gravacao;
-  then: (ok: (r: { error: null }) => unknown, falha?: (e: unknown) => unknown) => Promise<unknown>;
+  /** Desde 06/10 a rota pede a linha gravada, para saber se alcançou o lead. */
+  select: (colunas?: string) => Gravacao;
+  then: (ok: (r: { data: { id: string }[]; error: null }) => unknown, falha?: (e: unknown) => unknown) => Promise<unknown>;
 }
 
 function gravacao(campos: Record<string, unknown>): Gravacao {
@@ -111,7 +113,8 @@ function gravacao(campos: Record<string, unknown>): Gravacao {
     eq: (coluna: string, valor: unknown) => (filtros.push(`${coluna} = ${String(valor)}`), q),
     neq: (coluna: string, valor: unknown) => (filtros.push(`${coluna} <> '${String(valor)}'`), q),
     not: (coluna: string, operador: string, valor: unknown) => (filtros.push(`${coluna} not ${operador} ${String(valor)}`), q),
-    then: (ok, falha) => Promise.resolve({ error: null }).then(ok, falha),
+    select: () => q,
+    then: (ok, falha) => Promise.resolve({ data: [{ id: ID }], error: null }).then(ok, falha),
   };
   return q;
 }

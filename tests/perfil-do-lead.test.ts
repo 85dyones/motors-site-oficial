@@ -103,8 +103,10 @@ vi.mock("../src/lib/supabase-server", () => ({
               eq: () => gravado,
               neq: () => gravado,
               not: () => gravado,
-              then: (ok: (r: { error: null }) => unknown, falha?: (e: unknown) => unknown) =>
-                Promise.resolve({ error: null }).then(ok, falha),
+              // Desde 06/10 a rota pede a linha gravada (`select("id")`).
+              select: () => gravado,
+              then: (ok: (r: { data: { id: string }[]; error: null }) => unknown, falha?: (e: unknown) => unknown) =>
+                Promise.resolve({ data: [{ id: "lead-1" }], error: null }).then(ok, falha),
             };
             return gravado;
           },

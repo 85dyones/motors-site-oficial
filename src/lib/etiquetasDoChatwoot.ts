@@ -88,11 +88,23 @@ function conversaValida(conversa: unknown): conversa is number {
   return typeof conversa === "number" && Number.isInteger(conversa) && conversa > 0;
 }
 
-async function chamar(
+/** O que `chamarChatwoot` diz quando a conversa pedida não existe (404). */
+export const MOTIVO_DE_CONVERSA_AUSENTE = "a conversa não existe mais no Chatwoot";
+
+/**
+ * Uma chamada à API do Chatwoot, com o token e com prazo. Nunca lança.
+ *
+ * Exportada em 06/10/2026 para o encerramento do lead (`conversaDoDesfecho`)
+ * falar com o Chatwoot pelo mesmo caminho, e com as mesmas frases de falha,
+ * que as etiquetas. `prazoMs` é o prazo DESTA chamada: quem tem um orçamento
+ * total passa o que resta dele.
+ */
+export async function chamarChatwoot(
   buscar: Buscar,
   url: string,
   cfg: ConfigDoChatwoot,
   init: RequestInit = {},
+  prazoMs: number = PRAZO_MS,
 ): Promise<Resultado<unknown>> {
   let resposta: Response;
   try {
@@ -103,7 +115,7 @@ async function chamar(
         "Content-Type": "application/json",
         ...(init.headers ?? {}),
       },
-      signal: AbortSignal.timeout(PRAZO_MS),
+      signal: AbortSignal.timeout(prazoMs),
       cache: "no-store",
     });
   } catch (e) {
@@ -120,7 +132,7 @@ async function chamar(
         resposta.status === 401 || resposta.status === 403
           ? "o Chatwoot recusou o token (CHATWOOT_API_TOKEN)"
           : resposta.status === 404
-            ? "a conversa não existe mais no Chatwoot"
+            ? MOTIVO_DE_CONVERSA_AUSENTE
             : `o Chatwoot respondeu ${resposta.status}`,
     };
   }
@@ -138,7 +150,7 @@ export async function lerEtiquetasDaConversa(
   buscar: Buscar = fetch,
 ): Promise<Resultado<string[]>> {
   if (!conversaValida(conversa)) return { ok: false, motivo: "conversa inválida" };
-  const r = await chamar(buscar, urlDasEtiquetas(cfg, conversa), cfg);
+  const r = await chamarChatwoot(buscar, urlDasEtiquetas(cfg, conversa), cfg);
   if (!r.ok) return r;
   const payload = (r.valor as { payload?: unknown } | null)?.payload;
   if (!Array.isArray(payload)) return { ok: false, motivo: "resposta ilegível do Chatwoot" };
@@ -159,7 +171,7 @@ async function gravarEtiquetasDaConversa(
 ): Promise<Resultado<string[]>> {
   if (!conversaValida(conversa)) return { ok: false, motivo: "conversa inválida" };
   const limpas = limparEtiquetas(etiquetas);
-  const r = await chamar(buscar, urlDasEtiquetas(cfg, conversa), cfg, {
+  const r = await chamarChatwoot(buscar, urlDasEtiquetas(cfg, conversa), cfg, {
     method: "POST",
     body: JSON.stringify({ labels: limpas }),
   });
@@ -183,7 +195,7 @@ export async function lerEtiquetasDaConta(
   cfg: ConfigDoChatwoot,
   buscar: Buscar = fetch,
 ): Promise<Resultado<string[]>> {
-  const r = await chamar(buscar, `${cfg.base}/api/v1/accounts/${cfg.conta}/labels`, cfg);
+  const r = await chamarChatwoot(buscar, `${cfg.base}/api/v1/accounts/${cfg.conta}/labels`, cfg);
   if (!r.ok) return r;
   const payload = (r.valor as { payload?: unknown } | null)?.payload;
   if (!Array.isArray(payload)) return { ok: false, motivo: "resposta ilegível do Chatwoot" };

@@ -26,6 +26,7 @@ import {
 } from "../../../../lib/gestaoDoLead";
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
 import { veiculosDepoisDoDesfecho } from "../../../../lib/veiculosDeInteresse-servidor";
+import { resolverConversasDoLead } from "../../../../lib/conversaDoDesfecho";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
 import {
@@ -42,6 +43,7 @@ import {
   type EtapaDoFunil,
   type LeadDoDesfecho,
   type MotivoDoFunil,
+  type TipoDeDesfecho,
 } from "../../../../lib/funil";
 
 export const dynamic = "force-dynamic";
@@ -548,7 +550,9 @@ export async function PATCH(request: NextRequest) {
 
     const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     // O desfecho que ESTE pedido grava (ganho, perdido, descartado), ou nulo.
-    let desfechoGravado: string | null = null;
+    let desfechoGravado: TipoDeDesfecho | null = null;
+    /** Os motivos lidos para a decisão: é deles que sai o rótulo da nota do Chatwoot. */
+    let motivosLidos: MotivoDoFunil[] = [];
     if (situacao !== undefined) atualizacao.situacao = situacao;
     // Aparado: a validação acima já apara para comparar, e o nome gravado com
     // espaço sobrando não casaria com o `full_name` de ninguém — o vendedor
@@ -638,7 +642,8 @@ export async function PATCH(request: NextRequest) {
               console.warn("[Leads] Motivos ilegíveis antes do desfecho:", erroMotivos.message);
               return null;
             }
-            return (data ?? []) as MotivoDoFunil[];
+            motivosLidos = (data ?? []) as MotivoDoFunil[];
+            return motivosLidos;
           },
         },
       );
@@ -671,10 +676,18 @@ export async function PATCH(request: NextRequest) {
 
     // O escopo vai também na escrita: se o lead mudou de dono entre a leitura
     // do guarda e este ponto, a gravação não alcança linha nenhuma.
-    const { error } = await comEscopoDeLeads(supabase.from("leads").update(atualizacao).eq("id", id), visaoDoAutor);
+    // `select("id")` para saber se a gravação ALCANÇOU o lead: sem linha
+    // alcançada nada foi escrito, e o que vem depois do desfecho (os veículos,
+    // a conversa no Chatwoot) não pode agir sobre um desfecho que não houve.
+    // A resposta deste caso continua a de sempre.
+    const { data: gravados, error } = await comEscopoDeLeads(
+      supabase.from("leads").update(atualizacao).eq("id", id),
+      visaoDoAutor,
+    ).select("id");
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    if (!Array.isArray(gravados) || gravados.length === 0) desfechoGravado = null;
 
     // ------------------------------------------------------------------------
     // Os veículos de interesse depois do desfecho (2026-10-05)
@@ -686,16 +699,47 @@ export async function PATCH(request: NextRequest) {
     // na resposta, para a tela abrir a resolução em lote
     // (`POST /api/leads/[id]/veiculos/resolver`). Sem a tabela, sem opção ou
     // com falha, os dois campos simplesmente não vêm.
-    const dosVeiculos: Record<string, unknown> = {};
+    //
+    // ------------------------------------------------------------------------
+    // A conversa no Chatwoot depois do desfecho (2026-10-06)
+    // ------------------------------------------------------------------------
+    // *"Encerrei um lead como perdido no painel e a conversa não foi resolvida
+    // automaticamente no chatwoot."* Encerrado o lead (ganho, perdido ou não é
+    // oportunidade), as conversas abertas dele são resolvidas, com uma nota
+    // privada dizendo quem encerrou e por quê (`lib/conversaDoDesfecho`).
+    //
+    // DEPOIS do `update`, como as etiquetas da passagem: o desfecho já valeu e
+    // o Chatwoot fora do ar não o desfaz. E dentro da resposta, com prazo
+    // curto, em vez de `after()`: só assim a tela consegue dizer que a
+    // conversa continuou aberta. Reabrir o lead não passa por aqui, e não
+    // reabre conversa nenhuma.
+    const doDesfecho: Record<string, unknown> = {};
     if (desfechoGravado) {
-      const depois = await veiculosDepoisDoDesfecho(supabase, visaoDoAutor, String(id), desfechoGravado);
-      if (depois.veiculo_escolhido) dosVeiculos.veiculo_escolhido = depois.veiculo_escolhido;
-      if (depois.pendencias_de_veiculo.length > 0) dosVeiculos.pendencias_de_veiculo = depois.pendencias_de_veiculo;
-      // A escolha que cabia e não foi feita não fica só no log do servidor.
-      if (depois.aviso) dosVeiculos.aviso = depois.aviso;
+      const chaveDoMotivo = String(atualizacao.desfecho_motivo ?? "");
+      const [depois, conversa] = await Promise.all([
+        veiculosDepoisDoDesfecho(supabase, visaoDoAutor, String(id), desfechoGravado),
+        resolverConversasDoLead(
+          supabase,
+          String(id),
+          {
+            tipo: desfechoGravado,
+            motivo: motivosLidos.find((m) => m.chave === chaveDoMotivo)?.rotulo?.trim() || chaveDoMotivo,
+            autor: typeof profile?.full_name === "string" ? profile.full_name : null,
+            nota: typeof atualizacao.desfecho_nota === "string" ? atualizacao.desfecho_nota : null,
+          },
+          configDoChatwoot(),
+        ),
+      ]);
+      if (depois.veiculo_escolhido) doDesfecho.veiculo_escolhido = depois.veiculo_escolhido;
+      if (depois.pendencias_de_veiculo.length > 0) doDesfecho.pendencias_de_veiculo = depois.pendencias_de_veiculo;
+      if (conversa.conversa_resolvida !== undefined) doDesfecho.conversa_resolvida = conversa.conversa_resolvida;
+      // A escolha que cabia e não foi feita, e a conversa que continuou
+      // aberta, não ficam só no log do servidor.
+      const avisos = [depois.aviso, conversa.aviso].filter(Boolean).join(" ");
+      if (avisos) doDesfecho.aviso = avisos;
     }
-    /** O aviso dos veículos, se houver, junto com o aviso próprio de cada resposta. */
-    const comAviso = (aviso: string) => [dosVeiculos.aviso, aviso].filter(Boolean).join(" ");
+    /** Os avisos do desfecho, se houver, junto com o aviso próprio de cada resposta. */
+    const comAviso = (aviso: string) => [doDesfecho.aviso, aviso].filter(Boolean).join(" ");
 
     // ------------------------------------------------------------------------
     // A passagem do SDR para o Comercial (2026-09-25)
@@ -721,7 +765,7 @@ export async function PATCH(request: NextRequest) {
       if (resgatesAntes === null || resgatesDepois === null) {
         return NextResponse.json({
           ok: true,
-          ...dosVeiculos,
+          ...doDesfecho,
           aviso: comAviso(
             "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não foram para o Chatwoot.",
           ),
@@ -730,7 +774,7 @@ export async function PATCH(request: NextRequest) {
       if (resgatesDepois <= resgatesAntes) {
         return NextResponse.json({
           ok: true,
-          ...dosVeiculos,
+          ...doDesfecho,
           aviso: comAviso(
             "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no Chatwoot.",
           ),
@@ -739,13 +783,13 @@ export async function PATCH(request: NextRequest) {
       const passagem = await etiquetarPassagemDoSdr(supabase, id, configDoChatwoot());
       return NextResponse.json({
         ok: true,
-        ...dosVeiculos,
+        ...doDesfecho,
         ...(passagem.etiquetas ? { etiquetas: passagem.etiquetas } : {}),
         ...(passagem.aviso ? { aviso: comAviso(passagem.aviso) } : {}),
       });
     }
 
-    return NextResponse.json({ ok: true, ...dosVeiculos });
+    return NextResponse.json({ ok: true, ...doDesfecho });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

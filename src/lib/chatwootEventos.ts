@@ -42,6 +42,7 @@ import {
   lerNotaDeAtribuicao,
   type NotaDeAtribuicao,
 } from "./atribuicaoDoChatwoot";
+import { ehNotaDoPainel } from "./conversaDoDesfecho";
 
 /** O que aconteceu, do ponto de vista do funil. */
 export type TipoDeEventoDoChatwoot =
@@ -314,6 +315,17 @@ export function interpretarEventoDoChatwoot(bruto: unknown): EventoDoChatwoot {
     // Saída. Nota privada conta: o consultor que escreve "cliente pediu para
     // ligar terça" está trabalhando o lead, e o comentário de
     // `leads.ultimo_contato_em` já lista "anotar" como toque humano.
+    //
+    // Menos a nota que o PRÓPRIO painel escreve ao encerrar o lead
+    // (`conversaDoDesfecho`, 2026-10-06). Ela sai com o token de um usuário do
+    // Chatwoot, e por isso chega aqui com cara de gente. Contada como resposta
+    // de consultor, e com o lead já encerrado, a rota criaria um lead novo e
+    // registraria nele um contato que ninguém fez.
+    // Só a nota PRIVADA: mensagem pública com as mesmas palavras é um
+    // consultor falando com o cliente, e segue o caminho normal.
+    if (ehNotaDoPainel(corpo.content, corpo.private)) {
+      return IGNORADO("nota do painel ao encerrar o lead — robô não atende");
+    }
     if (!ehAgenteHumano(remetente)) {
       return IGNORADO("mensagem de saída automática — robô não atende");
     }
