@@ -1,0 +1,1054 @@
+{
+  "user": {
+    "first_name": "Conta",
+    "email": "conta@exemplo.invalid",
+    "cellphone": "00000000000",
+    "notification": "yes"
+  },
+  "balance": "970,000",
+  "balance_before": "1000,000",
+  "tax": "30,000",
+  "status_code": 200,
+  "error": false,
+  "message": "Dados validos! Voce foi tarifado em R$ 30,00.",
+  "valor_consulta": 30,
+  "api_limit_for": "credit",
+  "homolog": false,
+  "data": {
+    "acessorios": {
+      "veiculosFipe": []
+    },
+    "acessoriosCategorizados": {
+      "acessorios": [],
+      "categorias": []
+    },
+    "analiseRisco": {
+      "imageLink": null,
+      "indiceRisco": "1",
+      "parecer": "Veículo com baixo risco de recusa em comercialização/seguro 😃"
+    },
+    "anoFabricacao": "2020",
+    "anoModelo": "2021",
+    "anuncio": {
+      "data": "24/02/2026 16:08:30",
+      "fotos": [
+        {
+          "url": "https://exemplo.invalid/foto-1"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-2"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-3"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-4"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-5"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-6"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-7"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-8"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-9"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-10"
+        }
+      ],
+      "km": "87000",
+      "observacao": "Texto do anúncio da loja anterior.",
+      "opcionais": [
+        {
+          "descricao": "Alarme"
+        },
+        {
+          "descricao": "Ar quente"
+        },
+        {
+          "descricao": "Banco do motorista com ajuste de altura"
+        },
+        {
+          "descricao": "Computador de bordo"
+        },
+        {
+          "descricao": "Desembaçador traseiro"
+        },
+        {
+          "descricao": "Ar condicionado"
+        },
+        {
+          "descricao": "Encosto de cabeça traseiro"
+        },
+        {
+          "descricao": "Freio ABS"
+        },
+        {
+          "descricao": "Retrovisores elétricos"
+        },
+        {
+          "descricao": "Rodas de liga leve"
+        },
+        {
+          "descricao": "Sensor de chuva"
+        },
+        {
+          "descricao": "Retrovisor fotocrômico"
+        },
+        {
+          "descricao": "Travas elétricas"
+        },
+        {
+          "descricao": "Vidros elétricos"
+        },
+        {
+          "descricao": "Volante com regulagem de altura"
+        },
+        {
+          "descricao": "Bancos de couro"
+        },
+        {
+          "descricao": "Direção hidráulica"
+        },
+        {
+          "descricao": "GPS"
+        },
+        {
+          "descricao": "Air bag"
+        }
+      ],
+      "placa": "ABC1D23",
+      "valor": "121900.00"
+    },
+    "baseEstadual": {
+      "categoria": "PARTICULAR",
+      "chassi": "9BRZZZ00XM0000001",
+      "combustivel": "ALCOOL/GASOLINA",
+      "comunicacaoInclusao": null,
+      "comunicacaoVenda": "NAO CONSTA COMUNICACAO DE VENDAS",
+      "cor": "CINZA",
+      "dataAlteracaoMotor": null,
+      "dataEmissaoCrv": "16/04/2026",
+      "dataInclusaoIntencaoTrocaFinanceira": null,
+      "dataLimiteRestricaoTributaria": null,
+      "dataVenda": null,
+      "dataVigenciaContratoFinanceira": null,
+      "debitoCetesb": null,
+      "debitoDer": null,
+      "debitoDersa": null,
+      "debitoDetran": null,
+      "debitoDpvat": "0,00",
+      "debitoIpva": "0,00",
+      "debitoLicenciamento": "0,00",
+      "debitoMultas": "0,00",
+      "debitoMunicipais": "0,00",
+      "debitoPoliciaRodoviariaFederal": null,
+      "debitoRenainf": null,
+      "especie": "PASSAGEIRO",
+      "exercicioLicenciamento": null,
+      "existeDebitoDpvat": "NAO EXISTE DEBITO DE DPVAT",
+      "existeDebitoIpva": "NAO EXISTE DEBITO DE IPVA",
+      "existeDebitoLicenciamento": "NAO EXISTE DEBITO DE LICENCIAMENTO",
+      "existeDebitoMulta": "NAO EXISTE DEBITO DE MULTA",
+      "licdata": null,
+      "motor": "ZZ00001",
+      "municipio": "BELO HORIZONTE",
+      "observacoes": null,
+      "outrasRestricoes1": "NADA CONSTA",
+      "outrasRestricoes2": "ALIENACAO FIDUCIARIA",
+      "outrasRestricoes3": "NADA CONSTA",
+      "outrasRestricoes4": "NADA CONSTA",
+      "placa": "ABC1D23",
+      "pronome": "FULANO DE TAL DA SILVA",
+      "pronomeAnterior": null,
+      "renavam": "00000000001",
+      "restricaoAdminisrativa": "NADA CONSTA",
+      "restricaoAmbiental": null,
+      "restricaoArrendatario": null,
+      "restricaoDataInclusao": null,
+      "restricaoDocArrendatario": null,
+      "restricaoFinanceira": "ALIENACAO FIDUCIARIA",
+      "restricaoGuincho": "NADA CONSTA",
+      "restricaoJudicial": "NADA CONSTA",
+      "restricaoNomeAgente": null,
+      "restricaoRenajud": "NADA CONSTA",
+      "restricaoRouboFurto": "NADA CONSTA",
+      "restricaoTributaria": "NADA CONSTA",
+      "situacaoVeiculo": "CIRCULACAO",
+      "tipo": "AUTOMOVEL",
+      "tipoMarcacaoChassi": "NORMAL",
+      "uf": "MG"
+    },
+    "baseNacional": {
+      "anoFabricacao": "2020",
+      "anoModelo": "2021",
+      "categoria": "PARTICULAR",
+      "chassi": "9BRZZZ00XM0000001",
+      "combustivel": "ALCOOL/GASOLINA",
+      "cor": "CINZA",
+      "di": null,
+      "docFaturado": "00000000000191",
+      "dtEmissaoCrv": null,
+      "dtUltimaAtualizacao": "16/04/2026",
+      "especie": "PASSAGEIRO",
+      "especieVeiculo": "PASSAGEIRO",
+      "indicadorComunicacaoVendas": "NAO",
+      "indicadorRestricaoRenajud": "NAO",
+      "motor": "ZZ00001",
+      "municipio": "BELO HORIZONTE",
+      "ocorrencia": "VEICULO NAO INDICA OCORRENCIA DE ROUBO/FURTO",
+      "outrasRestricoes1": "NADA CONSTA",
+      "outrasRestricoes2": "NADA CONSTA",
+      "outrasRestricoes3": "NADA CONSTA",
+      "outrasRestricoes4": "NADA CONSTA",
+      "outrasRestricoes5": "NADA CONSTA",
+      "outrasRestricoes6": "NADA CONSTA",
+      "outrasRestricoes7": "NADA CONSTA",
+      "outrasRestricoes8": "NADA CONSTA",
+      "placa": "ABC1D23",
+      "renavam": "00000000001",
+      "restricao1": "NADA CONSTA",
+      "restricao2": "NADA CONSTA",
+      "restricao3": "NADA CONSTA",
+      "restricao4": "NADA CONSTA",
+      "restricaoDataInclusao": null,
+      "restricaoFinanciadora": "ALIENACAO FIDUCIARIA",
+      "restricaoFinanciamento": null,
+      "restricaoNomeAgente": null,
+      "restricaoTipoTransacao": "NADA CONSTA",
+      "situacaoVeiculo": "CIRCULACAO",
+      "tipoDocFaturado": "JURIDICA",
+      "tipoDocImportadora": null,
+      "tipoMarcacaoChassi": "NORMAL",
+      "tipoVeiculo": "AUTOMOVEL",
+      "uf": "MG",
+      "ufFaturado": "MG"
+    },
+    "caixaCambio": "ZZ000000001",
+    "capMaxTracao": "183",
+    "capacidadeCarga": "0",
+    "capacidadePassageiro": "5",
+    "categoria": "AU - SEDAN MEDIO",
+    "cestaBasica": {
+      "registros": [],
+      "veiculosFipe": []
+    },
+    "chassi": "9BRZZZ00XM0000001",
+    "cidade": "SAO GOTARDO",
+    "cilindradas": "1987",
+    "cmt": "183",
+    "codigoCombustivel": "ALCOOL/GASOLINA",
+    "codigoFipe": [],
+    "codigoMarcaModelo": "157907",
+    "combustivel": "ALCOOL/GASOLINA",
+    "comparativoEspecificacoes": {
+      "opinioesDoDono": [],
+      "veiculoComparativo": []
+    },
+    "corVeiculo": "CINZA",
+    "custoMedio": {
+      "custoCada10k": [],
+      "custoDesgastePecasTotal": 0,
+      "custoPlanoRevisaoTotal": 0,
+      "custoTotal": 0
+    },
+    "dadosBasicosDoVeiculo": {
+      "anoFabricacao": "2020",
+      "anoModelo": "2021",
+      "chassi": "9BRZZZ00XM0000001",
+      "cilindradas": "1987",
+      "codigoFipe": "21113",
+      "combustivel": "Alcool, Gasolina",
+      "descricao": "COROLLA XEI 20",
+      "informacoesFipe": [
+        {
+          "ano": "2021",
+          "combustivel": "Flex",
+          "fipeId": "21113",
+          "historicoPreco": [
+            {
+              "ano": "2020",
+              "mes": "4",
+              "predicao": false,
+              "valor": "104982"
+            },
+            {
+              "ano": "2020",
+              "mes": "5",
+              "predicao": false,
+              "valor": "104394"
+            },
+            {
+              "ano": "2020",
+              "mes": "6",
+              "predicao": false,
+              "valor": "103819"
+            },
+            {
+              "ano": "2020",
+              "mes": "7",
+              "predicao": false,
+              "valor": "103247"
+            },
+            {
+              "ano": "2020",
+              "mes": "8",
+              "predicao": false,
+              "valor": "102689"
+            },
+            {
+              "ano": "2020",
+              "mes": "9",
+              "predicao": false,
+              "valor": "104102"
+            },
+            {
+              "ano": "2020",
+              "mes": "10",
+              "predicao": false,
+              "valor": "106288"
+            },
+            {
+              "ano": "2020",
+              "mes": "11",
+              "predicao": false,
+              "valor": "108520"
+            },
+            {
+              "ano": "2020",
+              "mes": "12",
+              "predicao": false,
+              "valor": "112112"
+            },
+            {
+              "ano": "2021",
+              "mes": "1",
+              "predicao": false,
+              "valor": "113120"
+            },
+            {
+              "ano": "2021",
+              "mes": "2",
+              "predicao": false,
+              "valor": "115762"
+            },
+            {
+              "ano": "2021",
+              "mes": "3",
+              "predicao": false,
+              "valor": "116339"
+            },
+            {
+              "ano": "2021",
+              "mes": "4",
+              "predicao": false,
+              "valor": "116230"
+            },
+            {
+              "ano": "2021",
+              "mes": "5",
+              "predicao": false,
+              "valor": "115511"
+            },
+            {
+              "ano": "2021",
+              "mes": "6",
+              "predicao": false,
+              "valor": "123474"
+            },
+            {
+              "ano": "2021",
+              "mes": "7",
+              "predicao": false,
+              "valor": "123695"
+            },
+            {
+              "ano": "2021",
+              "mes": "8",
+              "predicao": false,
+              "valor": "126763"
+            },
+            {
+              "ano": "2021",
+              "mes": "9",
+              "predicao": false,
+              "valor": "125521"
+            },
+            {
+              "ano": "2021",
+              "mes": "10",
+              "predicao": false,
+              "valor": "130817"
+            },
+            {
+              "ano": "2021",
+              "mes": "11",
+              "predicao": false,
+              "valor": "134428"
+            },
+            {
+              "ano": "2021",
+              "mes": "12",
+              "predicao": false,
+              "valor": "136705"
+            },
+            {
+              "ano": "2022",
+              "mes": "1",
+              "predicao": false,
+              "valor": "137414"
+            },
+            {
+              "ano": "2022",
+              "mes": "2",
+              "predicao": false,
+              "valor": "140928"
+            },
+            {
+              "ano": "2022",
+              "mes": "3",
+              "predicao": false,
+              "valor": "142853"
+            },
+            {
+              "ano": "2022",
+              "mes": "4",
+              "predicao": false,
+              "valor": "141219"
+            },
+            {
+              "ano": "2022",
+              "mes": "5",
+              "predicao": false,
+              "valor": "141262"
+            },
+            {
+              "ano": "2022",
+              "mes": "6",
+              "predicao": false,
+              "valor": "140021"
+            },
+            {
+              "ano": "2022",
+              "mes": "7",
+              "predicao": false,
+              "valor": "138854"
+            },
+            {
+              "ano": "2022",
+              "mes": "8",
+              "predicao": false,
+              "valor": "137758"
+            },
+            {
+              "ano": "2022",
+              "mes": "9",
+              "predicao": false,
+              "valor": "136950"
+            },
+            {
+              "ano": "2022",
+              "mes": "10",
+              "predicao": false,
+              "valor": "136209"
+            },
+            {
+              "ano": "2022",
+              "mes": "11",
+              "predicao": false,
+              "valor": "134926"
+            },
+            {
+              "ano": "2022",
+              "mes": "12",
+              "predicao": false,
+              "valor": "133890"
+            },
+            {
+              "ano": "2023",
+              "mes": "1",
+              "predicao": false,
+              "valor": "132575"
+            },
+            {
+              "ano": "2023",
+              "mes": "2",
+              "predicao": false,
+              "valor": "131666"
+            },
+            {
+              "ano": "2023",
+              "mes": "3",
+              "predicao": false,
+              "valor": "131130"
+            },
+            {
+              "ano": "2023",
+              "mes": "4",
+              "predicao": false,
+              "valor": "130756"
+            },
+            {
+              "ano": "2023",
+              "mes": "5",
+              "predicao": false,
+              "valor": "130574"
+            },
+            {
+              "ano": "2023",
+              "mes": "6",
+              "predicao": false,
+              "valor": "128686"
+            },
+            {
+              "ano": "2023",
+              "mes": "7",
+              "predicao": false,
+              "valor": "127482"
+            },
+            {
+              "ano": "2023",
+              "mes": "8",
+              "predicao": false,
+              "valor": "126547"
+            },
+            {
+              "ano": "2023",
+              "mes": "9",
+              "predicao": false,
+              "valor": "125754"
+            },
+            {
+              "ano": "2023",
+              "mes": "10",
+              "predicao": false,
+              "valor": "124913"
+            },
+            {
+              "ano": "2023",
+              "mes": "11",
+              "predicao": false,
+              "valor": "123917"
+            },
+            {
+              "ano": "2023",
+              "mes": "12",
+              "predicao": false,
+              "valor": "123820"
+            },
+            {
+              "ano": "2024",
+              "mes": "1",
+              "predicao": false,
+              "valor": "121904"
+            },
+            {
+              "ano": "2024",
+              "mes": "2",
+              "predicao": false,
+              "valor": "121799"
+            },
+            {
+              "ano": "2024",
+              "mes": "3",
+              "predicao": false,
+              "valor": "121845"
+            },
+            {
+              "ano": "2024",
+              "mes": "4",
+              "predicao": false,
+              "valor": "124008"
+            },
+            {
+              "ano": "2024",
+              "mes": "5",
+              "predicao": false,
+              "valor": "120473"
+            },
+            {
+              "ano": "2024",
+              "mes": "6",
+              "predicao": false,
+              "valor": "121010"
+            },
+            {
+              "ano": "2024",
+              "mes": "7",
+              "predicao": false,
+              "valor": "120532"
+            },
+            {
+              "ano": "2024",
+              "mes": "8",
+              "predicao": false,
+              "valor": "120398"
+            },
+            {
+              "ano": "2024",
+              "mes": "9",
+              "predicao": false,
+              "valor": "120309"
+            },
+            {
+              "ano": "2024",
+              "mes": "10",
+              "predicao": false,
+              "valor": "119925"
+            },
+            {
+              "ano": "2024",
+              "mes": "11",
+              "predicao": false,
+              "valor": "120601"
+            },
+            {
+              "ano": "2024",
+              "mes": "12",
+              "predicao": false,
+              "valor": "120064"
+            },
+            {
+              "ano": "2025",
+              "mes": "1",
+              "predicao": false,
+              "valor": "120218"
+            },
+            {
+              "ano": "2025",
+              "mes": "2",
+              "predicao": false,
+              "valor": "120143"
+            },
+            {
+              "ano": "2025",
+              "mes": "3",
+              "predicao": false,
+              "valor": "120385"
+            },
+            {
+              "ano": "2025",
+              "mes": "4",
+              "predicao": false,
+              "valor": "120454"
+            },
+            {
+              "ano": "2025",
+              "mes": "5",
+              "predicao": false,
+              "valor": "120660"
+            },
+            {
+              "ano": "2025",
+              "mes": "6",
+              "predicao": false,
+              "valor": "120789"
+            },
+            {
+              "ano": "2025",
+              "mes": "7",
+              "predicao": false,
+              "valor": "120761"
+            },
+            {
+              "ano": "2025",
+              "mes": "8",
+              "predicao": false,
+              "valor": "121475"
+            },
+            {
+              "ano": "2025",
+              "mes": "9",
+              "predicao": false,
+              "valor": "120919"
+            },
+            {
+              "ano": "2025",
+              "mes": "10",
+              "predicao": false,
+              "valor": "120707"
+            },
+            {
+              "ano": "2025",
+              "mes": "11",
+              "predicao": false,
+              "valor": "121068"
+            },
+            {
+              "ano": "2025",
+              "mes": "12",
+              "predicao": false,
+              "valor": "121104"
+            },
+            {
+              "ano": "2026",
+              "mes": "1",
+              "predicao": false,
+              "valor": "121258"
+            },
+            {
+              "ano": "2026",
+              "mes": "2",
+              "predicao": false,
+              "valor": "121345"
+            },
+            {
+              "ano": "2026",
+              "mes": "3",
+              "predicao": false,
+              "valor": "120404"
+            },
+            {
+              "ano": "2026",
+              "mes": "4",
+              "predicao": false,
+              "valor": "120135"
+            },
+            {
+              "ano": "2026",
+              "mes": "5",
+              "predicao": false,
+              "valor": "119840"
+            },
+            {
+              "ano": "2026",
+              "mes": "6",
+              "predicao": false,
+              "valor": "119235"
+            },
+            {
+              "ano": "2026",
+              "mes": "7",
+              "predicao": false,
+              "valor": "119106"
+            },
+            {
+              "ano": "2026",
+              "mes": "8",
+              "predicao": false,
+              "valor": "118800"
+            },
+            {
+              "ano": "2026",
+              "mes": "9",
+              "predicao": false,
+              "valor": "117888"
+            },
+            {
+              "ano": "2026",
+              "mes": "10",
+              "predicao": false,
+              "valor": "116904"
+            }
+          ],
+          "marca": "Toyota",
+          "modelo": "COROLLA",
+          "valorAtual": "116904.00",
+          "versao": "XEI 2.0 FLEX 16V AUT."
+        }
+      ],
+      "informacoesGerais": [
+        {
+          "fipeId": "21113",
+          "idVersao": "4069",
+          "marca": "Toyota",
+          "modelo": "Corolla 4P (2020 => 2026)",
+          "versao": "XEI 2.0 16v Flex Aut."
+        }
+      ],
+      "marca": "TOYOTA",
+      "nacional": "NACIONAL",
+      "placa": "ABC1D23"
+    },
+    "decodificadorPrecificador": {
+      "anoFabricacao": null,
+      "anoModelo": null,
+      "categoria": null,
+      "chassi": null,
+      "classificacao": null,
+      "codigoFipe": null,
+      "combustivel": null,
+      "comprimento": null,
+      "cor": null,
+      "distanciaEntreEixos": null,
+      "localFabricacao": null,
+      "marca": null,
+      "modelo": null,
+      "motor": null,
+      "origem": null,
+      "pais": null,
+      "pesoBruto": null,
+      "portas": null,
+      "potenciaMotor": null,
+      "precificadorI": [],
+      "precificadorII": [],
+      "quantidadeEixos": null,
+      "quantidadeIrregularidades": null,
+      "regiao": null,
+      "tipoCarroceria": null,
+      "tipoFreio": null,
+      "tipoMotor": null,
+      "tracao": null,
+      "transmissao": null,
+      "versao": null
+    },
+    "docFaturado": "00000000000191",
+    "dtUltimaAtualizacao": "16/04/2026",
+    "eixoTraseiroDif": null,
+    "eixos": "2",
+    "especieVeiculo": "PASSAGEIRO",
+    "fotos": [],
+    "gravame": [
+      {
+        "agente": "BANCO C6 SA",
+        "anoFabricacao": null,
+        "anoModelo": null,
+        "chassi": "9BRZZZ00XM0000001",
+        "codigoAgente": null,
+        "contrato": "SIRCAF: SIM 0",
+        "dataEmissao": null,
+        "dataInclusao": "28/01/2025",
+        "dataSituacao": null,
+        "dataVigencia": null,
+        "dataVigenciaContrato": null,
+        "documentoAgente": null,
+        "documentoFinanciado": "000.000.001-01",
+        "gravame": "VEICULO TEVE GRAVAME BAIXADO PELO AGENTE FINANCEIRO",
+        "intencao": null,
+        "municipio": null,
+        "numero": "10000001",
+        "observacoes": "Histórico",
+        "placa": "ABC1D23",
+        "renavam": "00000000001",
+        "responsavel": null,
+        "situacao": "VEICULO TEVE GRAVAME BAIXADO PELO AGENTE FINANCEIRO",
+        "uf": null,
+        "ufPlaca": "MG"
+      },
+      {
+        "agente": "SAFRA CREDITO FINAN E INVESTIMENTO SA",
+        "anoFabricacao": null,
+        "anoModelo": null,
+        "chassi": "9BRZZZ00XM0000001",
+        "codigoAgente": null,
+        "contrato": "SIRCAF: SIM 0",
+        "dataEmissao": null,
+        "dataInclusao": "02/04/2026",
+        "dataSituacao": null,
+        "dataVigencia": null,
+        "dataVigenciaContrato": null,
+        "documentoAgente": null,
+        "documentoFinanciado": "000.000.002-02",
+        "gravame": "VEICULO COM ALIENACAO FIDUCIARIA COM DOCUMENTO JA EMITIDO",
+        "intencao": null,
+        "municipio": null,
+        "numero": "10000002",
+        "observacoes": "Atual",
+        "placa": "ABC1D23",
+        "renavam": "00000000001",
+        "responsavel": null,
+        "situacao": "VEICULO COM ALIENACAO FIDUCIARIA COM DOCUMENTO JA EMITIDO",
+        "uf": null,
+        "ufPlaca": "MG"
+      }
+    ],
+    "historicoAnuncios": [
+      {
+        "data": "24/02/2026 16:08:30",
+        "fotos": [
+          {
+            "url": "https://exemplo.invalid/foto-1"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-2"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-3"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-4"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-5"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-6"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-7"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-8"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-9"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-10"
+          }
+        ],
+        "km": "87000",
+        "observacao": "Texto do anúncio da loja anterior.",
+        "opcionais": [
+          {
+            "descricao": "Alarme"
+          },
+          {
+            "descricao": "Ar quente"
+          },
+          {
+            "descricao": "Banco do motorista com ajuste de altura"
+          },
+          {
+            "descricao": "Computador de bordo"
+          },
+          {
+            "descricao": "Desembaçador traseiro"
+          },
+          {
+            "descricao": "Ar condicionado"
+          },
+          {
+            "descricao": "Encosto de cabeça traseiro"
+          },
+          {
+            "descricao": "Freio ABS"
+          },
+          {
+            "descricao": "Retrovisores elétricos"
+          },
+          {
+            "descricao": "Rodas de liga leve"
+          },
+          {
+            "descricao": "Sensor de chuva"
+          },
+          {
+            "descricao": "Retrovisor fotocrômico"
+          },
+          {
+            "descricao": "Travas elétricas"
+          },
+          {
+            "descricao": "Vidros elétricos"
+          },
+          {
+            "descricao": "Volante com regulagem de altura"
+          },
+          {
+            "descricao": "Bancos de couro"
+          },
+          {
+            "descricao": "Direção hidráulica"
+          },
+          {
+            "descricao": "GPS"
+          },
+          {
+            "descricao": "Air bag"
+          }
+        ],
+        "placa": "ABC1D23",
+        "valor": "121900.00"
+      }
+    ],
+    "historicoKm": [
+      {
+        "dataInclusao": "24/02/2026 16:08:30",
+        "km": "87000"
+      }
+    ],
+    "historicoProprietarios": [
+      {
+        "anoExercicio": "2026",
+        "chassi": "9BRZZZ00XM0000001",
+        "correlacaoChassiRenavam": false,
+        "cpfCnpj": "00000000202",
+        "dataEmplacamento": null,
+        "dataProcessamento": null,
+        "motivoTipoAutorizacao": null,
+        "municipio": null,
+        "ocorrencia": null,
+        "placa": "ABC1D23",
+        "proprietario": "FULANO DE TAL DA SILVA",
+        "renavam": "00000000001",
+        "tipoDocumento": null,
+        "uf": "MG"
+      }
+    ],
+    "identImportadora": null,
+    "indicioSinistro": {
+      "classificacao": null,
+      "descricao": "NÃO CONSTA INDÍCIO DE SINISTRO PARA O VEÍCULO INFORMADO 😃"
+    },
+    "leilao": {
+      "descricao": "Não consta registro de leilão para o veículo informado",
+      "registros": [],
+      "score": {
+        "aceitacao": null,
+        "exigenciaVistoriaEspecial": null,
+        "percentualSobreRef": null,
+        "pontuacao": null,
+        "score": null
+      }
+    },
+    "limiteRestricaoTrib": null,
+    "marcaModelo": "TOYOTA/COROLLA XEI 20",
+    "municipio": "SAO GOTARDO",
+    "municipioEmplacamento": "SAO GOTARDO",
+    "nacionalidade": "NACIONAL",
+    "numCarroceria": "INEXISTENTE",
+    "numFaturado": "00000000000191",
+    "numMotor": "ZZ00001",
+    "numTerceiroEixo": null,
+    "opcionais": [],
+    "pbt": "183",
+    "placa": "ABC1D23",
+    "potencia": "177",
+    "procedencia": "NACIONAL",
+    "qtdPax": "5",
+    "recall": {
+      "anoModelo": null,
+      "chassi": null,
+      "descricaoRetorno": null,
+      "detalhes": [],
+      "marca": null,
+      "modelo": null,
+      "recallsPendente": []
+    },
+    "registroDi": null,
+    "registroEmLocadora": {
+      "registroEmLocadora": false
+    },
+    "renavam": "00000000001",
+    "restricoes": null,
+    "revisao": {
+      "veiculosFipe": []
+    },
+    "rouboFurto": {
+      "constaOcorrencia": false,
+      "constaOcorrenciaAtiva": false,
+      "historico": [],
+      "indicadorProcedencia": null,
+      "municipioEmplacamento": null
+    },
+    "situacaoChassi": "N",
+    "situacaoVeiculo": "S",
+    "tipoCarroceria": "Não Aplicável",
+    "tipoDocFaturado": "DESCONHECIDO",
+    "tipoDocImportadora": "DESCONHECIDO",
+    "tipoMontagem": "1",
+    "tipoVeiculo": "AUTOMOVEL",
+    "uf": "MG",
+    "ufFaturado": "MG",
+    "ultimaDataInclusao": null,
+    "valorAnunciado": null
+  }
+}

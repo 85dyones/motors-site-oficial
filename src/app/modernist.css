@@ -742,6 +742,30 @@ p {
   border: 2px solid var(--mt-accent);
 }
 
+/* — consulta de placa: cores de ESTADO e de gráfico —
+   O sistema é tinta, acento e cobre, e nenhum dos três diz "pode", "atenção"
+   ou "não". A tela de consulta de placa (`/admin/consulta-placa`, 06/10/2026)
+   precisa dizer isso de longe, por pedido do dono: aviso visual além do texto.
+   As quatro cores abaixo valem SÓ dentro de `.mt-consulta` e nunca andam
+   sozinhas: todo estado sai com um sinal de forma própria e com o rótulo
+   escrito (o âmbar fica abaixo de 3:1 no fundo claro, e é o sinal que o lê).
+
+   As duas de série são do gráfico da FIPE: azul para a tabela, verde-água
+   para a faixa de compra. Passam na conferência de daltonismo nos dois fundos;
+   a faixa leva rótulo direto e a tabela abaixo do gráfico repete os números. */
+.mt-consulta {
+  --cp-ok: #0ca30c;
+  --cp-atencao: #fab219;
+  --cp-impeditivo: #d03b3b;
+  --cp-neutro: var(--mt-neutral-500);
+  --cp-serie-fipe: #2a78d6;
+  --cp-serie-compra: #1baf7a;
+}
+.dark .mt-consulta {
+  --cp-serie-fipe: #3987e5;
+  --cp-serie-compra: #199e70;
+}
+
 } /* fim de @layer components */
 
 /* — faixas de fundo cheio encostadas —

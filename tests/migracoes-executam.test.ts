@@ -171,6 +171,13 @@ const CADEIA = [
   // DEFINER, privilégio de função e RLS só se provam num banco de verdade.
   // Usa `org_padrao` do recorte da F0 no andaime.
   "20261006120000_funil_do_profiler.sql",
+  // As consultas de placa (2026-10-06): o retrato do carro que a loja avalia,
+  // comprado da APIBrasil. Entra na cadeia porque o aceite veste comercial,
+  // gestor, marketing, um comercial desativado, cliente e anon para provar
+  // quem lê e quem inclui, que ninguém edita nem apaga, e que o banco recusa
+  // as chaves de dado pessoal no retrato. RLS, privilégio e CHECK só se provam
+  // num banco de verdade. Usa `tem_papel`, `autor_atual` e `org_padrao`.
+  "20261006180000_consultas_de_placa.sql",
 ];
 
 /**

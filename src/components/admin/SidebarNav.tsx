@@ -129,7 +129,16 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       // acontece pelo editor do veículo, e é daqui que se chega nele.
       title: "Estoque",
       roles: ["admin", "gestor", "comercial", "marketing"],
-      items: [{ name: "Veículos", href: "/admin/estoque" }],
+      items: [
+        { name: "Veículos", href: "/admin/estoque" },
+        // A consulta de placa (2026-10-06): o retrato do carro oferecido à
+        // loja, antes de ele ser estoque. Mora aqui porque é a porta de
+        // ENTRADA do estoque. `roles` estreita o grupo: Marketing não avalia
+        // compra, e a consulta é paga — a linha "Consultar placa de veículo
+        // (consulta paga)" da matriz, a mesma que a página, a rota e a RLS
+        // cobram.
+        { name: "Consulta de placa", href: "/admin/consulta-placa", roles: ["admin", "gestor", "comercial"] },
+      ],
     },
     {
       // Repasse Motors (2026-09-24): carros vendidos no estado, sem a
