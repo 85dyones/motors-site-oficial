@@ -6,6 +6,7 @@ import { getEstoque, Veiculo } from "../lib/supabase";
 import { disponiveisDe, precoVigente } from "../lib/regrasEstoque";
 import { logFlowInitiated, getActiveAgUid, getMatchParamsRespeitandoRecusa, getUtmParameters, rastreamentoRecusado, sufixoRef, trackCarMatch, trackLeadSubmission, trackContactClick, trackPassoDoProfiler } from "../lib/telemetry";
 import { precoDoCarro } from "../lib/fichaDoMotor";
+import { criarContadorDaRodada } from "../lib/funilDoProfiler";
 import {
   antesDe,
   cambioUnicoDe,
@@ -350,6 +351,12 @@ export default function CarMatch({
    * não pode chegar ao consultor como "não tem o carro que eu quero".
    */
   const [modoDoLead, setModoDoLead] = useState<"carros" | "aviso" | "ajuda">("carros");
+  /**
+   * O contador diário do funil (06/10/2026): (dia, passo) → contagem, sem
+   * identificador. Cada passo conta uma vez por rodada — ver
+   * `lib/funilDoProfiler.ts`.
+   */
+  const [funil] = useState(() => criarContadorDaRodada());
 
   // ─── Dynamic budget ranges computed from real inventory ───
   interface BudgetRange {
@@ -736,7 +743,7 @@ export default function CarMatch({
     };
 
     try {
-      await fetch("/api/leads", {
+      const resposta = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -744,6 +751,8 @@ export default function CarMatch({
           turnstileToken: leadData.turnstileToken
         })
       });
+      // O funil conta o lead que a rota aceitou, e não o clique no botão.
+      if (resposta.ok) funil.contar(`lead_${modoDoLead}`);
     } catch (fetchError: any) {
       console.warn("[Lead Submit CarMatch] Network error (non-blocking):", fetchError.message);
     }
@@ -916,6 +925,7 @@ export default function CarMatch({
    * faixa passa a ser a parcela de cada carro, na conta do simulador.
    */
   const confirmarPorMes = () => {
+    funil.contar("por_mes");
     setAnswers((prev) => ({ ...prev, budgetMin: 0, budgetMax: 0, porMes: { ...rascunhoPorMes } }));
     setTimeout(() => { setGameState("q2"); }, 200);
   };
@@ -1054,12 +1064,17 @@ export default function CarMatch({
   }, [gameState, perfilAtual, afrouxados]);
 
   // O funil passo a passo, para medir onde a pessoa desiste. Só o nome do
-  // passo vai para o GA4 — nada de resposta nem de orçamento.
+  // passo vai para o GA4 — nada de resposta nem de orçamento. O contador
+  // diário recebe o mesmo nome, uma vez por rodada, e conta também quem
+  // recusou o rastreamento: ele não tem identificador nenhum.
   useEffect(() => {
-    if (gameState !== "loading") trackPassoDoProfiler(gameState);
-  }, [gameState]);
+    if (gameState === "loading") return;
+    trackPassoDoProfiler(gameState);
+    funil.contar(gameState);
+  }, [gameState, funil]);
 
   const handleReset = () => {
+    funil.recomecar();
     setAnswers(RESPOSTAS_EM_BRANCO);
     setBudgetTab("presets");
     setRascunhoPorMes({ ...PORMES_INICIAL, parametros });

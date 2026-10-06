@@ -12,6 +12,7 @@ const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 let ratelimit: Ratelimit | null = null;
 let capiRatelimit: Ratelimit | null = null;
 let motorRatelimit: Ratelimit | null = null;
+let funilRatelimit: Ratelimit | null = null;
 
 if (redisUrl && redisToken) {
   try {
@@ -47,6 +48,16 @@ if (redisUrl && redisToken) {
       limiter: Ratelimit.slidingWindow(240, "1 h"),
       analytics: true,
       prefix: "@upstash/ratelimit/motor",
+    });
+    // /api/profiler/passo conta os passos do Garagem Profiler (06/10/2026):
+    // uma rodada inteira do quiz são no máximo 11 chamadas, e quem refaz
+    // soma mais algumas. 60/h cabe várias rodadas e segura quem quiser
+    // inflar o funil a partir de um endereço só.
+    funilRatelimit = new Ratelimit({
+      redis: redis,
+      limiter: Ratelimit.slidingWindow(60, "1 h"),
+      analytics: true,
+      prefix: "@upstash/ratelimit/profiler",
     });
     console.log("[Middleware] Rate limiting active with Upstash Redis");
   } catch (e) {
@@ -98,6 +109,21 @@ export async function proxy(request: NextRequest) {
         console.error("[RateLimit] Upstash Redis query failed for /api/capi. Bypassing check:", err);
       }
     }
+  }
+
+  // 1.55. O contador do funil do Profiler: mesmo desenho da /api/capi —
+  // 204 silencioso no limite, e o IP só na chave efêmera do limitador.
+  if (request.method === "POST" && path === "/api/profiler/passo") {
+    if (funilRatelimit) {
+      try {
+        const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "127.0.0.1";
+        const { success } = await funilRatelimit.limit(`ratelimit_${path}_${ip}`);
+        if (!success) return new NextResponse(null, { status: 204 });
+      } catch (err) {
+        console.error("[RateLimit] Upstash Redis query failed for /api/profiler/passo. Bypassing check:", err);
+      }
+    }
+    return NextResponse.next();
   }
 
   // 1.6. Motor do Ciclo: autenticação é por token na própria rota (o n8n não
@@ -361,6 +387,7 @@ export const config = {
     "/api/leads",
     "/api/avaliacao",
     "/api/capi",
+    "/api/profiler/passo",
     "/api/ciclo/motor/:path*",
     "/admin/:path*",
     "/api/investidores/:path*",

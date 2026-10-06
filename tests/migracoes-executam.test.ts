@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { PASSOS_DO_FUNIL } from "../src/lib/funilDoProfiler";
 
 /**
  * As migrações rodam de verdade — e o aceite delas é cobrado (AUDITORIA §5.7).
@@ -163,6 +164,13 @@ const CADEIA = [
   // ainda por `is_staff`. Entra na cadeia porque o aceite são 44 comandos na
   // pele de onze perfis — leitura, passagem de lead e exclusão.
   "20261003130000_leads_rls_por_escopo.sql",
+  // O funil do Garagem Profiler contado por dia, sem identificador
+  // (2026-10-06). Entra na cadeia porque o aceite chama a função vestindo
+  // service_role, staff, cliente e anon, com o relógio da sessão num fuso em
+  // que o dia não é o de São Paulo, e tenta violar cada regra. SECURITY
+  // DEFINER, privilégio de função e RLS só se provam num banco de verdade.
+  // Usa `org_padrao` do recorte da F0 no andaime.
+  "20261006120000_funil_do_profiler.sql",
 ];
 
 /**
@@ -361,6 +369,44 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
       ehVerdade(
         `(select count(*) = 1 and bool_and(ano_mais_antigo = 2009)
             from public.parametros_financiamento where vigencia_ate is null)`,
+      ),
+    ).toBe(true);
+  });
+
+  it("o funil do Profiler conta por dia sem identificador, e só o servidor escreve", () => {
+    // A única porta de escrita roda como dono — é o que deixa a tabela sem
+    // escrita para `authenticated` e sem policy de escrita.
+    expect(
+      ehVerdade(
+        `(select prosecdef from pg_proc
+           where oid = 'public.profiler_contar_passo(text)'::regprocedure) is true`,
+      ),
+    ).toBe(true);
+    // O navegador nunca chama direto: nem anônimo, nem logado.
+    expect(ehVerdade("not has_function_privilege('anon', 'public.profiler_contar_passo(text)', 'EXECUTE')")).toBe(true);
+    expect(
+      ehVerdade("not has_function_privilege('authenticated', 'public.profiler_contar_passo(text)', 'EXECUTE')"),
+    ).toBe(true);
+    expect(ehVerdade("has_function_privilege('service_role', 'public.profiler_contar_passo(text)', 'EXECUTE')")).toBe(
+      true,
+    );
+    // Nenhuma coluna de identificador: as cinco, e nenhuma sexta (ag_uid, IP,
+    // sessão, horário do passo).
+    expect(
+      ehVerdade(
+        `(select string_agg(attname, ',' order by attnum) from pg_attribute
+           where attrelid = 'public.profiler_funil_diario'::regclass and attnum > 0 and not attisdropped)
+         = 'org_id,dia,passo,contagem,atualizado_em'`,
+      ),
+    ).toBe(true);
+    // A lista do CHECK é a da rota: um passo que a rota aceita e o banco
+    // recusa seria contagem perdida em silêncio (a rota só loga o aviso).
+    const passos = PASSOS_DO_FUNIL.map((p) => `'${p}'`).join(",");
+    expect(
+      ehVerdade(
+        `(select array(select m[1] from regexp_matches(pg_get_constraintdef(oid), '''([^'']+)''', 'g') m order by 1)
+           from pg_constraint where conname = 'profiler_funil_diario_passo_valido')
+         = array(select unnest(array[${passos}]::text[]) order by 1)`,
       ),
     ).toBe(true);
   });

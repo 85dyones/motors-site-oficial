@@ -425,7 +425,13 @@ consultor consegue separar por lead) e não entrou.
 - **Lead pronto.** `leads.perfil` (migração 20260925200000, com aceite) guarda
   o retrato montado no servidor a partir de `intencao_busca`, e o card do
   kanban o mostra (`BlocoDoPerfil`). A rota grava o lead mesmo sem a coluna.
-- Ficaram para depois: fronteira e contador diário do funil.
+- Ficaram para depois: fronteira e contador diário do funil. O contador
+  entrou em 06/10, depois da leitura de 10 dias (zero lead do canal desde
+  25/09, e nenhuma forma de dizer se pouca gente abre o quiz ou se desiste
+  numa pergunta): `profiler_funil_diario` guarda só (dia, passo) → contagem,
+  sem identificador, e conta uma vez por rodada `intro`, `q1`…`q5`,
+  `results`, `por_mes` e o lead aceito por modo (`lib/funilDoProfiler.ts`,
+  rota `/api/profiler/passo`, limitada por IP no proxy).
 
 **POR MÊS (27/09), com as respostas do dono de 25/09:** "as taxas são
 estimadas, verifique a média de mercado em pelo menos 5 bancos"; a troca
