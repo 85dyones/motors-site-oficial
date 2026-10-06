@@ -26,7 +26,7 @@ export default function GaleriaDoRepasse({ fotos, etiqueta }: { fotos: FotoDaGal
   const foto = fotos.length > 0 ? fotos[Math.min(atual, fotos.length - 1)] : null;
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="relative aspect-[4/3] bg-mt-neutral-300">
         {foto && (
           <Image
