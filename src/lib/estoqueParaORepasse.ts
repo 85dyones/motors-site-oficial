@@ -76,6 +76,11 @@ export interface CarroDoEstoqueParaORepasse {
   fotosCopiaveis: number;
   /** Pares sem as duas versões, ou com alguma num endereço que não é da loja. */
   fotosDeFora: number;
+  /**
+   * O carro nasceu no painel (`origem = 'painel'`) e não existe no
+   * RevendaMais: não tem anúncio de onde importar foto.
+   */
+  doPainel: boolean;
 }
 
 const texto = (v: unknown): string | null => {
@@ -227,6 +232,7 @@ export function carroDoEstoqueParaORepasse(linha: Record<string, unknown>): Carr
     foto: listaDeUrls(linha.web_full_images)[0] ?? listaDeUrls(linha.whatsapp_images)[0] ?? null,
     fotosCopiaveis: copiaveis.length,
     fotosDeFora: deFora,
+    doPainel: linha.origem === "painel",
   };
 }
 

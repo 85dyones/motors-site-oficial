@@ -244,7 +244,7 @@ export default function EditorDeRepasse({
           fotos={fotos}
           origem="painel"
           podeEditar={podeEditar}
-          destino={destinoDoRepasse(repasse.id)}
+          destino={destinoDoRepasse(repasse.id, repasse.modelo)}
           aoGravar={(colunas) => {
             const parcial = { web_full_images: colunas.web_full_images, whatsapp_images: colunas.whatsapp_images };
             setForm((f) => ({ ...f, ...parcial }));

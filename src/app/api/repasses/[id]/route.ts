@@ -8,6 +8,26 @@ import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 export const dynamic = "force-dynamic";
 
 /**
+ * O carro como está gravado AGORA, para a tela que ficou em dúvida (06/10): a
+ * importação do feed pode gravar e a resposta se perder no caminho, e a
+ * galeria relê a lista antes de gravar por cima dela. Mesma porta e mesmo
+ * formato do editor: toda a equipe abre o carro (`/admin/repasse/[id]/editar`)
+ * e recebe esta mesma linha.
+ */
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const sessao = await sessaoDoRepasse();
+    if (!sessao.ok) return sessao.resposta;
+    const { id } = await params;
+    const lido = await lerRepasseParaEscrita(createAdminSupabaseClient(), id);
+    if (!lido.ok) return lido.resposta;
+    return NextResponse.json({ ok: true, repasse: lido.repasse }, { headers: { "Cache-Control": "no-store" } });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao ler o carro." }, { status: 500 });
+  }
+}
+
+/**
  * Edita um carro de repasse. O portão (`decidirEdicao`) decide quem edita em
  * que situação e quais campos entram; a escrita é presa à situação LIDA —
  * se alguém publicou ou devolveu o carro no meio, o update não acha a linha

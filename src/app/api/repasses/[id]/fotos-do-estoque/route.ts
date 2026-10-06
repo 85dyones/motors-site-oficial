@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
 import { registrarAcaoSensivel } from "../../../../../lib/auditoria";
-import { baixarDoCarro57 } from "../../../../../lib/baixarDoCarro57";
 import { decidirEdicao } from "../../../../../lib/edicaoDoRepasse";
-import {
-  decidirCopiaDoEstoque,
-  planejarCopiaDasFotos,
-  type ParDaCopia,
-  type RespostaDaCopia,
-} from "../../../../../lib/estoqueParaORepasse";
-import { BUCKET_DE_FOTOS, novoLote, type VarianteDaFoto } from "../../../../../lib/fotosDoVeiculo";
+import { decidirCopiaDoEstoque, planejarCopiaDasFotos, type RespostaDaCopia } from "../../../../../lib/estoqueParaORepasse";
+import { novoLote } from "../../../../../lib/fotosDoVeiculo";
 import { registrarFalha } from "../../../../../lib/observabilidade";
 import { repasseDoPainelDaLinha } from "../../../../../lib/repasseDoPainel";
 import { falhaDoBanco, lerRepasseParaEscrita, recusar, sessaoDoRepasse } from "../../../../../lib/rotaDoRepasse";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "../../../../../lib/supabase-server";
+import { emFila, trazerPar, type ParTrazido } from "../../../../../lib/trazerFotosParaORepasse";
 
 export const dynamic = "force-dynamic";
 /**
@@ -32,71 +27,6 @@ const PARES_AO_MESMO_TEMPO = 4;
  * dos 60 s, em vez de a função morrer sem gravar nada.
  */
 const PRAZO_DOS_DOWNLOADS_MS = 40_000;
-const VARIANTES: readonly VarianteDaFoto[] = ["web", "zap"];
-
-type Armazenamento = ReturnType<typeof createAdminSupabaseClient>["storage"];
-type ParTrazido = { ok: true; web: string; zap: string; baixou: boolean } | { ok: false; erro: string };
-type Gravacao = () => Promise<{ error: { message: string } | null }>;
-
-/**
- * Traz as duas versões de um par, como unidade. Nunca lança: a falha de um par
- * volta como resultado, para não derrubar os outros.
- *
- * Primeiro BAIXA o que é do carro57 (web e depois zap, um pedido por vez), e
- * só então grava as duas — cópia dentro do bucket para o lado nosso, upload
- * dos bytes como vieram para o lado baixado. Um download que falha derruba o
- * par antes de qualquer gravação, então não deixa arquivo sem dono. O upload
- * leva o tipo da resposta (o arquivo `-web.webp` guarda o JPEG que o carro57
- * serviu, se foi o caso) e o carimbo de 1 ano da galeria, sem `upsert`.
- */
-async function trazerPar(armazenamento: Armazenamento, par: ParDaCopia, prazo: AbortSignal): Promise<ParTrazido> {
-  // O bucket aberto aqui, à vista do `upload`: é por ele que
-  // `tests/cache-de-imagens.test.ts` acha a chamada e confere o carimbo.
-  const balde = armazenamento.from(BUCKET_DE_FOTOS);
-  try {
-    const gravacoes: Gravacao[] = [];
-    for (const variante of VARIANTES) {
-      const origem = par.origem[variante];
-      const destino = par.destino[variante];
-      if (origem.de === "bucket") {
-        gravacoes.push(() => balde.copy(origem.caminho, destino));
-        continue;
-      }
-      const foto = await baixarDoCarro57(origem.url, { prazo });
-      if (!foto.ok) return { ok: false, erro: `${origem.url}: ${foto.erro}` };
-      // 1 ano, o carimbo da galeria (`GaleriaDeFotos`): o caminho nunca se
-      // reescreve. Literal, para a trava de cache conseguir conferir o valor.
-      gravacoes.push(() => balde.upload(destino, foto.bytes, { contentType: foto.tipo, upsert: false, cacheControl: "31536000" }));
-    }
-    for (const [i, gravar] of gravacoes.entries()) {
-      const { error } = await gravar();
-      if (error) return { ok: false, erro: `${par.destino[VARIANTES[i]]}: ${error.message}` };
-    }
-    return {
-      ok: true,
-      web: balde.getPublicUrl(par.destino.web).data.publicUrl,
-      zap: balde.getPublicUrl(par.destino.zap).data.publicUrl,
-      baixou: par.origem.web.de === "carro57" || par.origem.zap.de === "carro57",
-    };
-  } catch (e: unknown) {
-    return { ok: false, erro: `${par.destino.web}: ${e instanceof Error ? e.message : String(e)}` };
-  }
-}
-
-/** `tarefa` sobre cada item, no máximo `limite` de cada vez; o resultado sai na ordem dos itens. */
-async function emFila<T, R>(itens: readonly T[], limite: number, tarefa: (item: T) => Promise<R>): Promise<R[]> {
-  const resultados = new Array<R>(itens.length);
-  let proximo = 0;
-  async function trabalhar() {
-    while (proximo < itens.length) {
-      const i = proximo;
-      proximo += 1;
-      resultados[i] = await tarefa(itens[i]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limite, itens.length) }, trabalhar));
-  return resultados;
-}
 
 /**
  * Traz as fotos de um carro do estoque para o rascunho de repasse que acabou

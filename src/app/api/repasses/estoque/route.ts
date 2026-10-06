@@ -49,7 +49,7 @@ export async function GET(request: Request) {
       supabase
         .from(origem)
         .select(
-          "id, marca, modelo, versao, modelo_override, versao_override, ano, ano_fabricacao, quilometragem, cambio, combustivel, cor, tipo, vendido, estado_cadastro, web_full_images, whatsapp_images, codigo_fipe, placa",
+          "id, marca, modelo, versao, modelo_override, versao_override, ano, ano_fabricacao, quilometragem, cambio, combustivel, cor, tipo, vendido, estado_cadastro, web_full_images, whatsapp_images, codigo_fipe, placa, origem",
         )
         .order("created_at", { ascending: false }),
     );

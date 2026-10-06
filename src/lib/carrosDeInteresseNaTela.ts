@@ -28,6 +28,8 @@ export interface CarroDaBusca {
   foto?: string;
   vendido?: boolean;
   publicado?: boolean;
+  /** Por que este carro não pode ser escolhido nesta busca; a linha aparece, parada, com o motivo. */
+  indisponivel?: string;
 }
 
 /** O corpo de `PATCH /api/leads/[id]/veiculos/[opcao]`, no que a tela manda. */
