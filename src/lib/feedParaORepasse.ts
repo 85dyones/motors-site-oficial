@@ -170,7 +170,13 @@ export function resumoDaImportacao(
   r: Pick<RespostaDoFeed, "vieram" | "jaEstavam" | "ficaramDeFora" | "acimaDoLimite" | "falharam">,
 ): { tipo: "ok" | "erro"; texto: string } {
   const frases: string[] = [];
-  if (r.vieram > 0) {
+  if (r.vieram > 0 && r.falharam > 0) {
+    // Parte veio e parte não (o prazo cortou, ou o carro57 falhou): o que veio
+    // está gravado, e importar de novo traz só o que falta.
+    const total = r.vieram + r.falharam;
+    frases.push(`${r.vieram === 1 ? "Veio" : "Vieram"} ${r.vieram} de ${total} fotos. Importe de novo para trazer as que faltaram.`);
+    if (r.jaEstavam > 0) frases.push(`${plural(r.jaEstavam, "já estava", "já estavam")} na galeria.`);
+  } else if (r.vieram > 0) {
     frases.push(`${plural(r.vieram, "foto veio", "fotos vieram")} do RevendaMais.`);
     if (r.jaEstavam > 0) frases.push(`${plural(r.jaEstavam, "já estava", "já estavam")} na galeria.`);
   } else if (r.jaEstavam > 0) {
@@ -182,7 +188,7 @@ export function resumoDaImportacao(
   } else {
     frases.push("Nenhuma foto veio do RevendaMais.");
   }
-  if (r.falharam > 0) frases.push(`${plural(r.falharam, "não veio", "não vieram")}. Importe de novo para tentar as que faltam.`);
+  if (r.vieram === 0 && r.falharam > 0) frases.push(`${plural(r.falharam, "não veio", "não vieram")}. Importe de novo para tentar as que faltam.`);
   if (r.acimaDoLimite > 0) {
     frases.push(`${plural(r.acimaDoLimite, "passa", "passam")} do limite de ${LIMITE_DE_FOTOS_DO_REPASSE} fotos do repasse.`);
   }
@@ -193,8 +199,32 @@ export function resumoDaImportacao(
   return { tipo: r.vieram > 0 || nadaATrazer ? "ok" : "erro", texto: frases.join(" ") };
 }
 
+export const SEM_ANUNCIO_NO_REVENDAMAIS = "Este carro não vem do RevendaMais, então não há fotos para importar.";
+export const ANUNCIO_FORA_DO_AR = "Este anúncio não está mais ativo no RevendaMais.";
+
+/**
+ * Por que deste carro do estoque não se importa foto do feed, ou `null`.
+ *
+ * O carro cadastrado no painel nunca esteve no RevendaMais (a rota do estoque
+ * recusa pelo mesmo critério); o vendido e o arquivado saíram do feed. A
+ * busca marca os três, e a rota os recusa com a mesma frase antes de ler o
+ * feed.
+ */
+export function porQueNaoImporta(c: { doPainel: boolean; situacao: CarroDoEstoqueParaORepasse["situacao"] }): string | null {
+  if (c.doPainel) return SEM_ANUNCIO_NO_REVENDAMAIS;
+  if (c.situacao === "vendido" || c.situacao === "arquivado") return ANUNCIO_FORA_DO_AR;
+  return null;
+}
+
+/** O motivo, curto, na linha do carro dentro da busca. */
+const MOTIVO_NA_BUSCA: Record<string, string> = {
+  [SEM_ANUNCIO_NO_REVENDAMAIS]: "não vem do RevendaMais",
+  [ANUNCIO_FORA_DO_AR]: "anúncio fora do ar no RevendaMais",
+};
+
 /** O carro da busca do estoque do repasse, no formato que o seletor de carro desenha. */
 export function carroDoRepasseNaBusca(c: CarroDoEstoqueParaORepasse): CarroDaBusca {
+  const motivo = porQueNaoImporta(c);
   const nome = [c.marca, c.modelo, c.versao].filter(Boolean).join(" ");
   return {
     id: c.id,
@@ -204,5 +234,6 @@ export function carroDoRepasseNaBusca(c: CarroDoEstoqueParaORepasse): CarroDaBus
     ...(c.foto ? { foto: c.foto } : {}),
     vendido: c.situacao === "vendido",
     publicado: c.situacao === "publicado",
+    ...(motivo ? { indisponivel: MOTIVO_NA_BUSCA[motivo] } : {}),
   };
 }

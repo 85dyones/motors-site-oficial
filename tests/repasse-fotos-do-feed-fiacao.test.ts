@@ -33,6 +33,7 @@ const CARRO = {
   foto: null,
   fotosCopiaveis: 0,
   fotosDeFora: 0,
+  doPainel: false,
 };
 const VIERAM = {
   vieram: 2,
@@ -48,20 +49,25 @@ let container: HTMLDivElement;
 let root: Root;
 let respostaDoFeed: () => Response | Promise<Response>;
 let respostaDaBusca: () => Response;
+/** O que `GET /api/repasses/<id>` responde quando a galeria relê a lista gravada. */
+let respostaDaLeitura: () => Response | Promise<Response>;
 const aoGravar = vi.fn();
-const fetchFalso = vi.fn<(url: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (url) => {
+const fetchFalso = vi.fn<(url: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async (url, init) => {
   const alvo = String(url);
   if (alvo.startsWith("/api/repasses/estoque?")) return respostaDaBusca();
   if (alvo === ROTA) return respostaDoFeed();
+  if (alvo === `/api/repasses/${ID}` && (init?.method ?? "GET") === "GET") return respostaDaLeitura();
+  if (alvo === `/api/repasses/${ID}` && init?.method === "PATCH") return new Response(JSON.stringify({ ok: true }));
   return new Response("{}", { status: 404 });
 });
+type Par = { web: string; zap: string };
 
-async function desenhar(props: { podeEditar?: boolean; noEstoque?: boolean } = {}) {
+async function desenhar(props: { podeEditar?: boolean; noEstoque?: boolean; fotos?: Par[] } = {}) {
   await act(async () =>
     root.render(
       createElement(GaleriaDeFotos, {
         estoqueId: props.noEstoque ? 900000001 : ID,
-        fotos: [],
+        fotos: props.fotos ?? [],
         origem: "painel",
         podeEditar: props.podeEditar ?? true,
         aoGravar,
@@ -76,6 +82,7 @@ beforeEach(() => {
   fetchFalso.mockClear();
   respostaDaBusca = () => new Response(JSON.stringify({ veiculos: [CARRO] }));
   respostaDoFeed = () => new Response(JSON.stringify(VIERAM));
+  respostaDaLeitura = () => new Response("{}", { status: 500 });
   vi.stubGlobal("fetch", fetchFalso);
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -92,6 +99,8 @@ const botao = (texto: string) =>
 const caixaDaBusca = () => container.querySelector('input[role="combobox"]') as HTMLInputElement | null;
 const opcoes = () => Array.from(container.querySelectorAll('[role="option"]')) as HTMLElement[];
 const esperar = (ms = 350) => act(async () => new Promise((resolve) => setTimeout(resolve, ms)));
+const leituras = () => fetchFalso.mock.calls.filter(([url, init]) => String(url) === `/api/repasses/${ID}` && (init?.method ?? "GET") === "GET");
+const gravacoes = () => fetchFalso.mock.calls.filter(([url, init]) => String(url) === `/api/repasses/${ID}` && init?.method === "PATCH");
 const pedidosAoFeed = () => fetchFalso.mock.calls.filter(([url]) => String(url) === ROTA);
 
 async function abrirABusca() {
@@ -208,7 +217,16 @@ describe("o que a tela diz em cada desfecho", () => {
     await importarDoKwid();
     expect(container.querySelector('[role="status"]')!.textContent).toBe("Nenhuma foto nova: as 2 fotos do anúncio já estão na galeria.");
     expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(aoGravar).not.toHaveBeenCalled();
+    // A lista que vale é a do servidor, mesmo sem foto nova.
+    expect(aoGravar).toHaveBeenCalledTimes(1);
+    expect(aoGravar.mock.calls[0][0].web_full_images).toEqual(VIERAM.web_full_images);
+  });
+
+  it("veio só uma parte: diz quantas de quantas e que dá para importar de novo", async () => {
+    respostaDoFeed = () => new Response(JSON.stringify({ ...VIERAM, vieram: 2, falharam: 7 }));
+    await desenhar();
+    await importarDoKwid();
+    expect(container.querySelector('[role="status"]')!.textContent).toBe("Vieram 2 de 9 fotos. Importe de novo para trazer as que faltaram.");
   });
 
   it("a rota recusou: a frase dela aparece no aviso de erro da galeria", async () => {
@@ -218,6 +236,8 @@ describe("o que a tela diz em cada desfecho", () => {
     await importarDoKwid();
     expect(container.querySelector('[role="alert"]')!.textContent).toBe("Este carro não está no feed do RevendaMais de agora.");
     expect(aoGravar).not.toHaveBeenCalled();
+    // Recusa clara: nada foi gravado, então a lista não precisa ser relida.
+    expect(leituras()).toHaveLength(0);
     // Dá para tentar de novo, com outro carro.
     expect(botao("Importar fotos do feed")!.disabled).toBe(false);
   });
@@ -227,7 +247,6 @@ describe("o que a tela diz em cada desfecho", () => {
     await desenhar();
     await importarDoKwid();
     expect(container.querySelector('[role="alert"]')!.textContent).toContain("Nenhuma foto veio do RevendaMais. 3 não vieram.");
-    expect(aoGravar).not.toHaveBeenCalled();
   });
 
   it("a rede caiu: erro na tela, sem estourar", async () => {
@@ -236,5 +255,125 @@ describe("o que a tela diz em cada desfecho", () => {
     await importarDoKwid();
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
     expect(aoGravar).not.toHaveBeenCalled();
+  });
+});
+
+describe("carro de que não se importa, na busca (revisão de 06/10)", () => {
+  it("o cadastrado no painel e o vendido aparecem parados, com o motivo, e o clique não importa", async () => {
+    respostaDaBusca = () =>
+      new Response(
+        JSON.stringify({
+          veiculos: [
+            { ...CARRO, id: 1, doPainel: true },
+            { ...CARRO, id: 2, situacao: "vendido" },
+            { ...CARRO, id: 3 },
+          ],
+        }),
+      );
+    await desenhar();
+    await abrirABusca();
+    const [doPainel, vendido, livre] = opcoes();
+    expect(doPainel.getAttribute("aria-disabled")).toBe("true");
+    expect(doPainel.textContent).toContain("não vem do RevendaMais");
+    expect(vendido.getAttribute("aria-disabled")).toBe("true");
+    expect(vendido.textContent).toContain("anúncio fora do ar no RevendaMais");
+    expect(livre.getAttribute("aria-disabled")).toBeNull();
+
+    await act(async () => doPainel.click());
+    await act(async () => vendido.click());
+    expect(pedidosAoFeed()).toEqual([]);
+    await act(async () => livre.click());
+    await esperar(20);
+    expect(JSON.parse(String(pedidosAoFeed()[0][1]?.body))).toEqual({ estoqueId: 3 });
+  });
+});
+
+describe("a galeria não grava por cima do que o servidor tem (revisão de 06/10)", () => {
+  const NA_TELA: Par[] = [
+    { web: fotoDeTeste("a"), zap: fotoDeTeste("a", "zap") },
+    { web: fotoDeTeste("b"), zap: fotoDeTeste("b", "zap") },
+  ];
+  /** O que o servidor gravou na importação cuja resposta se perdeu: as da tela e mais uma. */
+  const GRAVADAS = {
+    web_full_images: [...NA_TELA.map((f) => f.web), fotoDeTeste("rm-cccccccccccccccc-3")],
+    whatsapp_images: [...NA_TELA.map((f) => f.zap), fotoDeTeste("rm-cccccccccccccccc-3", "zap")],
+  };
+  const leituraBoa = () => new Response(JSON.stringify({ ok: true, repasse: GRAVADAS }));
+  const respostaPerdida = () => Promise.reject(new Error("Failed to fetch"));
+  const moverParaFrente = () => container.querySelector('button[aria-label="Mover a foto 1 para frente"]') as HTMLButtonElement;
+
+  it("a resposta da importação se perdeu: a tela relê na hora e adota a lista gravada", async () => {
+    respostaDoFeed = respostaPerdida;
+    respostaDaLeitura = leituraBoa;
+    await desenhar({ fotos: NA_TELA });
+    await importarDoKwid();
+    expect(leituras()).toHaveLength(1);
+    expect(aoGravar).toHaveBeenCalledTimes(1);
+    expect(aoGravar.mock.calls[0][0].web_full_images).toEqual(GRAVADAS.web_full_images);
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
+  it("resposta 5xx também deixa a lista em dúvida, e a tela relê", async () => {
+    respostaDoFeed = () => new Response(JSON.stringify({ error: "Falha ao importar as fotos do feed." }), { status: 502 });
+    respostaDaLeitura = leituraBoa;
+    await desenhar({ fotos: NA_TELA });
+    await importarDoKwid();
+    expect(leituras()).toHaveLength(1);
+    expect(aoGravar.mock.calls[0][0].web_full_images).toEqual(GRAVADAS.web_full_images);
+  });
+
+  it("nem reler deu: a próxima ação relê ANTES de gravar; se a lista mudou, adota e não grava a velha", async () => {
+    respostaDoFeed = respostaPerdida;
+    await desenhar({ fotos: NA_TELA });
+    await importarDoKwid();
+    expect(aoGravar).not.toHaveBeenCalled();
+
+    respostaDaLeitura = leituraBoa;
+    await act(async () => moverParaFrente().click());
+    await esperar(20);
+    expect(leituras()).toHaveLength(2);
+    expect(gravacoes()).toEqual([]);
+    expect(aoGravar).toHaveBeenCalledTimes(1);
+    expect(aoGravar.mock.calls[0][0].web_full_images).toEqual(GRAVADAS.web_full_images);
+    expect(container.querySelector('[role="status"]')!.textContent).toContain("A galeria foi atualizada");
+  });
+
+  it("a releitura continua falhando: nada grava, e a tela diz por quê", async () => {
+    respostaDoFeed = respostaPerdida;
+    await desenhar({ fotos: NA_TELA });
+    await importarDoKwid();
+    await act(async () => moverParaFrente().click());
+    await esperar(20);
+    expect(gravacoes()).toEqual([]);
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("Não deu para conferir as fotos gravadas");
+  });
+
+  it("a lista gravada é a mesma da tela: a dúvida acaba e a ação grava normalmente", async () => {
+    respostaDoFeed = respostaPerdida;
+    await desenhar({ fotos: NA_TELA });
+    await importarDoKwid();
+    respostaDaLeitura = () =>
+      new Response(JSON.stringify({ repasse: { web_full_images: NA_TELA.map((f) => f.web), whatsapp_images: NA_TELA.map((f) => f.zap) } }));
+    await act(async () => moverParaFrente().click());
+    await esperar(20);
+    expect(gravacoes()).toHaveLength(1);
+    expect(JSON.parse(String(gravacoes()[0][1]?.body)).web_full_images).toEqual([NA_TELA[1].web, NA_TELA[0].web]);
+  });
+
+  it("sem dúvida nenhuma, mover não relê: grava direto", async () => {
+    await desenhar({ fotos: NA_TELA });
+    await act(async () => moverParaFrente().click());
+    await esperar(20);
+    expect(leituras()).toEqual([]);
+    expect(gravacoes()).toHaveLength(1);
+  });
+
+  it("enquanto a importação roda, as ações das fotos ficam paradas", async () => {
+    respostaDoFeed = () => new Promise<Response>(() => {});
+    await desenhar({ fotos: NA_TELA });
+    await importarDoKwid();
+    const acoes = Array.from(container.querySelectorAll("button[aria-label]")) as HTMLButtonElement[];
+    expect(acoes.length).toBeGreaterThan(0);
+    expect(acoes.every((b) => b.disabled)).toBe(true);
   });
 });

@@ -192,7 +192,13 @@ describe("nomenclatura da tabela de inventário", () => {
     // SELECT, só coluna pública, nenhuma grava. A busca do seletor
     // (`api/estoque/busca`) lê a placa e por isso vai pela view da equipe:
     // não é `.from("estoque_motors")` literal e não entra aqui.
-    expect(comAcesso.length).toBe(15);
+    //
+    // O décimo sexto, em 2026-10-06 (fotos do feed no repasse):
+    // `api/repasses/[id]/fotos-do-feed/route.ts`, que lê `id, origem, vendido,
+    // estado_cadastro` do carro escolhido para recusar, antes de ir ao feed, o
+    // que nasceu no painel e o vendido ou arquivado. SELECT, só coluna
+    // pública, não grava no estoque.
+    expect(comAcesso.length).toBe(16);
 
     const total = arquivos.reduce((soma, a) => {
       const ocorrencias = readFileSync(a, "utf8").match(
@@ -235,6 +241,7 @@ describe("nomenclatura da tabela de inventário", () => {
     //
     // E os acessos nº 19 e 20, em 2026-10-05, com os dois arquivos dos
     // veículos de interesse, acima.
-    expect(total).toBe(20);
+    // +1 em 2026-10-06: a leitura do carro escolhido em `api/repasses/[id]/fotos-do-feed`.
+    expect(total).toBe(21);
   });
 });

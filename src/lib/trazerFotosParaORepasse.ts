@@ -25,7 +25,8 @@ type Gravacao = () => Promise<{ error: { message: string } | null }>;
  * Primeiro BAIXA o que é do carro57 (web e depois zap, um pedido por vez), e
  * só então grava as duas — cópia dentro do bucket para o lado nosso, upload
  * dos bytes como vieram para o lado baixado. Um download que falha derruba o
- * par antes de qualquer gravação, então não deixa arquivo sem dono. O upload
+ * par antes de qualquer gravação, então não deixa arquivo sem dono; e se uma
+ * versão grava e a outra falha, a que gravou é removida. O upload
  * leva o tipo da resposta (o arquivo `-web.webp` guarda o JPEG que o carro57
  * serviu, se foi o caso) e o carimbo de 1 ano da galeria, sem `upsert`.
  */
@@ -50,7 +51,12 @@ export async function trazerPar(armazenamento: ArmazenamentoDoRepasse, par: ParD
     }
     for (const [i, gravar] of gravacoes.entries()) {
       const { error } = await gravar();
-      if (error) return { ok: false, erro: `${par.destino[VARIANTES[i]]}: ${error.message}` };
+      if (error) {
+        // A versão que já foi gravada fica sem par e sem dono: sai do bucket.
+        // Só o DESTINO, na pasta do repasse; a origem nunca é tocada.
+        await desfazerGravadas(balde, VARIANTES.slice(0, i).map((v) => par.destino[v]));
+        return { ok: false, erro: `${par.destino[VARIANTES[i]]}: ${error.message}` };
+      }
     }
     return {
       ok: true,
@@ -60,6 +66,17 @@ export async function trazerPar(armazenamento: ArmazenamentoDoRepasse, par: ParD
     };
   } catch (e: unknown) {
     return { ok: false, erro: `${par.destino.web}: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+/** Tira do bucket o que um par deixou pela metade. Nunca lança: sobrar arquivo não derruba a importação. */
+async function desfazerGravadas(balde: ReturnType<ArmazenamentoDoRepasse["from"]>, caminhos: string[]): Promise<void> {
+  if (caminhos.length === 0) return;
+  try {
+    const { error } = await balde.remove(caminhos);
+    if (error) console.warn("[Repasse/Fotos] arquivo sem par no bucket:", error.message);
+  } catch (e: unknown) {
+    console.warn("[Repasse/Fotos] arquivo sem par no bucket:", e instanceof Error ? e.message : String(e));
   }
 }
 

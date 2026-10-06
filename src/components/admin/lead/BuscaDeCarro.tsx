@@ -115,7 +115,9 @@ export default function BuscaDeCarro({
   const erro = atual && "erro" in atual ? atual.erro : "";
   const buscando = valido && atual === null;
   const aberta = veiculos.length > 0;
-  const repetido = (c: CarroDaBusca) => jaNaLista.includes(c.id);
+  /** O carro que não dá para escolher: já está na lista, ou a busca o marcou (`indisponivel`). */
+  const repetido = (c: CarroDaBusca) => jaNaLista.includes(c.id) || Boolean(c.indisponivel);
+  const motivoDe = (c: CarroDaBusca) => c.indisponivel ?? (jaNaLista.includes(c.id) ? "já está na lista" : "");
 
   /** O próximo carro que dá para escolher, a partir de `de`, no sentido dado. */
   const vizinho = (de: number, passo: 1 | -1): number => {
@@ -249,7 +251,7 @@ export default function BuscaDeCarro({
               </span>
               {(linha || naLista) && (
                 <span className="text-[11px] tabular-nums text-mt-neutral-700">
-                  {[linha, naLista ? "já está na lista" : ""].filter(Boolean).join(" · ")}
+                  {[linha, motivoDe(c)].filter(Boolean).join(" · ")}
                 </span>
               )}
             </li>

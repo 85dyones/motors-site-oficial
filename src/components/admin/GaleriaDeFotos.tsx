@@ -78,6 +78,8 @@ type Estado =
    * 06/10, no repasse (`destino.importacaoDoFeed`), que também baixa as fotos.
    */
   | { tipo: "importando" }
+  /** Relendo a lista gravada, depois de uma importação que ficou sem resposta. */
+  | { tipo: "conferindo" }
   | { tipo: "erro"; mensagem: string };
 
 /**
@@ -175,13 +177,24 @@ export default function GaleriaDeFotos({
   const [escolhendoOCarro, setEscolhendoOCarro] = useState(false);
   /** Repasse: o que a última importação do feed trouxe, dito na tela. */
   const [avisoDoFeed, setAvisoDoFeed] = useState<string | null>(null);
+  /**
+   * A lista da tela pode estar velha: uma importação do feed ficou sem
+   * resposta (rede caiu, função cortada), e o servidor pode ter gravado. A
+   * gravação da galeria manda a lista INTEIRA, então gravar a partir de uma
+   * lista velha apagaria as fotos importadas. Enquanto isto for verdade,
+   * nenhuma ação grava sem antes reler (`conferirALista`).
+   */
+  const listaIncerta = useRef(false);
   const entrada = useRef<HTMLInputElement>(null);
   const alvo = destino ?? destinoDoEstoque(estoqueId);
 
   // Só para o botão de importar — nunca para decidir se a galeria edita.
   const doPainel = origem === "painel";
   const ocupado =
-    estado.tipo === "enviando" || estado.tipo === "gravando" || estado.tipo === "importando";
+    estado.tipo === "enviando" ||
+    estado.tipo === "gravando" ||
+    estado.tipo === "importando" ||
+    estado.tipo === "conferindo";
   // A porta que vale para ESTE carro — a mesma conta de `bloqueiosDePublicacao`.
   const minimoParaPublicar = emPreparacao ? MINIMO_DE_FOTOS_EM_PREPARACAO : MINIMO_DE_FOTOS;
   const faltam = Math.max(0, minimoParaPublicar - fotos.length);
@@ -292,12 +305,16 @@ export default function GaleriaDeFotos({
    * daqui: o corpo leva só o carro escolhido.
    */
   const rotaDoFeed = alvo.importacaoDoFeed?.rota;
+  const reler = alvo.reler;
   const importarDoCarro = useCallback(
     async (carroId: number) => {
       if (!rotaDoFeed) return;
       setEscolhendoOCarro(false);
       setAvisoDoFeed(null);
       setEstado({ tipo: "importando" });
+      // Só a recusa clara do servidor garante que nada foi gravado. Qualquer
+      // outra falha (rede, 5xx, resposta pela metade) deixa a lista em dúvida.
+      let recusaClara = false;
       try {
         const res = await fetch(rotaDoFeed, {
           method: "POST",
@@ -305,12 +322,18 @@ export default function GaleriaDeFotos({
           body: JSON.stringify({ estoqueId: carroId }),
         });
         const data = (await res.json().catch(() => ({}))) as Partial<RespostaDoFeed> & { error?: string };
+        // Recusa clara do servidor (4xx com a frase dele): nada foi gravado.
+        recusaClara = !res.ok && res.status < 500 && Boolean(data.error);
         if (!res.ok) throw new Error(data.error || "Falha ao importar as fotos do feed.");
-
-        const vieram = data.vieram ?? 0;
-        if (vieram > 0) {
-          aoGravar(colunasDasFotos(fotosDoVeiculo(data.whatsapp_images, data.web_full_images)));
+        if (!Array.isArray(data.web_full_images) || !Array.isArray(data.whatsapp_images)) {
+          throw new Error("A resposta da importação veio incompleta.");
         }
+
+        // A galeria que vale é a que o servidor devolveu, tenha vindo foto ou
+        // não: a tela a adota antes de qualquer outra ação.
+        aoGravar(colunasDasFotos(fotosDoVeiculo(data.whatsapp_images, data.web_full_images)));
+        listaIncerta.current = false;
+        const vieram = data.vieram ?? 0;
         const resumo = resumoDaImportacao({
           vieram,
           jaEstavam: data.jaEstavam ?? 0,
@@ -325,14 +348,67 @@ export default function GaleriaDeFotos({
         setAvisoDoFeed(resumo.texto);
         setEstado({ tipo: "parado" });
       } catch (e: unknown) {
+        // Sem resposta confiável: tenta reler já. Se não der, a dúvida fica
+        // marcada e a próxima ação relê antes de gravar.
+        if (!recusaClara) listaIncerta.current = true;
+        if (listaIncerta.current && reler) {
+          try {
+            const colunas = await reler();
+            aoGravar(colunasDasFotos(fotosDoVeiculo(colunas.whatsapp_images, colunas.web_full_images)));
+            listaIncerta.current = false;
+          } catch {
+            // Fica marcada.
+          }
+        }
         setEstado({
           tipo: "erro",
           mensagem: mensagemDoErro(e, "Não deu para importar as fotos do feed."),
         });
       }
     },
-    [rotaDoFeed, aoGravar],
+    [rotaDoFeed, reler, aoGravar],
   );
+
+  /**
+   * A lista sobre a qual a próxima ação pode gravar, ou `null` para parar.
+   *
+   * No caminho normal é a da tela. Com a dúvida marcada, relê a gravada: se
+   * não der para ler, nada grava; se ela mudou, a tela a adota e a ação de
+   * mover, trocar a capa ou remover NÃO é feita (o número da foto que a pessoa
+   * clicou era o da lista velha). O envio segue (`seguirSeMudou`): foto nova
+   * entra no fim, qualquer que seja a lista.
+   */
+  async function conferirALista(seguirSeMudou: boolean): Promise<FotoDoVeiculo[] | null> {
+    if (!listaIncerta.current || !reler) return fotos;
+    setAvisoDoFeed(null);
+    setEstado({ tipo: "conferindo" });
+    try {
+      const colunas = await reler();
+      const gravadas = fotosDoVeiculo(colunas.whatsapp_images, colunas.web_full_images);
+      listaIncerta.current = false;
+      const mudou =
+        gravadas.length !== fotos.length || gravadas.some((g, i) => g.web !== fotos[i].web || g.zap !== fotos[i].zap);
+      if (mudou) aoGravar(colunasDasFotos(gravadas));
+      setEstado({ tipo: "parado" });
+      if (mudou && !seguirSeMudou) {
+        setAvisoDoFeed("A galeria foi atualizada com as fotos que já estavam gravadas. Confira e repita a ação.");
+        return null;
+      }
+      return gravadas;
+    } catch {
+      setEstado({
+        tipo: "erro",
+        mensagem: "Não deu para conferir as fotos gravadas, então nada foi alterado. Tente de novo.",
+      });
+      return null;
+    }
+  }
+
+  /** Mover, trocar a capa e remover passam por aqui: a ação recebe a lista conferida. */
+  async function agir(fazer: (atual: FotoDoVeiculo[]) => void) {
+    const atual = await conferirALista(false);
+    if (atual) fazer(atual);
+  }
 
   /**
    * Sobe os arquivos escolhidos, um a um, e grava a lista no fim.
@@ -346,6 +422,11 @@ export default function GaleriaDeFotos({
     if (!arquivos || arquivos.length === 0) return;
     const lista = Array.from(arquivos);
 
+    const base = await conferirALista(true);
+    if (!base) {
+      if (entrada.current) entrada.current.value = "";
+      return;
+    }
     setAvisoDoFeed(null);
     const supabase = createBrowserSupabaseClient();
     const subidas: FotoDoVeiculo[] = [];
@@ -409,7 +490,7 @@ export default function GaleriaDeFotos({
     if (entrada.current) entrada.current.value = "";
 
     if (subidas.length > 0) {
-      await gravar([...fotos, ...subidas]);
+      await gravar([...base, ...subidas]);
     }
     if (falha) {
       setEstado({
@@ -422,11 +503,11 @@ export default function GaleriaDeFotos({
     }
   }
 
-  function remover(indice: number) {
-    const removida = fotos[indice];
+  function remover(atual: FotoDoVeiculo[], indice: number) {
+    const removida = atual[indice];
     if (!removida) return;
     gravar(
-      fotos.filter((_, i) => i !== indice),
+      atual.filter((_, i) => i !== indice),
       // Só o que é NOSSO vira faxina — `caminhoDaUrlPublica` devolve `null`
       // para o carro57, e o filtro dentro de `gravar` descarta.
       [removida],
@@ -588,6 +669,11 @@ export default function GaleriaDeFotos({
           {alvo.importacaoDoFeed ? "Trazendo as fotos do RevendaMais…" : "Lendo o feed do RevendaMais…"}
         </div>
       )}
+      {estado.tipo === "conferindo" && (
+        <div className="mb-4 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5 text-[11px] text-mt-neutral-800">
+          Conferindo as fotos gravadas…
+        </div>
+      )}
       {estado.tipo === "erro" && (
         <div
           role="alert"
@@ -642,7 +728,7 @@ export default function GaleriaDeFotos({
                   <button
                     type="button"
                     disabled={ocupado || i === 0}
-                    onClick={() => gravar(moverFoto(fotos, i, i - 1))}
+                    onClick={() => void agir((atual) => gravar(moverFoto(atual, i, i - 1)))}
                     className={rotulo}
                     aria-label={`Mover a foto ${i + 1} para trás`}
                     title="Mover para trás"
@@ -652,7 +738,7 @@ export default function GaleriaDeFotos({
                   <button
                     type="button"
                     disabled={ocupado || i === fotos.length - 1}
-                    onClick={() => gravar(moverFoto(fotos, i, i + 1))}
+                    onClick={() => void agir((atual) => gravar(moverFoto(atual, i, i + 1)))}
                     className={rotulo}
                     aria-label={`Mover a foto ${i + 1} para frente`}
                     title="Mover para frente"
@@ -663,7 +749,7 @@ export default function GaleriaDeFotos({
                     <button
                       type="button"
                       disabled={ocupado}
-                      onClick={() => gravar(moverFoto(fotos, i, 0))}
+                      onClick={() => void agir((atual) => gravar(moverFoto(atual, i, 0)))}
                       className={rotulo}
                       aria-label={`Usar a foto ${i + 1} como capa`}
                       title="Usar como capa"
@@ -674,7 +760,7 @@ export default function GaleriaDeFotos({
                   <button
                     type="button"
                     disabled={ocupado}
-                    onClick={() => remover(i)}
+                    onClick={() => void agir((atual) => remover(atual, i))}
                     className={`${rotulo} ml-auto`}
                     aria-label={`Remover a foto ${i + 1}`}
                     title="Remover"

@@ -2,13 +2,20 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { registrarAcaoSensivel } from "../../../../../lib/auditoria";
 import { decidirEdicao } from "../../../../../lib/edicaoDoRepasse";
-import { decidirImportacaoDoFeed, planejarImportacaoDoFeed, type RespostaDoFeed } from "../../../../../lib/feedParaORepasse";
+import { situacaoNoEstoque } from "../../../../../lib/estoqueParaORepasse";
+import {
+  ANUNCIO_FORA_DO_AR,
+  decidirImportacaoDoFeed,
+  planejarImportacaoDoFeed,
+  porQueNaoImporta,
+  type RespostaDoFeed,
+} from "../../../../../lib/feedParaORepasse";
 import { buscarFotosNoFeed } from "../../../../../lib/feedRevendaMais";
 import { BUCKET_DE_FOTOS, caminhoDaUrlPublica, novoLote } from "../../../../../lib/fotosDoVeiculo";
 import { registrarFalha } from "../../../../../lib/observabilidade";
 import { repasseDoPainelDaLinha } from "../../../../../lib/repasseDoPainel";
 import { falhaDoBanco, lerRepasseParaEscrita, recusar, sessaoDoRepasse } from "../../../../../lib/rotaDoRepasse";
-import { createAdminSupabaseClient } from "../../../../../lib/supabase-server";
+import { createAdminSupabaseClient, createServerSupabaseClient } from "../../../../../lib/supabase-server";
 import { emFila, trazerPar, type ParTrazido } from "../../../../../lib/trazerFotosParaORepasse";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +27,13 @@ const ROTA = "/api/repasses/[id]/fotos-do-feed";
 const PARES_AO_MESMO_TEMPO = 4;
 /**
  * O prazo de todos os downloads juntos. Menor que o da cópia do estoque
- * (40 s) porque aqui a leitura do feed vem antes e pode levar 15 s: quem
- * ainda baixa quando ele vence conta como falha, e a rota grava o que veio.
+ * (40 s) porque aqui a leitura do feed vem antes e pode levar 15 s. A conta
+ * do pior caso: 15 s de feed + 28 s de downloads = 43 s, e sobram 17 s dos 60
+ * da função para os uploads em voo, a gravação e a auditoria. Quem ainda
+ * baixa quando ele vence conta como falha; a rota grava o que veio, e a tela
+ * diz quantas vieram e que o resto se importa de novo.
  */
-const PRAZO_DOS_DOWNLOADS_MS = 35_000;
+const PRAZO_DOS_DOWNLOADS_MS = 28_000;
 
 /** A marca de um endereço de origem, para o nome do arquivo: a mesma foto do anúncio tem sempre a mesma. */
 const marcaDe = (url: string) => createHash("sha256").update(url).digest("hex").slice(0, 16);
@@ -40,7 +50,8 @@ const caminhosDe = (trazidos: readonly Trazido[]) =>
  * estoque, do jeito que o repasse aceita foto.
  *
  * O corpo leva só `estoqueId`, o carro que a pessoa escolheu na busca do
- * estoque. Lista de endereços nenhuma vem do navegador: a rota lê o feed
+ * estoque. Carro cadastrado no painel, vendido ou arquivado é recusado com a
+ * frase própria, antes de o feed ser lido. Lista de endereços nenhuma vem do navegador: a rota lê o feed
  * (`buscarFotosNoFeed`, o mesmo do estoque) e só pede o que está na pasta da
  * loja no carro57 (`urlDaLojaNoCarro57`, sem redirecionamento, 15 s e 15 MB
  * por foto, tipo de imagem). Cada foto vira arquivo novo em `repasse/<id>/`,
@@ -70,14 +81,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!decisao.ok) return recusar(decisao);
     const { estoqueId } = decisao;
 
+    // O carro escolhido, antes de ir ao feed (como a rota do estoque faz com
+    // `origem`): o que nasceu no painel nunca esteve no RevendaMais, e o
+    // vendido e o arquivado saíram de lá. Sem isto os três leriam "não está
+    // no feed", que manda conferir um anúncio que não existe. Lido com a
+    // sessão: só o id e o que decide.
+    const supabase = await createServerSupabaseClient();
+    const { data: carro, error: erroDoEstoque } = await supabase
+      .from("estoque_motors")
+      .select("id, origem, vendido, estado_cadastro")
+      .eq("id", estoqueId)
+      .maybeSingle();
+    if (erroDoEstoque) return NextResponse.json({ error: "Não deu para ler o carro do estoque." }, { status: 502 });
+    if (!carro) return NextResponse.json({ error: "Carro do estoque não encontrado." }, { status: 404 });
+    const linhaDoCarro = carro as Record<string, unknown>;
+    const motivo = porQueNaoImporta({ doPainel: linhaDoCarro.origem === "painel", situacao: situacaoNoEstoque(linhaDoCarro) });
+    if (motivo) return NextResponse.json({ error: motivo }, { status: 422 });
+
     const achado = await buscarFotosNoFeed(estoqueId);
     if (achado.tipo === "fora-do-feed") {
       return NextResponse.json(
-        {
-          error:
-            "Este carro não está no feed do RevendaMais de agora. Confira se o anúncio está ativo lá, " +
-            "ou envie as fotos pela galeria. Nada mudou aqui.",
-        },
+        { error: `${ANUNCIO_FORA_DO_AR} Envie as fotos pela galeria. Nada mudou aqui.` },
         { status: 404 },
       );
     }

@@ -37,6 +37,12 @@ export interface DestinoDasFotos {
   reguaDoEstoque: boolean;
   /** Só no repasse. No estoque o botão é o do carro do feed, com rota própria. */
   importacaoDoFeed?: ImportacaoDoFeed;
+  /**
+   * As duas listas como estão gravadas agora. A galeria chama antes de gravar
+   * quando uma importação ficou sem resposta e a lista da tela pode estar
+   * velha. Falha vira exceção.
+   */
+  reler?: () => Promise<{ web_full_images: string[]; whatsapp_images: string[] }>;
 }
 
 /**
@@ -64,6 +70,14 @@ export function destinoDoRepasse(repasseId: string, buscaInicial = ""): DestinoD
       rota: `/api/repasses/${repasseId}/fotos-do-feed`,
       buscar: buscarNoEstoqueDoRepasse,
       termoInicial: buscaInicial.trim(),
+    },
+    reler: async () => {
+      const res = await fetch(`/api/repasses/${repasseId}`, { cache: "no-store" });
+      const d = (await res.json().catch(() => ({}))) as { repasse?: { web_full_images?: unknown; whatsapp_images?: unknown } };
+      const web = d.repasse?.web_full_images;
+      const zap = d.repasse?.whatsapp_images;
+      if (!res.ok || !Array.isArray(web) || !Array.isArray(zap)) throw new Error("Não deu para ler as fotos gravadas.");
+      return { web_full_images: web as string[], whatsapp_images: zap as string[] };
     },
   };
 }

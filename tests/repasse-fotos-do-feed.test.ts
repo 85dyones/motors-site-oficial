@@ -30,11 +30,13 @@ vi.mock("../src/lib/observabilidade", async (original) => ({
   registrarFalha: (...args: unknown[]) => falhas(...args),
 }));
 
-const { carroDoRepasseNaBusca, decidirImportacaoDoFeed, marcasDoFeedNoRepasse, planejarImportacaoDoFeed, resumoDaImportacao } = await import(
+const { carroDoRepasseNaBusca, porQueNaoImporta, decidirImportacaoDoFeed, marcasDoFeedNoRepasse, planejarImportacaoDoFeed, resumoDaImportacao } = await import(
   "../src/lib/feedParaORepasse"
 );
 const { LIMITE_DE_FOTOS_DO_REPASSE } = await import("../src/lib/edicaoDoRepasse");
 const rota = await import("../src/app/api/repasses/[id]/fotos-do-feed/route");
+const { GET } = await import("../src/app/api/repasses/[id]/route");
+const { carroDoEstoqueParaORepasse } = await import("../src/lib/estoqueParaORepasse");
 const { POST } = rota;
 
 const ID = "3f9a1c2e-5b7d-4e1a-9c3b-0a1b2c3d4e5f";
@@ -92,19 +94,24 @@ function armazenamentoDeTeste() {
 /** A internet do servidor, de mentira: todo pedido fica registrado, e o que não foi ensinado responde 404. */
 function internetDeTeste() {
   const pedidos: Array<{ url: string; init: RequestInit | undefined }> = [];
-  const rotas = new Map<string, () => Response>();
+  const rotas = new Map<string, () => Response | "pendurada">();
   const fetchFalso = vi.fn(async (entrada: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = entrada instanceof Request ? entrada.url : String(entrada);
     pedidos.push({ url, init });
     const fazer = rotas.get(url);
-    return fazer ? fazer() : new Response("não achei", { status: 404 });
+    const r = fazer ? fazer() : new Response("não achei", { status: 404 });
+    if (r !== "pendurada") return r;
+    // Só termina quando o sinal do pedido aborta.
+    return new Promise<Response>((_, rejeitar) => {
+      init?.signal?.addEventListener("abort", () => rejeitar(new DOMException("This operation was aborted", "AbortError")));
+    });
   });
   return {
     fetch: fetchFalso,
     pedidos,
     /** Os pedidos que não são a leitura do feed. */
     fotosPedidas: () => pedidos.map((p) => p.url).filter((u) => u !== FEED),
-    responder(url: string, fazer: () => Response) {
+    responder(url: string, fazer: () => Response | "pendurada") {
       rotas.set(url, fazer);
     },
     servir(...urls: string[]) {
@@ -136,6 +143,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+  vi.useRealTimers();
 });
 
 const pedido = (corpo: unknown) =>
@@ -146,8 +154,17 @@ const pedido = (corpo: unknown) =>
   });
 const comId = (id = ID) => ({ params: Promise.resolve({ id }) });
 const SEM_FOTOS = { web_full_images: [] as string[], whatsapp_images: [] as string[] };
+/** O carro do estoque que a pessoa escolhe: do feed, publicado, a menos que o teste diga outra coisa. */
+const noEstoque = (parcial: Record<string, unknown> = {}) => {
+  banco.leituras.estoque_motors = { data: { id: 4321, origem: "sync", vendido: false, estado_cadastro: "publicado", ...parcial }, error: null };
+};
 const noBanco = (parcial: Parameters<typeof linhaDoBancoDeTeste>[0] = {}) => {
   banco.leituras.repasses = { data: linhaDoBancoDeTeste(parcial), error: null };
+  noEstoque();
+};
+/** Deixa a rota andar o que der sem mexer no relógio falso (o `setImmediate` não é falsificado). */
+const escoar = async () => {
+  for (let i = 0; i < 50; i += 1) await new Promise((resolver) => setImmediate(resolver));
 };
 type Gravado = { web_full_images: string[]; whatsapp_images: string[] };
 const gravado = () => banco.escritasEm("repasses")[0].valores as Gravado;
@@ -261,8 +278,11 @@ describe("o que a tela diz depois da importação", () => {
   it("o que não veio é dito; nenhuma vindo, é erro", () => {
     expect(resumoDaImportacao({ ...zero, vieram: 2, falharam: 1 })).toEqual({
       tipo: "ok",
-      texto: "2 fotos vieram do RevendaMais. 1 não veio. Importe de novo para tentar as que faltam.",
+      texto: "Vieram 2 de 3 fotos. Importe de novo para trazer as que faltaram.",
     });
+    expect(resumoDaImportacao({ ...zero, vieram: 1, falharam: 8, jaEstavam: 2 }).texto).toBe(
+      "Veio 1 de 9 fotos. Importe de novo para trazer as que faltaram. 2 já estavam na galeria.",
+    );
     expect(resumoDaImportacao({ ...zero, falharam: 4 })).toEqual({
       tipo: "erro",
       texto: "Nenhuma foto veio do RevendaMais. 4 não vieram. Importe de novo para tentar as que faltam.",
@@ -301,16 +321,46 @@ describe("o carro da busca do repasse, como o seletor o desenha", () => {
       foto: null,
       fotosCopiaveis: 0,
       fotosDeFora: 0,
+      doPainel: false,
     };
-    expect(carroDoRepasseNaBusca({ ...base, situacao: "vendido" })).toEqual({
+    expect(carroDoRepasseNaBusca({ ...base, situacao: "publicado" })).toEqual({
       id: 4321,
       rotulo: "Volkswagen Gol Trendline 2019",
       ano: 2019,
       km: 64000,
-      vendido: true,
-      publicado: false,
+      vendido: false,
+      publicado: true,
     });
-    expect(carroDoRepasseNaBusca({ ...base, situacao: "publicado" })).toMatchObject({ vendido: false, publicado: true });
+    expect(carroDoRepasseNaBusca({ ...base, situacao: "rascunho" })).not.toHaveProperty("indisponivel");
+  });
+
+  it("marca o carro de que não se importa: cadastrado no painel, vendido e arquivado", () => {
+    const base = {
+      id: 4321,
+      marca: "Volkswagen",
+      modelo: "Gol",
+      versao: null,
+      ano: 2019,
+      ano_fabricacao: null,
+      quilometragem: 64000,
+      cambio: null,
+      combustivel: null,
+      cor: null,
+      tipo: null,
+      carroceria: null,
+      codigo_fipe: null,
+      foto: null,
+      fotosCopiaveis: 0,
+      fotosDeFora: 0,
+      doPainel: false,
+      situacao: "publicado" as const,
+    };
+    expect(carroDoRepasseNaBusca({ ...base, doPainel: true }).indisponivel).toBe("não vem do RevendaMais");
+    expect(carroDoRepasseNaBusca({ ...base, situacao: "vendido" })).toMatchObject({ vendido: true, indisponivel: "anúncio fora do ar no RevendaMais" });
+    expect(carroDoRepasseNaBusca({ ...base, situacao: "arquivado" }).indisponivel).toBe("anúncio fora do ar no RevendaMais");
+    expect(porQueNaoImporta({ doPainel: true, situacao: "vendido" })).toBe("Este carro não vem do RevendaMais, então não há fotos para importar.");
+    expect(porQueNaoImporta({ doPainel: false, situacao: "arquivado" })).toBe("Este anúncio não está mais ativo no RevendaMais.");
+    expect(porQueNaoImporta({ doPainel: false, situacao: "rascunho" })).toBeNull();
   });
 });
 
@@ -540,7 +590,7 @@ describe("POST /api/repasses/[id]/fotos-do-feed — repetição, teto e nada a t
     internet.publicar([{ id: 1111, fotos: [foto(1)] }]);
     const res = await POST(pedido({ estoqueId: 4321 }), comId());
     expect(res.status).toBe(404);
-    expect((await res.json()).error).toContain("não está no feed do RevendaMais");
+    expect((await res.json()).error).toContain("Este anúncio não está mais ativo no RevendaMais.");
     expect(internet.fotosPedidas()).toEqual([]);
     expect(banco.escritas).toEqual([]);
   });
@@ -578,5 +628,136 @@ describe("POST /api/repasses/[id]/fotos-do-feed — repetição, teto e nada a t
 
   it("a rota tem 60 s, como a cópia do estoque", () => {
     expect(rota.maxDuration).toBe(60);
+  });
+});
+
+describe("POST /api/repasses/[id]/fotos-do-feed — o prazo (revisão de 06/10)", () => {
+  it("28 s para os downloads: o que veio é gravado, o resto conta como falha, e a tela diz quantas vieram", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    noBanco(SEM_FOTOS);
+    const fotos = Array.from({ length: 9 }, (_, i) => foto(i + 1));
+    internet.publicar([{ id: 4321, fotos }]);
+    // A primeira vem; as outras oito ficam penduradas. Quatro de cada vez,
+    // cada uma desiste em 15 s: a segunda leva só desistiria aos 30 s.
+    for (const f of fotos.slice(1)) internet.responder(f.web, () => "pendurada");
+
+    let resposta: Response | undefined;
+    void POST(pedido({ estoqueId: 4321 }), comId()).then((r) => (resposta = r));
+    await vi.advanceTimersByTimeAsync(27_000);
+    await escoar();
+    expect(resposta).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await escoar();
+    expect(resposta).toBeDefined();
+
+    const corpo = await resposta!.json();
+    expect(corpo).toMatchObject({ vieram: 1, falharam: 8 });
+    expect(gravado().web_full_images).toEqual([`${PUBLICA}${destinoDa(DA_LOJA(1, "web"))}`]);
+    expect(corpo.web_full_images).toEqual(gravado().web_full_images);
+    expect(resumoDaImportacao(corpo)).toEqual({
+      tipo: "ok",
+      texto: "Veio 1 de 9 fotos. Importe de novo para trazer as que faltaram.",
+    });
+    expect(banco.auditoria()).toHaveLength(1);
+  });
+});
+
+describe("POST /api/repasses/[id]/fotos-do-feed — par pela metade (revisão de 06/10)", () => {
+  it("uma versão sobe e a outra falha: a que subiu sai do bucket, e o par não entra na lista", async () => {
+    noBanco(SEM_FOTOS);
+    internet.publicar([{ id: 4321, fotos: [foto(1), foto(2)] }]);
+    // A web sobe primeiro; a zap da foto 1 é recusada pelo Storage.
+    balde.falharQuando((de) => (de === DA_LOJA(1, "zap") ? "Bucket fora do ar" : null));
+    const res = await POST(pedido({ estoqueId: 4321 }), comId());
+    expect(await res.json()).toMatchObject({ vieram: 1, falharam: 1 });
+
+    const webDaPrimeira = destinoDa(DA_LOJA(1, "web"))!;
+    expect(webDaPrimeira).toBeTruthy();
+    expect(balde.removidos()).toEqual([webDaPrimeira]);
+    expect(JSON.stringify(gravado())).not.toContain(webDaPrimeira);
+    expect(gravado().web_full_images).toEqual([`${PUBLICA}${destinoDa(DA_LOJA(2, "web"))}`]);
+  });
+
+  it("a primeira versão já falha: nada subiu, nada a remover", async () => {
+    noBanco(SEM_FOTOS);
+    internet.publicar([{ id: 4321, fotos: [foto(1)] }]);
+    balde.falharQuando((de) => (de === DA_LOJA(1, "web") ? "Bucket fora do ar" : null));
+    await POST(pedido({ estoqueId: 4321 }), comId());
+    expect(balde.removidos()).toEqual([]);
+    expect(balde.subidas()).toHaveLength(1);
+  });
+});
+
+describe("POST /api/repasses/[id]/fotos-do-feed — o carro escolhido (revisão de 06/10)", () => {
+  beforeEach(() => {
+    noBanco(SEM_FOTOS);
+    internet.publicar([{ id: 4321, fotos: [foto(1)] }]);
+  });
+  const recusa = async () => {
+    const res = await POST(pedido({ estoqueId: 4321 }), comId());
+    // Recusado antes de o feed ser lido: nada é pedido, baixado ou gravado.
+    expect(internet.pedidos).toEqual([]);
+    expect(balde.chamadas).toEqual([]);
+    expect(banco.escritas).toEqual([]);
+    return { status: res.status, erro: (await res.json()).error as string };
+  };
+
+  it("carro cadastrado no painel: 422 com a frase própria", async () => {
+    noEstoque({ origem: "painel" });
+    expect(await recusa()).toEqual({ status: 422, erro: "Este carro não vem do RevendaMais, então não há fotos para importar." });
+  });
+
+  it("carro vendido ou arquivado: 422, o anúncio não está mais ativo", async () => {
+    for (const parcial of [{ vendido: true }, { estado_cadastro: "arquivado" }]) {
+      noEstoque(parcial);
+      expect(await recusa(), JSON.stringify(parcial)).toEqual({ status: 422, erro: "Este anúncio não está mais ativo no RevendaMais." });
+    }
+  });
+
+  it("carro que não existe no estoque: 404", async () => {
+    banco.leituras.estoque_motors = { data: null, error: null };
+    expect((await recusa()).status).toBe(404);
+  });
+
+  it("a leitura do estoque pede só o id e o que decide, do carro escolhido", async () => {
+    await POST(pedido({ estoqueId: 4321 }), comId());
+    const leitura = banco.consultas.find((c) => c.tabela === "estoque_motors")!;
+    expect(leitura.colunas).toBe("id, origem, vendido, estado_cadastro");
+    expect(leitura.filtros).toEqual([["id", 4321]]);
+  });
+
+  it("a busca do estoque do repasse diz se o carro nasceu no painel", () => {
+    const linha = { id: 4321, marca: "vw", modelo: "gol", web_full_images: [], whatsapp_images: [] };
+    expect(carroDoEstoqueParaORepasse({ ...linha, origem: "painel" })!.doPainel).toBe(true);
+    expect(carroDoEstoqueParaORepasse({ ...linha, origem: "sync" })!.doPainel).toBe(false);
+    expect(carroDoEstoqueParaORepasse(linha)!.doPainel).toBe(false);
+  });
+});
+
+describe("GET /api/repasses/[id] — a galeria relê o que está gravado (revisão de 06/10)", () => {
+  const ler = (id = ID) => GET(new Request(`http://localhost/api/repasses/${id}`), comId(id));
+
+  it("sem login: 401; quem não é da equipe: 403; repasse que não existe: 404", async () => {
+    entrarComo(["marketing"], null);
+    noBanco();
+    expect((await ler()).status).toBe(401);
+    entrarComo(["cliente"]);
+    noBanco();
+    expect((await ler()).status).toBe(403);
+    entrarComo(["marketing"]);
+    banco.leituras.repasses = { data: null, error: null };
+    expect((await ler()).status).toBe(404);
+    expect((await ler("../x")).status).toBe(404);
+  });
+
+  it("a equipe recebe o carro como está gravado, sem cache e sem escrever nada", async () => {
+    noBanco();
+    const res = await ler();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const { repasse } = await res.json();
+    expect(repasse.web_full_images).toEqual(repasseDeTeste().web_full_images);
+    expect(repasse.whatsapp_images).toEqual(repasseDeTeste().whatsapp_images);
+    expect(banco.escritas).toEqual([]);
   });
 });
