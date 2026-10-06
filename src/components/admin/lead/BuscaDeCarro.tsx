@@ -14,17 +14,36 @@ import { LIMITE_DA_BUSCA_DE_CARRO, MINIMO_DA_BUSCA_DE_CARRO } from "../../../lib
  *
  * O carro que já está no lead aparece, desabilitado, com "já está na lista":
  * sumir com ele faria a pessoa achar que o carro não existe.
+ *
+ * Desde 06/10 a galeria do repasse usa a mesma caixa para escolher de qual
+ * anúncio vêm as fotos do RevendaMais: ela passa `buscar` (a busca do estoque
+ * do repasse, que tem outro portão), `termoInicial` e `rotulo`. Sem eles, a
+ * caixa é a do lead, como sempre.
  */
 
 const ESPERA_MS = 250;
 
 type Resposta = { chave: string; veiculos: CarroDaBusca[] } | { chave: string; erro: string };
 
+const FALHA_DA_BUSCA = "Não deu para buscar os carros.";
+
+/** A busca do lead: `GET /api/estoque/busca`. Falha vira exceção com a frase da tela. */
+async function buscarNoEstoqueDosLeads(termo: string): Promise<CarroDaBusca[]> {
+  const res = await fetch(`/api/estoque/busca?q=${encodeURIComponent(termo)}`);
+  const d = await res.json().catch(() => ({}));
+  // Termo que o servidor acha curto (só curingas, por exemplo): lista vazia, sem erro.
+  if (!res.ok && d.codigo !== "busca_curta") throw new Error(d.error || FALHA_DA_BUSCA);
+  return Array.isArray(d.veiculos) ? d.veiculos : [];
+}
+
 export default function BuscaDeCarro({
   jaNaLista,
   aoEscolher,
   aoCancelar,
   aoMudarRascunho,
+  buscar = buscarNoEstoqueDosLeads,
+  termoInicial = "",
+  rotulo = "Buscar carro no estoque",
 }: {
   /** Os `estoque_motors.id` que o lead já tem. */
   jaNaLista: readonly number[];
@@ -32,8 +51,16 @@ export default function BuscaDeCarro({
   aoCancelar: () => void;
   /** Há (ou deixou de haver) texto digitado: quem monta não fecha por cima dele. */
   aoMudarRascunho?: (temTexto: boolean) => void;
+  /**
+   * Quem busca. Precisa ser a MESMA função a cada desenho (de módulo, ou
+   * memorizada): trocar de função refaz a busca.
+   */
+  buscar?: (termo: string) => Promise<CarroDaBusca[]>;
+  /** O que já vem escrito na caixa, e buscado, quando ela abre. */
+  termoInicial?: string;
+  rotulo?: string;
 }) {
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(termoInicial);
   const [resposta, setResposta] = useState<Resposta | null>(null);
   const [ativo, setAtivo] = useState(-1);
   const [tentativa, setTentativa] = useState(0);
@@ -54,24 +81,21 @@ export default function BuscaDeCarro({
     if (!valido) return;
     let vivo = true;
     const relogio = setTimeout(() => {
-      fetch(`/api/estoque/busca?q=${encodeURIComponent(termo)}`)
-        .then(async (res) => {
-          const d = await res.json().catch(() => ({}));
+      buscar(termo)
+        .then((veiculos) => {
           if (!vivo) return;
-          // Termo que o servidor acha curto (só curingas, por exemplo): lista vazia, sem erro.
-          if (!res.ok && d.codigo !== "busca_curta") throw new Error(d.error || "Não deu para buscar os carros.");
-          setResposta({ chave, veiculos: Array.isArray(d.veiculos) ? d.veiculos : [] });
+          setResposta({ chave, veiculos });
           setAtivo(-1);
         })
         .catch((e: unknown) => {
-          if (vivo) setResposta({ chave, erro: e instanceof Error ? e.message : "Não deu para buscar os carros." });
+          if (vivo) setResposta({ chave, erro: e instanceof Error && e.message ? e.message : FALHA_DA_BUSCA });
         });
     }, ESPERA_MS);
     return () => {
       vivo = false;
       clearTimeout(relogio);
     };
-  }, [termo, valido, chave]);
+  }, [termo, valido, chave, buscar]);
 
   const temTexto = texto.trim() !== "";
   useEffect(() => {
@@ -140,7 +164,7 @@ export default function BuscaDeCarro({
     <div data-busca-de-carro className="flex flex-col gap-2 border border-mt-regua bg-mt-surface p-2.5">
       <div className="flex items-end gap-3">
         <label className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-[11px] text-mt-neutral-700">Buscar carro no estoque</span>
+          <span className="text-[11px] text-mt-neutral-700">{rotulo}</span>
           <input
             ref={campo}
             type="text"

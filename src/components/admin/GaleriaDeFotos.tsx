@@ -8,6 +8,7 @@ import {
   caminhoDaFoto,
   caminhoDaUrlPublica,
   colunasDasFotos,
+  fotosDoVeiculo,
   moverFoto,
   novoLote,
   validarFoto,
@@ -19,6 +20,8 @@ import {
   MINIMO_DE_FOTOS_EM_PREPARACAO,
 } from "../../lib/coerenciaDoCadastro";
 import type { DestinoDasFotos } from "../../lib/destinoDasFotos";
+import { resumoDaImportacao, type RespostaDoFeed } from "../../lib/feedParaORepasse";
+import BuscaDeCarro from "./lead/BuscaDeCarro";
 
 /**
  * A galeria de fotos do editor A15 — aba "Fotos e mídia".
@@ -70,7 +73,10 @@ type Estado =
   | { tipo: "parado" }
   | { tipo: "enviando"; feito: number; total: number; etapa: string }
   | { tipo: "gravando" }
-  /** Buscando o anúncio no feed do RevendaMais — só em `origem = 'sync'`. */
+  /**
+   * Buscando o anúncio no feed do RevendaMais — em `origem = 'sync'` e, desde
+   * 06/10, no repasse (`destino.importacaoDoFeed`), que também baixa as fotos.
+   */
   | { tipo: "importando" }
   | { tipo: "erro"; mensagem: string };
 
@@ -165,6 +171,10 @@ export default function GaleriaDeFotos({
 }) {
   const [estado, setEstado] = useState<Estado>({ tipo: "parado" });
   const [gravadoEm, setGravadoEm] = useState<string | null>(null);
+  /** Repasse: a busca do carro do estoque está aberta, à espera da escolha. */
+  const [escolhendoOCarro, setEscolhendoOCarro] = useState(false);
+  /** Repasse: o que a última importação do feed trouxe, dito na tela. */
+  const [avisoDoFeed, setAvisoDoFeed] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
   const alvo = destino ?? destinoDoEstoque(estoqueId);
 
@@ -187,6 +197,7 @@ export default function GaleriaDeFotos({
    */
   const gravar = useCallback(
     async (novas: FotoDoVeiculo[], removidas: FotoDoVeiculo[] = []) => {
+      setAvisoDoFeed(null);
       setEstado({ tipo: "gravando" });
       const colunas = colunasDasFotos(novas);
       try {
@@ -271,6 +282,59 @@ export default function GaleriaDeFotos({
   }, [estoqueId, aoGravar]);
 
   /**
+   * O mesmo botão, no repasse (dono, 06/10). O carro de repasse não tem
+   * anúncio próprio no RevendaMais nem ligação com o estoque, então a pessoa
+   * escolhe o carro na busca e a rota do destino traz as fotos do anúncio DELE.
+   *
+   * Duas diferenças para o estoque, as duas do lado da rota: as fotos são
+   * baixadas para o nosso armazenamento (o repasse só publica foto nossa) e
+   * SOMAM à galeria, sem repetir a que já veio. A lista continua não saindo
+   * daqui: o corpo leva só o carro escolhido.
+   */
+  const rotaDoFeed = alvo.importacaoDoFeed?.rota;
+  const importarDoCarro = useCallback(
+    async (carroId: number) => {
+      if (!rotaDoFeed) return;
+      setEscolhendoOCarro(false);
+      setAvisoDoFeed(null);
+      setEstado({ tipo: "importando" });
+      try {
+        const res = await fetch(rotaDoFeed, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estoqueId: carroId }),
+        });
+        const data = (await res.json().catch(() => ({}))) as Partial<RespostaDoFeed> & { error?: string };
+        if (!res.ok) throw new Error(data.error || "Falha ao importar as fotos do feed.");
+
+        const vieram = data.vieram ?? 0;
+        if (vieram > 0) {
+          aoGravar(colunasDasFotos(fotosDoVeiculo(data.whatsapp_images, data.web_full_images)));
+        }
+        const resumo = resumoDaImportacao({
+          vieram,
+          jaEstavam: data.jaEstavam ?? 0,
+          ficaramDeFora: data.ficaramDeFora ?? 0,
+          acimaDoLimite: data.acimaDoLimite ?? 0,
+          falharam: data.falharam ?? 0,
+        });
+        if (resumo.tipo === "erro") {
+          setEstado({ tipo: "erro", mensagem: resumo.texto });
+          return;
+        }
+        setAvisoDoFeed(resumo.texto);
+        setEstado({ tipo: "parado" });
+      } catch (e: unknown) {
+        setEstado({
+          tipo: "erro",
+          mensagem: mensagemDoErro(e, "Não deu para importar as fotos do feed."),
+        });
+      }
+    },
+    [rotaDoFeed, aoGravar],
+  );
+
+  /**
    * Sobe os arquivos escolhidos, um a um, e grava a lista no fim.
    *
    * Um a um de propósito: a barra precisa dizer "3 de 12", e um `Promise.all`
@@ -282,6 +346,7 @@ export default function GaleriaDeFotos({
     if (!arquivos || arquivos.length === 0) return;
     const lista = Array.from(arquivos);
 
+    setAvisoDoFeed(null);
     const supabase = createBrowserSupabaseClient();
     const subidas: FotoDoVeiculo[] = [];
     let falha: string | null = null;
@@ -455,16 +520,45 @@ export default function GaleriaDeFotos({
           />
           <label
             htmlFor="fotos-do-veiculo"
-            className={`mt-btn mt-btn-primario mt-foco px-5 py-2.5 text-[11px] ${
+            className={`mt-btn mt-btn-primario mt-foco min-h-11 px-5 py-2.5 text-[11px] ${
               ocupado ? "pointer-events-none opacity-45" : "cursor-pointer"
             }`}
           >
             {ocupado ? "Aguarde…" : "Enviar fotos"}
           </label>
+          {/* Repasse: o mesmo "Importar fotos do feed" do carro do estoque, ao
+              lado do envio. Abre a busca do carro; quem importa é a escolha. */}
+          {alvo.importacaoDoFeed && (
+            <button
+              type="button"
+              disabled={ocupado || escolhendoOCarro}
+              onClick={() => setEscolhendoOCarro(true)}
+              className="mt-btn mt-btn-contorno mt-foco min-h-11 px-5 py-2.5 text-[11px]"
+            >
+              {estado.tipo === "importando" ? "Buscando no feed…" : "Importar fotos do feed"}
+            </button>
+          )}
           <span className="text-[11px] leading-snug text-mt-neutral-700">
             JPG, PNG, WebP ou HEIC · até 15 MB cada · o tratamento e as duas versões
             (galeria e card) são gerados aqui, no envio
           </span>
+        </div>
+      )}
+
+      {podeEditar && alvo.importacaoDoFeed && escolhendoOCarro && !ocupado && (
+        <div className="mb-4 flex flex-col gap-2">
+          <p className="m-0 text-[11px] leading-snug text-mt-neutral-800">
+            Escolha o carro do estoque. As fotos do anúncio dele no RevendaMais entram depois das
+            que já estão aqui, sem repetir as que já vieram. A capa não muda.
+          </p>
+          <BuscaDeCarro
+            jaNaLista={[]}
+            buscar={alvo.importacaoDoFeed.buscar}
+            termoInicial={alvo.importacaoDoFeed.termoInicial}
+            rotulo="De qual carro do estoque são as fotos?"
+            aoEscolher={(carro) => void importarDoCarro(carro.id)}
+            aoCancelar={() => setEscolhendoOCarro(false)}
+          />
         </div>
       )}
 
@@ -491,7 +585,7 @@ export default function GaleriaDeFotos({
       )}
       {estado.tipo === "importando" && (
         <div className="mb-4 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5 text-[11px] text-mt-neutral-800">
-          Lendo o feed do RevendaMais…
+          {alvo.importacaoDoFeed ? "Trazendo as fotos do RevendaMais…" : "Lendo o feed do RevendaMais…"}
         </div>
       )}
       {estado.tipo === "erro" && (
@@ -502,7 +596,15 @@ export default function GaleriaDeFotos({
           {estado.mensagem}
         </div>
       )}
-      {estado.tipo === "parado" && gravadoEm && (
+      {estado.tipo === "parado" && avisoDoFeed && (
+        <div
+          role="status"
+          className="mb-4 border-l-[3px] border-mt-ink bg-mt-surface px-3 py-2.5 text-[11px] leading-snug tabular-nums text-mt-neutral-800"
+        >
+          {avisoDoFeed}
+        </div>
+      )}
+      {estado.tipo === "parado" && gravadoEm && !avisoDoFeed && (
         <div className="mb-4 text-[11px] text-mt-neutral-700">
           Fotos gravadas às <span className="tabular-nums">{gravadoEm}</span> — já valem no site.
         </div>
