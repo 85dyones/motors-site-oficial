@@ -321,7 +321,9 @@ export function interpretarEventoDoChatwoot(bruto: unknown): EventoDoChatwoot {
     // Chatwoot, e por isso chega aqui com cara de gente. Contada como resposta
     // de consultor, e com o lead já encerrado, a rota criaria um lead novo e
     // registraria nele um contato que ninguém fez.
-    if (ehNotaDoPainel(corpo.content)) {
+    // Só a nota PRIVADA: mensagem pública com as mesmas palavras é um
+    // consultor falando com o cliente, e segue o caminho normal.
+    if (ehNotaDoPainel(corpo.content, corpo.private)) {
       return IGNORADO("nota do painel ao encerrar o lead — robô não atende");
     }
     if (!ehAgenteHumano(remetente)) {

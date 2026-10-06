@@ -241,9 +241,13 @@ async function aplicar(
   // pessoa trocaria o atendimento mais recente dele, que é de onde a fila lê
   // se o assistente ainda está na conversa. O vínculo fica como está.
   const soResolveOQueJaEncerrou = vinculoEncerrado && evento.tipo === "conversa" && evento.encerrada;
+  // O mesmo para a troca de responsável numa conversa de lead encerrado: a
+  // atribuição feita no Chatwoot é sobre ESTA conversa, e não dá dono ao
+  // outro lead aberto da mesma pessoa. Sem procurar lead, o passo 4 não roda.
+  const atribuiOQueJaEncerrou = vinculoEncerrado && evento.tipo === "conversa" && Boolean(evento.atribuicao);
 
   // 2. O lead ------------------------------------------------------------
-  if (!leadId && evento.telefone && !soResolveOQueJaEncerrou) {
+  if (!leadId && evento.telefone && !soResolveOQueJaEncerrou && !atribuiOQueJaEncerrou) {
     leadId = await acharLead(supabase, evento.telefone);
 
     // Só o cliente escrevendo, ou o consultor respondendo, justificam criar. Um
@@ -306,7 +310,8 @@ async function aplicar(
   }
 
   // 4. O dono ------------------------------------------------------------
-  if (evento.atribuicao && leadId) {
+  // Nunca numa conversa cujo lead vinculado está encerrado (2026-10-06).
+  if (evento.atribuicao && leadId && !vinculoEncerrado) {
     // Nada daqui derruba o que já foi gravado: o atendimento e o vínculo
     // valem mesmo que a atribuição não possa ser lida.
     let resultado: ResultadoDaAtribuicao;
@@ -335,6 +340,8 @@ async function aplicar(
       ? undefined
       : soResolveOQueJaEncerrou
         ? "conversa resolvida de um lead já encerrado"
+        : atribuiOQueJaEncerrou
+          ? "atribuição numa conversa de lead já encerrado"
         : "conversa sem telefone reconhecível",
   };
 }

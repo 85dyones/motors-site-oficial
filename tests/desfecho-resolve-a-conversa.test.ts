@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ETAPAS_PADRAO, ehTipoDeDesfecho, type MotivoDoFunil } from "../src/lib/funil";
 import {
   AVISO_DE_CONVERSA_ABERTA,
+  AVISO_DE_PAINEL_SEM_CHATWOOT,
   ehNotaDoPainel,
   notaDeDesfecho,
   resolverConversasDoLead,
@@ -36,6 +37,8 @@ let gravacoes: string[];
 let rpcs: Array<{ funcao: string; args: Linha }>;
 let autor: { role: string; papeis: string[]; full_name: string };
 let proximoId = 1;
+/** Roda logo antes de a rota gravar em `leads`: é onde o lead muda de dono no meio. */
+let aoGravarOLead: (() => void) | null;
 
 function consulta(tabela: string) {
   const filtros: Array<(l: Linha) => boolean> = [];
@@ -50,6 +53,11 @@ function consulta(tabela: string) {
       banco[tabela].push(nova);
       gravacoes.push(`insert ${tabela}`);
       return { data: [nova], error: null };
+    }
+    if (atualizacao && tabela === "leads" && aoGravarOLead) {
+      const gancho = aoGravarOLead;
+      aoGravarOLead = null;
+      gancho();
     }
     const alcancadas = banco[tabela].filter((l) => filtros.every((f) => f(l)));
     if (atualizacao) {
@@ -137,6 +145,8 @@ interface Chamada {
 let chamadas: Chamada[];
 /** Responde este status a tudo. */
 let statusDoChatwoot: number | null;
+/** Responde este status só ao pedido da nota. */
+let statusDaNota: number | null;
 /** Responde este status só ao pedido de resolver. */
 let statusAoResolver: number | null;
 /** Não responde: a chamada só termina quando o prazo dela estoura. */
@@ -164,7 +174,10 @@ async function chatwootFalso(url: string, init?: RequestInit): Promise<Response>
       payload: { success: true, conversation_id: Number(resolver[1]), current_status: "resolved" },
     });
   }
-  if (/\/conversations\/\d+\/messages$/.test(url)) return Response.json({ id: 9001, private: true });
+  if (/\/conversations\/\d+\/messages$/.test(url)) {
+    if (statusDaNota) return new Response("{}", { status: statusDaNota });
+    return Response.json({ id: 9001, private: true });
+  }
   return new Response("{}", { status: 404 });
 }
 
@@ -190,7 +203,9 @@ beforeEach(() => {
   chamadas = [];
   statusDoChatwoot = null;
   statusAoResolver = null;
+  statusDaNota = null;
   chatwootMudo = false;
+  aoGravarOLead = null;
   autor = ANA;
   banco = {
     profiles: [
@@ -287,10 +302,14 @@ describe("a nota que fica na conversa", () => {
     expect(notaDeDesfecho({ tipo: "ganho", motivo: null, autor: " " })).toBe("Lead encerrado no painel: Ganho.");
   });
 
-  it("é reconhecida pelo começo do texto, e só por ele", () => {
-    expect(ehNotaDoPainel(notaDeDesfecho({ tipo: "ganho", motivo: "x", autor: "y" }))).toBe(true);
-    expect(ehNotaDoPainel("Cliente pediu para ligar terça")).toBe(false);
-    expect(ehNotaDoPainel(null)).toBe(false);
+  it("é reconhecida só quando é PRIVADA e começa como a nota começa", () => {
+    const texto = notaDeDesfecho({ tipo: "ganho", motivo: "x", autor: "y" });
+    expect(ehNotaDoPainel(texto, true)).toBe(true);
+    for (const naoPrivada of [false, undefined, null, "true", 1]) {
+      expect(ehNotaDoPainel(texto, naoPrivada), String(naoPrivada)).toBe(false);
+    }
+    expect(ehNotaDoPainel("Cliente pediu para ligar terça", true)).toBe(false);
+    expect(ehNotaDoPainel(null, true)).toBe(false);
   });
 });
 
@@ -383,10 +402,54 @@ describe("PATCH /api/leads/gerenciar: encerrar resolve a conversa", () => {
     expect(String(corpo.aviso)).toContain(AVISO_DE_CONVERSA_ABERTA);
   });
 
-  it("conversa apagada no Chatwoot (404): não há o que resolver nem o que avisar", async () => {
+  it("404 do Chatwoot é falha como outra qualquer: não resolvida, com aviso", async () => {
+    // Na nota e ao resolver.
     statusDoChatwoot = 404;
+    const tudo = await encerrar(PERDIDO);
+    expect(tudo.corpo.conversa_resolvida).toBe(false);
+    expect(String(tudo.corpo.aviso)).toContain(AVISO_DE_CONVERSA_ABERTA);
+
+    // Só ao resolver: a nota entrou, e mesmo assim não conta como resolvida.
+    statusDoChatwoot = null;
+    statusAoResolver = 404;
+    Object.assign(lead(), { situacao: "proposta", desfecho: null });
+    const soAoResolver = await encerrar(PERDIDO);
+    expect(soAoResolver.corpo.conversa_resolvida).toBe(false);
+    expect(String(soAoResolver.corpo.aviso)).toContain(AVISO_DE_CONVERSA_ABERTA);
+    expect(lead().desfecho).toBe("perdido");
+  });
+
+  it("a nota falhou (404 ou 500) e resolver deu 2xx: resolvida, e a tela avisa que a nota não entrou", async () => {
+    for (const status of [404, 500]) {
+      chamadas = [];
+      statusDaNota = status;
+      Object.assign(lead(), { situacao: "proposta", desfecho: null });
+      const { corpo } = await encerrar(PERDIDO);
+      expect(resolucoes(), String(status)).toHaveLength(1);
+      expect(corpo.conversa_resolvida).toBe(true);
+      expect(String(corpo.aviso)).toContain("a nota do encerramento não entrou");
+    }
+  });
+
+  it("espelho sem status (nulo): na dúvida, tenta resolver", async () => {
+    banco.atendimentos[0].status_conversa = null;
     const { corpo } = await encerrar(PERDIDO);
     expect(corpo).toEqual({ ok: true, conversa_resolvida: true });
+    expect(resolucoes()).toHaveLength(1);
+  });
+
+  it("a gravação que não alcança o lead não fala com o Chatwoot", async () => {
+    // O lead muda de dono entre a guarda do escopo e o `update`: a leitura da
+    // guarda ainda vê a Ana, a gravação já não alcança linha nenhuma.
+    aoGravarOLead = () => {
+      lead().responsavel = "Bia Souza";
+    };
+    const { status, corpo } = await encerrar(PERDIDO);
+    // A resposta deste caso é a que a rota sempre deu.
+    expect(status).toBe(200);
+    expect(corpo).toEqual({ ok: true });
+    expect(lead()).toMatchObject({ situacao: "proposta", desfecho: null });
+    expect(chamadas).toEqual([]);
   });
 
   it("lead sem conversa: nenhuma chamada, nenhum aviso", async () => {
@@ -406,10 +469,16 @@ describe("PATCH /api/leads/gerenciar: encerrar resolve a conversa", () => {
 
   it("sem token do Chatwoot: avisa só quando o lead tem conversa aberta", async () => {
     vi.stubEnv("CHATWOOT_API_TOKEN", "");
+    const avisado = vi.mocked(console.warn);
     const comConversa = await encerrar(PERDIDO);
     expect(comConversa.corpo.conversa_resolvida).toBe(false);
-    expect(String(comConversa.corpo.aviso)).toContain("CHATWOOT_API_TOKEN");
-    expect(String(comConversa.corpo.aviso)).toContain("resolva por lá");
+    // Frase para o vendedor: sem nome de variável de ambiente e sem travessão.
+    expect(comConversa.corpo.aviso).toBe(
+      "O lead foi encerrado, mas o painel não está ligado ao Chatwoot: resolva a conversa por lá.",
+    );
+    expect(comConversa.corpo.aviso).toBe(AVISO_DE_PAINEL_SEM_CHATWOOT);
+    // O motivo técnico fica no log do servidor.
+    expect(avisado.mock.calls.flat().join(" ")).toContain("CHATWOOT_API_TOKEN");
     expect(lead().desfecho).toBe("perdido");
 
     Object.assign(lead(), { situacao: "proposta", desfecho: null });
@@ -535,6 +604,46 @@ describe("a volta: o que o webhook faz com a nota e com a conversa resolvida", (
     expect(interpretarEventoDoChatwoot(notaDeVolta("Cliente pediu para ligar terça")).tipo).toBe(
       "mensagem_do_consultor",
     );
+  });
+
+  it("mensagem PÚBLICA de consultor com as mesmas palavras é processada normalmente", () => {
+    const texto = "Lead encerrado no painel: Perdido. Motivo: Achou caro. Por Ana Lima.";
+    for (const privada of [false, undefined]) {
+      const e = interpretarEventoDoChatwoot({ ...notaDeVolta(texto), private: privada });
+      expect(e.tipo, String(privada)).toBe("mensagem_do_consultor");
+      expect(e.autor).toBe("Painel Motors");
+    }
+  });
+
+  it("atribuição no Chatwoot numa conversa de lead encerrado: não dá dono ao outro lead da pessoa", async () => {
+    banco.leads.push({
+      id: "lead-2",
+      nome: "Fulano",
+      telefone: "5541999990000",
+      situacao: "novo",
+      canal: "Site",
+      desfecho: null,
+      responsavel: "Bia Souza",
+      ultimo_contato_em: "2026-10-02T10:00:00Z",
+      ultimo_movimento_em: "2026-10-02T10:00:00Z",
+    });
+    Object.assign(lead(), { situacao: "perdido", desfecho: "perdido" });
+    const outro = retrato("lead-2");
+
+    const r = await entregar({
+      event: "conversation_updated",
+      ...conversa("open"),
+      changed_attributes: [{ assignee_id: { previous_value: null, current_value: 6 } }],
+    });
+
+    expect(r.corpo).toMatchObject({ ok: true, acao: "atendimento_sem_lead", lead: null });
+    expect(String(r.corpo.detalhe)).toContain("lead já encerrado");
+    // O passo da atribuição nem começou: nada foi lido no Chatwoot.
+    expect(chamadas).toEqual([]);
+    expect(banco.atendimentos[0].lead_id).toBe("lead-1");
+    expect(retrato("lead-2")).toEqual(outro);
+    expect(gravacoes.filter((g) => g.includes("leads"))).toEqual([]);
+    expect(banco.leads_eventos).toEqual([]);
   });
 
   it("o laço inteiro: encerra no painel, os eventos voltam, e nenhum lead é tocado", async () => {

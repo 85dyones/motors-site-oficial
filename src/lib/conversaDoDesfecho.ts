@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
 import {
   chamarChatwoot,
-  MOTIVO_DE_CONVERSA_AUSENTE,
   motivoSemChatwoot,
   type ConfigDoChatwoot,
 } from "./etiquetasDoChatwoot";
@@ -40,8 +39,10 @@ import { NAO_E_OPORTUNIDADE, ROTULO_DO_DESFECHO, type TipoDeDesfecho } from "./f
  * A nota vai ANTES de resolver, e é sempre PRIVADA: `private: true` é o que a
  * separa de uma mensagem de WhatsApp para o cliente. Ela diz quem encerrou e
  * por quê, para quem abrir a conversa depois não precisar ir ao painel.
- * Falhou a nota, a conversa é resolvida do mesmo jeito: a nota é contexto, o
- * pedido do dono é a conversa resolvida.
+ * Falhou a nota, a conversa é resolvida do mesmo jeito (a nota é contexto, o
+ * pedido do dono é a conversa resolvida), e a tela avisa que a nota não entrou.
+ * Resolvida é só a conversa cujo `toggle_status` respondeu 2xx: 404 e qualquer
+ * outra resposta são falha, com aviso.
  *
  * ---------------------------------------------------------------------------
  * Nunca trava o desfecho
@@ -76,6 +77,12 @@ export const INICIO_DA_NOTA_DO_PAINEL = "Lead encerrado no painel:";
 
 export const AVISO_DE_CONVERSA_ABERTA =
   "O lead foi encerrado, mas a conversa no Chatwoot continua aberta: resolva por lá.";
+
+export const AVISO_DE_PAINEL_SEM_CHATWOOT =
+  "O lead foi encerrado, mas o painel não está ligado ao Chatwoot: resolva a conversa por lá.";
+
+const AVISO_DE_NOTA_QUE_NAO_ENTROU =
+  "O lead foi encerrado e a conversa no Chatwoot foi resolvida, mas a nota do encerramento não entrou nela.";
 
 /** Quando nem deu para saber se há conversa aberta: não afirma que há. */
 const AVISO_DE_CONVERSA_NAO_CONFERIDA =
@@ -115,9 +122,16 @@ export function notaDeDesfecho(dados: DadosDoDesfecho): string {
   return partes.join(" ");
 }
 
-/** Este texto é a nota que o próprio painel escreveu na conversa? */
-export function ehNotaDoPainel(conteudo: unknown): boolean {
-  return typeof conteudo === "string" && conteudo.trimStart().startsWith(INICIO_DA_NOTA_DO_PAINEL);
+/**
+ * Esta mensagem de saída é a nota que o próprio painel escreveu na conversa?
+ * Só quando é PRIVADA (`private === true`) e começa como a nota começa.
+ */
+export function ehNotaDoPainel(conteudo: unknown, privada: unknown): boolean {
+  return (
+    privada === true &&
+    typeof conteudo === "string" &&
+    conteudo.trimStart().startsWith(INICIO_DA_NOTA_DO_PAINEL)
+  );
 }
 
 export interface ConversaDoDesfecho {
@@ -130,7 +144,8 @@ export interface ConversaDoDesfecho {
   aviso?: string;
 }
 
-type DeUmaConversa = { ok: true } | { ok: false; motivo: string };
+/** `semNota`: a conversa foi resolvida, mas a nota do desfecho não entrou. */
+type DeUmaConversa = { ok: true; semNota?: string } | { ok: false; motivo: string };
 
 async function resolverUma(
   conversa: number,
@@ -154,16 +169,13 @@ async function resolverUma(
 
   const anotada = await pedir("messages", { content: nota, message_type: "outgoing", private: true });
   if (!anotada.ok) {
-    // Conversa apagada no Chatwoot: não há o que resolver, nem o que avisar.
-    if (anotada.motivo === MOTIVO_DE_CONVERSA_AUSENTE) return { ok: true };
     console.warn(`[Leads] Nota do desfecho não gravada na conversa ${conversa}:`, anotada.motivo);
   }
 
+  // Só a resposta 2xx DESTE pedido conta como conversa resolvida. Qualquer
+  // outra, 404 inclusive, é falha: o painel não afirma o que não confirmou.
   const resolvida = await pedir("toggle_status", { status: "resolved" });
-  if (!resolvida.ok) {
-    if (resolvida.motivo === MOTIVO_DE_CONVERSA_AUSENTE) return { ok: true };
-    return resolvida;
-  }
+  if (!resolvida.ok) return resolvida;
   // `{ payload: { success, current_status } }`. O status vai explícito no
   // pedido, mas a resposta é o que diz como a conversa ficou.
   const payload = (resolvida.valor as { payload?: { success?: unknown; current_status?: unknown } } | null)?.payload;
@@ -171,7 +183,7 @@ async function resolverUma(
   if (typeof payload?.current_status === "string" && payload.current_status !== "resolved") {
     return { ok: false, motivo: `a conversa ficou como "${payload.current_status}"` };
   }
-  return { ok: true };
+  return anotada.ok ? { ok: true } : { ok: true, semNota: anotada.motivo };
 }
 
 /**
@@ -210,16 +222,19 @@ export async function resolverConversasDoLead(
     if (abertas.length === 0) return {};
 
     if (!cfg) {
-      return {
-        conversa_resolvida: false,
-        aviso: `O lead foi encerrado. A conversa no Chatwoot continua aberta, porque o painel não está ligado a ele (${motivoSemChatwoot()}): resolva por lá.`,
-      };
+      // O motivo técnico fica no log: quem lê o aviso é o vendedor.
+      console.warn("[Leads] Conversa não resolvida no desfecho:", motivoSemChatwoot());
+      return { conversa_resolvida: false, aviso: AVISO_DE_PAINEL_SEM_CHATWOOT };
     }
 
     const nota = notaDeDesfecho(dados);
     const feitas = await Promise.all(abertas.map((c) => resolverUma(c, nota, cfg, limite, buscar)));
     const falhas = feitas.filter((f): f is { ok: false; motivo: string } => !f.ok);
-    if (falhas.length === 0) return { conversa_resolvida: true };
+    if (falhas.length === 0) {
+      // Resolvida, mas sem a nota: a tela diz, para ninguém procurar por ela.
+      const semNota = feitas.some((f) => f.ok && f.semNota);
+      return semNota ? { conversa_resolvida: true, aviso: AVISO_DE_NOTA_QUE_NAO_ENTROU } : { conversa_resolvida: true };
+    }
 
     const motivos = [...new Set(falhas.map((f) => f.motivo))].join("; ");
     console.warn("[Leads] Conversa não resolvida no desfecho:", motivos);

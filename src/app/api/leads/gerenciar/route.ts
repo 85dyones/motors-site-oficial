@@ -676,10 +676,18 @@ export async function PATCH(request: NextRequest) {
 
     // O escopo vai também na escrita: se o lead mudou de dono entre a leitura
     // do guarda e este ponto, a gravação não alcança linha nenhuma.
-    const { error } = await comEscopoDeLeads(supabase.from("leads").update(atualizacao).eq("id", id), visaoDoAutor);
+    // `select("id")` para saber se a gravação ALCANÇOU o lead: sem linha
+    // alcançada nada foi escrito, e o que vem depois do desfecho (os veículos,
+    // a conversa no Chatwoot) não pode agir sobre um desfecho que não houve.
+    // A resposta deste caso continua a de sempre.
+    const { data: gravados, error } = await comEscopoDeLeads(
+      supabase.from("leads").update(atualizacao).eq("id", id),
+      visaoDoAutor,
+    ).select("id");
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    if (!Array.isArray(gravados) || gravados.length === 0) desfechoGravado = null;
 
     // ------------------------------------------------------------------------
     // Os veículos de interesse depois do desfecho (2026-10-05)
