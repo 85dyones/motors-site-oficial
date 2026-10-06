@@ -1065,8 +1065,8 @@ export default function CarMatch({
 
   // O funil passo a passo, para medir onde a pessoa desiste. Só o nome do
   // passo vai para o GA4 — nada de resposta nem de orçamento. O contador
-  // diário recebe o mesmo nome, uma vez por rodada, e conta também quem
-  // recusou o rastreamento: ele não tem identificador nenhum.
+  // diário recebe o mesmo nome, uma vez por rodada, sem identificador; quem
+  // recusou o rastreamento fica de fora dos dois (lib/funilDoProfiler.ts).
   useEffect(() => {
     if (gameState === "loading") return;
     trackPassoDoProfiler(gameState);

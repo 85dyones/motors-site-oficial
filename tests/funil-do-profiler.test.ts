@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
-import { criarContadorDaRodada, passoDoFunil, type PassoDoFunil } from "../src/lib/funilDoProfiler";
+import { criarContadorDaRodada, passoDoFunil, PASSOS_DO_FUNIL, type PassoDoFunil } from "../src/lib/funilDoProfiler";
 import { semComentarios } from "./fonte";
 
 /**
@@ -35,6 +35,17 @@ beforeEach(() => {
 });
 
 describe("os passos", () => {
+  it("são a lista fechada do CHECK da migração", () => {
+    const sql = readFileSync(
+      join(__dirname, "..", "supabase", "migrations", "20261006120000_funil_do_profiler.sql"),
+      "utf8",
+    );
+    for (const passo of PASSOS_DO_FUNIL) expect(sql, passo).toContain(`'${passo}'`);
+    expect(passoDoFunil("q6")).toBeNull();
+    expect(passoDoFunil("__proto__")).toBeNull();
+    expect(passoDoFunil(1)).toBeNull();
+  });
+
   it("cobrem todos os estados do quiz que o GA4 já recebe, menos o loading", () => {
     // `EstadoQuiz` (lib/perguntasDoProfiler.ts): intro, q1…q5, loading, results.
     for (const estado of ["intro", "q1", "q2", "q3", "q4", "q5", "results"]) {
@@ -112,5 +123,37 @@ describe("o que o quiz manda", () => {
     const proxy = readFileSync(join(__dirname, "..", "src", "proxy.ts"), "utf8");
     expect(proxy).toContain('"/api/profiler/passo",');
     expect(proxy).toMatch(/path === "\/api\/profiler\/passo"[\s\S]*funilRatelimit\.limit/);
+  });
+});
+
+describe("a recusa de rastreamento", () => {
+  // Pergunta 8 da spec ("o contador anônimo roda mesmo com recusa de
+  // rastreamento?") segue em aberto com o dono: por ora, quem recusou em
+  // /privacidade não envia passo nenhum.
+  it("quem recusou não envia; quem não recusou envia só o nome do passo", async () => {
+    const enviados: { url: string; corpo: string }[] = [];
+    const armazenamento = new Map<string, string>();
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => armazenamento.get(k) ?? null,
+      setItem: (k: string, v: string) => void armazenamento.set(k, v),
+    });
+    vi.stubGlobal("navigator", {
+      sendBeacon: (url: string, corpo: Blob) => {
+        void corpo.text().then((t) => enviados.push({ url, corpo: t }));
+        return true;
+      },
+    });
+    try {
+      const { enviarPassoDoFunil } = await import("../src/lib/funilDoProfiler");
+      armazenamento.set("ag_cookie_consent", "rejected");
+      enviarPassoDoFunil("q1");
+      armazenamento.delete("ag_cookie_consent");
+      enviarPassoDoFunil("q2");
+      await new Promise((r) => setTimeout(r, 0));
+      expect(enviados).toEqual([{ url: "/api/profiler/passo", corpo: '{"passo":"q2"}' }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

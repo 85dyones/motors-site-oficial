@@ -1,3 +1,5 @@
+import { rastreamentoRecusado } from "./telemetry";
+
 /**
  * O funil do Garagem Profiler (`/carro-perfeito`), contado por dia — sem
  * identificador nenhum.
@@ -11,8 +13,12 @@
  *
  * O que vai ao banco é só (dia, passo) → contagem, na tabela
  * `profiler_funil_diario` (migração 20261006120000). Nada de ag_uid, IP,
- * sessão ou horário: um número por passo por dia. Por isso conta todo mundo,
- * inclusive quem recusou o rastreamento — não há o que rastrear.
+ * sessão ou horário: um número por passo por dia.
+ *
+ * Quem recusou o rastreamento em /privacidade não envia passo. Contar também
+ * essa pessoa é a pergunta 8 da spec ("o contador anônimo roda mesmo com
+ * recusa de rastreamento?"), ainda em aberto com o dono: até ele responder,
+ * vale a leitura mais estreita da recusa.
  *
  * Cada passo conta UMA vez por rodada do quiz: quem volta da 03 para a 02 não
  * vira duas pessoas na 02. A rodada recomeça no REFAZER.
@@ -58,6 +64,8 @@ export const ROTA_DO_FUNIL = "/api/profiler/passo";
  */
 export function enviarPassoDoFunil(passo: PassoDoFunil): void {
   if (typeof window === "undefined") return;
+  // Pergunta 8 da spec em aberto: por ora, recusa é recusa.
+  if (rastreamentoRecusado()) return;
   const corpo = JSON.stringify({ passo });
   try {
     if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {

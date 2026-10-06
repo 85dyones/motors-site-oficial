@@ -390,13 +390,14 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
     expect(ehVerdade("has_function_privilege('service_role', 'public.profiler_contar_passo(text)', 'EXECUTE')")).toBe(
       true,
     );
-    // Nenhuma coluna de identificador: as cinco, e nenhuma sexta (ag_uid, IP,
-    // sessão, horário do passo).
+    // Nenhuma coluna de identificador nem de horário: as quatro, e nenhuma
+    // quinta (ag_uid, IP, sessão, nem um atualizado_em, que com tráfego baixo
+    // daria a hora do lead ou da última visita).
     expect(
       ehVerdade(
         `(select string_agg(attname, ',' order by attnum) from pg_attribute
            where attrelid = 'public.profiler_funil_diario'::regclass and attnum > 0 and not attisdropped)
-         = 'org_id,dia,passo,contagem,atualizado_em'`,
+         = 'org_id,dia,passo,contagem'`,
       ),
     ).toBe(true);
     // A lista do CHECK é a da rota: um passo que a rota aceita e o banco

@@ -431,7 +431,8 @@ consultor consegue separar por lead) e não entrou.
   numa pergunta): `profiler_funil_diario` guarda só (dia, passo) → contagem,
   sem identificador, e conta uma vez por rodada `intro`, `q1`…`q5`,
   `results`, `por_mes` e o lead aceito por modo (`lib/funilDoProfiler.ts`,
-  rota `/api/profiler/passo`, limitada por IP no proxy).
+  rota `/api/profiler/passo`, limitada por IP no proxy). Quem recusou o
+  rastreamento não envia, até o dono responder a pergunta 8 abaixo.
 
 **POR MÊS (27/09), com as respostas do dono de 25/09:** "as taxas são
 estimadas, verifique a média de mercado em pelo menos 5 bancos"; a troca
