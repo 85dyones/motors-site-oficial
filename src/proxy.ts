@@ -53,10 +53,16 @@ if (redisUrl && redisToken) {
     // uma rodada inteira do quiz são no máximo 11 chamadas, e quem refaz
     // soma mais algumas. 60/h cabe várias rodadas e segura quem quiser
     // inflar o funil a partir de um endereço só.
+    //
+    // SEM `analytics`, de propósito (revisão de 06/10): com ele, o
+    // @upstash/ratelimit grava `{identifier, success}` por chamada num
+    // contador por hora, sem prazo — o IP de cada visitante e quantos passos
+    // ele deu, guardados para sempre fora do banco. Era o rastro por visitante
+    // que a tabela do funil foi desenhada para não ter. Sem analytics, o IP
+    // vive só na janela deslizante do limitador, que expira sozinha.
     funilRatelimit = new Ratelimit({
       redis: redis,
       limiter: Ratelimit.slidingWindow(60, "1 h"),
-      analytics: true,
       prefix: "@upstash/ratelimit/profiler",
     });
     console.log("[Middleware] Rate limiting active with Upstash Redis");
@@ -111,8 +117,9 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 1.55. O contador do funil do Profiler: mesmo desenho da /api/capi —
-  // 204 silencioso no limite, e o IP só na chave efêmera do limitador.
+  // 1.55. O contador do funil do Profiler: 204 silencioso no limite, como a
+  // /api/capi — mas sem analytics no limitador (ver `funilRatelimit`), então
+  // o IP só existe na janela deslizante, que expira em uma hora.
   if (request.method === "POST" && path === "/api/profiler/passo") {
     if (funilRatelimit) {
       try {

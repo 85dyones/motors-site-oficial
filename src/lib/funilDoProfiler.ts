@@ -6,10 +6,11 @@ import { rastreamentoRecusado } from "./telemetry";
  *
  * A leitura de 10 dias (06/10/2026) achou zero lead do canal desde 25/09, e
  * nenhuma forma de saber se pouca gente abre o quiz ou se as pessoas desistem
- * numa pergunta: o GA4 recebe `profiler_step`, mas perde quem recusou o
- * rastreamento e só separa os passos com dimensão personalizada, que não vale
- * para trás. A spec previa um "contador diário do funil, sem identificador"
- * (fase 2), e o dono disse "Sim".
+ * numa pergunta: o GA4 recebe `profiler_step`, mas só separa os passos com
+ * dimensão personalizada, que não vale para trás, e os logs da Vercel não
+ * respondem em janela longa. A spec previa um "contador diário do funil, sem
+ * identificador" (fase 2), e o dono disse "Sim": um número por passo por dia,
+ * no nosso banco, legível a qualquer hora.
  *
  * O que vai ao banco é só (dia, passo) → contagem, na tabela
  * `profiler_funil_diario` (migração 20261006120000). Nada de ag_uid, IP,
@@ -22,6 +23,11 @@ import { rastreamentoRecusado } from "./telemetry";
  *
  * Cada passo conta UMA vez por rodada do quiz: quem volta da 03 para a 02 não
  * vira duas pessoas na 02. A rodada recomeça no REFAZER.
+ *
+ * Ao ler: passo PULADO não conta. A 03 some para quem leva carga, e a 04 some
+ * quando o câmbio não separa os carros que sobraram (depende do estoque do
+ * dia). Então `q4` menor que `q3` pode ser pulo, e não desistência — a
+ * desistência se lê contra o passo seguinte que todos veem (`q5`, `results`).
  */
 
 /** Os passos, na lista fechada do CHECK da tabela. */
@@ -67,10 +73,15 @@ export function enviarPassoDoFunil(passo: PassoDoFunil): void {
   // Pergunta 8 da spec em aberto: por ora, recusa é recusa.
   if (rastreamentoRecusado()) return;
   const corpo = JSON.stringify({ passo });
+  // O beacon pode recusar (`false`) ou lançar — nos dois casos, o `fetch`.
   try {
     if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
       if (navigator.sendBeacon(ROTA_DO_FUNIL, new Blob([corpo], { type: "application/json" }))) return;
     }
+  } catch {
+    // segue para o fetch
+  }
+  try {
     void fetch(ROTA_DO_FUNIL, {
       method: "POST",
       headers: { "content-type": "application/json" },

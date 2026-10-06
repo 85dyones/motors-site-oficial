@@ -93,6 +93,41 @@ describe("a rota", () => {
     expect(rpc).toHaveBeenCalledTimes(1);
   });
 
+  it("preview da Vercel não soma na tabela de produção", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    try {
+      expect(await enviar(JSON.stringify({ passo: "q1" }))).toBe(204);
+      expect(rpc).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    vi.stubEnv("VERCEL_ENV", "production");
+    try {
+      expect(await enviar(JSON.stringify({ passo: "q1" }))).toBe(204);
+      expect(rpc).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("o tamanho declarado é recusado antes de ler o corpo", async () => {
+    const res = await POST(
+      new NextRequest("http://localhost/api/profiler/passo", {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": "5000000" },
+        body: JSON.stringify({ passo: "q1" }),
+      }),
+    );
+    expect(res.status).toBe(413);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("a origem do site vale mesmo quando o host do pedido é outro (atrás de proxy)", async () => {
+    const { SITE_URL } = await import("../src/lib/site");
+    expect(await enviar(JSON.stringify({ passo: "q1" }), new URL(SITE_URL).origin)).toBe(204);
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
   it("banco fora do ar é aviso no log, não erro para quem escolhe carro", async () => {
     rpc.mockResolvedValue({ data: null, error: { message: "function does not exist" } });
     expect(await enviar(JSON.stringify({ passo: "intro" }))).toBe(204);
@@ -119,10 +154,15 @@ describe("o que o quiz manda", () => {
     }
   });
 
-  it("o proxy limita a rota por IP, como a /api/capi", () => {
-    const proxy = readFileSync(join(__dirname, "..", "src", "proxy.ts"), "utf8");
+  it("o proxy limita a rota por IP — sem analytics, que guardaria o IP de cada visitante para sempre", () => {
+    // Bloqueio da revisão de 06/10: com `analytics: true`, o @upstash/ratelimit
+    // grava {identifier, success} por chamada num contador por hora, sem TTL.
+    const proxy = semComentarios(readFileSync(join(__dirname, "..", "src", "proxy.ts"), "utf8"));
     expect(proxy).toContain('"/api/profiler/passo",');
     expect(proxy).toMatch(/path === "\/api\/profiler\/passo"[\s\S]*funilRatelimit\.limit/);
+    const limitador = proxy.slice(proxy.indexOf("funilRatelimit = new Ratelimit("), proxy.indexOf("});", proxy.indexOf("funilRatelimit = new Ratelimit(")));
+    expect(limitador).toContain("slidingWindow(60");
+    expect(limitador).not.toMatch(/analytics/);
   });
 });
 
@@ -152,6 +192,28 @@ describe("a recusa de rastreamento", () => {
       enviarPassoDoFunil("q2");
       await new Promise((r) => setTimeout(r, 0));
       expect(enviados).toEqual([{ url: "/api/profiler/passo", corpo: '{"passo":"q2"}' }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("beacon que lança cai no fetch, em vez de perder o passo calado", async () => {
+    const pelos: string[] = [];
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
+    vi.stubGlobal("navigator", {
+      sendBeacon: () => {
+        throw new TypeError("Illegal invocation");
+      },
+    });
+    vi.stubGlobal("fetch", (url: string, init: { body: string }) => {
+      pelos.push(`${url} ${init.body}`);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    try {
+      const { enviarPassoDoFunil } = await import("../src/lib/funilDoProfiler");
+      enviarPassoDoFunil("results");
+      expect(pelos).toEqual(['/api/profiler/passo {"passo":"results"}']);
     } finally {
       vi.unstubAllGlobals();
     }

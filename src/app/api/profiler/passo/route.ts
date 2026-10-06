@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { passoDoFunil } from "../../../../lib/funilDoProfiler";
+import { SITE_URL } from "../../../../lib/site";
 import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
@@ -15,22 +16,47 @@ export const dynamic = "force-dynamic";
  *
  * Responde 204 em tudo o que não é erro do pedido: contagem que falha no
  * banco é um aviso no log, não um erro para quem está escolhendo carro. O
- * proxy limita por IP (`src/proxy.ts`, como a /api/capi) — o IP fica só na
- * chave efêmera do limitador.
+ * proxy limita por IP (`src/proxy.ts`), sem analytics no limitador: o IP só
+ * existe na janela deslizante, que expira sozinha.
+ *
+ * Só a produção conta. Um preview da Vercel com a chave de serviço somaria
+ * cada rodada de revisão na tabela de produção — e, com o tráfego de hoje,
+ * poucas rodadas já distorcem o funil (revisão de 06/10). Mesmo critério da
+ * `/api/indexnow`. Fora da Vercel (`VERCEL_ENV` ausente), o dev local também
+ * não tem a chave de serviço e só registra o aviso.
  */
 export async function POST(request: NextRequest) {
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") {
+    return new NextResponse(null, { status: 204 });
+  }
+
   // Pedido de outra origem não conta: o quiz só chama daqui. Não barra quem
   // forja o cabeçalho, mas tira do caminho qualquer página que aponte para cá.
+  // Vale o host do pedido OU o do site (`SITE_URL`): se os dois divergirem
+  // atrás de um proxy, o contador não fica em zero calado.
   const origem = request.headers.get("origin");
   if (origem) {
+    let host: string;
     try {
-      if (new URL(origem).host !== request.nextUrl.host) return new NextResponse(null, { status: 403 });
+      host = new URL(origem).host;
     } catch {
       return new NextResponse(null, { status: 403 });
     }
+    const nossos = new Set([request.nextUrl.host]);
+    try {
+      nossos.add(new URL(SITE_URL).host);
+    } catch {
+      // SITE_URL torto: vale só o host do pedido.
+    }
+    if (!nossos.has(host)) return new NextResponse(null, { status: 403 });
   }
 
-  // `sendBeacon` manda o corpo como Blob; o texto cobre os dois jeitos.
+  // O tamanho declarado é conferido antes de ler: corpo grande não é lido
+  // inteiro só para ser recusado depois.
+  if (Number(request.headers.get("content-length") ?? 0) > 200) {
+    return new NextResponse(null, { status: 413 });
+  }
+  // `sendBeacon` manda o corpo como Blob ou texto; o texto cobre os dois jeitos.
   const texto = await request.text().catch(() => "");
   if (texto.length > 200) return new NextResponse(null, { status: 413 });
   let passo = null;
