@@ -235,9 +235,9 @@ export default async function FichaDoRepasse({ params }: PageProps) {
         <span className="text-mt-ink">{nome.toUpperCase()}</span>
       </nav>
 
-      <section className={`grid gap-8 pt-6 lg:grid-cols-[1.35fr_1fr] ${MARGEM}`}>
+      <section className={`grid grid-cols-1 gap-8 pt-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] ${MARGEM}`}>
         <GaleriaDoRepasse fotos={fotos} etiqueta={etiquetaDoRepasse(r)} />
-        <div>
+        <div className="min-w-0">
           <p className="m-0 text-[11px] font-semibold tracking-[.16em] text-mt-accent">{r.marca.toUpperCase()}</p>
           <h1 className="mt-titulo m-0 mt-1 text-[34px] lg:text-[44px]">{[naGrafia.modelo, naGrafia.versao].filter(Boolean).join(" ")}</h1>
           <p className="m-0 mt-2 text-[13px] text-mt-neutral-700">{especificacoes}</p>
