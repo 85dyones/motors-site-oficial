@@ -29,7 +29,6 @@ import {
 import { ehTabelaAusente } from "./consultaDePlaca-servidor";
 import { familiaDoModelo, marcaCanonica } from "./familiaDoModelo";
 import { DATA_DESCONHECIDA } from "./smsCampanhas";
-import { getEstoque } from "./supabase";
 import type { Veiculo } from "../types";
 
 export { DATA_DESCONHECIDA };
@@ -212,6 +211,26 @@ export function contatoParaOBanco(c: ContatoImportado, origem: OrigemDeImportaca
   };
 }
 
+/**
+ * O estoque para a correlação, lido direto de `estoque_motors` com a chave de
+ * serviço: id, marca, modelo e placa de todo carro, vendido ou não.
+ *
+ * NÃO passa por `getEstoque({ incluirPlaca })`: aquela leitura vai pela view da
+ * equipe, que só devolve linha para uma SESSÃO de equipe. Com a chave de
+ * serviço ela volta vazia e `getEstoque` lança "estoque indisponível" — foi o
+ * que derrubou o primeiro lote em produção (07/10/2026).
+ *
+ * Falha aqui não derruba a importação: sem o índice a pessoa entra do mesmo
+ * jeito, com marca e modelo, e só fica sem a ligação com o carro do estoque.
+ */
+export async function lerIndiceDoEstoque(admin: SupabaseClient): Promise<IndiceDoEstoque> {
+  const { data, error } = await admin.from("estoque_motors").select("id, marca, modelo, placa").limit(5000);
+  if (error || !data) return indexarEstoque([]);
+  return indexarEstoque(
+    (data as Array<{ id: number | string; marca: string | null; modelo: string | null; placa: string | null }>).map((c) => ({ id: String(c.id), marca: c.marca ?? "", modelo: c.modelo ?? "", placa: c.placa })),
+  );
+}
+
 export async function importarLote(admin: SupabaseClient, id: string, corpo: unknown): Promise<({ ok: true } & RespostaDoLoteDeImportacao) | Falha> {
   if (!ehUuid(id)) return { ok: false, status: 404, motivo: "Importação não encontrada." };
   const brutos = (corpo && typeof corpo === "object" ? (corpo as { contatos?: unknown }).contatos : null) as unknown;
@@ -227,8 +246,7 @@ export async function importarLote(admin: SupabaseClient, id: string, corpo: unk
   const recusados = brutos.length - contatos.length;
   if (contatos.length === 0) return { ok: true, contatosNovos: 0, contatosAtualizados: 0, registrosNovos: 0, recusados };
 
-  const estoque = await getEstoque({ cliente: admin, incluirPlaca: true, incluirForaDoFeed: true, incluirNaoPublicaveis: true });
-  const indice = indexarEstoque(estoque as Array<Veiculo & { placa?: string | null }>);
+  const indice = await lerIndiceDoEstoque(admin);
   const { data, error: erroDoLote } = await admin.rpc("marketing_importar_lote", {
     p_importacao: id,
     p_contatos: contatos.map((c) => contatoParaOBanco(c, importacao.origem as OrigemDeImportacao, indice)),
