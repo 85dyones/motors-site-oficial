@@ -3,17 +3,18 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { EstadoDaChecagem } from "../../../lib/consultaDePlaca";
-import { ROTULO_DA_SITUACAO, ROTULO_DO_CRITERIO, taxa, type CarroDaCampanha, type SituacaoDaCampanha } from "../../../lib/smsCampanhas";
+import { ROTULO_DA_SITUACAO, ROTULO_DO_CRITERIO, ehCriterioDeCarro, taxa, type CarroDaCampanha, type SituacaoDaCampanha } from "../../../lib/smsCampanhas";
 import type { ConfiguracaoDoSms, LeituraDasCampanhas } from "../../../lib/smsCampanhas-servidor";
 import SinalDeEstado, { COR_DO_ESTADO } from "../../admin/consulta/SinalDeEstado";
 import NovaCampanhaDeSms from "./NovaCampanhaDeSms";
 
 /**
- * `/admin/marketing/sms` — criar campanhas de SMS por veículo e acompanhar
- * cada uma (pedido do dono em 07/10/2026).
+ * `/admin/marketing/sms` — criar campanhas de SMS, por carro ou por perfil, e
+ * acompanhar cada uma (pedido do dono em 07/10/2026).
  *
  * Quem abre: Administrador e Marketing. Quando: há um carro para empurrar e
- * gente que já olhou para ele. Que decisão sai: **qual campanha criar agora, e
+ * gente que já olhou para ele, ou um recado para a base (interessados,
+ * clientes). Que decisão sai: **qual campanha criar agora, e
  * qual das que já saíram trouxe gente de volta** — a lista é o funil de cada
  * uma, lado a lado, com o custo.
  *
@@ -30,17 +31,34 @@ export const SINAL_DA_SITUACAO: Record<SituacaoDaCampanha, EstadoDaChecagem> = {
 
 const reais = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const numero = (n: number) => n.toLocaleString("pt-BR");
+/**
+ * O que a lista e o monitor escrevem no lugar do carro quando a campanha não
+ * tem um. A lista não sabe para onde o link leva (estoque ou avaliação), e por
+ * isso não diz; o monitor completa com o destino.
+ */
+export const SEM_CARRO = "Sem carro";
+
+/** O carro de uma campanha, como texto. Campanha por perfil pode não ter. */
+export const rotuloDoCarroDaCampanha = (c: { veiculoId: number | null; veiculoRotulo: string | null }) =>
+  c.veiculoId === null ? SEM_CARRO : (c.veiculoRotulo ?? "Carro sem nome no estoque");
+
 const dia = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "America/Sao_Paulo" });
 
 export default function CampanhasDeSms({
   leitura,
   carros,
+  canais = [],
+  pessoasNaBase = null,
   configuracao,
   migracao,
   semChaveDeServico = false,
 }: {
   leitura: LeituraDasCampanhas;
   carros: CarroDaCampanha[];
+  /** Os canais que existem na base, para o filtro do formulário. */
+  canais?: string[];
+  /** Quantas pessoas a base importada tem. `null` quando não deu para ler. */
+  pessoasNaBase?: number | null;
   configuracao: ConfiguracaoDoSms;
   /** O nome da migração que cria as tabelas (`MIGRACAO_DAS_CAMPANHAS_DE_SMS`), para o aviso. */
   migracao: string;
@@ -127,9 +145,19 @@ export default function CampanhasDeSms({
         <span className="mt-rotulo">MARKETING</span>
         <h1 className="mt-titulo m-0 text-3xl md:text-4xl">Campanhas de SMS</h1>
         <p className="m-0 max-w-3xl text-sm leading-relaxed text-mt-neutral-800">
-          Um SMS com link curto para a ficha de um carro, enviado a quem já demonstrou interesse nele, no modelo, na marca ou na
-          faixa de preço. Cada campanha tem o próprio funil: quem recebeu, quem abriu, quem respondeu.
+          Um SMS com link curto, enviado por carro (a quem já demonstrou interesse nele, no modelo, na marca ou na faixa de
+          preço) ou por perfil (interessados, clientes ou todos). Cada campanha tem o próprio funil: quem recebeu, quem abriu,
+          quem respondeu.
         </p>
+        <Link href="/admin/marketing/base" className="mt-btn mt-btn-contorno mt-foco self-start px-4 py-2.5 text-[11px] no-underline" data-link-da-base>
+          Base de contatos
+          {typeof pessoasNaBase === "number" ? (
+            <span className="tabular-nums">
+              {" "}
+              · {numero(pessoasNaBase)} {pessoasNaBase === 1 ? "pessoa" : "pessoas"}
+            </span>
+          ) : null}
+        </Link>
       </header>
 
       {avisos.length > 0 && (
@@ -153,7 +181,7 @@ export default function CampanhasDeSms({
 
       <section aria-label="Nova campanha" className="flex flex-col gap-4">
         <h2 className="mt-titulo m-0 text-xl">Nova campanha</h2>
-        <NovaCampanhaDeSms carros={carros} impedimento={impedimento} />
+        <NovaCampanhaDeSms carros={carros} canais={canais} impedimento={impedimento} />
       </section>
 
       <section aria-label="Campanhas" className="flex flex-col gap-4 border-t-2 border-mt-regua pt-6">
@@ -171,7 +199,7 @@ export default function CampanhasDeSms({
             <span className="text-sm font-extrabold text-mt-ink">{leitura.ok ? "Nenhuma campanha ainda." : "A lista não está disponível."}</span>
             <span className="text-xs leading-relaxed text-mt-neutral-800">
               {leitura.ok
-                ? "Escolha um carro acima, calcule o público e crie a primeira. Ela nasce em rascunho: nada é enviado até você confirmar na tela da campanha."
+                ? "Escolha o público acima, calcule quantos recebem e crie a primeira. Ela nasce em rascunho: nada é enviado até você confirmar na tela da campanha."
                 : "Veja o aviso de configuração no alto da página."}
             </span>
           </div>
@@ -205,8 +233,11 @@ export default function CampanhasDeSms({
                         {c.criadoPorNome ? ` · ${c.criadoPorNome}` : ""}
                       </div>
                     </td>
-                    <td>{c.veiculoRotulo}</td>
-                    <td>{ROTULO_DO_CRITERIO[c.criterio]}</td>
+                    <td data-carro-da-linha={c.veiculoId ?? "sem-carro"}>{rotuloDoCarroDaCampanha(c)}</td>
+                    <td>
+                      {ROTULO_DO_CRITERIO[c.criterio]}
+                      <div className="text-[11px] text-mt-neutral-700">{ehCriterioDeCarro(c.criterio) ? "por carro" : "por perfil"}</div>
+                    </td>
                     <td>
                       <span className="inline-flex items-center gap-1.5 whitespace-nowrap" data-situacao={c.situacao}>
                         <SinalDeEstado estado={SINAL_DA_SITUACAO[c.situacao]} tamanho={16} rotulo={ROTULO_DA_SITUACAO[c.situacao]} />

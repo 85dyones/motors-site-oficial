@@ -8,8 +8,12 @@ export const maxDuration = 60;
 const SEM_CACHE = { "Cache-Control": "no-store" };
 
 /**
- * `POST /api/marketing/sms/previa` — quantos recebem, quem fica de fora e
- * quanto custa. Não grava nada e não devolve pessoa nenhuma: só contagem.
+ * `POST /api/marketing/sms/previa` — quantos recebem, quem fica de fora,
+ * quanto custa, o alcance de cada critério e o percentual de match.
+ *
+ * Não grava nada. A amostra de pessoas traz primeiro nome, telefone MASCARADO
+ * e o carro que a pessoa olhou; sobrenome e telefone inteiro não saem daqui
+ * (o Marketing não lê contato de lead).
  */
 export async function POST(request: NextRequest) {
   const porta = await autorizarCampanhasDeSms();

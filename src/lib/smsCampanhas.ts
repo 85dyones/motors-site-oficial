@@ -34,6 +34,8 @@
  * opção de quem escreve a campanha — `montarMensagem` o põe sempre.
  */
 
+import { familiaDoModelo, familiasNoTexto, marcaCanonica } from "./familiaDoModelo";
+
 export const ACAO_CAMPANHAS_DE_SMS = "Criar e enviar campanhas de SMS";
 
 /** Quem cria e envia: os mesmos donos da mídia paga. */
@@ -57,7 +59,7 @@ const GSM7_DUPLOS = "^{}\\[~]|€";
 
 /** Tira acento e cedilha. "Promoção" → "Promocao". */
 export function semAcento(texto: string): string {
-  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 /** O que se cola de um editor de texto e o NFD não desfaz, com o equivalente que cabe no SMS. */
@@ -175,31 +177,77 @@ export function montarMensagem(molde: string, valores: ValoresDaMensagem): strin
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Quem recebe, em relação ao carro da campanha:
+ * Quem recebe. A campanha escolhe o público de dois jeitos (pedido do dono em
+ * 07/10/2026: "segmentações dos leads e escolher por carro ou perfil, de
+ * acordo com a intenção da campanha").
+ *
+ * POR CARRO — em relação ao carro da campanha:
  *   mesmo_veiculo .... quem demonstrou interesse NESTE carro
- *   mesmo_modelo ..... neste modelo (qualquer unidade, inclusive já vendida)
+ *   mesmo_modelo ..... neste modelo (a família: qualquer versão, inclusive já vendida)
  *   mesma_marca ...... nesta marca
  *   faixa_de_preco ... em carro de preço parecido (a mesma banda dos "parecidos" da ficha)
+ *
+ * POR PERFIL — sem olhar que carro a pessoa viu:
+ *   interessados ..... quem procurou a loja e ainda não comprou (com ou sem carro identificado)
+ *   clientes ......... quem já comprou na loja (pós-venda, recompra)
+ *   todos ............ os dois
  */
-export const CRITERIOS_DE_PUBLICO = ["mesmo_veiculo", "mesmo_modelo", "mesma_marca", "faixa_de_preco"] as const;
+export const CRITERIOS_DE_CARRO = ["mesmo_veiculo", "mesmo_modelo", "mesma_marca", "faixa_de_preco"] as const;
+export const CRITERIOS_DE_PERFIL = ["interessados", "clientes", "todos"] as const;
+export const CRITERIOS_DE_PUBLICO = [...CRITERIOS_DE_CARRO, ...CRITERIOS_DE_PERFIL] as const;
 export type CriterioDePublico = (typeof CRITERIOS_DE_PUBLICO)[number];
+
+export const ehCriterioDeCarro = (c: CriterioDePublico): boolean => (CRITERIOS_DE_CARRO as readonly string[]).includes(c);
 
 export const ROTULO_DO_CRITERIO: Record<CriterioDePublico, string> = {
   mesmo_veiculo: "Este carro",
   mesmo_modelo: "Este modelo",
   mesma_marca: "Esta marca",
   faixa_de_preco: "Preço parecido",
+  interessados: "Interessados",
+  clientes: "Clientes",
+  todos: "Todos",
 };
 
-/** Há quanto tempo o interesse aconteceu. `null` é sem limite. Recorte de tela. */
+/** Há quanto tempo foi o interesse (ou, por perfil, o último contato). `null` é sem limite. Recorte de tela. */
 export const JANELAS_DE_INTERESSE = [30, 90, 180, 365, null] as const;
 export type JanelaDeInteresse = (typeof JANELAS_DE_INTERESSE)[number];
 
+/**
+ * O descanso: quem recebeu QUALQUER campanha há menos de tantos dias fica de
+ * fora desta. Zero desliga. É escolha de quem monta a campanha, e o padrão é
+ * uma semana: três SMS da mesma loja em três dias é o que faz a pessoa sair.
+ */
+export const DESCANSOS_EM_DIAS = [0, 7, 15, 30] as const;
+export type DescansoEmDias = (typeof DESCANSOS_EM_DIAS)[number];
+export const DESCANSO_PADRAO: DescansoEmDias = 7;
+
+/** Há quanto tempo a pessoa comprou, no mínimo. Recorte de tela para a campanha de troca. */
+export const TEMPOS_DESDE_A_COMPRA = [null, 12, 18, 24, 36] as const;
+export type TempoDesdeACompra = (typeof TEMPOS_DESDE_A_COMPRA)[number];
+
+/** Aonde o link de uma campanha sem carro pode levar. Caminhos do site, e só estes. */
+export const DESTINOS_SEM_CARRO = { estoque: "/estoque", avaliacao: "/avaliacao" } as const;
+export type DestinoSemCarro = keyof typeof DESTINOS_SEM_CARRO;
+export const ROTULO_DO_DESTINO: Record<DestinoSemCarro, string> = { estoque: "O estoque", avaliacao: "A avaliação do usado" };
+
 export interface PedidoDeCampanha {
   nome: string;
-  veiculoId: number;
+  /** O carro da campanha. Obrigatório por carro; por perfil é opcional, e sem ele o link leva ao estoque. */
+  veiculoId: number | null;
   criterio: CriterioDePublico;
   janelaDias: JanelaDeInteresse;
+  /** Só quem chegou por estes canais. Vazio é todos. */
+  canais: string[];
+  descansoDias: DescansoEmDias;
+  /**
+   * Só quem comprou há pelo menos tantos meses ("hora de trocar seu carro").
+   * Vale para "clientes" e "todos"; `null` não filtra. Quem não tem data de
+   * compra conhecida fica de fora quando o filtro está ligado.
+   */
+  compraHaMeses: TempoDesdeACompra;
+  /** Para onde leva o link de uma campanha SEM carro. Com carro, é sempre a ficha dele. */
+  destino: DestinoSemCarro;
   mensagem: string;
 }
 
@@ -207,21 +255,37 @@ export const TAMANHO_MAXIMO_DO_NOME = 80;
 /** Três partes: acima disso a mensagem não é mais um SMS, e o custo triplica sem ninguém ver. */
 export const PARTES_MAXIMAS = 3;
 
+/** A mensagem de campanha sem carro: nada de {carro} nem {preco}. */
+export const MENSAGEM_PADRAO_SEM_CARRO = "{nome}, chegaram novidades no estoque da Motors Store. Veja: {link}";
+/** A mensagem da campanha de troca, para quem já comprou: leva à avaliação do usado. */
+export const MENSAGEM_PADRAO_DE_TROCA = "{nome}, que tal trocar de carro? A Motors Store avalia o seu usado na troca: {link}";
+
 export function lerPedidoDeCampanha(corpo: unknown): { ok: true; pedido: PedidoDeCampanha } | { ok: false; motivo: string } {
   if (!corpo || typeof corpo !== "object") return { ok: false, motivo: "Pedido vazio." };
   const c = corpo as Record<string, unknown>;
   const nome = typeof c.nome === "string" ? c.nome.trim() : "";
   if (nome === "" || nome.length > TAMANHO_MAXIMO_DO_NOME) return { ok: false, motivo: "Dê um nome à campanha (até 80 caracteres)." };
-  const veiculoId = Number(c.veiculoId);
-  if (!Number.isInteger(veiculoId) || veiculoId <= 0) return { ok: false, motivo: "Escolha o carro da campanha." };
   const criterio = CRITERIOS_DE_PUBLICO.find((x) => x === c.criterio);
   if (!criterio) return { ok: false, motivo: "Escolha quem recebe." };
+  const semCarro = c.veiculoId === null || c.veiculoId === undefined || c.veiculoId === "";
+  const veiculoId = semCarro ? null : Number(c.veiculoId);
+  if (veiculoId !== null && (!Number.isInteger(veiculoId) || veiculoId <= 0)) return { ok: false, motivo: "Carro inválido." };
+  if (veiculoId === null && ehCriterioDeCarro(criterio)) return { ok: false, motivo: "Escolha o carro da campanha." };
   const janela = c.janelaDias === null || c.janelaDias === undefined ? null : Number(c.janelaDias);
-  if (!JANELAS_DE_INTERESSE.some((j) => j === janela)) return { ok: false, motivo: "Período de interesse inválido." };
+  if (!JANELAS_DE_INTERESSE.some((j) => j === janela)) return { ok: false, motivo: "Período inválido." };
+  const descanso = c.descansoDias === undefined ? DESCANSO_PADRAO : Number(c.descansoDias);
+  if (!DESCANSOS_EM_DIAS.some((d) => d === descanso)) return { ok: false, motivo: "Descanso inválido." };
+  const canais = Array.isArray(c.canais) ? [...new Set(c.canais.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim().slice(0, 60)))].slice(0, 40) : [];
+  const compra = c.compraHaMeses === null || c.compraHaMeses === undefined ? null : Number(c.compraHaMeses);
+  if (!TEMPOS_DESDE_A_COMPRA.some((t) => t === compra)) return { ok: false, motivo: "Tempo desde a compra inválido." };
+  if (compra !== null && criterio !== "clientes" && criterio !== "todos") return { ok: false, motivo: "O filtro por data de compra só vale para Clientes e Todos." };
+  const destino = c.destino === undefined || c.destino === null ? "estoque" : (Object.keys(DESTINOS_SEM_CARRO) as DestinoSemCarro[]).find((d) => d === c.destino);
+  if (!destino) return { ok: false, motivo: "Destino do link inválido." };
   const mensagem = typeof c.mensagem === "string" ? c.mensagem.trim() : "";
   if (mensagem === "") return { ok: false, motivo: "Escreva a mensagem." };
   if (!mensagem.includes("{link}")) return { ok: false, motivo: "A mensagem precisa do {link}: sem ele não há como medir quem abriu." };
-  return { ok: true, pedido: { nome, veiculoId, criterio, janelaDias: janela as JanelaDeInteresse, mensagem } };
+  if (veiculoId === null && /\{(carro|preco)\}/.test(mensagem)) return { ok: false, motivo: "Sem carro escolhido, a mensagem não pode usar {carro} nem {preco}." };
+  return { ok: true, pedido: { nome, veiculoId, criterio, janelaDias: janela as JanelaDeInteresse, canais, descansoDias: descanso as DescansoEmDias, compraHaMeses: compra as TempoDesdeACompra, destino, mensagem } };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,40 +334,130 @@ export interface CarroDoPublico {
   preco: number | null;
 }
 
-/** Uma linha de `leads_veiculos`. */
+/**
+ * Um carro que a pessoa olhou, ou comprou. Vem de `leads_veiculos` (site) ou
+ * de `marketing_interesses` (base importada).
+ */
 export interface InteresseRegistrado {
+  /** O id da pessoa em `LeadDoPublico.id`. */
   leadId: string;
-  veiculoId: number;
+  /** O carro no estoque do site, quando se sabe qual é. */
+  veiculoId: number | null;
   /** Retrato do nome do carro quando o interesse foi registrado. Sobrevive à venda. */
   rotulo: string | null;
+  /** Marca e modelo em campos próprios, quando a origem os tem (a base importada). */
+  marca?: string | null;
+  modelo?: string | null;
   preco: number | null;
   motivoDescarte: string | null;
+  /** "compra" é o carro que a pessoa COMPROU: faz dela cliente, e não conta como interesse. */
+  tipo?: "interesse" | "compra";
   criadoEm: string;
 }
 
-/** Um lead, só com o que o público usa. */
+/** Uma pessoa, só com o que o público usa. Lead do site ou contato da base importada. */
 export interface LeadDoPublico {
+  /** Único entre as duas origens: o servidor prefixa o contato da base. */
   id: string;
+  origem?: "lead" | "base";
   nome: string | null;
   telefone: string | null;
   /** O carro principal do lead (`leads.veiculo_id`), quando há. */
   veiculoId: number | null;
   desfecho: string | null;
+  /** Já comprou na loja (a base importada diz; no site é o lead ganho). */
+  cliente?: boolean;
+  /** Quando comprou, se a origem sabe (a base importada; no site, a data do ganho). */
+  comprouEm?: string | null;
+  /** Marcado na origem como "não tem interesse": não entra em público nenhum. */
+  semInteresse?: boolean;
+  canais?: string[];
   criadoEm: string;
+  ultimoContatoEm?: string | null;
 }
 
 /** Interesse encerrado por estes motivos não é convite para mensagem. */
 export const DESCARTES_QUE_TIRAM_DO_PUBLICO = ["comprou_fora", "desistiu"];
-/** Este tira a PESSOA, e não só aquele interesse: quem comprou fora já tem carro. */
+/** Este tira a PESSOA das ofertas, e não só aquele interesse: quem comprou fora já tem carro. */
 export const DESCARTE_DE_QUEM_COMPROU = "comprou_fora";
 /** Lead que a equipe descartou (spam, teste, engano) não é público de nada. */
 export const DESFECHO_DESCARTADO = "descartado";
 
 export interface Destinatario {
-  leadId: string;
+  /** O lead do site, quando a pessoa é um. */
+  leadId: string | null;
+  /** O contato da base importada, quando a pessoa é um. */
+  contatoId: string | null;
   nome: string | null;
   /** Só dígitos, com 55. NUNCA vai para o navegador. */
   telefone: string;
+  /** A afinidade com o carro da campanha, de 0 a 100. `null` em campanha por perfil. */
+  match: number | null;
+  /** O carro que a pessoa olhou e que mais se parece com o da campanha. */
+  olhou: string | null;
+  /** Quando foi o contato que a pôs no público (ISO). `null`: a origem não diz. */
+  quando: string | null;
+}
+
+/**
+ * A AFINIDADE ("percentual de match", pedido do dono em 07/10/2026).
+ *
+ * São cinco sinais, e cada um vale um quinto. Não há peso escolhido: o número
+ * diz QUANTOS dos cinco a pessoa tem, olhando o interesse dela que mais se
+ * parece com o carro da campanha.
+ *
+ *   mesma marca · mesmo modelo (a família) · este carro exato ·
+ *   preço parecido (a banda dos parecidos da ficha) · interesse recente
+ *
+ * Quem olhou ESTE carro tem os quatro primeiros de saída (80%) e chega a 100%
+ * se foi há pouco. Quem olhou outro carro da marca, de preço distante, há um
+ * ano, fica em 20%.
+ */
+export const SINAIS_DE_AFINIDADE = ["mesma_marca", "mesmo_modelo", "este_carro", "preco_parecido", "recente"] as const;
+export type SinalDeAfinidade = (typeof SINAIS_DE_AFINIDADE)[number];
+export const ROTULO_DO_SINAL: Record<SinalDeAfinidade, string> = {
+  mesma_marca: "mesma marca",
+  mesmo_modelo: "mesmo modelo",
+  este_carro: "este carro",
+  preco_parecido: "preço parecido",
+  recente: "interesse recente",
+};
+/** "Recente" é a janela do meio da tela: o interesse dos últimos 90 dias. */
+export const DIAS_DO_INTERESSE_RECENTE = 90;
+
+/** Os sinais que um interesse tem em relação ao carro da campanha. */
+export function sinaisDeAfinidade(
+  interesse: Pick<InteresseRegistrado, "veiculoId" | "rotulo" | "marca" | "modelo" | "preco" | "criadoEm">,
+  alvo: CarroDoPublico,
+  carroDoInteresse: CarroDoPublico | undefined,
+  agora: Date,
+): SinalDeAfinidade[] {
+  const sinais: SinalDeAfinidade[] = [];
+  const esteCarro = interesse.veiculoId === alvo.id;
+  const marca = carroDoInteresse?.marca ?? interesse.marca ?? null;
+  const modelo = carroDoInteresse?.modelo ?? interesse.modelo ?? null;
+  const noRotulo = familiasNoTexto(interesse.rotulo);
+  const marcaAlvo = marcaCanonica(alvo.marca);
+  const familiaAlvo = familiaDoModelo(alvo.modelo);
+  const mesmaMarca = esteCarro || (marcaAlvo !== "" && (marca ? marcaCanonica(marca) === marcaAlvo : noRotulo.has(marcaAlvo)));
+  if (mesmaMarca) sinais.push("mesma_marca");
+  const marcaDesconhecida = !marca && !!modelo;
+  if (esteCarro || ((mesmaMarca || marcaDesconhecida) && familiaAlvo !== "" && (modelo ? familiaDoModelo(modelo) === familiaAlvo : noRotulo.has(familiaAlvo)))) sinais.push("mesmo_modelo");
+  if (esteCarro) sinais.push("este_carro");
+  const preco = interesse.preco ?? carroDoInteresse?.preco ?? null;
+  if (esteCarro || (preco !== null && preco > 0 && alvo.preco !== null && alvo.preco >= preco * PISO_DO_PRECO_PARECIDO && alvo.preco <= preco * TETO_DO_PRECO_PARECIDO)) sinais.push("preco_parecido");
+  // Interesse sem data conhecida não é recente (a data desconhecida é 1970, e cai fora sozinha).
+  if (agora.getTime() - new Date(interesse.criadoEm).getTime() <= DIAS_DO_INTERESSE_RECENTE * 24 * 60 * 60 * 1000) sinais.push("recente");
+  return sinais;
+}
+
+export const percentualDeMatch = (sinais: readonly SinalDeAfinidade[]) => Math.round((sinais.length / SINAIS_DE_AFINIDADE.length) * 100);
+
+/** "t cross highline 250 tsi aut" + "volkswagen" → "Volkswagen T Cross Highline 250 Tsi Aut". */
+function nomeDoCarroOlhado(marca: string | null | undefined, modelo: string | null | undefined, rotulo: string | null | undefined): string | null {
+  const texto = [marca, modelo].filter(Boolean).join(" ").trim() || (rotulo ?? "").trim();
+  if (texto === "") return null;
+  return texto.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, antes: string, letra: string) => antes + letra.toUpperCase()).slice(0, 60);
 }
 
 export interface PublicoMontado {
@@ -316,36 +470,59 @@ export interface PublicoMontado {
     desistiu: number;
     /** Leads que a equipe descartou (spam, teste). */
     descartado: number;
+    /** Marcados "não tem interesse" na origem. */
+    semInteresse: number;
+    /** Receberam outra campanha há menos dias que o descanso pedido. */
+    descanso: number;
     repetido: number;
   };
 }
 
 const normal = (s: string | null | undefined) => semAcento(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const contemPalavras = (texto: string, parte: string) => parte !== "" && ` ${texto} `.includes(` ${parte} `);
+
+/**
+ * A marca de "data desconhecida". Um contato ou registro que a origem não
+ * datou leva esta data: fica fora de qualquer período, não ganha o sinal de
+ * interesse recente, não vale como data de compra, e só entra quando o
+ * período é "sempre". A alternativa (a hora da importação) faria de um
+ * cadastro de 2019 um contato de hoje.
+ */
+export const DATA_DESCONHECIDA = "1970-01-01T00:00:00.000Z";
+const temData = (quando: string | null | undefined): quando is string => !!quando && new Date(quando).getTime() > 0;
+
+/** O id do contato da base dentro de `LeadDoPublico.id`. */
+export const PREFIXO_DO_CONTATO = "c:";
 
 /**
  * Quem entra no público da campanha.
  *
- * As fontes são duas: `leads_veiculos` (cada carro que o lead olhou) e
- * `leads.veiculo_id` (o carro com que ele chegou). O carro do interesse pode
- * já ter saído do estoque: aí marca e modelo são lidos do rótulo guardado.
+ * A PESSOA É O TELEFONE. Um mesmo celular pode ser dois leads do site e um
+ * contato da base importada: aqui eles viram uma pessoa só, que recebe uma
+ * vez, e o que se sabe de um vale para todos ("já comprou", "pediu para não
+ * ser procurada").
  *
- * Fica de fora, nesta ordem: lead descartado pela equipe, quem já comprou,
- * quem desistiu NAQUELE interesse, quem não tem celular, quem pediu para sair,
- * e o mesmo número pela segunda vez.
+ * POR CARRO: casa quem tem um interesse que bate com o carro da campanha,
+ * dentro do período. Marca e modelo são comparados pela marca canônica e pela
+ * família do modelo (`lib/familiaDoModelo.ts`); o carro que já saiu do
+ * estoque é lido dos campos da base ou do rótulo guardado.
  *
- * "Já comprou" é da PESSOA, e pessoa aqui é o telefone: se o número tem um
- * lead ganho ou um interesse fechado como "comprou fora" em QUALQUER lead e
- * em qualquer carro, nenhum outro lead daquele número recebe. Sem isso, quem
- * comprou o Corolla receberia a oferta do Civic pelo cadastro antigo.
+ * POR PERFIL: casa quem teve qualquer contato dentro do período.
  *
- * Lead PERDIDO entra: perdeu-se aquela negociação, e a pessoa pode voltar por
- * outro carro ou por outro preço.
+ * Fica de fora, nesta ordem:
+ *   - lead descartado pela equipe, e quem está marcado "não tem interesse";
+ *   - nas ofertas (por carro, e "interessados"): quem já comprou, aqui OU fora;
+ *   - por carro: quem desistiu de todos os interesses que casam;
+ *   - quem não tem celular; quem pediu para sair; quem está no descanso.
+ *
+ * Lead PERDIDO entra: perdeu-se aquela negociação, e a pessoa pode voltar.
  */
 export function montarPublico(entrada: {
-  alvo: CarroDoPublico;
+  /** `null` só em campanha por perfil sem carro. */
+  alvo: CarroDoPublico | null;
   criterio: CriterioDePublico;
   janelaDias: JanelaDeInteresse;
+  /** Só quem chegou por estes canais. Vazio ou ausente é todos. */
+  canais?: string[];
   agora: Date;
   interesses: InteresseRegistrado[];
   leads: LeadDoPublico[];
@@ -353,96 +530,198 @@ export function montarPublico(entrada: {
   carros: CarroDoPublico[];
   /** Telefones (dígitos com 55) que pediram para sair. */
   saiuDaLista: ReadonlySet<string>;
+  /** Telefones que receberam campanha dentro do descanso pedido. */
+  recebeuHaPouco?: ReadonlySet<string>;
+  /** Só quem comprou há pelo menos tantos meses. `null` ou ausente não filtra. */
+  compraHaMeses?: TempoDesdeACompra;
 }): PublicoMontado {
   const { alvo, criterio, janelaDias, agora } = entrada;
+  const porCarro = ehCriterioDeCarro(criterio);
   const carroPorId = new Map(entrada.carros.map((c) => [c.id, c]));
   const leadPorId = new Map(entrada.leads.map((l) => [l.id, l]));
   const desde = janelaDias === null ? null : agora.getTime() - janelaDias * 24 * 60 * 60 * 1000;
-  const marcaAlvo = normal(alvo.marca);
-  const modeloAlvo = normal(alvo.modelo);
+  // Sem data conhecida, só entra quando o período é "sempre".
+  const naJanela = (quando: string | null | undefined) => (desde === null ? quando !== null && quando !== undefined : temData(quando) && new Date(quando).getTime() >= desde);
+  const marcaAlvo = marcaCanonica(alvo?.marca);
+  const familiaAlvo = familiaDoModelo(alvo?.modelo);
+  const canais = new Set((entrada.canais ?? []).map((c) => normal(c)));
 
-  const casa = (i: { veiculoId: number; rotulo: string | null; preco: number | null }): boolean => {
+  const casaComOCarro = (i: Pick<InteresseRegistrado, "veiculoId" | "rotulo" | "marca" | "modelo" | "preco">): boolean => {
+    if (!alvo) return false;
     if (criterio === "mesmo_veiculo") return i.veiculoId === alvo.id;
-    const carro = carroPorId.get(i.veiculoId);
+    const carro = i.veiculoId === null ? undefined : carroPorId.get(i.veiculoId);
     if (criterio === "faixa_de_preco") {
       const preco = i.preco ?? carro?.preco ?? null;
       if (preco === null || alvo.preco === null || preco <= 0) return i.veiculoId === alvo.id;
       return alvo.preco >= preco * PISO_DO_PRECO_PARECIDO && alvo.preco <= preco * TETO_DO_PRECO_PARECIDO;
     }
-    // O ano no fim do rótulo não é modelo: "Peugeot 208 Griffe 2008" não é um 2008.
-    const rotulo = normal(i.rotulo).replace(/ (19|20)\d{2}$/, "");
-    const mesmaMarca = carro ? normal(carro.marca) === marcaAlvo : contemPalavras(rotulo, marcaAlvo);
-    if (criterio === "mesma_marca") return mesmaMarca;
-    const mesmoModelo = carro ? normal(carro.modelo) === modeloAlvo : contemPalavras(rotulo, modeloAlvo);
-    return mesmaMarca && mesmoModelo;
+    // Do mais certo para o menos: o carro do estoque, os campos da base, o rótulo.
+    const marca = carro?.marca ?? i.marca ?? null;
+    const modelo = carro?.modelo ?? i.modelo ?? null;
+    const noRotulo = familiasNoTexto(i.rotulo);
+    const mesmaMarca = marca ? marcaCanonica(marca) === marcaAlvo : noRotulo.has(marcaAlvo);
+    if (criterio === "mesma_marca") return mesmaMarca && marcaAlvo !== "";
+    const mesmaFamilia = modelo ? familiaDoModelo(modelo) === familiaAlvo : noRotulo.has(familiaAlvo);
+    // Planilha comum só com "Veículo: T-Cross Highline": não há marca, e o modelo decide sozinho.
+    const marcaDesconhecida = !marca && !!modelo;
+    return (mesmaMarca || marcaDesconhecida) && mesmaFamilia && familiaAlvo !== "";
   };
-  const naJanela = (quando: string) => desde === null || new Date(quando).getTime() >= desde;
 
-  // Quem já comprou, por telefone, olhando TODOS os leads e interesses (casem ou não).
-  const jaComprou = new Set<string>();
+  interface Pessoa {
+    telefone: string;
+    /** O registro que representa a pessoa: o do contato mais recente que casa. */
+    lead: LeadDoPublico | null;
+    contato: LeadDoPublico | null;
+    cliente: boolean;
+    /** A compra mais recente que se conhece (ms), ou 0. */
+    comprouEm: number;
+    comprouFora: boolean;
+    semInteresse: boolean;
+    match: number | null;
+    olhou: string | null;
+    /** Pelo menos um registro da pessoa não foi descartado pela equipe. */
+    temRegistroBom: boolean;
+    canais: Set<string>;
+    casa: boolean;
+    /** Um registro descartado casaria com o critério. Só conta em "fora" se nenhum outro casar. */
+    soDescartadoCasa: boolean;
+    vivo: boolean;
+    quando: number;
+    registrosQueCasam: Set<string>;
+  }
+  const pessoas = new Map<string, Pessoa>();
+  const telefoneDe = new Map<string, string | null>();
+  /** Registros que casam e não têm celular: é o "sem celular" da prévia. */
+  const semCelular = new Set<string>();
+
   for (const l of entrada.leads) {
-    const t = l.desfecho === "ganho" ? telefoneParaSms(l.telefone) : null;
-    if (t) jaComprou.add(t);
-  }
-  for (const i of entrada.interesses) {
-    if (i.motivoDescarte !== DESCARTE_DE_QUEM_COMPROU) continue;
-    const t = telefoneParaSms(leadPorId.get(i.leadId)?.telefone);
-    if (t) jaComprou.add(t);
+    const telefone = telefoneParaSms(l.telefone);
+    telefoneDe.set(l.id, telefone);
+    if (!telefone) continue;
+    let p = pessoas.get(telefone);
+    if (!p) {
+      p = { telefone, lead: null, contato: null, cliente: false, comprouEm: 0, match: null, olhou: null, comprouFora: false, semInteresse: false, temRegistroBom: false, canais: new Set(), casa: false, soDescartadoCasa: false, vivo: false, quando: 0, registrosQueCasam: new Set() };
+      pessoas.set(telefone, p);
+    }
+    if (l.desfecho === "ganho" || l.cliente) p.cliente = true;
+    if (temData(l.comprouEm)) p.comprouEm = Math.max(p.comprouEm, new Date(l.comprouEm).getTime());
+    if (l.semInteresse) p.semInteresse = true;
+    if (l.desfecho !== DESFECHO_DESCARTADO) p.temRegistroBom = true;
+    for (const c of l.canais ?? []) p.canais.add(normal(c));
   }
 
-  // lead → o interesse mais recente que casa, e se algum que casa está vivo.
-  const candidatos = new Map<string, { quando: number; vivo: boolean }>();
-  const anotar = (leadId: string, quando: string, vivo: boolean) => {
+  const anotar = (leadId: string, quando: string, vivo: boolean, interesse?: Pick<InteresseRegistrado, "veiculoId" | "rotulo" | "marca" | "modelo" | "preco" | "criadoEm">) => {
+    const lead = leadPorId.get(leadId);
+    if (!lead) return;
+    const telefone = telefoneDe.get(leadId);
+    if (!telefone) {
+      semCelular.add(leadId);
+      return;
+    }
+    const p = pessoas.get(telefone)!;
+    // O interesse de um lead que a equipe descartou (spam, teste) não põe ninguém no
+    // público, nem quando o mesmo telefone tem outro cadastro bom.
+    if (lead.desfecho === DESFECHO_DESCARTADO) {
+      p.soDescartadoCasa = true;
+      return;
+    }
     const t = new Date(quando).getTime();
-    const atual = candidatos.get(leadId);
-    candidatos.set(leadId, { quando: Math.max(atual?.quando ?? 0, t), vivo: (atual?.vivo ?? false) || vivo });
+    p.casa = true;
+    p.vivo ||= vivo;
+    p.registrosQueCasam.add(leadId);
+    const ehBase = lead.origem === "base";
+    // Representa a pessoa o registro mais recente de cada origem.
+    if (ehBase ? !p.contato || t >= p.quando : !p.lead || t >= p.quando) {
+      if (ehBase) p.contato = lead;
+      else p.lead = lead;
+    }
+    p.quando = Math.max(p.quando, t);
+    if (alvo && interesse) {
+      const carro = interesse.veiculoId === null ? undefined : carroPorId.get(interesse.veiculoId);
+      const match = percentualDeMatch(sinaisDeAfinidade(interesse, alvo, carro, agora));
+      if (p.match === null || match > p.match) {
+        p.match = match;
+        p.olhou = nomeDoCarroOlhado(carro?.marca ?? interesse.marca, carro?.modelo ?? interesse.modelo, interesse.rotulo);
+      }
+    }
   };
+
   for (const i of entrada.interesses) {
-    if (!naJanela(i.criadoEm) || !casa(i)) continue;
-    anotar(i.leadId, i.criadoEm, !DESCARTES_QUE_TIRAM_DO_PUBLICO.includes(i.motivoDescarte ?? ""));
+    const telefone = telefoneDe.get(i.leadId);
+    const p = telefone ? pessoas.get(telefone) : undefined;
+    if (p && i.tipo === "compra") {
+      p.cliente = true;
+      if (temData(i.criadoEm)) p.comprouEm = Math.max(p.comprouEm, new Date(i.criadoEm).getTime());
+    }
+    if (p && i.motivoDescarte === DESCARTE_DE_QUEM_COMPROU) p.comprouFora = true;
+    if (!naJanela(i.criadoEm)) continue;
+    if (porCarro) {
+      if (i.tipo !== "compra" && casaComOCarro(i)) anotar(i.leadId, i.criadoEm, !DESCARTES_QUE_TIRAM_DO_PUBLICO.includes(i.motivoDescarte ?? ""), i);
+    } else {
+      anotar(i.leadId, i.criadoEm, true);
+    }
   }
   const comLinha = new Set(entrada.interesses.map((i) => `${i.leadId}|${i.veiculoId}`));
   for (const l of entrada.leads) {
-    // O carro principal só conta quando não virou linha de interesse (lead antigo).
-    if (l.veiculoId === null || comLinha.has(`${l.id}|${l.veiculoId}`) || !naJanela(l.criadoEm)) continue;
-    if (casa({ veiculoId: l.veiculoId, rotulo: null, preco: null })) anotar(l.id, l.criadoEm, true);
+    if (porCarro) {
+      // O carro principal só conta quando não virou linha de interesse (lead antigo).
+      if (l.veiculoId === null || comLinha.has(`${l.id}|${l.veiculoId}`) || !naJanela(l.criadoEm)) continue;
+      const principal = { veiculoId: l.veiculoId, rotulo: null, preco: null, criadoEm: l.criadoEm };
+      if (casaComOCarro(principal)) anotar(l.id, l.criadoEm, true, principal);
+    } else {
+      const quando = [l.ultimoContatoEm, l.criadoEm].find((q) => naJanela(q));
+      if (quando) anotar(l.id, quando, true);
+    }
   }
 
-  const fora = { semCelular: 0, saiuDaLista: 0, jaComprou: 0, desistiu: 0, descartado: 0, repetido: 0 };
+  const meses = entrada.compraHaMeses ?? null;
+  const compraAntesDe = meses === null ? null : new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() - meses, agora.getUTCDate())).getTime();
+  const fora = { semCelular: semCelular.size, saiuDaLista: 0, jaComprou: 0, desistiu: 0, descartado: 0, semInteresse: 0, descanso: 0, repetido: 0 };
+  for (const p of pessoas.values()) if (!p.casa && p.soDescartadoCasa) fora.descartado++;
   const destinatarios: Destinatario[] = [];
-  const vistos = new Set<string>();
-  // Do interesse mais recente para o mais antigo: se o número repete, fica o lead mais novo.
-  const ordenados = [...candidatos].sort((a, b) => b[1].quando - a[1].quando || a[0].localeCompare(b[0]));
-  for (const [leadId, candidato] of ordenados) {
-    const lead = leadPorId.get(leadId);
-    if (!lead) continue;
-    if (lead.desfecho === DESFECHO_DESCARTADO) {
+  // Por carro, quem mais se parece vem primeiro; no empate (e por perfil), o contato mais recente.
+  const ordenadas = [...pessoas.values()].filter((p) => p.casa).sort((a, b) => (b.match ?? 0) - (a.match ?? 0) || b.quando - a.quando || a.telefone.localeCompare(b.telefone));
+  for (const p of ordenadas) {
+    // O filtro de canal e o de "clientes" definem o público; quem não passa não é "fora", só não é dele.
+    if (canais.size > 0 && ![...p.canais].some((c) => canais.has(c))) continue;
+    if (criterio === "clientes" && !p.cliente) continue;
+    // "Hora de trocar": só quem comprou há tempo bastante, e com data conhecida.
+    if (compraAntesDe !== null && (!p.cliente || p.comprouEm === 0 || p.comprouEm > compraAntesDe)) continue;
+    if (!p.temRegistroBom) {
       fora.descartado++;
       continue;
     }
-    const telefone = telefoneParaSms(lead.telefone);
-    if (lead.desfecho === "ganho" || (telefone !== null && jaComprou.has(telefone))) {
+    if (p.semInteresse) {
+      fora.semInteresse++;
+      continue;
+    }
+    if ((porCarro || criterio === "interessados") && (p.cliente || p.comprouFora)) {
       fora.jaComprou++;
       continue;
     }
-    if (!candidato.vivo) {
+    if (porCarro && !p.vivo) {
       fora.desistiu++;
       continue;
     }
-    if (!telefone) {
-      fora.semCelular++;
-      continue;
-    }
-    if (entrada.saiuDaLista.has(telefone)) {
+    if (entrada.saiuDaLista.has(p.telefone)) {
       fora.saiuDaLista++;
       continue;
     }
-    if (vistos.has(telefone)) {
-      fora.repetido++;
+    if (entrada.recebeuHaPouco?.has(p.telefone)) {
+      fora.descanso++;
       continue;
     }
-    vistos.add(telefone);
-    destinatarios.push({ leadId, nome: lead.nome, telefone });
+    fora.repetido += p.registrosQueCasam.size - 1;
+    const nome = p.lead?.nome ?? p.contato?.nome ?? null;
+    destinatarios.push({
+      leadId: p.lead?.id ?? null,
+      contatoId: p.contato ? p.contato.id.slice(PREFIXO_DO_CONTATO.length) : null,
+      nome,
+      telefone: p.telefone,
+      match: porCarro ? p.match : null,
+      olhou: porCarro ? p.olhou : null,
+      quando: p.quando > 0 ? new Date(p.quando).toISOString() : null,
+    });
   }
   return { destinatarios, fora };
 }
@@ -617,8 +896,9 @@ export interface CampanhaDeSmsNaLista {
   id: string;
   nome: string;
   situacao: SituacaoDaCampanha;
-  veiculoId: number;
-  veiculoRotulo: string;
+  /** `null` em campanha por perfil sem carro. */
+  veiculoId: number | null;
+  veiculoRotulo: string | null;
   criterio: CriterioDePublico;
   criadoEm: string;
   criadoPorNome: string | null;
@@ -640,12 +920,17 @@ export interface EnvioNaTela {
   resposta: string | null;
   saiuEm: string | null;
   erro: string | null;
-  /** O lead, para quem pode abrir a ficha dele. */
+  /** O lead, para quem pode abrir a ficha dele. `null` quando a pessoa veio da base importada. */
   leadId: string | null;
 }
 
 export interface CampanhaDeSmsDetalhada extends CampanhaDeSmsNaLista {
   janelaDias: JanelaDeInteresse;
+  canais: string[];
+  descansoDias: number;
+  compraHaMeses: number | null;
+  /** O caminho para onde o link leva (a ficha, o estoque ou a avaliação). */
+  destino: string;
   /** O molde, com as variáveis. */
   mensagem: string;
   /** Como a mensagem fica para um destinatário, e quanto ela mede. */
@@ -660,8 +945,40 @@ export interface CampanhaDeSmsDetalhada extends CampanhaDeSmsNaLista {
 }
 
 /** A prévia antes de criar: quantos recebem, quem ficou de fora, quanto custa. */
+/** Uma pessoa na amostra da prévia. SEM telefone inteiro e sem sobrenome. */
+export interface PessoaNaPrevia {
+  primeiroNome: string;
+  telefoneMascarado: string;
+  /** De 0 a 100; `null` em campanha por perfil. */
+  match: number | null;
+  olhou: string | null;
+  quando: string | null;
+}
+
+/** Quantas pessoas cada critério de carro alcança, para o MESMO carro, período, canais e descanso. */
+export interface CamadaDoPublico {
+  criterio: CriterioDePublico;
+  pessoas: number;
+}
+
+/** Quantos do público estão em cada faixa de match. */
+export interface FaixaDeMatch {
+  /** O percentual: 100, 80, 60, 40, 20. */
+  match: number;
+  pessoas: number;
+}
+
+/** Quantas pessoas a amostra da prévia mostra. */
+export const PESSOAS_NA_AMOSTRA = 40;
+
 export interface PreviaDaCampanha {
-  veiculoRotulo: string;
+  veiculoRotulo: string | null;
+  /** Só em campanha com carro: o alcance de cada critério, do mais estreito ao mais largo. */
+  camadas: CamadaDoPublico[];
+  /** Só por carro: a distribuição do público escolhido por percentual de match. */
+  faixasDeMatch: FaixaDeMatch[];
+  /** As primeiras pessoas do público (as de maior match, depois as mais recentes). */
+  amostra: PessoaNaPrevia[];
   destinatarios: number;
   fora: PublicoMontado["fora"];
   exemplo: string;

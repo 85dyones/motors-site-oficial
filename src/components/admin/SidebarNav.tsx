@@ -179,6 +179,9 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // (`PAPEIS_DAS_CAMPANHAS_DE_SMS`), e a página e as rotas cobram a
         // mesma régua.
         { name: "Campanhas de SMS", href: "/admin/marketing/sms" },
+        // A base de pessoas das campanhas, importada de planilha (07/10/2026).
+        // Mesma porta das campanhas (`autorizarCampanhasDeSms`).
+        { name: "Base de contatos", href: "/admin/marketing/base" },
       ],
     },
     {

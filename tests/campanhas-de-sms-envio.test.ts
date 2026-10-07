@@ -25,7 +25,8 @@ vi.mock("../src/lib/supabase-server", () => ({
 
 const { enviarLote, interromperCampanha, registrarRetorno, registrarClique, criarCampanha, previaDaCampanha, lerCampanhaDeSms, enviarTeste, TAMANHO_DO_LOTE, MOTIVO_SAIU_DA_LISTA, configuracaoDoSms, segredosDoSms } =
   await import("../src/lib/smsCampanhas-servidor");
-const { MENSAGEM_PADRAO, tamanhoDoSms, PARTES_MAXIMAS } = await import("../src/lib/smsCampanhas");
+const { MENSAGEM_PADRAO, MENSAGEM_PADRAO_SEM_CARRO, tamanhoDoSms, PARTES_MAXIMAS } = await import("../src/lib/smsCampanhas");
+type CriterioDePublico = import("../src/lib/smsCampanhas").CriterioDePublico;
 
 type Linha = Record<string, unknown>;
 
@@ -63,6 +64,8 @@ function bancoDeMentira(estado: Record<string, Linha[]>) {
         return Promise.resolve({ error: null });
       },
       eq: (c: string, v: unknown) => (filtros.push((l) => l[c] === v), api),
+      gte: (c: string, v: string) => (filtros.push((l) => String(l[c] ?? "") >= v), api),
+      not: () => api,
       in: (c: string, vs: unknown[]) => (filtros.push((l) => vs.includes(l[c])), api),
       range: (de: number, ate: number) => Promise.resolve(executar(de, ate)),
       maybeSingle: () => Promise.resolve({ data: executar().data[0] ?? null, error: null }),
@@ -299,7 +302,7 @@ describe("o que impede o lote de sair", () => {
 });
 
 describe("criar a campanha: o público congelado, sem pessoa na resposta", () => {
-  const PEDIDO = { nome: "T-Cross", veiculoId: 101, criterio: "mesmo_veiculo" as const, janelaDias: null, mensagem: MENSAGEM_PADRAO };
+  const PEDIDO = { nome: "T-Cross", veiculoId: 101 as number | null, criterio: "mesmo_veiculo" as CriterioDePublico, janelaDias: null, canais: [] as string[], descansoDias: 7 as const, compraHaMeses: null as null | 12 | 24, destino: "estoque" as "estoque" | "avaliacao", mensagem: MENSAGEM_PADRAO };
   const base = () => ({
     sms_campanhas: [] as Linha[],
     sms_envios: [] as Linha[],
@@ -313,14 +316,15 @@ describe("criar a campanha: o público congelado, sem pessoa na resposta", () =>
     leads_veiculos: ["l1", "l2", "l3", "l4"].map((lead_id) => ({ lead_id, veiculo_id: 101, veiculo_rotulo: null, veiculo_preco: 122180, motivo_descarte: null, criado_em: "2026-10-02T10:00:00Z" })) as Linha[],
   });
 
-  it("a prévia devolve contagem e um exemplo genérico: nenhum nome nem telefone de lead", async () => {
+  it("a prévia devolve contagem, exemplo genérico e amostra mascarada: nem sobrenome nem telefone de lead", async () => {
     process.env.SMS_PRECO_POR_PARTE = "0.10";
     const r = await previaDaCampanha(bancoDeMentira(base()), { ...PEDIDO, mensagem: "{nome}, o {carro} baixou: {link}" }, new Date("2026-10-07T12:00:00Z"));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.previa).toMatchObject({ destinatarios: 2, fora: { saiuDaLista: 1, jaComprou: 1 }, custoEstimado: 0.2 });
     const texto = JSON.stringify(r);
-    expect(texto).not.toMatch(/Fulano|Sobrenome|Lu|99999/);
+    // A amostra mostra primeiro nome e máscara, a pedido do dono; sobrenome, emoji de nome e telefone inteiro não saem.
+    expect(texto).not.toMatch(/Sobrenome|Souza|Lu|\d{8,}/);
     expect(r.previa.exemplo).toMatch(/^Maria, o Volkswagen T-Cross/);
     expect(r.previa.tamanho.partes).toBe(1);
   });
@@ -376,6 +380,127 @@ describe("criar a campanha: o público congelado, sem pessoa na resposta", () =>
     expect(await lerCampanhaDeSms(bancoDeMentira(estado), "nao-e-uuid")).toBeNull();
   });
 
+  it("as duas fontes viram um público só: lead do site e contato da base, pelo telefone", async () => {
+    const estado = base();
+    Object.assign(estado, {
+      marketing_contatos: [
+        // Já está no site como l1: não recebe duas vezes.
+        { id: "k1", nome: "Fulano Da Base", telefone: "5541999990001", cliente: false, sem_interesse: false, canais: ["OLX"], primeiro_contato_em: "2025-01-01T10:00:00Z", ultimo_contato_em: "2025-06-01T10:00:00Z", criado_em: "2026-10-07T10:00:00Z" },
+        // Só na base, olhou um T-Cross em 2025.
+        { id: "k2", nome: "Beltrana Souza", telefone: "5541999990020", cliente: false, sem_interesse: false, canais: ["WebMotors"], primeiro_contato_em: "2025-03-01T10:00:00Z", ultimo_contato_em: "2025-03-01T10:00:00Z", criado_em: "2026-10-07T10:00:00Z" },
+        // Só na base, cliente.
+        { id: "k3", nome: "Ciclano", telefone: "5541999990030", cliente: true, comprou_em: null, sem_interesse: false, canais: [], primeiro_contato_em: "2024-03-01T10:00:00Z", ultimo_contato_em: "2024-03-01T10:00:00Z", criado_em: "2026-10-07T10:00:00Z" },
+      ],
+      marketing_interesses: [{ contato_id: "k2", tipo: "interesse", veiculo_id: null, marca: "VOLKSWAGEN", modelo: "T CROSS COMFORTLINE 200 TSI", ocorreu_em: "2025-03-01T10:00:00Z" }],
+    });
+    const porModelo = await criarCampanha(bancoDeMentira(estado), { ...PEDIDO, criterio: "mesmo_modelo" }, { id: "u", nome: null }, new Date("2026-10-07T12:00:00Z"));
+    expect(porModelo.ok).toBe(true);
+    expect(estado.sms_envios.map((e) => [e.telefone, e.lead_id, e.contato_id]).sort()).toEqual([
+      // O contato k1 não tem interesse no modelo: quem casa é o lead do site, e é ele que fica ligado ao envio.
+      ["5541999990001", "l1", null],
+      ["5541999990002", "l2", null],
+      ["5541999990020", null, "k2"],
+    ]);
+
+    // Por perfil, sem carro: só os clientes, e o link leva ao estoque.
+    const clientes = base();
+    Object.assign(clientes, { marketing_contatos: (estado as unknown as { marketing_contatos: Linha[] }).marketing_contatos, marketing_interesses: [] });
+    const r = await criarCampanha(bancoDeMentira(clientes), { ...PEDIDO, veiculoId: null, criterio: "clientes", mensagem: MENSAGEM_PADRAO_SEM_CARRO }, { id: "u", nome: null }, new Date("2026-10-07T12:00:00Z"));
+    expect(r.ok).toBe(true);
+    expect(clientes.sms_campanhas[0]).toMatchObject({ veiculo_id: null, veiculo_rotulo: null, destino: "/estoque", criterio: "clientes", canais: [], descanso_dias: 7 });
+    expect(clientes.sms_envios.map((e) => e.telefone).sort()).toEqual(["5541999990004", "5541999990030"]);
+    expect(String(clientes.sms_envios[0].texto)).toMatch(/novidades no estoque/);
+  });
+
+  it("a prévia de leads: camadas por critério, faixas de match e amostra sem contato", async () => {
+    const estado = base();
+    Object.assign(estado, {
+      marketing_contatos: [
+        { id: "k2", nome: "Beltrana Souza", telefone: "5541999990020", cliente: false, comprou_em: null, sem_interesse: false, canais: ["WebMotors"], primeiro_contato_em: "2025-03-01T10:00:00Z", ultimo_contato_em: "2025-03-01T10:00:00Z", criado_em: "2026-10-07T10:00:00Z" },
+        { id: "k5", nome: "Marcos Lima", telefone: "5541999990050", cliente: false, comprou_em: null, sem_interesse: false, canais: ["OLX"], primeiro_contato_em: "2026-09-20T10:00:00Z", ultimo_contato_em: "2026-09-20T10:00:00Z", criado_em: "2026-10-07T10:00:00Z" },
+      ],
+      marketing_interesses: [
+        { contato_id: "k2", tipo: "interesse", veiculo_id: null, marca: "VOLKSWAGEN", modelo: "T CROSS COMFORTLINE 200 TSI", ocorreu_em: "2025-03-01T10:00:00Z" },
+        { contato_id: "k5", tipo: "interesse", veiculo_id: null, marca: "VOLKSWAGEN", modelo: "GOL 1.0", ocorreu_em: "2026-09-20T10:00:00Z" },
+      ],
+    });
+    const r = await previaDaCampanha(bancoDeMentira(estado), { ...PEDIDO, criterio: "mesma_marca", descansoDias: 0, mensagem: "{carro}: {link}" }, new Date("2026-10-07T12:00:00Z"));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Este carro: os dois leads do site. Modelo: mais quem olhou outro T-Cross. Marca: mais o do Gol.
+    expect(r.previa.camadas).toEqual([
+      { criterio: "mesmo_veiculo", pessoas: 2 },
+      { criterio: "mesmo_modelo", pessoas: 3 },
+      { criterio: "mesma_marca", pessoas: 4 },
+      { criterio: "faixa_de_preco", pessoas: 2 },
+    ]);
+    expect(r.previa.destinatarios).toBe(4);
+    // Este carro há cinco dias: os cinco sinais. T-Cross de 2025: marca e modelo. Gol recente: marca e recência.
+    expect(r.previa.faixasDeMatch).toEqual([{ match: 100, pessoas: 2 }, { match: 40, pessoas: 2 }]);
+    expect(r.previa.amostra.map((p) => [p.primeiroNome, p.match])).toEqual([["Fulano", 100], ["Sem nome", 100], ["Marcos", 40], ["Beltrana", 40]]);
+    expect(r.previa.amostra[3]).toMatchObject({ telefoneMascarado: "(41) 9••••-0020", olhou: "Volkswagen T Cross Comfortline 200 Tsi" });
+    expect(JSON.stringify(r.previa)).not.toMatch(/\d{8,}|Sobrenome|Souza|Lima/);
+  });
+
+  it("hora de trocar: só clientes com compra antiga o bastante, e o link leva à avaliação", async () => {
+    const estado = base();
+    estado.leads[3].desfecho_em = "2025-12-01T12:00:00Z"; // l4, ganho há dez meses
+    Object.assign(estado, {
+      marketing_contatos: [
+        { id: "k3", nome: "Ciclano", telefone: "5541999990030", cliente: true, comprou_em: "2024-03-01T12:00:00Z", sem_interesse: false, canais: [], primeiro_contato_em: null, ultimo_contato_em: "2024-03-01T12:00:00Z", criado_em: "2026-10-07T10:00:00Z" },
+        { id: "k6", nome: "Sem Data", telefone: "5541999990060", cliente: true, comprou_em: null, sem_interesse: false, canais: [], primeiro_contato_em: null, ultimo_contato_em: "2024-01-01T12:00:00Z", criado_em: "2026-10-07T10:00:00Z" },
+        // Cliente sem data NENHUMA, importado hoje: não é contato de hoje.
+        { id: "k7", nome: "Sem Nada", telefone: "5541999990070", cliente: true, comprou_em: null, sem_interesse: false, canais: [], primeiro_contato_em: null, ultimo_contato_em: null, criado_em: "2026-10-07T10:00:00Z" },
+      ],
+      marketing_interesses: [],
+    });
+    const troca = { ...PEDIDO, veiculoId: null, criterio: "clientes" as const, compraHaMeses: 24 as const, destino: "avaliacao" as const, mensagem: MENSAGEM_PADRAO_SEM_CARRO };
+    const r = await criarCampanha(bancoDeMentira(estado), troca, { id: "u", nome: null }, new Date("2026-10-07T12:00:00Z"));
+    expect(r.ok).toBe(true);
+    // Só quem comprou há mais de dois anos. O de dez meses e o sem data ficam.
+    expect(estado.sms_envios.map((e) => e.telefone)).toEqual(["5541999990030"]);
+    expect(estado.sms_campanhas[0]).toMatchObject({ destino: "/avaliacao", compra_ha_meses: 24, veiculo_id: null });
+    // Com um ano, o do site (ganho em dez/2025) ainda não entra; sem filtro, entram os três.
+    const umAno = await previaDaCampanha(bancoDeMentira(estado), { ...troca, compraHaMeses: 12, descansoDias: 0 }, new Date("2026-10-07T12:00:00Z"));
+    expect(umAno.ok && umAno.previa.destinatarios).toBe(1);
+    const semFiltro = await previaDaCampanha(bancoDeMentira(estado), { ...troca, compraHaMeses: null, descansoDias: 0 }, new Date("2026-10-07T12:00:00Z"));
+    expect(semFiltro.ok && semFiltro.previa).toMatchObject({ destinatarios: 4, camadas: [], faixasDeMatch: [] });
+    // Com período, o cliente sem data nenhuma fica de fora, mesmo importado hoje; e a amostra não inventa data para ele.
+    const recentes = await previaDaCampanha(bancoDeMentira(estado), { ...troca, compraHaMeses: null, descansoDias: 0, janelaDias: 30 }, new Date("2026-10-07T12:00:00Z"));
+    // Sobra só o lead do site, criado na semana: nenhum dos contatos da base.
+    expect(recentes.ok && recentes.previa.amostra.map((p) => p.primeiroNome)).toEqual(["Comprou"]);
+    expect(semFiltro.ok && semFiltro.previa.amostra.find((p) => p.telefoneMascarado.endsWith("0070"))).toMatchObject({ quando: null });
+  });
+
+  it("o descanso tira quem recebeu campanha há pouco, e zero desliga", async () => {
+    const estado = base();
+    estado.sms_campanhas.push({ id: "outra", homologacao: false, situacao: "enviada" });
+    estado.sms_envios.push({ id: "antigo", campanha_id: "outra", telefone: "5541999990001", situacao: "enviado", enviado_em: "2026-10-05T12:00:00.000Z" });
+    const agora = new Date("2026-10-07T12:00:00Z");
+    const comDescanso = await previaDaCampanha(bancoDeMentira(estado), { ...PEDIDO, mensagem: "{carro}: {link}" }, agora);
+    expect(comDescanso.ok && comDescanso.previa).toMatchObject({ destinatarios: 1, fora: { descanso: 1 } });
+    const semDescanso = await previaDaCampanha(bancoDeMentira(estado), { ...PEDIDO, descansoDias: 0, mensagem: "{carro}: {link}" }, agora);
+    expect(semDescanso.ok && semDescanso.previa.destinatarios).toBe(2);
+    // Envio de campanha de TESTE não põe ninguém em descanso.
+    estado.sms_campanhas[0].homologacao = true;
+    const deTeste = await previaDaCampanha(bancoDeMentira(estado), { ...PEDIDO, mensagem: "{carro}: {link}" }, agora);
+    expect(deTeste.ok && deTeste.previa.destinatarios).toBe(2);
+    estado.sms_campanhas[0].homologacao = false;
+    // Envio de mais de sete dias atrás não segura ninguém.
+    estado.sms_envios[0].enviado_em = "2026-09-20T12:00:00.000Z";
+    const depois = await previaDaCampanha(bancoDeMentira(estado), { ...PEDIDO, mensagem: "{carro}: {link}" }, agora);
+    expect(depois.ok && depois.previa.destinatarios).toBe(2);
+    // Quem está na fila de OUTRO rascunho também descansa: dois rascunhos no mesmo dia não saem os dois.
+    estado.sms_campanhas[0].situacao = "rascunho";
+    Object.assign(estado.sms_envios[0], { situacao: "na_fila", enviado_em: null });
+    const naFila = await previaDaCampanha(bancoDeMentira(estado), { ...PEDIDO, mensagem: "{carro}: {link}" }, agora);
+    expect(naFila.ok && naFila.previa).toMatchObject({ destinatarios: 1, fora: { descanso: 1 } });
+    // Mas a fila de uma campanha interrompida não vai sair, e não conta.
+    estado.sms_campanhas[0].situacao = "interrompida";
+    const interrompida = await previaDaCampanha(bancoDeMentira(estado), { ...PEDIDO, mensagem: "{carro}: {link}" }, agora);
+    expect(interrompida.ok && interrompida.previa.destinatarios).toBe(2);
+  });
+
   it("o SMS de teste respeita quem saiu e o tamanho máximo, e leva o link da ficha", async () => {
     const estado = base();
     const buscar = vi.fn(async () => ACEITO(1));
@@ -385,6 +510,10 @@ describe("criar a campanha: o público congelado, sem pessoa na resposta", () =>
     const ok = await enviarTeste(bancoDeMentira(estado), { telefone: "41 99999-0009", veiculoId: 101, mensagem: MENSAGEM_PADRAO }, { buscar });
     expect(ok.ok && ok.texto).toContain("/carros/volkswagen/t-cross/highline-101");
     expect(buscar).toHaveBeenCalledTimes(1);
+    // Sem carro, o teste leva ao estoque e recusa variável de carro.
+    const semCarro = await enviarTeste(bancoDeMentira(estado), { telefone: "41 99999-0009", veiculoId: null, mensagem: MENSAGEM_PADRAO_SEM_CARRO }, { buscar });
+    expect(semCarro.ok && semCarro.texto).toMatch(/\/estoque Sair: responda SAIR$/);
+    expect(await enviarTeste(bancoDeMentira(estado), { telefone: "41 99999-0009", veiculoId: null, mensagem: MENSAGEM_PADRAO }, { buscar })).toMatchObject({ ok: false, status: 400 });
   });
 });
 

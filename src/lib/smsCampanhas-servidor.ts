@@ -29,7 +29,12 @@ import { SITE_HOST, urlDoSite } from "./site";
 import {
   ACAO_CAMPANHAS_DE_SMS,
   ALFABETO_DO_CODIGO,
+  PREFIXO_DO_CONTATO,
   CODIGO_DE_EXEMPLO,
+  DATA_DESCONHECIDA,
+  CRITERIOS_DE_CARRO,
+  DESTINOS_SEM_CARRO,
+  PESSOAS_NA_AMOSTRA,
   PARTES_MAXIMAS,
   TAMANHO_DO_CODIGO,
   caminhoDoLinkCurto,
@@ -52,6 +57,7 @@ import {
   type CarroDoPublico,
   type CriterioDePublico,
   type Destinatario,
+  type DestinoSemCarro,
   type EnvioNaTela,
   type EnvioParaResumo,
   type InteresseRegistrado,
@@ -164,58 +170,139 @@ export async function lerCarrosParaCampanha(admin: SupabaseClient): Promise<Carr
 }
 
 interface BaseDoPublico {
-  alvo: Veiculo;
+  /** `null` em campanha por perfil sem carro. */
+  alvo: Veiculo | null;
   carros: CarroDoPublico[];
   leads: LeadDoPublico[];
   interesses: InteresseRegistrado[];
   saiuDaLista: Set<string>;
+  recebeuHaPouco: Set<string>;
 }
 
-async function lerBaseDoPublico(admin: SupabaseClient, veiculoId: number): Promise<BaseDoPublico | { erro: string }> {
+/**
+ * Tudo de que o público precisa, das DUAS fontes: os leads do site (com
+ * `leads_veiculos`) e a base importada (`marketing_contatos` e
+ * `marketing_interesses`). O contato da base entra em `leads` com o id
+ * prefixado, e `montarPublico` junta as duas origens pelo telefone.
+ */
+async function lerBaseDoPublico(admin: SupabaseClient, pedido: Pick<PedidoDeCampanha, "veiculoId" | "descansoDias">, agora: Date): Promise<BaseDoPublico | { erro: string }> {
   const [avenda, todos] = await Promise.all([
     getEstoque({ cliente: admin }),
     // Vendidos e fora do feed também: é deles que sai a marca de um interesse antigo.
     getEstoque({ cliente: admin, incluirForaDoFeed: true, incluirNaoPublicaveis: true }),
   ]);
-  const alvo = disponiveisDe(avenda).find((v) => Number(v.id) === veiculoId);
-  if (!alvo) return { erro: "Este carro não está à venda no site. Escolha um carro publicado." };
+  const alvo = pedido.veiculoId === null ? null : (disponiveisDe(avenda).find((v) => Number(v.id) === pedido.veiculoId) ?? null);
+  if (pedido.veiculoId !== null && !alvo) return { erro: "Este carro não está à venda no site. Escolha um carro publicado." };
 
-  const [leads, interesses, descadastros] = await Promise.all([
-    lerTudo<{ id: string; nome: string | null; telefone: string | null; veiculo_id: number | null; desfecho: string | null; created_at: string }>((de, ate) =>
-      admin.from("leads").select("id, nome, telefone, veiculo_id, desfecho, created_at").order("created_at", { ascending: false }).order("id").range(de, ate),
+  const desde = new Date(agora.getTime() - pedido.descansoDias * 24 * 60 * 60 * 1000).toISOString();
+  const [leads, interesses, descadastros, contatos, registros, recentes, naFila, campanhas] = await Promise.all([
+    lerTudo<{ id: string; nome: string | null; telefone: string | null; veiculo_id: number | null; desfecho: string | null; desfecho_em: string | null; canal: string | null; created_at: string }>((de, ate) =>
+      admin.from("leads").select("id, nome, telefone, veiculo_id, desfecho, desfecho_em, canal, created_at").order("created_at", { ascending: false }).order("id").range(de, ate),
     ),
     lerTudo<{ lead_id: string; veiculo_id: number; veiculo_rotulo: string | null; veiculo_preco: number | string | null; motivo_descarte: string | null; criado_em: string }>((de, ate) =>
       admin.from("leads_veiculos").select("lead_id, veiculo_id, veiculo_rotulo, veiculo_preco, motivo_descarte, criado_em").order("criado_em", { ascending: false }).order("id").range(de, ate),
     ),
     lerTudo<{ telefone: string }>((de, ate) => admin.from("sms_descadastros").select("telefone").order("telefone").range(de, ate)),
+    lerTudo<{ id: string; nome: string | null; telefone: string; cliente: boolean; comprou_em: string | null; sem_interesse: boolean; canais: string[] | null; primeiro_contato_em: string | null; ultimo_contato_em: string | null; criado_em: string }>((de, ate) =>
+      admin.from("marketing_contatos").select("id, nome, telefone, cliente, comprou_em, sem_interesse, canais, primeiro_contato_em, ultimo_contato_em, criado_em").order("id").range(de, ate),
+    ),
+    lerTudo<{ contato_id: string; tipo: "interesse" | "compra"; veiculo_id: number | null; marca: string | null; modelo: string | null; ocorreu_em: string }>((de, ate) =>
+      admin.from("marketing_interesses").select("contato_id, tipo, veiculo_id, marca, modelo, ocorreu_em").order("id").range(de, ate),
+    ),
+    // Descanso zero é "desligado": nem se lê. Com ele ligado, contam o que SAIU dentro do
+    // intervalo e o que está na fila de outra campanha ainda por sair.
+    pedido.descansoDias > 0
+      ? lerTudo<{ telefone: string; campanha_id: string; situacao: string }>((de, ate) =>
+          admin.from("sms_envios").select("telefone, campanha_id, situacao").eq("situacao", "enviado").gte("enviado_em", desde).order("id").range(de, ate),
+        )
+      : Promise.resolve([] as Array<{ telefone: string; campanha_id: string; situacao: string }>),
+    pedido.descansoDias > 0
+      ? lerTudo<{ telefone: string; campanha_id: string; situacao: string }>((de, ate) =>
+          admin.from("sms_envios").select("telefone, campanha_id, situacao").in("situacao", ["na_fila", "enviando"]).order("id").range(de, ate),
+        )
+      : Promise.resolve([] as Array<{ telefone: string; campanha_id: string; situacao: string }>),
+    lerTudo<{ id: string; homologacao: boolean; situacao: string }>((de, ate) => admin.from("sms_campanhas").select("id, homologacao, situacao").order("id").range(de, ate)),
   ]);
+  // Campanha de teste não põe ninguém em descanso (e, no ambiente de teste, só as de teste contam);
+  // fila de campanha interrompida não vai sair, e também não conta.
+  const { homologacao } = segredosDoSms();
+  const campanhaPorId = new Map(campanhas.map((c) => [c.id, c]));
+  const contaNoDescanso = (e: { campanha_id: string; situacao: string }) => {
+    const c = campanhaPorId.get(e.campanha_id);
+    if (!c || c.homologacao !== homologacao) return false;
+    return e.situacao === "enviado" || c.situacao === "rascunho" || c.situacao === "enviando";
+  };
 
   return {
     alvo,
     carros: todos.map(carroDoPublico),
-    leads: leads.map((l) => ({ id: l.id, nome: l.nome, telefone: l.telefone, veiculoId: l.veiculo_id === null ? null : Number(l.veiculo_id), desfecho: l.desfecho, criadoEm: l.created_at })),
-    interesses: interesses.map((i) => ({
-      leadId: i.lead_id,
-      veiculoId: Number(i.veiculo_id),
-      rotulo: i.veiculo_rotulo,
-      preco: i.veiculo_preco === null ? null : Number(i.veiculo_preco),
-      motivoDescarte: i.motivo_descarte,
-      criadoEm: i.criado_em,
-    })),
+    leads: [
+      ...leads.map((l): LeadDoPublico => ({
+        id: l.id,
+        origem: "lead",
+        nome: l.nome,
+        telefone: l.telefone,
+        veiculoId: l.veiculo_id === null ? null : Number(l.veiculo_id),
+        desfecho: l.desfecho,
+        // No site, a data da compra é a do ganho.
+        comprouEm: l.desfecho === "ganho" ? l.desfecho_em : null,
+        canais: l.canal ? [l.canal] : [],
+        criadoEm: l.created_at,
+      })),
+      ...contatos.map((c): LeadDoPublico => ({
+        id: `${PREFIXO_DO_CONTATO}${c.id}`,
+        origem: "base",
+        nome: c.nome,
+        telefone: c.telefone,
+        veiculoId: null,
+        desfecho: null,
+        cliente: c.cliente,
+        comprouEm: c.comprou_em,
+        semInteresse: c.sem_interesse,
+        canais: c.canais ?? [],
+        // A data de quando a PESSOA apareceu, e nunca a da importação: um cadastro de
+        // 2019 importado hoje não é contato de hoje. Sem data nenhuma, só entra em "sempre".
+        criadoEm: c.primeiro_contato_em ?? c.comprou_em ?? DATA_DESCONHECIDA,
+        ultimoContatoEm: c.ultimo_contato_em,
+      })),
+    ],
+    interesses: [
+      ...interesses.map((i): InteresseRegistrado => ({
+        leadId: i.lead_id,
+        veiculoId: Number(i.veiculo_id),
+        rotulo: i.veiculo_rotulo,
+        preco: i.veiculo_preco === null ? null : Number(i.veiculo_preco),
+        motivoDescarte: i.motivo_descarte,
+        criadoEm: i.criado_em,
+      })),
+      ...registros.map((r): InteresseRegistrado => ({
+        leadId: `${PREFIXO_DO_CONTATO}${r.contato_id}`,
+        veiculoId: r.veiculo_id === null ? null : Number(r.veiculo_id),
+        rotulo: null,
+        marca: r.marca,
+        modelo: r.modelo,
+        preco: null,
+        motivoDescarte: null,
+        tipo: r.tipo,
+        criadoEm: r.ocorreu_em,
+      })),
+    ],
     saiuDaLista: new Set(descadastros.map((d) => d.telefone)),
+    recebeuHaPouco: new Set([...recentes, ...naFila].filter(contaNoDescanso).map((r) => r.telefone)),
   };
 }
 
-/** O texto que UM destinatário recebe. `codigo` é o do link dele. */
-function textoPara(pedido: Pick<PedidoDeCampanha, "mensagem">, alvo: Veiculo, nome: string | null, codigo: string): string {
+/** O texto que UM destinatário recebe. `codigo` é o do link dele. Sem carro, as variáveis de carro nem existem no molde. */
+function textoPara(pedido: Pick<PedidoDeCampanha, "mensagem">, alvo: Veiculo | null, nome: string | null, codigo: string): string {
   return montarMensagem(pedido.mensagem, {
     nome,
-    carro: nomeComAno(alvo),
-    preco: precoNoSms(precoVigente(alvo) || null),
+    carro: alvo ? nomeComAno(alvo) : "",
+    preco: alvo ? precoNoSms(precoVigente(alvo) || null) : "",
     // Sem "https://": são oito caracteres, e o aparelho reconhece o endereço mesmo assim.
     link: `${SITE_HOST}${caminhoDoLinkCurto(codigo)}`,
   });
 }
+
 
 function novoCodigo(): string {
   let codigo = "";
@@ -228,13 +315,13 @@ function novoCodigo(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Montagem =
-  | { ok: true; alvo: Veiculo; destinatarios: Destinatario[]; partesNoTotal: number; previa: PreviaDaCampanha }
+  | { ok: true; alvo: Veiculo | null; destinatarios: Destinatario[]; partesNoTotal: number; previa: PreviaDaCampanha }
   | { ok: false; status: 400 | 502 | 503; motivo: string };
 
 async function montarCampanha(admin: SupabaseClient, pedido: PedidoDeCampanha, agora: Date): Promise<Montagem> {
   let base: BaseDoPublico | { erro: string };
   try {
-    base = await lerBaseDoPublico(admin, pedido.veiculoId);
+    base = await lerBaseDoPublico(admin, pedido, agora);
   } catch (erro) {
     const e = erro as { code?: string; message: string };
     return ehTabelaAusente(e)
@@ -243,16 +330,38 @@ async function montarCampanha(admin: SupabaseClient, pedido: PedidoDeCampanha, a
   }
   if ("erro" in base) return { ok: false, status: 400, motivo: base.erro };
 
-  const publico = montarPublico({
-    alvo: carroDoPublico(base.alvo),
-    criterio: pedido.criterio,
+  const comum = {
+    alvo: base.alvo ? carroDoPublico(base.alvo) : null,
     janelaDias: pedido.janelaDias,
+    canais: pedido.canais,
+    recebeuHaPouco: base.recebeuHaPouco,
+    compraHaMeses: pedido.compraHaMeses,
     agora,
     interesses: base.interesses,
     leads: base.leads,
     carros: base.carros,
     saiuDaLista: base.saiuDaLista,
-  });
+  };
+  const publico = montarPublico({ ...comum, criterio: pedido.criterio });
+  // Com carro, a prévia mostra o alcance de CADA critério de carro, com o mesmo
+  // período, canais e descanso: é como se escolhe entre "este carro" e "parecido".
+  const camadas = base.alvo
+    ? CRITERIOS_DE_CARRO.map((criterio) => ({
+        criterio,
+        pessoas: criterio === pedido.criterio ? publico.destinatarios.length : montarPublico({ ...comum, criterio, compraHaMeses: null }).destinatarios.length,
+      }))
+    : [];
+  const porMatch = new Map<number, number>();
+  for (const d of publico.destinatarios) if (d.match !== null) porMatch.set(d.match, (porMatch.get(d.match) ?? 0) + 1);
+  const faixasDeMatch = [...porMatch].sort((x, y) => y[0] - x[0]).map(([match, pessoas]) => ({ match, pessoas }));
+  // A amostra é o começo da fila de envio. Daqui só saem primeiro nome e telefone mascarado.
+  const amostra = publico.destinatarios.slice(0, PESSOAS_NA_AMOSTRA).map((d) => ({
+    primeiroNome: primeiroNome(d.nome) || "Sem nome",
+    telefoneMascarado: mascararTelefoneDoSms(d.telefone),
+    match: d.match,
+    olhou: d.olhou,
+    quando: d.quando,
+  }));
 
   // Mede-se a mensagem de CADA pessoa: o nome muda o tamanho, e é a mais
   // comprida que decide se a campanha cabe. O código do link tem tamanho fixo.
@@ -277,7 +386,10 @@ async function montarCampanha(admin: SupabaseClient, pedido: PedidoDeCampanha, a
     destinatarios: publico.destinatarios,
     partesNoTotal,
     previa: {
-      veiculoRotulo: nomeComAno(base.alvo),
+      veiculoRotulo: base.alvo ? nomeComAno(base.alvo) : null,
+      camadas,
+      faixasDeMatch,
+      amostra,
       destinatarios: publico.destinatarios.length,
       fora: publico.fora,
       exemplo,
@@ -317,9 +429,12 @@ export async function criarCampanha(
       codigo,
       veiculo_id: pedido.veiculoId,
       veiculo_rotulo: m.previa.veiculoRotulo,
-      destino: getVeiculoPdpUrl(m.alvo),
+      destino: m.alvo ? getVeiculoPdpUrl(m.alvo) : DESTINOS_SEM_CARRO[pedido.destino],
       criterio: pedido.criterio,
       janela_dias: pedido.janelaDias,
+      canais: pedido.canais,
+      descanso_dias: pedido.descansoDias,
+      compra_ha_meses: pedido.compraHaMeses,
       mensagem: pedido.mensagem,
       homologacao,
       criado_por: autor.id,
@@ -337,7 +452,7 @@ export async function criarCampanha(
     const texto = textoPara(pedido, m.alvo, d.nome, c);
     // Sem teto aqui: `montarCampanha` já recusou a campanha em que alguém passa do máximo,
     // e o que se grava é o que o fornecedor cobra.
-    return { campanha_id: campanha.id, lead_id: d.leadId, telefone: d.telefone, nome: d.nome, codigo: c, texto, partes: Math.max(1, tamanhoDoSms(texto).partes) };
+    return { campanha_id: campanha.id, lead_id: d.leadId, contato_id: d.contatoId, telefone: d.telefone, nome: d.nome, codigo: c, texto, partes: Math.max(1, tamanhoDoSms(texto).partes) };
   });
   for (let i = 0; i < linhas.length; i += 500) {
     const { error: erroDosEnvios } = await admin.from("sms_envios").insert(linhas.slice(i, i + 500));
@@ -397,7 +512,8 @@ const RECUSAS_QUE_ACUSAM_A_CONFIGURACAO = 3;
  * mensagem de cada pessoa foi escrita na criação: se o carro saiu do site ou
  * o preço mudou, o que sairia hoje é a oferta de outro dia.
  */
-async function rascunhoEnvelheceu(admin: SupabaseClient, campanha: { id: string; veiculo_id: number; mensagem: string }): Promise<string | null> {
+async function rascunhoEnvelheceu(admin: SupabaseClient, campanha: { id: string; veiculo_id: number | null; mensagem: string }): Promise<string | null> {
+  if (campanha.veiculo_id === null) return null;
   const alvo = disponiveisDe(await getEstoque({ cliente: admin })).find((v) => Number(v.id) === Number(campanha.veiculo_id));
   if (!alvo) return "O carro desta campanha não está mais à venda no site. Interrompa esta e crie outra.";
   if (!campanha.mensagem.includes("{preco}")) return null;
@@ -450,7 +566,7 @@ export async function enviarLote(
   }
   if (campanha.situacao === "rascunho") {
     // O rascunho pode ter ficado dias parado: o carro pode ter sido vendido, e o preço, mudado.
-    const velho = await rascunhoEnvelheceu(admin, campanha as { id: string; veiculo_id: number; mensagem: string });
+    const velho = await rascunhoEnvelheceu(admin, campanha as { id: string; veiculo_id: number | null; mensagem: string });
     if (velho) return { ok: false, status: 409, motivo: velho };
     const { error: erroDeInicio } = await admin.from("sms_campanhas").update({ situacao: "enviando" }).eq("id", id).eq("situacao", "rascunho");
     if (erroDeInicio) return { ok: false, status: 502, motivo: "Não deu para começar o envio." };
@@ -572,7 +688,7 @@ export async function interromperCampanha(admin: SupabaseClient, id: string): Pr
 /** Um SMS para o número de quem está montando a campanha, para ver como chega. Não grava nada. */
 export async function enviarTeste(
   admin: SupabaseClient,
-  pedido: { telefone: string; veiculoId: number; mensagem: string },
+  pedido: { telefone: string; veiculoId: number | null; mensagem: string; destino?: DestinoSemCarro },
   deps: { buscar?: BuscarNoSms } = {},
 ): Promise<{ ok: true; texto: string } | { ok: false; status: 400 | 402 | 502 | 503; motivo: string }> {
   const segredos = segredosDoSms();
@@ -580,11 +696,17 @@ export async function enviarTeste(
   const numero = telefoneParaSms(pedido.telefone);
   if (!numero) return { ok: false, status: 400, motivo: "Digite um celular com DDD." };
   if (!pedido.mensagem.includes("{link}")) return { ok: false, status: 400, motivo: "A mensagem precisa do {link}." };
-  const alvo = disponiveisDe(await getEstoque({ cliente: admin })).find((v) => Number(v.id) === pedido.veiculoId);
-  if (!alvo) return { ok: false, status: 400, motivo: "Este carro não está à venda no site." };
+  const alvo = pedido.veiculoId === null ? null : (disponiveisDe(await getEstoque({ cliente: admin })).find((v) => Number(v.id) === pedido.veiculoId) ?? null);
+  if (pedido.veiculoId !== null && !alvo) return { ok: false, status: 400, motivo: "Este carro não está à venda no site." };
+  if (!alvo && /\{(carro|preco)\}/.test(pedido.mensagem)) return { ok: false, status: 400, motivo: "Sem carro escolhido, a mensagem não pode usar {carro} nem {preco}." };
 
   // O link do teste é o da ficha, por extenso: não há envio gravado para um código apontar.
-  const texto = montarMensagem(pedido.mensagem, { nome: "Teste", carro: nomeComAno(alvo), preco: precoNoSms(precoVigente(alvo) || null), link: `${SITE_HOST}${getVeiculoPdpUrl(alvo)}` });
+  const texto = montarMensagem(pedido.mensagem, {
+    nome: "Teste",
+    carro: alvo ? nomeComAno(alvo) : "",
+    preco: alvo ? precoNoSms(precoVigente(alvo) || null) : "",
+    link: `${SITE_HOST}${alvo ? getVeiculoPdpUrl(alvo) : DESTINOS_SEM_CARRO[pedido.destino ?? "estoque"]}`,
+  });
   if (tamanhoDoSms(texto).partes > PARTES_MAXIMAS) return { ok: false, status: 400, motivo: `A mensagem passa de ${PARTES_MAXIMAS} SMS. Encurte antes de testar.` };
   // O teste também é um SMS: quem pediu para sair não recebe nem esse.
   const { data: saiu } = await admin.from("sms_descadastros").select("telefone").eq("telefone", numero).limit(1);
@@ -650,17 +772,21 @@ export async function registrarClique(admin: SupabaseClient, codigo: string): Pr
 // As leituras da tela
 // ─────────────────────────────────────────────────────────────────────────────
 
-const COLUNAS_DA_CAMPANHA = "id, nome, codigo, situacao, veiculo_id, veiculo_rotulo, criterio, janela_dias, mensagem, homologacao, criado_em, criado_por_nome, enviada_em";
+const COLUNAS_DA_CAMPANHA = "id, nome, codigo, situacao, veiculo_id, veiculo_rotulo, destino, criterio, janela_dias, canais, descanso_dias, compra_ha_meses, mensagem, homologacao, criado_em, criado_por_nome, enviada_em";
 
 interface LinhaDaCampanha {
   id: string;
   nome: string;
   codigo: string;
   situacao: SituacaoDaCampanha;
-  veiculo_id: number;
-  veiculo_rotulo: string;
+  veiculo_id: number | null;
+  veiculo_rotulo: string | null;
   criterio: CriterioDePublico;
   janela_dias: number | null;
+  canais: string[] | null;
+  descanso_dias: number | null;
+  compra_ha_meses: number | null;
+  destino: string;
   mensagem: string;
   homologacao: boolean;
   criado_em: string;
@@ -672,7 +798,7 @@ const naLista = (c: LinhaDaCampanha, envios: EnvioParaResumo[]): CampanhaDeSmsNa
   id: c.id,
   nome: c.nome,
   situacao: c.situacao,
-  veiculoId: Number(c.veiculo_id),
+  veiculoId: c.veiculo_id === null ? null : Number(c.veiculo_id),
   veiculoRotulo: c.veiculo_rotulo,
   criterio: c.criterio,
   criadoEm: c.criado_em,
@@ -753,6 +879,10 @@ export async function lerCampanhaDeSms(admin: SupabaseClient, id: string): Promi
   return {
     ...naLista(c, linhas.map(paraResumo)),
     janelaDias: c.janela_dias as JanelaDeInteresse,
+    canais: c.canais ?? [],
+    descansoDias: c.descanso_dias ?? 0,
+    compraHaMeses: c.compra_ha_meses ?? null,
+    destino: c.destino,
     mensagem: c.mensagem,
     exemplo,
     tamanho: tamanhoDoSms(exemplo),

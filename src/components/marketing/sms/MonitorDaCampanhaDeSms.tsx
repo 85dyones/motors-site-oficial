@@ -10,6 +10,7 @@ import {
   ROTULO_DO_CRITERIO,
   ROTULO_DO_ESTAGIO,
   ROTULO_DO_FILTRO,
+  ehCriterioDeCarro,
   estagioDoEnvio,
   passaNoFiltro,
   quandoDoEstagio,
@@ -24,7 +25,8 @@ import {
 } from "../../../lib/smsCampanhas";
 import { useConfirm } from "../../admin/ConfirmDialog";
 import SinalDeEstado, { COR_DO_ESTADO } from "../../admin/consulta/SinalDeEstado";
-import { SINAL_DA_SITUACAO } from "./CampanhasDeSms";
+import { SEM_CARRO, SINAL_DA_SITUACAO, rotuloDoCarroDaCampanha } from "./CampanhasDeSms";
+import { rotuloDoDestinoDoLink, rotuloDoTempoDeCompra } from "./rotulosDaCampanha";
 
 /**
  * `/admin/marketing/sms/[id]` — o envio e o monitoramento de UMA campanha.
@@ -32,7 +34,7 @@ import { SINAL_DA_SITUACAO } from "./CampanhasDeSms";
  * Quem abre: Administrador e Marketing. Quando: logo depois de criar (para
  * enviar) e nos dias seguintes (para ler). Que decisão sai: **mando agora?** e,
  * depois, **essa mensagem trouxe gente de volta — repito a fórmula em outro
- * carro ou mudo?**
+ * carro (ou perfil) ou mudo?**
  *
  * O envio é em lotes: cada chamada à rota manda um, e a tela chama de novo
  * enquanto houver fila. Sair da página pausa o envio (a campanha fica
@@ -212,6 +214,10 @@ export default function MonitorDaCampanhaDeSms({
   ];
   const escala = Math.max(resumo.publico, 1);
 
+  const destinoDoLink = rotuloDoDestinoDoLink(campanha.destino);
+  // Sem carro, o lugar do carro diz para onde o link leva.
+  const carroDaCampanha = campanha.veiculoId === null && destinoDoLink !== "" ? `${SEM_CARRO} · link para ${destinoDoLink}` : rotuloDoCarroDaCampanha(campanha);
+
   const linhas = useMemo(() => campanha.envios.filter((e) => passaNoFiltro(e, filtro)), [campanha.envios, filtro]);
   const contagem = (f: FiltroDeDestinatario) => campanha.envios.filter((e) => passaNoFiltro(e, f)).length;
 
@@ -235,18 +241,46 @@ export default function MonitorDaCampanhaDeSms({
           </span>
         </div>
         <dl className="m-0 grid grid-cols-1 gap-x-8 gap-y-2 text-sm text-mt-ink sm:grid-cols-3">
-          <div className="flex flex-col">
+          <div className="flex flex-col" data-carro-da-campanha={campanha.veiculoId ?? "sem-carro"}>
             <dt className={rotulo}>CARRO</dt>
             <dd className="m-0">
-              <Link href={`/admin/estoque/${campanha.veiculoId}`} className="mt-foco font-extrabold text-mt-ink underline underline-offset-2">
-                {campanha.veiculoRotulo}
-              </Link>
+              {campanha.veiculoId !== null ? (
+                <Link href={`/admin/estoque/${campanha.veiculoId}`} className="mt-foco font-extrabold text-mt-ink underline underline-offset-2">
+                  {carroDaCampanha}
+                </Link>
+              ) : (
+                carroDaCampanha
+              )}
             </dd>
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col" data-quem-recebe>
             <dt className={rotulo}>QUEM RECEBE</dt>
             <dd className="m-0">
-              Interesse em: {ROTULO_DO_CRITERIO[campanha.criterio].toLowerCase()}, {rotuloDaJanela(campanha.janelaDias)}
+              {ehCriterioDeCarro(campanha.criterio)
+                ? `Interesse em: ${ROTULO_DO_CRITERIO[campanha.criterio].toLowerCase()}, ${rotuloDaJanela(campanha.janelaDias)}`
+                : `Perfil: ${ROTULO_DO_CRITERIO[campanha.criterio].toLowerCase()}, com contato ${rotuloDaJanela(campanha.janelaDias)}`}
+              {typeof campanha.compraHaMeses === "number" && (
+                <span className="tabular-nums" data-filtro-de-compra>
+                  , comprou há pelo menos {rotuloDoTempoDeCompra(campanha.compraHaMeses)}
+                </span>
+              )}
+              {destinoDoLink !== "" && (
+                <span className="block break-words text-xs text-mt-neutral-800" data-destino-do-link>
+                  O link leva para {destinoDoLink}.
+                </span>
+              )}
+            </dd>
+          </div>
+          <div className="flex flex-col" data-canais-da-campanha>
+            <dt className={rotulo}>CANAIS</dt>
+            <dd className="m-0 break-words">{campanha.canais.length === 0 ? "Todos os canais" : campanha.canais.join(", ")}</dd>
+          </div>
+          <div className="flex flex-col" data-descanso-da-campanha>
+            <dt className={rotulo}>DESCANSO</dt>
+            <dd className="m-0 tabular-nums">
+              {campanha.descansoDias > 0
+                ? `${campanha.descansoDias} dias: quem recebeu outra campanha nesse intervalo ficou de fora`
+                : "Sem descanso"}
             </dd>
           </div>
           <div className="flex flex-col">
