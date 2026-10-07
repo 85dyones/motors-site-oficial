@@ -447,6 +447,11 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     "Financeiro vê o total investido",
   ),
   linha(
+    "Criar e enviar campanhas de SMS",
+    ["faz", "nao_ve", "faz", "nao_ve", "nao_ve"],
+    "O Marketing monta o público sem ver contato de lead: a tela mostra contagem, primeiro nome e telefone mascarado",
+  ),
+  linha(
     "Convidar usuário e trocar perfil",
     ["faz", "nao_ve", "nao_ve", "nao_ve", "nao_ve"],
     "Somente Admin",

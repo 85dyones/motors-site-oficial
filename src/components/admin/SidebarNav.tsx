@@ -172,7 +172,17 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       // some da interface, não fica cinza").
       title: "Marketing",
       roles: ["admin", "marketing"],
-      items: [{ name: "Mídia paga", href: "/admin/marketing/midia-paga" }],
+      items: [
+        { name: "Mídia paga", href: "/admin/marketing/midia-paga" },
+        // As campanhas de SMS por veículo (07/10/2026). Sem `roles` próprio:
+        // quem cria e envia são os mesmos dois papéis do grupo
+        // (`PAPEIS_DAS_CAMPANHAS_DE_SMS`), e a página e as rotas cobram a
+        // mesma régua.
+        { name: "Campanhas de SMS", href: "/admin/marketing/sms" },
+        // A base de pessoas das campanhas, importada de planilha (07/10/2026).
+        // Mesma porta das campanhas (`autorizarCampanhasDeSms`).
+        { name: "Base de contatos", href: "/admin/marketing/base" },
+      ],
     },
     {
       // O módulo de caixa (contas, dia, aprovações, conciliação, plano,
@@ -313,6 +323,12 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
     // dentro de "Mídia paga" no trilho.
     if (href === "/admin/marketing/midia-paga") {
       return pathname.startsWith("/admin/marketing/midia-paga");
+    }
+
+    // O monitoramento de uma campanha (/admin/marketing/sms/[id]) continua
+    // dentro de "Campanhas de SMS".
+    if (href === "/admin/marketing/sms") {
+      return pathname.startsWith("/admin/marketing/sms");
     }
 
     // O detalhe de um grupo (/admin/erros/[hash]) continua dentro de "Erros do

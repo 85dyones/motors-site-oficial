@@ -3,6 +3,15 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PASSOS_DO_FUNIL } from "../src/lib/funilDoProfiler";
+import {
+  CRITERIOS_DE_CARRO,
+  CRITERIOS_DE_PUBLICO,
+  DESCANSOS_EM_DIAS,
+  DESTINOS_SEM_CARRO,
+  JANELAS_DE_INTERESSE,
+  TEMPOS_DESDE_A_COMPRA,
+} from "../src/lib/smsCampanhas";
+import { ORIGENS_DE_IMPORTACAO } from "../src/lib/baseDeMarketing";
 
 /**
  * As migrações rodam de verdade — e o aceite delas é cobrado (AUDITORIA §5.7).
@@ -183,6 +192,18 @@ const CADEIA = [
   // porque o aceite veste comercial, gestor, marketing e anon, prova que o
   // mesmo mês não entra duas vezes e que ninguém edita nem apaga.
   "20261006190000_fipe_historico.sql",
+  // As campanhas de SMS, por carro ou por perfil, e a base de marketing
+  // importada (2026-10-07): a campanha, os destinatários, quem pediu para sair,
+  // e as três tabelas `marketing_*` (importações, contatos, registros). Entra
+  // na cadeia porque o aceite veste admin, marketing, comercial, um marketing
+  // desativado, cliente e anon para provar que o painel lê a campanha e leva
+  // 42501 no telefone do destinatário e em toda a base importada, tenta gravar
+  // o inválido em cada regra, e usa as seis funções como service_role: a
+  // reserva do lote, o clique e os presos; e a importação em lote (reenvio,
+  // fusão pelo celular, telefone inválido, lote ruim), o resumo e o desfazer.
+  // Aponta para `leads` (o recorte do andaime já tem `id uuid`) e não toca
+  // `estoque_motors`. O andaime não precisou de nada novo.
+  "20261007120000_sms_campanhas.sql",
 ];
 
 /**
@@ -431,6 +452,166 @@ describe.skipIf(!temBanco)("o estado final é o prometido", () => {
         `(select count(*)=${CADEIA.length} from supabase_migrations.schema_migrations where version in (${versoes}))`,
       ),
     ).toBe(true);
+  });
+});
+
+/**
+ * As campanhas de SMS e a base de marketing (20261007120000), pelo lado de
+ * fora. O aceite da migração já prova o efeito com sonda; aqui ficam as duas
+ * coisas que só o teste enxerga: as listas fechadas do banco são as do
+ * código (um valor que a rota aceita e o CHECK recusa é campanha que não se
+ * cria, ou importação que não abre), e a violação falha pelo NOME da regra.
+ * Nada do que entra aqui fica: toda escrita é desfeita.
+ */
+describe.skipIf(!temBanco)("as campanhas de SMS e a base de marketing, pelo lado de fora", () => {
+  const vale = (expr: string): boolean => /^\s*t\s*$/m.test(psql!(`select (${expr}) as ok`));
+
+  /** A mensagem do erro, ou "" se o comando passou. Sempre desfeito. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(`begin; ${sql}; rollback;`);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  /** Os valores entre aspas (ou os números) de um CHECK, em ordem. */
+  const valoresDoCheck = (regra: string, padrao = "'([^']+)'") =>
+    `(select array(select m[1] from regexp_matches(pg_get_constraintdef(oid), $re$${padrao}$re$, 'g') m order by 1)
+        from pg_constraint where conname = '${regra}')`;
+  const lista = (valores: readonly (string | number)[]) =>
+    `array(select unnest(array[${valores.map((v) => `'${v}'`).join(",")}]::text[]) order by 1)`;
+
+  const campanha = (colunas: string, valores: string) =>
+    `insert into public.sms_campanhas (nome, codigo, destino, mensagem, ${colunas})
+     values ('Teste de fora', 'abc2345', '/estoque', 'Veja: {link}', ${valores})`;
+
+  it("as listas fechadas do banco são as do código: critério, critério de carro, descanso, janela e origem", () => {
+    expect(vale(`${valoresDoCheck("sms_campanhas_criterio_valido")} = ${lista(CRITERIOS_DE_PUBLICO)}`)).toBe(true);
+    expect(vale(`${valoresDoCheck("sms_campanhas_carro_do_criterio")} = ${lista(CRITERIOS_DE_CARRO)}`)).toBe(true);
+    expect(vale(`${valoresDoCheck("sms_campanhas_descanso_valido", "\\m([0-9]+)\\M")} = ${lista(DESCANSOS_EM_DIAS)}`)).toBe(true);
+    expect(
+      vale(
+        `${valoresDoCheck("sms_campanhas_janela_valida", "\\m([0-9]+)\\M")} = ${lista(JANELAS_DE_INTERESSE.filter((j) => j !== null) as number[])}`,
+      ),
+    ).toBe(true);
+    expect(
+      vale(
+        `${valoresDoCheck("sms_campanhas_compra_valida", "\\m([0-9]+)\\M")} = ${lista(TEMPOS_DESDE_A_COMPRA.filter((t) => t !== null) as number[])}`,
+      ),
+    ).toBe(true);
+    // O filtro de compra só existe com "clientes" e "todos" — os dois critérios de perfil que alcançam quem comprou.
+    expect(vale(`${valoresDoCheck("sms_campanhas_compra_so_de_cliente")} = ${lista(["clientes", "todos"])}`)).toBe(true);
+    expect(vale(`${valoresDoCheck("marketing_importacoes_origem_valida")} = ${lista(ORIGENS_DE_IMPORTACAO)}`)).toBe(true);
+    // O telefone do contato é o do envio: a mesma expressão, e não uma parecida.
+    expect(
+      vale(
+        `(select pg_get_constraintdef(oid) from pg_constraint where conname = 'marketing_contatos_telefone_valido')
+         = (select pg_get_constraintdef(oid) from pg_constraint where conname = 'sms_envios_telefone_valido')`,
+      ),
+    ).toBe(true);
+  });
+
+  it("violação falha: critério de carro sem carro, carro pela metade, {preco} sem carro, descanso fora da lista", () => {
+    // Controle positivo: por perfil, sem carro, entra — com cada um dos três critérios de perfil.
+    for (const criterio of CRITERIOS_DE_PUBLICO.filter((c) => !(CRITERIOS_DE_CARRO as readonly string[]).includes(c))) {
+      expect(recusa(campanha("criterio", `'${criterio}'`)), criterio).toBe("");
+    }
+    for (const criterio of CRITERIOS_DE_CARRO) {
+      expect(recusa(campanha("criterio", `'${criterio}'`)), criterio).toContain("sms_campanhas_carro_do_criterio");
+      expect(recusa(campanha("criterio, veiculo_id, veiculo_rotulo", `'${criterio}', 7950008, 'Fiat Uno'`)), criterio).toBe("");
+    }
+    expect(recusa(campanha("criterio, veiculo_id", "'todos', 7950008"))).toContain("sms_campanhas_carro_do_criterio");
+    expect(
+      recusa(`insert into public.sms_campanhas (nome, codigo, destino, criterio, mensagem)
+              values ('Teste de fora', 'abc2345', '/estoque', 'clientes', 'Por {preco}: {link}')`),
+    ).toContain("sms_campanhas_sem_carro_sem_variavel");
+    for (const dias of [1, 3, 14, 90]) {
+      expect(recusa(campanha("criterio, descanso_dias", `'todos', ${dias}`)), String(dias)).toContain("sms_campanhas_descanso_valido");
+    }
+    for (const dias of DESCANSOS_EM_DIAS) {
+      expect(recusa(campanha("criterio, descanso_dias", `'todos', ${dias}`)), String(dias)).toBe("");
+    }
+    expect(vale("(select count(*) = 0 from public.sms_campanhas where nome = 'Teste de fora')")).toBe(true);
+  });
+
+  it("violação falha: tempo desde a compra fora da lista, ou em critério que não alcança cliente; os destinos sem carro entram", () => {
+    for (const meses of TEMPOS_DESDE_A_COMPRA) {
+      for (const criterio of ["clientes", "todos"]) {
+        expect(recusa(campanha("criterio, compra_ha_meses", `'${criterio}', ${meses === null ? "null" : meses}`)), `${criterio} ${meses}`).toBe("");
+      }
+    }
+    for (const meses of [0, 6, 13, 48, -12]) {
+      expect(recusa(campanha("criterio, compra_ha_meses", `'clientes', ${meses}`)), String(meses)).toContain("sms_campanhas_compra_valida");
+    }
+    expect(recusa(campanha("criterio, compra_ha_meses", "'interessados', 24"))).toContain("sms_campanhas_compra_so_de_cliente");
+    for (const criterio of CRITERIOS_DE_CARRO) {
+      expect(
+        recusa(campanha("criterio, veiculo_id, veiculo_rotulo, compra_ha_meses", `'${criterio}', 7950008, 'Fiat Uno', 24`)),
+        criterio,
+      ).toContain("sms_campanhas_compra_so_de_cliente");
+    }
+    // O destino escolhido não pediu regra nova: os dois caminhos passam pela que já existia.
+    for (const destino of Object.values(DESTINOS_SEM_CARRO)) {
+      expect(
+        recusa(`insert into public.sms_campanhas (nome, codigo, destino, criterio, compra_ha_meses, mensagem)
+                values ('Teste de fora', 'abc2345', '${destino}', 'clientes', 24, 'Veja: {link}')`),
+        destino,
+      ).toBe("");
+    }
+    expect(vale("(select count(*) = 0 from public.sms_campanhas where nome = 'Teste de fora')")).toBe(true);
+  });
+
+  it("violação falha: a base recusa telefone fixo, compra sem cliente, tipo e placa fora da regra, e a linha repetida", () => {
+    const contato = (colunas: string, valores: string) =>
+      `insert into public.marketing_contatos (${colunas}) values (${valores})`;
+    expect(recusa(contato("telefone", "'554133334444'"))).toContain("marketing_contatos_telefone_valido");
+    expect(recusa(contato("telefone, comprou_em", "'5541900000201', now()"))).toContain("marketing_contatos_compra_e_de_cliente");
+    expect(recusa(contato("telefone, comprou_em, cliente", "'5541900000201', now(), true"))).toBe("");
+    expect(recusa(`${contato("telefone", "'5541900000201'")}; ${contato("telefone", "'5541900000201'")}`)).toContain(
+      "marketing_contatos_telefone_unico",
+    );
+    expect(recusa(`insert into public.marketing_importacoes (origem) values ('excel')`)).toContain("marketing_importacoes_origem_valida");
+
+    const registro = (colunas: string, valores: string) =>
+      `${contato("id, telefone", "'00000000-0000-0000-0000-0000000000c1', '5541900000201'")};
+       insert into public.marketing_interesses (contato_id, ${colunas})
+       values ('00000000-0000-0000-0000-0000000000c1', ${valores})`;
+    expect(recusa(registro("tipo", "'cliente'"))).toContain("marketing_interesses_tipo_valido");
+    expect(recusa(registro("tipo, placa", "'interesse', 'abc1d23'"))).toContain("marketing_interesses_placa_valida");
+    expect(recusa(registro("tipo, placa", "'compra', 'ABC1D23'"))).toBe("");
+    expect(
+      recusa(`${registro("tipo, origem_id", "'interesse', 'fora-1'")};
+              insert into public.marketing_interesses (contato_id, tipo, origem_id)
+              values ('00000000-0000-0000-0000-0000000000c1', 'compra', 'fora-1')`),
+    ).toContain("marketing_interesses_origem_unica");
+    expect(
+      recusa(`${registro("tipo, marca, modelo, ocorreu_em", "'interesse', 'Fiat', 'Uno', '2025-01-01T12:00:00Z'")};
+              insert into public.marketing_interesses (contato_id, tipo, marca, modelo, ocorreu_em)
+              values ('00000000-0000-0000-0000-0000000000c1', 'interesse', 'FIAT', 'uno', '2025-01-01T12:00:00Z')`),
+    ).toContain("marketing_interesses_sem_origem_unico");
+    expect(vale("(select count(*) = 0 from public.marketing_contatos)")).toBe(true);
+  });
+
+  it("violação falha: sessão do painel não lê a base nem chama as funções; importar sem importação levanta erro", () => {
+    for (const papel of ["anon", "authenticated"]) {
+      for (const alvo of [
+        "select count(*) from public.marketing_contatos",
+        "select count(*) from public.marketing_interesses",
+        "select count(*) from public.marketing_importacoes",
+        "select public.marketing_resumo_da_base()",
+        "select * from public.marketing_importar_lote(gen_random_uuid(), '[]'::jsonb)",
+        "select * from public.marketing_desfazer_importacao(gen_random_uuid())",
+      ]) {
+        expect(recusa(`set local role ${papel}; ${alvo}`), `${papel}: ${alvo}`).toContain("permission denied");
+      }
+    }
+    // O servidor chama; e sem a importação aberta, nada entra.
+    expect(
+      recusa(`set local role service_role; select * from public.marketing_importar_lote(gen_random_uuid(), '[]'::jsonb)`),
+    ).toContain("não existe");
+    expect(recusa(`set local role service_role; select public.marketing_resumo_da_base()`)).toBe("");
   });
 });
 
