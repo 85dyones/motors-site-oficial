@@ -117,10 +117,14 @@ const MESES_POR_EXTENSO = [
   "dezembro",
 ];
 
-/** "abril de 2024" (às vezes com espaço sobrando, às vezes "marco") → { ano, mes }. */
+/**
+ * "outubro/2026" → { ano, mes }. É assim que a v2 devolve (conferido na API em
+ * 07/10/2026); a v1 e o site da FIPE escrevem "outubro de 2026", às vezes com
+ * espaço sobrando ou "marco" sem cedilha, e os dois formatos passam.
+ */
 export function mesDeReferencia(texto: unknown): { ano: number; mes: number } | null {
   if (typeof texto !== "string") return null;
-  const m = texto.trim().toLowerCase().match(/^([a-zçã]+)\s+de\s+(\d{4})$/);
+  const m = texto.trim().toLowerCase().match(/^([a-zçã]+)\s*(?:\/|\sde\s)\s*(\d{4})$/);
   if (!m) return null;
   const mes = MESES_POR_EXTENSO.indexOf(m[1] === "marco" ? "março" : m[1]) + 1;
   return mes > 0 ? { ano: Number(m[2]), mes } : null;

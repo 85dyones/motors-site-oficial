@@ -37,7 +37,7 @@ const NOMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julh
 function referenciasCruas(quantas = 30) {
   return Array.from({ length: quantas }, (_, i) => {
     const indice = 2026 * 12 + 9 - i;
-    return { code: String(330 - i), month: `${NOMES[indice % 12]} de ${Math.floor(indice / 12)} ` };
+    return { code: String(330 - i), month: `${NOMES[indice % 12]}/${Math.floor(indice / 12)}` };
   });
 }
 const REFERENCIAS = lerReferencias(referenciasCruas());
@@ -114,7 +114,10 @@ describe("o pedido", () => {
 });
 
 describe("as respostas da FIPE", () => {
-  it("lê o mês por extenso, com espaço sobrando e sem acento", () => {
+  it("lê o mês nos dois formatos: 'outubro/2026' (v2) e 'outubro de 2026'", () => {
+    // O formato real da v2, conferido na API em 07/10/2026.
+    expect(mesDeReferencia("outubro/2026")).toEqual({ ano: 2026, mes: 10 });
+    expect(mesDeReferencia("setembro/2005")).toEqual({ ano: 2005, mes: 9 });
     expect(mesDeReferencia("outubro de 2026 ")).toEqual({ ano: 2026, mes: 10 });
     expect(mesDeReferencia("Marco de 2025")).toEqual({ ano: 2025, mes: 3 });
     expect(mesDeReferencia("março de 2025")).toEqual({ ano: 2025, mes: 3 });
@@ -123,7 +126,7 @@ describe("as respostas da FIPE", () => {
   });
 
   it("ordena as referências do mês mais novo para trás e larga item torto", () => {
-    const lidas = lerReferencias([{ code: "300", month: "abril de 2024" }, { code: "x", month: "maio de 2024" }, null, { code: "330", month: "outubro de 2026" }]);
+    const lidas = lerReferencias([{ code: "300", month: "abril/2024" }, { code: "x", month: "maio/2024" }, null, { code: "330", month: "outubro/2026" }]);
     expect(lidas).toEqual([
       { codigo: 330, ano: 2026, mes: 10 },
       { codigo: 300, ano: 2024, mes: 4 },
