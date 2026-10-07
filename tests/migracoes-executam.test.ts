@@ -183,6 +183,14 @@ const CADEIA = [
   // porque o aceite veste comercial, gestor, marketing e anon, prova que o
   // mesmo mês não entra duas vezes e que ninguém edita nem apaga.
   "20261006190000_fipe_historico.sql",
+  // As campanhas de SMS por veículo (2026-10-07): a campanha, os destinatários
+  // e quem pediu para sair. Entra na cadeia porque o aceite veste admin,
+  // marketing, comercial, um marketing desativado, cliente e anon para provar
+  // que o painel lê a campanha e leva 42501 no telefone do destinatário, tenta
+  // gravar o inválido em cada regra, e usa as três funções como service_role:
+  // a reserva do lote, o clique e os presos. Aponta para `leads` (o recorte do
+  // andaime já tem `id uuid`) e não toca `estoque_motors`.
+  "20261007120000_sms_campanhas.sql",
 ];
 
 /**
