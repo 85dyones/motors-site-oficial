@@ -469,6 +469,16 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "faz", "nao_ve"],
     "O indicador que destrava a recompra — a diretoria acompanha",
   ),
+  // Linha ACRESCENTADA em 2026-10-06, com a consulta de placa
+  // (`/admin/consulta-placa`): cada consulta nova é cobrada pela APIBrasil,
+  // então quem consulta é quem avalia carro para comprar ou aceitar na troca.
+  // A RLS de `consultas_de_placa` repete os três papéis, e o texto da ação
+  // mora em `ACAO_CONSULTAR_PLACA` (`lib/consultaDePlaca.ts`).
+  linha(
+    "Consultar placa de veículo (consulta paga)",
+    ["faz", "faz", "nao_ve", "faz", "nao_ve"],
+    "Cada consulta nova é cobrada pelo fornecedor; a mesma placa reabre sem custo",
+  ),
 ];
 
 /** Do mais permissivo para o menos — a ordem que resolve o empate multi-papel. */

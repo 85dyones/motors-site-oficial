@@ -1,0 +1,909 @@
+{
+  "user": {
+    "first_name": "Conta",
+    "email": "conta@exemplo.invalid",
+    "cellphone": "00000000000",
+    "notification": "yes"
+  },
+  "balance": "970,000",
+  "balance_before": "1000,000",
+  "tax": "30,000",
+  "status_code": 200,
+  "error": false,
+  "message": "Dados validos! Voce foi tarifado em R$ 30,00.",
+  "valor_consulta": 30,
+  "api_limit_for": "credit",
+  "homolog": false,
+  "data": {
+    "acessorios": {
+      "veiculosFipe": []
+    },
+    "acessoriosCategorizados": {
+      "acessorios": [],
+      "categorias": []
+    },
+    "analiseRisco": {
+      "imageLink": null,
+      "indiceRisco": "1",
+      "parecer": "Veículo com baixo risco de recusa em comercialização/seguro 😃"
+    },
+    "anoFabricacao": "2021",
+    "anoModelo": "2022",
+    "anuncio": {
+      "data": "15/01/2024 19:23:59",
+      "fotos": [
+        {
+          "url": "https://exemplo.invalid/foto-1"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-2"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-3"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-4"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-5"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-6"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-7"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-8"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-9"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-10"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-11"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-12"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-13"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-14"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-15"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-16"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-17"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-18"
+        },
+        {
+          "url": "https://exemplo.invalid/foto-19"
+        }
+      ],
+      "km": "31135",
+      "observacao": "Texto do anúncio da loja anterior.",
+      "opcionais": [
+        {
+          "descricao": "Alarme"
+        },
+        {
+          "descricao": "Ar quente"
+        },
+        {
+          "descricao": "Banco do motorista com ajuste de altura"
+        },
+        {
+          "descricao": "Computador de bordo"
+        },
+        {
+          "descricao": "Controle de tração"
+        },
+        {
+          "descricao": "Ar condicionado"
+        },
+        {
+          "descricao": "Freio ABS"
+        },
+        {
+          "descricao": "Rádio"
+        },
+        {
+          "descricao": "Rodas de liga leve"
+        },
+        {
+          "descricao": "Sensor de chuva"
+        },
+        {
+          "descricao": "Sensor de estacionamento"
+        },
+        {
+          "descricao": "Teto solar"
+        },
+        {
+          "descricao": "Travas elétricas"
+        },
+        {
+          "descricao": "Vidros elétricos"
+        },
+        {
+          "descricao": "Volante com regulagem de altura"
+        },
+        {
+          "descricao": "Bancos de couro"
+        },
+        {
+          "descricao": "Air bag"
+        }
+      ],
+      "placa": "BRA2E19",
+      "valor": "159990.00"
+    },
+    "baseNacional": {
+      "anoFabricacao": "2021",
+      "anoModelo": "2022",
+      "categoria": "PARTICULAR",
+      "chassi": "8AWZZZ00XN0000002",
+      "combustivel": "ALCOOL/GASOLINA",
+      "cor": "BEGE",
+      "di": "0000000000",
+      "docFaturado": "00000000000272",
+      "dtEmissaoCrv": null,
+      "dtUltimaAtualizacao": "08/02/2024",
+      "especie": "MISTO",
+      "especieVeiculo": "MISTO",
+      "indicadorComunicacaoVendas": "NAO",
+      "indicadorRestricaoRenajud": "NAO",
+      "motor": "ZZZ000002",
+      "municipio": "CURITIBA",
+      "ocorrencia": "VEICULO NAO INDICA OCORRENCIA DE ROUBO/FURTO",
+      "outrasRestricoes1": "NADA CONSTA",
+      "outrasRestricoes2": "NADA CONSTA",
+      "outrasRestricoes3": "NADA CONSTA",
+      "outrasRestricoes4": "NADA CONSTA",
+      "outrasRestricoes5": "NADA CONSTA",
+      "outrasRestricoes6": "NADA CONSTA",
+      "outrasRestricoes7": "NADA CONSTA",
+      "outrasRestricoes8": "NADA CONSTA",
+      "placa": "BRA2E19",
+      "renavam": "00000000002",
+      "restricao1": "NADA CONSTA",
+      "restricao2": "NADA CONSTA",
+      "restricao3": "NADA CONSTA",
+      "restricao4": "NADA CONSTA",
+      "restricaoDataInclusao": null,
+      "restricaoFinanciadora": null,
+      "restricaoFinanciamento": null,
+      "restricaoNomeAgente": null,
+      "restricaoTipoTransacao": "NADA CONSTA",
+      "situacaoVeiculo": "CIRCULACAO",
+      "tipoDocFaturado": "JURIDICA",
+      "tipoDocImportadora": null,
+      "tipoMarcacaoChassi": "NORMAL",
+      "tipoVeiculo": "CAMIONETA",
+      "uf": "PR",
+      "ufFaturado": "PR"
+    },
+    "caixaCambio": null,
+    "capMaxTracao": "229",
+    "capacidadeCarga": "39",
+    "capacidadePassageiro": "5",
+    "categoria": "AU - SUVs",
+    "cestaBasica": {
+      "registros": [],
+      "veiculosFipe": []
+    },
+    "chassi": "8AWZZZ00XN0000002",
+    "cidade": "CURITIBA",
+    "cilindradas": "1395",
+    "cmt": "229",
+    "codigoCombustivel": "ALCOOL/GASOLINA",
+    "codigoFipe": [
+      {
+        "codigo": "005528-0",
+        "valorZeroKM": "198402"
+      }
+    ],
+    "codigoMarcaModelo": "203945",
+    "combustivel": "ALCOOL/GASOLINA",
+    "comparativoEspecificacoes": {
+      "opinioesDoDono": [],
+      "veiculoComparativo": []
+    },
+    "corVeiculo": "BEGE",
+    "custoMedio": {
+      "custoCada10k": [],
+      "custoDesgastePecasTotal": 0,
+      "custoPlanoRevisaoTotal": 0,
+      "custoTotal": 0
+    },
+    "dadosBasicosDoVeiculo": {
+      "anoFabricacao": "2021",
+      "anoModelo": "2022",
+      "chassi": "8AWZZZ00XN0000002",
+      "cilindradas": "1395",
+      "codigoFipe": "55280",
+      "combustivel": "Alcool, Gasolina",
+      "descricao": "TAOS HL TSI AE",
+      "informacoesFipe": [
+        {
+          "ano": "2022",
+          "combustivel": "Flex",
+          "fipeId": "55280",
+          "historicoPreco": [
+            {
+              "ano": "2021",
+              "mes": "7",
+              "predicao": false,
+              "valor": "170214"
+            },
+            {
+              "ano": "2021",
+              "mes": "8",
+              "predicao": false,
+              "valor": "172745"
+            },
+            {
+              "ano": "2021",
+              "mes": "9",
+              "predicao": false,
+              "valor": "173202"
+            },
+            {
+              "ano": "2021",
+              "mes": "10",
+              "predicao": false,
+              "valor": "178669"
+            },
+            {
+              "ano": "2021",
+              "mes": "11",
+              "predicao": false,
+              "valor": "180236"
+            },
+            {
+              "ano": "2021",
+              "mes": "12",
+              "predicao": false,
+              "valor": "189243"
+            },
+            {
+              "ano": "2022",
+              "mes": "1",
+              "predicao": false,
+              "valor": "193230"
+            },
+            {
+              "ano": "2022",
+              "mes": "2",
+              "predicao": false,
+              "valor": "195845"
+            },
+            {
+              "ano": "2022",
+              "mes": "3",
+              "predicao": false,
+              "valor": "197025"
+            },
+            {
+              "ano": "2022",
+              "mes": "4",
+              "predicao": false,
+              "valor": "198013"
+            },
+            {
+              "ano": "2022",
+              "mes": "5",
+              "predicao": false,
+              "valor": "200356"
+            },
+            {
+              "ano": "2022",
+              "mes": "6",
+              "predicao": false,
+              "valor": "199752"
+            },
+            {
+              "ano": "2022",
+              "mes": "7",
+              "predicao": false,
+              "valor": "198012"
+            },
+            {
+              "ano": "2022",
+              "mes": "8",
+              "predicao": false,
+              "valor": "197259"
+            },
+            {
+              "ano": "2022",
+              "mes": "9",
+              "predicao": false,
+              "valor": "196109"
+            },
+            {
+              "ano": "2022",
+              "mes": "10",
+              "predicao": false,
+              "valor": "194550"
+            },
+            {
+              "ano": "2022",
+              "mes": "11",
+              "predicao": false,
+              "valor": "191861"
+            },
+            {
+              "ano": "2022",
+              "mes": "12",
+              "predicao": false,
+              "valor": "190602"
+            },
+            {
+              "ano": "2023",
+              "mes": "1",
+              "predicao": false,
+              "valor": "188738"
+            },
+            {
+              "ano": "2023",
+              "mes": "2",
+              "predicao": false,
+              "valor": "186766"
+            },
+            {
+              "ano": "2023",
+              "mes": "3",
+              "predicao": false,
+              "valor": "187408"
+            },
+            {
+              "ano": "2023",
+              "mes": "4",
+              "predicao": false,
+              "valor": "186369"
+            },
+            {
+              "ano": "2023",
+              "mes": "5",
+              "predicao": false,
+              "valor": "181452"
+            },
+            {
+              "ano": "2023",
+              "mes": "6",
+              "predicao": false,
+              "valor": "181233"
+            },
+            {
+              "ano": "2023",
+              "mes": "7",
+              "predicao": false,
+              "valor": "179775"
+            },
+            {
+              "ano": "2023",
+              "mes": "8",
+              "predicao": false,
+              "valor": "175415"
+            },
+            {
+              "ano": "2023",
+              "mes": "9",
+              "predicao": false,
+              "valor": "174567"
+            },
+            {
+              "ano": "2023",
+              "mes": "10",
+              "predicao": false,
+              "valor": "172893"
+            },
+            {
+              "ano": "2023",
+              "mes": "11",
+              "predicao": false,
+              "valor": "170216"
+            },
+            {
+              "ano": "2023",
+              "mes": "12",
+              "predicao": false,
+              "valor": "168933"
+            },
+            {
+              "ano": "2024",
+              "mes": "1",
+              "predicao": false,
+              "valor": "166053"
+            },
+            {
+              "ano": "2024",
+              "mes": "2",
+              "predicao": false,
+              "valor": "164046"
+            },
+            {
+              "ano": "2024",
+              "mes": "3",
+              "predicao": false,
+              "valor": "163108"
+            },
+            {
+              "ano": "2024",
+              "mes": "4",
+              "predicao": false,
+              "valor": "163031"
+            },
+            {
+              "ano": "2024",
+              "mes": "5",
+              "predicao": false,
+              "valor": "158834"
+            },
+            {
+              "ano": "2024",
+              "mes": "6",
+              "predicao": false,
+              "valor": "157705"
+            },
+            {
+              "ano": "2024",
+              "mes": "7",
+              "predicao": false,
+              "valor": "156479"
+            },
+            {
+              "ano": "2024",
+              "mes": "8",
+              "predicao": false,
+              "valor": "155521"
+            },
+            {
+              "ano": "2024",
+              "mes": "9",
+              "predicao": false,
+              "valor": "154845"
+            },
+            {
+              "ano": "2024",
+              "mes": "10",
+              "predicao": false,
+              "valor": "153742"
+            },
+            {
+              "ano": "2024",
+              "mes": "11",
+              "predicao": false,
+              "valor": "152769"
+            },
+            {
+              "ano": "2024",
+              "mes": "12",
+              "predicao": false,
+              "valor": "152007"
+            },
+            {
+              "ano": "2025",
+              "mes": "1",
+              "predicao": false,
+              "valor": "150478"
+            },
+            {
+              "ano": "2025",
+              "mes": "2",
+              "predicao": false,
+              "valor": "150157"
+            },
+            {
+              "ano": "2025",
+              "mes": "3",
+              "predicao": false,
+              "valor": "149510"
+            },
+            {
+              "ano": "2025",
+              "mes": "4",
+              "predicao": false,
+              "valor": "148559"
+            },
+            {
+              "ano": "2025",
+              "mes": "5",
+              "predicao": false,
+              "valor": "147727"
+            },
+            {
+              "ano": "2025",
+              "mes": "6",
+              "predicao": false,
+              "valor": "146970"
+            },
+            {
+              "ano": "2025",
+              "mes": "7",
+              "predicao": false,
+              "valor": "145758"
+            },
+            {
+              "ano": "2025",
+              "mes": "8",
+              "predicao": false,
+              "valor": "145254"
+            },
+            {
+              "ano": "2025",
+              "mes": "9",
+              "predicao": false,
+              "valor": "144052"
+            },
+            {
+              "ano": "2025",
+              "mes": "10",
+              "predicao": false,
+              "valor": "143301"
+            },
+            {
+              "ano": "2025",
+              "mes": "11",
+              "predicao": false,
+              "valor": "142816"
+            },
+            {
+              "ano": "2025",
+              "mes": "12",
+              "predicao": false,
+              "valor": "141496"
+            },
+            {
+              "ano": "2026",
+              "mes": "1",
+              "predicao": false,
+              "valor": "140433"
+            },
+            {
+              "ano": "2026",
+              "mes": "2",
+              "predicao": false,
+              "valor": "139935"
+            },
+            {
+              "ano": "2026",
+              "mes": "3",
+              "predicao": false,
+              "valor": "137367"
+            },
+            {
+              "ano": "2026",
+              "mes": "4",
+              "predicao": false,
+              "valor": "136697"
+            },
+            {
+              "ano": "2026",
+              "mes": "5",
+              "predicao": false,
+              "valor": "135755"
+            },
+            {
+              "ano": "2026",
+              "mes": "6",
+              "predicao": false,
+              "valor": "134603"
+            },
+            {
+              "ano": "2026",
+              "mes": "7",
+              "predicao": false,
+              "valor": "133879"
+            },
+            {
+              "ano": "2026",
+              "mes": "8",
+              "predicao": false,
+              "valor": "133004"
+            },
+            {
+              "ano": "2026",
+              "mes": "9",
+              "predicao": false,
+              "valor": "129792"
+            },
+            {
+              "ano": "2026",
+              "mes": "10",
+              "predicao": false,
+              "valor": "128430"
+            }
+          ],
+          "marca": "VW - VolksWagen",
+          "modelo": "TAOS",
+          "valorAtual": "128430.00",
+          "versao": "HIGHLINE 1.4 250 TSI FLEX AUT."
+        }
+      ],
+      "informacoesGerais": [
+        {
+          "fipeId": "55280",
+          "idVersao": "5924",
+          "marca": "Volkswagen",
+          "modelo": "Taos 5P (2022 => 2026)",
+          "versao": "Highline TSI 1.4 16v Flex Aut."
+        }
+      ],
+      "marca": "VOLKSWAGEN",
+      "nacional": null,
+      "placa": "BRA2E19"
+    },
+    "decodificadorPrecificador": {
+      "anoFabricacao": null,
+      "anoModelo": null,
+      "categoria": null,
+      "chassi": null,
+      "classificacao": null,
+      "codigoFipe": null,
+      "combustivel": null,
+      "comprimento": null,
+      "cor": null,
+      "distanciaEntreEixos": null,
+      "localFabricacao": null,
+      "marca": null,
+      "modelo": null,
+      "motor": null,
+      "origem": null,
+      "pais": null,
+      "pesoBruto": null,
+      "portas": null,
+      "potenciaMotor": null,
+      "precificadorI": [],
+      "precificadorII": [],
+      "quantidadeEixos": null,
+      "quantidadeIrregularidades": null,
+      "regiao": null,
+      "tipoCarroceria": null,
+      "tipoFreio": null,
+      "tipoMotor": null,
+      "tracao": null,
+      "transmissao": null,
+      "versao": null
+    },
+    "docFaturado": "00000000000272",
+    "dtUltimaAtualizacao": "08/02/2024",
+    "eixoTraseiroDif": null,
+    "eixos": "2",
+    "especieVeiculo": "MISTO",
+    "fotos": [],
+    "gravame": [
+      {
+        "agente": "BANCO VOLKSWAGEN S A",
+        "anoFabricacao": null,
+        "anoModelo": null,
+        "chassi": "8AWZZZ00XN0000002",
+        "codigoAgente": null,
+        "contrato": "SIRCAF: SIM 0",
+        "dataEmissao": null,
+        "dataInclusao": "25/10/2021",
+        "dataSituacao": null,
+        "dataVigencia": null,
+        "dataVigenciaContrato": null,
+        "documentoAgente": null,
+        "documentoFinanciado": "00000000000353",
+        "gravame": null,
+        "intencao": null,
+        "municipio": null,
+        "numero": "10000000",
+        "observacoes": "Atual",
+        "placa": "BRA2E19",
+        "renavam": "00000000002",
+        "responsavel": "FINANCEIRA",
+        "situacao": "VEÍCULO TEVE GRAVAME BAIXADO PELO AGENTE FINANCEIRO",
+        "uf": "PR",
+        "ufPlaca": null
+      }
+    ],
+    "historicoAnuncios": [
+      {
+        "data": "15/01/2024 19:23:59",
+        "fotos": [
+          {
+            "url": "https://exemplo.invalid/foto-1"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-2"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-3"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-4"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-5"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-6"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-7"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-8"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-9"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-10"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-11"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-12"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-13"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-14"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-15"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-16"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-17"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-18"
+          },
+          {
+            "url": "https://exemplo.invalid/foto-19"
+          }
+        ],
+        "km": "31135",
+        "observacao": "Texto do anúncio da loja anterior.",
+        "opcionais": [
+          {
+            "descricao": "Alarme"
+          },
+          {
+            "descricao": "Ar quente"
+          },
+          {
+            "descricao": "Banco do motorista com ajuste de altura"
+          },
+          {
+            "descricao": "Computador de bordo"
+          },
+          {
+            "descricao": "Controle de tração"
+          },
+          {
+            "descricao": "Ar condicionado"
+          },
+          {
+            "descricao": "Freio ABS"
+          },
+          {
+            "descricao": "Rádio"
+          },
+          {
+            "descricao": "Rodas de liga leve"
+          },
+          {
+            "descricao": "Sensor de chuva"
+          },
+          {
+            "descricao": "Sensor de estacionamento"
+          },
+          {
+            "descricao": "Teto solar"
+          },
+          {
+            "descricao": "Travas elétricas"
+          },
+          {
+            "descricao": "Vidros elétricos"
+          },
+          {
+            "descricao": "Volante com regulagem de altura"
+          },
+          {
+            "descricao": "Bancos de couro"
+          },
+          {
+            "descricao": "Air bag"
+          }
+        ],
+        "placa": "BRA2E19",
+        "valor": "159990.00"
+      }
+    ],
+    "historicoKm": [
+      {
+        "dataInclusao": "15/01/2024 19:23:59",
+        "km": "31135"
+      }
+    ],
+    "historicoProprietarios": [],
+    "identImportadora": null,
+    "indicioSinistro": {
+      "classificacao": null,
+      "descricao": "NÃO CONSTA INDÍCIO DE SINISTRO PARA O VEÍCULO INFORMADO 😃"
+    },
+    "leilao": {
+      "descricao": "Não consta registro de leilão para o veículo informado",
+      "registros": [],
+      "score": {
+        "aceitacao": null,
+        "exigenciaVistoriaEspecial": null,
+        "percentualSobreRef": null,
+        "pontuacao": null,
+        "score": null
+      }
+    },
+    "limiteRestricaoTrib": null,
+    "marcaModelo": "I/VW TAOS HL TSI AE",
+    "municipio": "CURITIBA",
+    "municipioEmplacamento": "CURITIBA",
+    "nacionalidade": "IMPORTADA",
+    "numCarroceria": "INEXISTENTE",
+    "numFaturado": "00000000000272",
+    "numMotor": "ZZZ000002",
+    "numTerceiroEixo": null,
+    "opcionais": [],
+    "pbt": "189",
+    "placa": "BRA2E19",
+    "potencia": "150",
+    "procedencia": "IMPORTADA",
+    "qtdPax": "5",
+    "recall": {
+      "anoModelo": null,
+      "chassi": null,
+      "descricaoRetorno": null,
+      "detalhes": [],
+      "marca": null,
+      "modelo": null,
+      "recallsPendente": []
+    },
+    "registroDi": null,
+    "registroEmLocadora": {
+      "registroEmLocadora": false
+    },
+    "renavam": "00000000002",
+    "restricoes": null,
+    "revisao": {
+      "veiculosFipe": []
+    },
+    "rouboFurto": {
+      "constaOcorrencia": false,
+      "constaOcorrenciaAtiva": false,
+      "historico": [],
+      "indicadorProcedencia": null,
+      "municipioEmplacamento": null
+    },
+    "situacaoChassi": "N",
+    "situacaoVeiculo": "S",
+    "tipoCarroceria": "Não Aplicável",
+    "tipoDocFaturado": "DESCONHECIDO",
+    "tipoDocImportadora": "DESCONHECIDO",
+    "tipoMontagem": "1",
+    "tipoVeiculo": "CAMIONETA",
+    "uf": "PR",
+    "ufFaturado": null,
+    "ultimaDataInclusao": null,
+    "valorAnunciado": null
+  }
+}
