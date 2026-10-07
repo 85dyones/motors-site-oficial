@@ -3,11 +3,13 @@
 import { useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 import { colunasDoRodape } from "../lib/colunasDoRodape";
 import { trackContactClick } from "../lib/telemetry";
 import { razaoSocialAparte } from "../lib/identidadeLegal";
+import { ROTAS_COM_FECHO } from "../lib/fechoComLogo";
 
 /**
  * Rodapé Modernist (redesign 2026).
@@ -44,6 +46,9 @@ function AnoAtual() {
 
 export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape }) {
   const { companySettings } = useTheme();
+  // Na home e em /sobre a página termina com o logo grande, encostado aqui
+  // (`marca/FechoComLogo.tsx`): o pequeno seria o mesmo desenho duas vezes.
+  const comFecho = ROTAS_COM_FECHO.includes(usePathname() ?? "");
   const razaoSocial = razaoSocialAparte(companySettings);
   const marcas = navegacao?.marcas ?? [];
   const modelos = navegacao?.modelos ?? [];
@@ -58,16 +63,18 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
             {/* O logo inteiro, na versão para fundo escuro, no lugar do nome
                 em texto com uma barra ferrugem que não faz parte da marca
                 (revisão de UI de 29/09). O nome da loja segue no `alt`. */}
-            <div className="mb-5">
-              <Image
-                src="/marca/motors-store-horizontal-negativo.svg"
-                alt={companySettings.name}
-                width={191}
-                height={32}
-                unoptimized
-                className="h-8 w-auto"
-              />
-            </div>
+            {!comFecho && (
+              <div className="mb-5">
+                <Image
+                  src="/marca/motors-store-horizontal-negativo.svg"
+                  alt={companySettings.name}
+                  width={191}
+                  height={32}
+                  unoptimized
+                  className="h-8 w-auto"
+                />
+              </div>
+            )}
             <p className="m-0 max-w-[300px] text-[13px] leading-relaxed">
               Compra, venda e troca de seminovos selecionados. De cada dez
               avaliados, três entram.

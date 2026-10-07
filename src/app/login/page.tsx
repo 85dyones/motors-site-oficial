@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import LoginForm from "../../components/LoginForm";
 import { Rotulo } from "../../components/modernist/primitivos";
+import { LogoDoAcesso } from "../../components/marca/FechoComLogo";
 
 export const metadata = {
   title: "Acesso Restrito — Motors Store",
@@ -25,12 +26,7 @@ export default async function LoginPage() {
     // usa sombra nem brilho para organizar; usa régua.
     <div className="flex min-h-[70vh] w-full flex-col items-center justify-center bg-mt-bg px-[18px] py-16 font-modernist text-mt-ink">
       <div className="flex w-full max-w-[380px] flex-col gap-8">
-        <div className="flex items-center gap-2.5 select-none">
-          <span className="h-6 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
-          <span className="text-[17px] font-extrabold tracking-[.02em]">
-            MOTORS<span className="font-normal text-mt-neutral-600"> STORE</span>
-          </span>
-        </div>
+        <LogoDoAcesso />
 
         <div className="border-t-2 border-mt-regua pt-6">
           <Rotulo accent className="text-[11px] tracking-[.18em]">
