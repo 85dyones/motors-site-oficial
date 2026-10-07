@@ -225,7 +225,10 @@ export function contatoParaOBanco(c: ContatoImportado, origem: OrigemDeImportaca
  */
 export async function lerIndiceDoEstoque(admin: SupabaseClient): Promise<IndiceDoEstoque> {
   const { data, error } = await admin.from("estoque_motors").select("id, marca, modelo, placa").limit(5000);
-  if (error || !data) return indexarEstoque([]);
+  if (error || !data) {
+    console.error("[base de marketing] estoque não lido; o lote segue sem ligar carro por placa:", error?.code, error?.message);
+    return indexarEstoque([]);
+  }
   return indexarEstoque(
     (data as Array<{ id: number | string; marca: string | null; modelo: string | null; placa: string | null }>).map((c) => ({ id: String(c.id), marca: c.marca ?? "", modelo: c.modelo ?? "", placa: c.placa })),
   );
@@ -251,7 +254,11 @@ export async function importarLote(admin: SupabaseClient, id: string, corpo: unk
     p_importacao: id,
     p_contatos: contatos.map((c) => contatoParaOBanco(c, importacao.origem as OrigemDeImportacao, indice)),
   });
-  if (erroDoLote) return { ok: false, status: 502, motivo: "O banco recusou este lote; nada dele foi gravado." };
+  if (erroDoLote) {
+    // Só código e mensagem: o `details` do Postgres pode trazer o telefone da linha recusada.
+    console.error("[base de marketing] marketing_importar_lote recusou o lote:", erroDoLote.code, erroDoLote.message);
+    return { ok: false, status: 502, motivo: "O banco recusou este lote; nada dele foi gravado." };
+  }
   const linha = ((Array.isArray(data) ? data[0] : data) ?? {}) as Record<string, unknown>;
   return { ok: true, contatosNovos: numero(linha.contatos_novos), contatosAtualizados: numero(linha.contatos_atualizados), registrosNovos: numero(linha.registros_novos), recusados };
 }
