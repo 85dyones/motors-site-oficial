@@ -39,7 +39,14 @@ import { FIPE_V2 } from "./fipeNoServidor";
 export const MIGRACAO_DO_HISTORICO_DA_FIPE = "20261006190000_fipe_historico";
 
 /** Quantas chamadas à FIPE correm ao mesmo tempo. */
-const CHAMADAS_SIMULTANEAS = 5;
+const CHAMADAS_SIMULTANEAS = 3;
+
+/**
+ * Depois de quantas falhas SEGUIDAS a fila para. A FIPE, quando corta, nem
+ * sempre responde 429 (em 07/10/2026, sem token, quatro meses vieram e os 22
+ * seguintes falharam): insistir só gasta o que resta do teto.
+ */
+const FALHAS_SEGUIDAS_QUE_PARAM = 4;
 
 /** Por quanto tempo a lista de meses de referência vale em memória. */
 const VALIDADE_DAS_REFERENCIAS_MS = 6 * 60 * 60 * 1000;
@@ -71,7 +78,7 @@ export async function referenciasDaFipe(buscar: BuscarNaFipe, token: string | un
 type Leitura =
   | { tipo: "valor"; busca: Busca; linha: LinhaDoHistorico }
   | { tipo: "limite" }
-  | { tipo: "falha" };
+  | { tipo: "falha"; porque: string };
 
 async function lerUmMes(pedido: PedidoDeModelo, busca: Busca, buscar: BuscarNaFipe, token: string | undefined): Promise<Leitura> {
   const url = `${urlNaV2({ nivel: "valor", tipo: pedido.tipo, marca: pedido.marca, modelo: pedido.modelo, ano: busca.ano })}?reference=${busca.referencia.codigo}`;
@@ -90,11 +97,11 @@ async function lerUmMes(pedido: PedidoDeModelo, busca: Busca, buscar: BuscarNaFi
     // 404: naquele mês a FIPE ainda não tinha este ano-modelo. É resposta, e
     // fica guardada como "sem valor" para não ser perguntada de novo.
     if (r.status === 404) return { tipo: "valor", busca, linha: vazia(null) };
-    if (!r.ok) return { tipo: "falha" };
+    if (!r.ok) return { tipo: "falha", porque: `respondeu ${r.status}` };
     const v = lerValorDaFipe(await r.json());
-    return v ? { tipo: "valor", busca, linha: vazia(v.valor, v) } : { tipo: "falha" };
-  } catch {
-    return { tipo: "falha" };
+    return v ? { tipo: "valor", busca, linha: vazia(v.valor, v) } : { tipo: "falha", porque: "veio num formato inesperado" };
+  } catch (erro) {
+    return { tipo: "falha", porque: (erro as Error)?.name === "TimeoutError" ? "não respondeu a tempo" : "não respondeu" };
   }
 }
 
@@ -136,16 +143,24 @@ export async function consultarMercado(
   const novas: LinhaDoHistorico[] = [];
   let chamadas = 0;
   let falhas = 0;
+  let seguidas = 0;
+  const motivos = new Map<string, number>();
   let limite = false;
   let proxima = 0;
   const trabalhar = async () => {
-    while (!limite && proxima < fila.length) {
+    while (!limite && seguidas < FALHAS_SEGUIDAS_QUE_PARAM && proxima < fila.length) {
       const busca = fila[proxima++];
       chamadas++;
       const leitura = await lerUmMes(pedido, busca, deps.buscar, deps.token);
       if (leitura.tipo === "limite") limite = true;
-      else if (leitura.tipo === "falha") falhas++;
-      else novas.push(leitura.linha);
+      else if (leitura.tipo === "falha") {
+        falhas++;
+        seguidas++;
+        motivos.set(leitura.porque, (motivos.get(leitura.porque) ?? 0) + 1);
+      } else {
+        seguidas = 0;
+        novas.push(leitura.linha);
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(CHAMADAS_SIMULTANEAS, fila.length) }, trabalhar));
@@ -163,7 +178,18 @@ export async function consultarMercado(
       : { ok: false, status: 502, motivo: "A FIPE não devolveu o valor deste mês para o modelo escolhido." };
   }
   if (limite) avisos.push("A FIPE atingiu o limite de consultas de hoje no meio da leitura: o histórico está incompleto e se completa na próxima abertura.");
-  else if (falhas > 0) avisos.push(`${falhas} ${falhas === 1 ? "mês não veio" : "meses não vieram"} da FIPE agora; a próxima abertura tenta de novo.`);
+  else if (falhas > 0) {
+    const porque = [...motivos].sort((a, b) => b[1] - a[1])[0][0];
+    const parou = seguidas >= FALHAS_SEGUIDAS_QUE_PARAM;
+    // O motivo vai para a tela e para o log: sem ele, "não veio" não se conserta.
+    console.warn(`[FIPE] mercado por modelo: ${falhas} de ${chamadas} chamadas falharam`, Object.fromEntries(motivos));
+    avisos.push(
+      `A FIPE ${porque} em ${falhas} ${falhas === 1 ? "chamada" : "chamadas"}${parou ? " seguidas, e a leitura parou para não gastar o limite" : ""}: o histórico está incompleto. Analisar de novo busca só o que falta.`,
+    );
+    if (!deps.token?.trim()) {
+      avisos.push("Este ambiente está sem FIPE_API_TOKEN. Sem o token, a FIPE corta depois de poucas chamadas: ponha a variável na Vercel também em Preview e reimplante.");
+    }
+  }
 
   return { ok: true, mercado, chamadas, avisos };
 }

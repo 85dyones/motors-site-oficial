@@ -363,7 +363,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : { status: 429, corpo: {} });
     const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
     expect(r).toMatchObject({ ok: false, status: 429 });
-    // Cinco trabalhadores, uma chamada cada: ninguém insiste contra o limite.
+    // Uma chamada por trabalhador: ninguém insiste contra o limite.
     expect(pedidas.filter((u) => !u.endsWith("/references")).length).toBeLessThanOrEqual(5);
   });
 
@@ -376,6 +376,29 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     expect(r.mercado.mesesQueFaltaram).toBeGreaterThan(0);
     expect(r.avisos.join(" ")).toContain("limite de consultas de hoje");
     expect(gravadas).toHaveLength(10);
+  });
+
+  it("a FIPE corta sem dizer 429: para depois de poucas falhas seguidas e diz o motivo", async () => {
+    // O que aconteceu em 07/10/2026 no Preview, sem token: quatro vieram, o resto não.
+    let n = 0;
+    respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : ++n > 4 ? { status: 403, corpo: {} } : { status: 200, corpo: valor });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: undefined, banco: banco() });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(gravadas).toHaveLength(4);
+    // Não insiste nas 27: quatro falhas seguidas param a fila (mais as que já estavam em voo).
+    expect(r.chamadas).toBeLessThan(15);
+    expect(r.avisos.join(" ")).toContain("respondeu 403");
+    expect(r.avisos.join(" ")).toContain("FIPE_API_TOKEN");
+  });
+
+  it("falha solta no meio não para a fila, e com token não se fala de token", async () => {
+    let n = 0;
+    respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : ++n % 6 === 0 ? { status: 500, corpo: {} } : { status: 200, corpo: valor });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    expect(r.ok && r.chamadas).toBe(MESES_DE_HISTORICO + 1 + 2);
+    expect(r.ok && r.avisos.join(" ")).toContain("respondeu 500");
+    expect(r.ok && r.avisos.join(" ")).not.toContain("FIPE_API_TOKEN");
   });
 
   it("sem a tabela no banco: funciona, não grava e avisa da migração", async () => {
