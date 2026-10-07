@@ -24,7 +24,13 @@ import {
  * CPF, RG e endereço da planilha não passam daqui.
  */
 
-vi.mock("../src/lib/supabase", () => ({ getEstoque: async () => ESTOQUE }));
+// A correlação lê `estoque_motors` direto, com a chave de serviço. `getEstoque` com placa passa
+// pela view da equipe, que não devolve nada sem sessão: se alguém voltar a usá-la aqui, quebra.
+vi.mock("../src/lib/supabase", () => ({
+  getEstoque: async () => {
+    throw new Error("EstoqueIndisponivelError: a importação não pode depender de getEstoque");
+  },
+}));
 const ESTOQUE = [
   { id: "8479269", marca: "volkswagen", modelo: "t cross highline 250 tsi aut", placa: "TBA3H95" },
   { id: "8407873", marca: "volkswagen", modelo: "polo track 1.0 flex 12v 5p", placa: "EHS8C54" },
@@ -193,11 +199,11 @@ describe("a correlação com o estoque", () => {
 
 describe("a importação", () => {
   const ID = "11111111-1111-4111-8111-111111111111";
-  function banco(opcoes: { importacao?: object | null; erroDoLote?: boolean } = {}) {
+  function banco(opcoes: { importacao?: object | null; erroDoLote?: boolean; estoqueFora?: boolean } = {}) {
     const chamadas: Array<{ nome: string; args: Record<string, unknown> }> = [];
     const inseridas: object[] = [];
     const admin = {
-      from: () => ({
+      from: (tabela: string) => tabela === "estoque_motors" ? { select: () => ({ limit: async () => (opcoes.estoqueFora ? { data: null, error: { message: "fora" } } : { data: ESTOQUE.map((c) => ({ ...c, id: Number(c.id) })), error: null }) }) } : ({
         insert: (v: object) => (inseridas.push(v), { select: () => ({ single: async () => ({ data: { id: ID }, error: null }) }) }),
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: opcoes.importacao === undefined ? { id: ID, origem: "revenda_mais" } : opcoes.importacao, error: null }) }) }),
       }),
@@ -231,6 +237,13 @@ describe("a importação", () => {
     expect(enviado.p_contatos).toHaveLength(1);
     expect(JSON.stringify(enviado)).not.toContain("111.222");
     expect((enviado.p_contatos as Array<{ registros: Array<Record<string, unknown>> }>)[0].registros[0]).toMatchObject({ origem_id: "rm:100", veiculo_id: 8479269, tipo: "interesse" });
+  });
+
+  it("estoque fora do ar não derruba a importação: a pessoa entra, só sem a ligação com o carro", async () => {
+    const b = banco({ estoqueFora: true });
+    const r = await importarLote(b.admin, ID, { contatos: [{ telefone: "41 99999-0001", registros: [{ origemId: "100", tipo: "interesse", marca: "VOLKSWAGEN", modelo: "T CROSS", placa: "TBA3H95" }] }] });
+    expect(r).toMatchObject({ ok: true, contatosNovos: 1 });
+    expect((b.chamadas[0].args.p_contatos as Array<{ registros: Array<Record<string, unknown>> }>)[0].registros[0]).toMatchObject({ veiculo_id: null, marca: "VOLKSWAGEN", placa: "TBA3H95" });
   });
 
   it("lote grande demais, vazio, id torto ou importação que não existe não chegam ao banco", async () => {
