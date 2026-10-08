@@ -759,7 +759,14 @@ export function destinoDoClique(caminho: string, codigoDaCampanha: string): stri
  * fornecedor, conferido em 07/10/2026): o corpo é uma LISTA de avisos, e os
  * status vêm em sequência.
  */
-export type StatusDoRetorno = "inserted_for_processing" | "valid" | "sent_to_carrier" | "reply" | "outro";
+/**
+ * Os passos que o fornecedor avisa. Os quatro primeiros são os da doc; os dois
+ * seguintes apareceram no primeiro teste real (08/10/2026): `invalid` (o
+ * número não passou na validação de formato e de bloqueio: o SMS não sai e
+ * não é cobrado) e `delivered_to_device` (entregue no aparelho: é quando a
+ * APIBrasil cobra).
+ */
+export type StatusDoRetorno = "inserted_for_processing" | "valid" | "sent_to_carrier" | "reply" | "invalid" | "delivered_to_device" | "outro";
 
 export interface AvisoDoFornecedor {
   /** O id que o fornecedor deu ao SMS quando o aceitou. */
@@ -771,7 +778,11 @@ export interface AvisoDoFornecedor {
   texto: string | null;
 }
 
-const STATUS_CONHECIDOS: StatusDoRetorno[] = ["inserted_for_processing", "valid", "sent_to_carrier", "reply"];
+const STATUS_CONHECIDOS: StatusDoRetorno[] = ["inserted_for_processing", "valid", "sent_to_carrier", "reply", "invalid", "delivered_to_device"];
+
+/** O motivo gravado no envio que o fornecedor recusou depois de aceitar. */
+export const MOTIVO_NUMERO_RECUSADO =
+  "A APIBrasil recusou o número na validação (invalid): o SMS não saiu e não foi cobrado. Costuma ser número bloqueado para marketing ou fora do formato da operadora.";
 
 /** Lê o corpo do webhook. Aceita a lista ou um aviso solto; item sem id ou sem status fica de fora. */
 export function lerRetornoDoSms(corpo: unknown): AvisoDoFornecedor[] {

@@ -40,6 +40,7 @@ import {
   caminhoDoLinkCurto,
   destinoDoClique,
   ehPedidoDeSaida,
+  MOTIVO_NUMERO_RECUSADO,
   mascararTelefoneDoSms,
   montarMensagem,
   montarPublico,
@@ -746,8 +747,14 @@ export async function registrarRetorno(admin: SupabaseClient, avisos: AvisoDoFor
     if (!envio) continue;
     achados++;
     const mudanca: Record<string, unknown> = {};
-    if ((aviso.status === "valid" || aviso.status === "sent_to_carrier") && !envio.aceito_em) mudanca.aceito_em = quando;
-    if (aviso.status === "sent_to_carrier" && !envio.na_operadora_em) mudanca.na_operadora_em = quando;
+    if ((aviso.status === "valid" || aviso.status === "sent_to_carrier" || aviso.status === "delivered_to_device") && !envio.aceito_em) mudanca.aceito_em = quando;
+    // Entregue no aparelho passou, por definição, pela operadora.
+    if ((aviso.status === "sent_to_carrier" || aviso.status === "delivered_to_device") && !envio.na_operadora_em) mudanca.na_operadora_em = quando;
+    // Recusado depois de aceito: o envio falhou, e a tela tem de contar como falha, com o motivo.
+    if (aviso.status === "invalid" && !envio.na_operadora_em) {
+      mudanca.situacao = "falhou";
+      mudanca.erro = MOTIVO_NUMERO_RECUSADO;
+    }
     if (aviso.status === "reply") {
       if (!envio.respondeu_em) {
         mudanca.respondeu_em = quando;

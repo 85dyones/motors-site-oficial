@@ -530,6 +530,17 @@ describe("o retorno do fornecedor", () => {
     expect(estado.sms_envios[0]).toMatchObject({ aceito_em: "2026-10-07T12:00:00.000Z", na_operadora_em: "2026-10-07T12:01:00.000Z" });
   });
 
+  it("número recusado depois de aceito (invalid) vira falha com o motivo; entregue marca a operadora", async () => {
+    // O primeiro teste real (08/10/2026): inserted_for_processing e, em seguida, invalid.
+    const estado = { ...estadoCom(0, "enviada"), sms_envios: [enviado(1), enviado(2)] };
+    const admin = bancoDeMentira(estado);
+    await registrarRetorno(admin, [{ id: "sms_1", status: "invalid", statusBruto: "invalid", texto: null }], new Date("2026-10-08T17:56:45Z"));
+    expect(estado.sms_envios[0]).toMatchObject({ situacao: "falhou" });
+    expect(String(estado.sms_envios[0].erro)).toContain("recusou o número");
+    await registrarRetorno(admin, [{ id: "sms_2", status: "delivered_to_device", statusBruto: "delivered_to_device", texto: null }], new Date("2026-10-08T18:00:00Z"));
+    expect(estado.sms_envios[1]).toMatchObject({ situacao: "enviado", aceito_em: "2026-10-08T18:00:00.000Z", na_operadora_em: "2026-10-08T18:00:00.000Z" });
+  });
+
   it("resposta comum fica guardada e não tira ninguém da lista", async () => {
     const estado = { ...estadoCom(0, "enviada"), sms_envios: [enviado(1)] };
     const achados = await registrarRetorno(bancoDeMentira(estado), [{ id: "sms_1", status: "reply", statusBruto: "reply", texto: "Quero ver o carro" }]);
