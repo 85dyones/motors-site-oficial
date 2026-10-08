@@ -19,7 +19,7 @@ import PainelDaFipe from "./PainelDaFipe";
 import SinalDeEstado, { COR_DO_ESTADO, ROTULO_DO_ESTADO } from "./SinalDeEstado";
 
 /**
- * `/admin/consulta-placa` — o retrato de um carro pela placa.
+ * A aba Por placa de `/admin/consulta-veiculos` — o retrato de um carro pela placa.
  *
  * Quem abre: Administrador, Gestor e Comercial (matriz, "Consultar placa de
  * veículo (consulta paga)"). Quando: o carro foi oferecido à loja, para compra

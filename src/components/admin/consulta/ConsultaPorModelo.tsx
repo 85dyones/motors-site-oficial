@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ParametrosDaCurva } from "../../../lib/avaliacaoRecomendacao";
 import { MESES_DO_RITMO, MESES_PROJETADOS, serieDoGrafico, tendenciaDaFipe, type EstadoDaChecagem } from "../../../lib/consultaDePlaca";
@@ -14,15 +14,24 @@ import {
   type EstadoDaTendencia,
   type MercadoDoModelo,
 } from "../../../lib/mercadoPorModelo";
-import type { LeituraDosModelos, ModeloRecente } from "../../../lib/mercadoPorModelo-servidor";
+import type { LeituraDosModelos } from "../../../lib/mercadoPorModelo-servidor";
+import { useConfirm } from "../ConfirmDialog";
 import FaixaDeCompra, { useAvaliacao } from "./FaixaDeCompra";
 import GraficoDeBarras from "./GraficoDeBarras";
 import PainelDaFipe from "./PainelDaFipe";
 import SinalDeEstado, { COR_DO_ESTADO } from "./SinalDeEstado";
 
 /**
- * A aba "Por modelo" de `/admin/consulta-placa` — a primeira análise de
- * compra, sem custo (pedido do dono em 06/10/2026).
+ * As duas abas de modelo de `/admin/consulta-veiculos` (dono, 06 e 08/10/2026):
+ *
+ *  - `modo="pontual"` — "FIPE · GRÁTIS": o valor de hoje do ano escolhido e
+ *    dos vizinhos, e a faixa de compra. Não tem série: a FIPE gratuita só
+ *    libera os meses mais recentes.
+ *  - `modo="completa"` — "POR MODELO · PAGA": a série de 24 meses, os
+ *    gráficos e o alerta de desvalorização. Os meses que a FIPE gratuita
+ *    corta vêm da APIBrasil (R$ 0,06 por mês); antes de rodar, a tela diz
+ *    quantos meses PODEM ser cobrados e pede confirmação. Mês guardado não
+ *    paga de novo.
  *
  * Quem abre: quem avalia carro (Administrador, Gestor, Comercial). Quando:
  * ANTES de gastar uma consulta de placa — o cliente disse o carro pelo
@@ -57,8 +66,31 @@ const SINAL_DA_TENDENCIA: Record<EstadoDaTendencia, { estado: EstadoDaChecagem; 
 type Lista = { carregando: boolean; opcoes: OpcaoFipe[]; erro: string | null };
 const VAZIA: Lista = { carregando: false, opcoes: [], erro: null };
 
-export default function ConsultaPorModelo({ curva, recentes }: { curva: ParametrosDaCurva | null; recentes: LeituraDosModelos }) {
+export interface SelecaoDeModelo {
+  marca: string;
+  modelo: string;
+  ano: string;
+  anos: string[];
+}
+
+export default function ConsultaPorModelo({
+  curva,
+  recentes,
+  modo,
+  pedidoDeFora = null,
+  aoPedirCompleta,
+}: {
+  curva: ParametrosDaCurva | null;
+  recentes: LeituraDosModelos;
+  modo: "pontual" | "completa";
+  /** Um modelo escolhido na outra aba (o "ver a série" da pontual). Cada objeto novo dispara uma análise. */
+  pedidoDeFora?: SelecaoDeModelo | null;
+  aoPedirCompleta?: (s: SelecaoDeModelo) => void;
+}) {
   const router = useRouter();
+  const { confirm } = useConfirm();
+  const completa = modo === "completa";
+  const [custo, setCusto] = useState<{ chamadasPagas: number; custo: number | null } | null>(null);
   const [marcas, setMarcas] = useState<Lista>({ ...VAZIA, carregando: true });
   const [modelos, setModelos] = useState<Lista>(VAZIA);
   const [anos, setAnos] = useState<Lista>(VAZIA);
@@ -120,22 +152,67 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
     }
   };
 
-  const analisar = async (pedido: { marca: string; modelo: string; ano: string; anos: string[] }) => {
+  const reaisComCentavos = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  /**
+   * Na completa, antes de qualquer centavo: quantos meses PODEM ser cobrados.
+   * `true` segue; `false` é a pessoa dizendo não (ou a estimativa falhando).
+   */
+  const confirmarCusto = async (pedido: SelecaoDeModelo): Promise<boolean> => {
+    const res = await fetch("/api/consulta-placa/modelo", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tipo: TIPO, ...pedido, modo: "completa", estimar: true }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      mesesPagosNoMaximo?: number;
+      precoPorMes?: number | null;
+      temToken?: boolean;
+      homologacao?: boolean;
+      error?: string;
+    };
+    if (!res.ok || typeof json.mesesPagosNoMaximo !== "number") {
+      setErro(json.error || "Não deu para calcular o custo da consulta.");
+      return false;
+    }
+    const n = json.mesesPagosNoMaximo;
+    // Nada a cobrar: tudo guardado, ou o ambiente sem token (o aviso vem na resposta), ou modo de teste.
+    if (n === 0 || !json.temToken || json.homologacao) return true;
+    const valor = json.precoPorMes ? ` (até ${reaisComCentavos(n * json.precoPorMes)})` : "";
+    return confirm({
+      title: "Consulta completa paga",
+      message:
+        `Até ${n} ${n === 1 ? "mês" : "meses"} da tabela FIPE na APIBrasil${valor}. ` +
+        "Os meses que a FIPE gratuita entrega e os já guardados não são cobrados, e o que vier fica guardado para as próximas consultas.",
+      confirmLabel: "Consultar",
+      type: "warning",
+    });
+  };
+
+  const analisar = async (pedido: SelecaoDeModelo) => {
     setErro(null);
     setCarregando(true);
     try {
+      if (completa && !(await confirmarCusto(pedido))) return;
       const res = await fetch("/api/consulta-placa/modelo", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tipo: TIPO, ...pedido }),
+        body: JSON.stringify({ tipo: TIPO, ...pedido, modo }),
       });
-      const json = (await res.json().catch(() => ({}))) as { mercado?: MercadoDoModelo; avisos?: string[]; error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        mercado?: MercadoDoModelo;
+        avisos?: string[];
+        chamadasPagas?: number;
+        custo?: number | null;
+        error?: string;
+      };
       if (!res.ok || !json.mercado) {
         setErro(json.error || "A análise não voltou.");
         return;
       }
       setMercado(json.mercado);
       setAvisos(json.avisos ?? []);
+      setCusto(completa ? { chamadasPagas: json.chamadasPagas ?? 0, custo: json.custo ?? null } : null);
       avaliacao.zerar();
       // "Modelos já consultados" é do servidor.
       router.refresh();
@@ -147,13 +224,22 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
   };
 
   /** Reabre um modelo já consultado: os anos vêm da FIPE, o histórico já está guardado. */
-  const reabrir = async (m: ModeloRecente) => {
+  const reabrir = async (m: { marcaCodigo: string; modeloCodigo: string; ano: string }) => {
     setErro(null);
     await escolherMarca(m.marcaCodigo);
     const opcoes = await escolherModelo(m.modeloCodigo, m.marcaCodigo);
     setAno(m.ano);
     await analisar({ marca: m.marcaCodigo, modelo: m.modeloCodigo, ano: m.ano, anos: opcoes.map((o) => o.codigo) });
   };
+
+  // O modelo que veio da aba grátis: cada pedido novo (objeto novo) abre uma vez.
+  const ultimoDeFora = useRef<SelecaoDeModelo | null>(null);
+  useEffect(() => {
+    if (!pedidoDeFora || pedidoDeFora === ultimoDeFora.current) return;
+    ultimoDeFora.current = pedidoDeFora;
+    void reabrir({ marcaCodigo: pedidoDeFora.marca, modeloCodigo: pedidoDeFora.modelo, ano: pedidoDeFora.ano });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pedidoDeFora]);
 
   // ── A leitura da série ─────────────────────────────────────────────────────
   const tendencia = useMemo(() => (mercado ? tendenciaDaFipe(mercado.historico) : null), [mercado]);
@@ -216,11 +302,12 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
           </select>
         </label>
         <button type="submit" disabled={carregando || !ano} className="mt-btn mt-btn-primario mt-foco cursor-pointer px-5 py-3 text-[11px]">
-          {carregando ? "Analisando…" : "Analisar"}
+          {carregando ? "Consultando…" : completa ? "Analisar (pago)" : "Consultar FIPE"}
         </button>
         <p className={`${dica} sm:col-span-4`}>
-          Sem custo: só a tabela FIPE pública e a curva de deságio da loja. A primeira análise de um modelo leva alguns
-          segundos, porque busca {MESES_DE_HISTORICO} meses de tabela; depois ele abre na hora.
+          {completa
+            ? `Consulta paga: ${MESES_DE_HISTORICO} meses de tabela. Os meses que a FIPE gratuita entrega e os já guardados não são cobrados; os outros vêm da APIBrasil, e antes de cobrar a tela diz quantos são.`
+            : "Sem custo: o valor FIPE de hoje deste ano e dos anos vizinhos, e a faixa de compra pela curva da loja. O histórico e a tendência estão na consulta Por modelo, paga."}
         </p>
       </form>
 
@@ -231,7 +318,55 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
         </div>
       ))}
 
-      {mercado && alerta && sinal && (
+      {mercado && !completa && (
+        <>
+          <section aria-label="FIPE de hoje" data-fipe-pontual className="flex flex-col gap-3 border-2 border-mt-ink bg-mt-surface p-5">
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+              <div className="flex min-w-0 flex-col">
+                <span className={rotulo}>FIPE HOJE · {mercado.referencia.split("-").reverse().join("/")}</span>
+                <span className="mt-titulo m-0 text-3xl tabular-nums md:text-4xl" data-fipe-atual>
+                  {reais(mercado.fipeAtual)}
+                </span>
+              </div>
+              <div className="ml-auto flex flex-col items-end text-right">
+                <span className="text-sm font-extrabold text-mt-ink">
+                  {[mercado.marca, mercado.modelo].filter(Boolean).join(" ") || "Modelo"} · {mercado.anoModelo}
+                </span>
+                <span className="text-xs text-mt-neutral-800">
+                  {[mercado.combustivel, mercado.codigoFipe ? `FIPE ${mercado.codigoFipe}` : null].filter(Boolean).join(" · ")}
+                </span>
+              </div>
+            </div>
+            {aoPedirCompleta && (
+              <div className="flex flex-wrap items-center gap-3 border-t border-mt-regua-fina pt-3">
+                <p className="m-0 flex-1 text-xs text-mt-neutral-800">
+                  Para onde a tabela deste modelo está indo, mês a mês, e quanto ele perde de pátio: consulta Por modelo, paga.
+                </p>
+                <button
+                  type="button"
+                  className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2 text-[11px]"
+                  onClick={() => aoPedirCompleta({ marca, modelo, ano, anos: anos.opcoes.map((o) => o.codigo) })}
+                >
+                  Ver histórico e tendência
+                </button>
+              </div>
+            )}
+          </section>
+
+          {avisos.map((a) => (
+            <div key={a} className="flex items-start gap-3 border-l-[3px] bg-mt-surface px-4 py-3 text-xs text-mt-ink" style={{ borderColor: COR_DO_ESTADO.atencao }}>
+              <SinalDeEstado estado="atencao" />
+              <span>{a}</span>
+            </div>
+          ))}
+
+          <FaixaDeCompra avaliacao={avaliacao} fipeAtual={mercado.fipeAtual} semDocumento />
+
+          {mercado.porAno.length > 1 && <AnoAAno mercado={mercado} rotulo={rotulo} dica={dica} secao={secao} />}
+        </>
+      )}
+
+      {mercado && completa && alerta && sinal && (
         <>
           {/* ── O alerta de tendência, para ler de longe ──────────────────── */}
           <section
@@ -270,6 +405,13 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
               débitos só aparecem na aba Por placa.
             </p>
           </section>
+
+          {custo && custo.chamadasPagas > 0 && (
+            <p className={dica} data-custo-da-consulta>
+              Esta análise consultou {custo.chamadasPagas} {custo.chamadasPagas === 1 ? "mês" : "meses"} na APIBrasil
+              {custo.custo !== null ? ` (${reaisComCentavos(custo.custo)})` : ""}. Eles ficaram guardados: reabrir este modelo não paga de novo.
+            </p>
+          )}
 
           {avisos.map((a) => (
             <div key={a} className="flex items-start gap-3 border-l-[3px] bg-mt-surface px-4 py-3 text-xs text-mt-ink" style={{ borderColor: COR_DO_ESTADO.atencao }}>
@@ -340,49 +482,7 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
           )}
 
           {/* ── Ano contra ano ────────────────────────────────────────────── */}
-          {mercado.porAno.length > 1 && (
-            <section aria-label="Valor por ano-modelo" className={secao}>
-              <h2 className={`${rotulo} m-0`}>O MESMO MODELO, ANO A ANO</h2>
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-                <GraficoDeBarras
-                  descricao="Valor FIPE de hoje para cada ano-modelo deste carro"
-                  formatoDoEixo={milhares}
-                  formatoDoDestaque={reais}
-                  barras={[...mercado.porAno].reverse().map((a) => ({
-                    rotulo: String(a.anoModelo),
-                    valor: a.valor,
-                    destaque: a.escolhido,
-                    dica: [reais(a.valor), ...(a.abaixoDoSeguintePct !== null ? [`${pct(a.abaixoDoSeguintePct)} contra o ${a.anoModelo + 1}`] : [])],
-                  }))}
-                />
-                <table className="mt-tabela text-xs">
-                  <thead>
-                    <tr>
-                      <th scope="col">Ano</th>
-                      <th scope="col" className="mt-num">FIPE hoje</th>
-                      <th scope="col" className="mt-num">Contra o ano seguinte</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mercado.porAno.map((a) => (
-                      <tr key={a.ano} data-ano={a.anoModelo} className={a.escolhido ? "font-extrabold" : undefined}>
-                        <td>
-                          {a.anoModelo}
-                          {a.escolhido ? " · escolhido" : ""}
-                        </td>
-                        <td className="mt-num">{reais(a.valor)}</td>
-                        <td className="mt-num">{a.abaixoDoSeguintePct !== null ? pct(a.abaixoDoSeguintePct) : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className={dica}>
-                A última coluna é o que um ano de idade custa neste modelo, na tabela de hoje. Degrau grande entre dois
-                anos costuma ser troca de geração ou de motor: vale conferir qual é qual antes de comprar o mais velho.
-              </p>
-            </section>
-          )}
+          {mercado.porAno.length > 1 && <AnoAAno mercado={mercado} rotulo={rotulo} dica={dica} secao={secao} />}
 
           {mercado.mesesQueFaltaram > 0 && (
             <p className={dica}>
@@ -395,7 +495,7 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
 
       {recentes.ok && recentes.modelos.length > 0 && (
         <section aria-label="Modelos já consultados" className={secao}>
-          <h2 className={`${rotulo} m-0`}>MODELOS JÁ CONSULTADOS · ABREM NA HORA</h2>
+          <h2 className={`${rotulo} m-0`}>MODELOS JÁ CONSULTADOS</h2>
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
             {recentes.modelos.map((m) => (
               <li key={`${m.marcaCodigo}-${m.modeloCodigo}-${m.ano}`}>
@@ -419,5 +519,52 @@ export default function ConsultaPorModelo({ curva, recentes }: { curva: Parametr
         </p>
       )}
     </div>
+  );
+}
+
+/** O mesmo modelo, ano a ano, na tabela de hoje. Igual nas duas abas. */
+function AnoAAno({ mercado, rotulo, dica, secao }: { mercado: MercadoDoModelo; rotulo: string; dica: string; secao: string }) {
+  return (
+    <section aria-label="Valor por ano-modelo" className={secao}>
+      <h2 className={`${rotulo} m-0`}>O MESMO MODELO, ANO A ANO</h2>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <GraficoDeBarras
+          descricao="Valor FIPE de hoje para cada ano-modelo deste carro"
+          formatoDoEixo={milhares}
+          formatoDoDestaque={reais}
+          barras={[...mercado.porAno].reverse().map((a) => ({
+            rotulo: String(a.anoModelo),
+            valor: a.valor,
+            destaque: a.escolhido,
+            dica: [reais(a.valor), ...(a.abaixoDoSeguintePct !== null ? [`${pct(a.abaixoDoSeguintePct)} contra o ${a.anoModelo + 1}`] : [])],
+          }))}
+        />
+        <table className="mt-tabela text-xs">
+          <thead>
+            <tr>
+              <th scope="col">Ano</th>
+              <th scope="col" className="mt-num">FIPE hoje</th>
+              <th scope="col" className="mt-num">Contra o ano seguinte</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mercado.porAno.map((a) => (
+              <tr key={a.ano} data-ano={a.anoModelo} className={a.escolhido ? "font-extrabold" : undefined}>
+                <td>
+                  {a.anoModelo}
+                  {a.escolhido ? " · escolhido" : ""}
+                </td>
+                <td className="mt-num">{reais(a.valor)}</td>
+                <td className="mt-num">{a.abaixoDoSeguintePct !== null ? pct(a.abaixoDoSeguintePct) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className={dica}>
+        A última coluna é o que um ano de idade custa neste modelo, na tabela de hoje. Degrau grande entre dois
+        anos costuma ser troca de geração ou de motor: vale conferir qual é qual antes de comprar o mais velho.
+      </p>
+    </section>
   );
 }

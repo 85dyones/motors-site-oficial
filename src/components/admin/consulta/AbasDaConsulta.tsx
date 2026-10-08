@@ -5,28 +5,35 @@ import type { ParametrosDaCurva } from "../../../lib/avaliacaoRecomendacao";
 import type { LeituraDasRecentes } from "../../../lib/consultaDePlaca-servidor";
 import type { LeituraDosModelos } from "../../../lib/mercadoPorModelo-servidor";
 import ConsultaDePlaca from "./ConsultaDePlaca";
-import ConsultaPorModelo from "./ConsultaPorModelo";
+import ConsultaPorModelo, { type SelecaoDeModelo } from "./ConsultaPorModelo";
 
 /**
- * O invólucro de `/admin/consulta-placa`: o cabeçalho e as duas abas.
+ * O invólucro de `/admin/consulta-veiculos`: o cabeçalho e as três abas.
  *
- * A ordem é a do trabalho (pedido do dono em 06/10/2026): primeiro o MODELO,
- * que não custa nada e responde "vale olhar este carro?"; depois a PLACA, que
- * é paga e responde "posso comprar ESTE carro?". A aba que abre é a gratuita:
- * ninguém gasta uma consulta por ter entrado na tela.
+ * A ordem é a do trabalho (dono, 06 e 08/10/2026), do que não custa ao que
+ * custa mais: a FIPE de hoje, grátis ("quanto vale?"); o MODELO, pago por mês
+ * de tabela ("para onde ele vai?"); a PLACA, paga por consulta ("posso
+ * comprar ESTE carro?"). A aba que abre é a gratuita: ninguém gasta uma
+ * consulta por ter entrado na tela.
  *
- * As duas ficam montadas (a escondida leva `hidden`): trocar de aba não apaga
+ * As três ficam montadas (a escondida leva `hidden`): trocar de aba não apaga
  * o que o avaliador já consultou na outra.
  */
 
-type Aba = "modelo" | "placa";
+type Aba = "fipe" | "modelo" | "placa";
 
 const ABAS: Array<{ chave: Aba; rotulo: string; descricao: string }> = [
   {
-    chave: "modelo",
-    rotulo: "POR MODELO · SEM CUSTO",
+    chave: "fipe",
+    rotulo: "FIPE · GRÁTIS",
     descricao:
-      "A primeira análise: para onde vai a tabela FIPE deste modelo, quanto ele perde por mês de pátio e a faixa de compra pela curva da loja. Não gasta consulta.",
+      "A consulta do dia a dia: o valor FIPE de hoje do modelo e dos anos vizinhos, e a faixa de compra pela curva da loja. Não gasta nada.",
+  },
+  {
+    chave: "modelo",
+    rotulo: "POR MODELO · PAGA",
+    descricao:
+      "A análise completa: 24 meses de tabela, para onde ela vai, quanto o carro perde por mês de pátio e o alerta de desvalorização. Os meses que a FIPE gratuita não libera vêm da APIBrasil; o que já foi consultado reabre sem custo.",
   },
   {
     chave: "placa",
@@ -49,14 +56,15 @@ export default function AbasDaConsulta({
   temToken: boolean;
   homologacao: boolean;
 }) {
-  const [aba, setAba] = useState<Aba>("modelo");
+  const [aba, setAba] = useState<Aba>("fipe");
+  const [paraACompleta, setParaACompleta] = useState<SelecaoDeModelo | null>(null);
   const atual = ABAS.find((a) => a.chave === aba)!;
 
   return (
     <div className="mt-consulta mx-auto flex w-full max-w-5xl flex-col gap-6">
       <header className="flex flex-col gap-3">
         <span className="mt-rotulo">ESTOQUE</span>
-        <h1 className="mt-titulo m-0 text-3xl md:text-4xl">Consulta de placa</h1>
+        <h1 className="mt-titulo m-0 text-3xl md:text-4xl">Consulta de veículos</h1>
         <div role="radiogroup" aria-label="Tipo de consulta" className="mt-seg flex-wrap self-start">
           {ABAS.map((a) => (
             <label key={a.chave} className="mt-seg-opt">
@@ -70,8 +78,20 @@ export default function AbasDaConsulta({
         </p>
       </header>
 
+      <div hidden={aba !== "fipe"} data-aba="fipe">
+        <ConsultaPorModelo
+          modo="pontual"
+          curva={curva}
+          recentes={modelos}
+          aoPedirCompleta={(s) => {
+            // Objeto novo a cada clique: a aba paga abre este modelo (e pergunta o custo antes).
+            setParaACompleta({ ...s });
+            setAba("modelo");
+          }}
+        />
+      </div>
       <div hidden={aba !== "modelo"} data-aba="modelo">
-        <ConsultaPorModelo curva={curva} recentes={modelos} />
+        <ConsultaPorModelo modo="completa" curva={curva} recentes={modelos} pedidoDeFora={paraACompleta} />
       </div>
       <div hidden={aba !== "placa"} data-aba="placa">
         <ConsultaDePlaca recentes={recentes} curva={curva} temToken={temToken} homologacao={homologacao} />

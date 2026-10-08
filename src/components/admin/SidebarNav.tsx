@@ -137,7 +137,8 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // compra, e a consulta é paga — a linha "Consultar placa de veículo
         // (consulta paga)" da matriz, a mesma que a página, a rota e a RLS
         // cobram.
-        { name: "Consulta de placa", href: "/admin/consulta-placa", roles: ["admin", "gestor", "comercial"] },
+        // Virou "Consulta de veículos" em 08/10/2026: FIPE grátis, modelo pago e placa paga, numa tela só.
+        { name: "Consulta de veículos", href: "/admin/consulta-veiculos", roles: ["admin", "gestor", "comercial"] },
       ],
     },
     {

@@ -18,7 +18,8 @@ import {
   type MercadoDoModelo,
   type PedidoDeModelo,
 } from "../src/lib/mercadoPorModelo";
-import { consultarMercado, esquecerReferencias, type BancoDoHistorico } from "../src/lib/mercadoPorModelo-servidor";
+import { consultarMercado, esquecerReferencias, estimarConsultaCompleta, type BancoDoHistorico, type LeitorPago } from "../src/lib/mercadoPorModelo-servidor";
+import type { LeituraPaga } from "../src/lib/apiBrasilFipe";
 
 /**
  * O mercado por modelo — a aba sem custo de `/admin/consulta-placa`
@@ -416,7 +417,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     expect(r.chamadas).toBeLessThanOrEqual(3 + 2 + 3);
     const aviso = r.avisos.join(" ");
     expect(aviso).toContain("julho/2026");
-    expect(aviso).toContain("402");
+    expect(aviso).toContain("plano pago");
     expect(aviso).not.toContain("busca só o que falta");
     expect(gravadas.every((l) => l.valor !== null)).toBe(true);
 
@@ -472,6 +473,119 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
     expect(r).toMatchObject({ ok: false, status: 502 });
     expect(!r.ok && r.motivo).toContain("plano");
+  });
+
+  describe("os dois modos (08/10/2026)", () => {
+    const fora = (url: string) => /reference=(\d+)/.test(url) && Number(/reference=(\d+)/.exec(url)![1]) <= 327;
+    const VALOR_PAGO: LeituraPaga = { tipo: "valor", valor: { valor: 90000, marca: "VW", modelo: "T-Cross", anoModelo: 2022, combustivel: "Flex", codigoFipe: "005510-1" } };
+    let pagas: number[];
+    const leitor = (resposta: (codigo: number, n: number) => LeituraPaga, homologacao = false): LeitorPago => ({
+      homologacao,
+      ler: async (b) => {
+        pagas.push(b.referencia.codigo);
+        return resposta(b.referencia.codigo, pagas.length);
+      },
+    });
+    beforeEach(() => {
+      pagas = [];
+      respostaDe = (url) => (fora(url) ? { status: 402, corpo: {} } : padrao(url));
+    });
+
+    it("pontual: só o mês corrente do ano escolhido e dos vizinhos, e nunca a paga", async () => {
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "pontual", pago: leitor(() => VALOR_PAGO) });
+      expect(r.ok && r.chamadas).toBe(3);
+      expect(pedidas.filter((u) => !u.endsWith("/references")).every((u) => u.includes("reference=330"))).toBe(true);
+      expect(pagas).toEqual([]);
+      expect(r.ok && r.chamadasPagas).toBe(0);
+      expect(r.ok && r.mercado.porAno).toHaveLength(3);
+      // A pontual não fala de série: nenhum aviso de plano.
+      expect(r.ok && r.avisos).toEqual([]);
+    });
+
+    it("completa: o que a FIPE gratuita entrega vem dela; o resto, da paga, e fica guardado", async () => {
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => VALOR_PAGO) });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.mercado.historico).toHaveLength(MESES_DE_HISTORICO + 1);
+      expect(r.mercado.mesesForaDoPlano).toBe(0);
+      expect(r.chamadasPagas).toBe(MESES_DE_HISTORICO + 1 - 3);
+      // Nenhum mês pago que a gratuita entrega, e nenhum mês corrente na paga.
+      expect(pagas.every((c) => c <= 327)).toBe(true);
+      expect(new Set(pagas).size).toBe(pagas.length);
+      expect(gravadas.filter((l) => l.valor === 90000)).toHaveLength(MESES_DE_HISTORICO + 1 - 3);
+      expect(r.avisos).toEqual([]);
+
+      // Reabrir: tudo guardado, nada pago.
+      guardadas = [...gravadas];
+      pagas = [];
+      const de_novo = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => VALOR_PAGO) });
+      expect(de_novo.ok && de_novo.chamadasPagas).toBe(0);
+      expect(pagas).toEqual([]);
+    });
+
+    it("sem saldo na APIBrasil: a paga para no primeiro 402 dela e a tela diz o porquê", async () => {
+      const r = await consultarMercado(PEDIDO, {
+        buscar: buscar as never,
+        token: "tok",
+        banco: banco(),
+        modo: "completa",
+        pago: leitor(() => ({ tipo: "sem_saldo", motivo: "A conta da APIBrasil está sem saldo." })),
+      });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.chamadasPagas).toBeLessThanOrEqual(3);
+      expect(r.avisos.join(" ")).toContain("sem saldo");
+      expect(r.mercado.historico).toHaveLength(3);
+    });
+
+    it("três falhas pagas seguidas param a paga, e falha não fica guardada", async () => {
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => ({ tipo: "falha", porque: "não respondeu" })) });
+      expect(r.ok && r.chamadasPagas).toBeLessThanOrEqual(3 + 2);
+      expect(r.ok && r.avisos.join(" ")).toContain("parou para não cobrar à toa");
+      expect(gravadas.every((l) => l.valor !== null)).toBe(true);
+    });
+
+    it("'não tinha o carro' pago só fica guardado se a mesma leitura trouxe algum valor pago", async () => {
+      await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => ({ tipo: "sem_valor" })) });
+      expect(gravadas.some((l) => l.valor === null)).toBe(false);
+      gravadas = [];
+      esquecerReferencias();
+      await consultarMercado(PEDIDO, {
+        buscar: buscar as never,
+        token: "tok",
+        banco: banco(),
+        modo: "completa",
+        pago: leitor((codigo) => (codigo < 310 ? { tipo: "sem_valor" } : VALOR_PAGO)),
+      });
+      expect(gravadas.filter((l) => l.valor === null).length).toBeGreaterThan(0);
+    });
+
+    it("homologação: confere o formato, não cobra, e o valor de exemplo não entra no gráfico nem no banco", async () => {
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => VALOR_PAGO, true) });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.mercado.historico).toHaveLength(3);
+      expect(gravadas.some((l) => l.valor === 90000)).toBe(false);
+      expect(r.avisos.join(" ")).toContain("modo de teste");
+    });
+
+    it("completa sem token da APIBrasil: mostra o que a gratuita deu e diz o que falta", async () => {
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: null });
+      expect(r.ok && r.avisos.join(" ")).toContain("APIBRASIL_TOKEN");
+    });
+
+    it("a estimativa: sem corte conhecido é o teto; com o corte, só os meses para trás dele; guardado não conta", async () => {
+      const antes = await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+      expect(antes).toEqual({ ok: true, mesesPagosNoMaximo: MESES_DE_HISTORICO });
+      await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "pontual" });
+      // O corte só se aprende pedindo um mês antigo.
+      await consultarMercado({ ...PEDIDO, modelo: "6000" }, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: null });
+      const depois = await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+      expect(depois).toEqual({ ok: true, mesesPagosNoMaximo: MESES_DE_HISTORICO - 2 });
+      guardadas = gravadas.filter((l) => l.ano === PEDIDO.ano);
+      const com_guardado = await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+      expect(com_guardado.ok && com_guardado.mesesPagosNoMaximo).toBeLessThanOrEqual(MESES_DE_HISTORICO - 2);
+    });
   });
 
   it("sem a tabela no banco: funciona, não grava e avisa da migração", async () => {

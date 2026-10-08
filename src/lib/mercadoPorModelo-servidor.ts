@@ -34,8 +34,10 @@ import {
   type MercadoDoModelo,
   type PedidoDeModelo,
   type ReferenciaDaFipe,
+  type ValorDaFipe,
 } from "./mercadoPorModelo";
 import { FIPE_V2 } from "./fipeNoServidor";
+import type { LeituraPaga } from "./apiBrasilFipe";
 
 export const MIGRACAO_DO_HISTORICO_DA_FIPE = "20261006190000_fipe_historico";
 
@@ -123,8 +125,28 @@ export interface BancoDoHistorico {
   gravar: (pedido: PedidoDeModelo, linhas: LinhaDoHistorico[]) => Promise<{ ok: boolean; motivo?: string }>;
 }
 
+/**
+ * Os dois modos da análise por modelo (dono, 08/10/2026):
+ *  - `pontual`: grátis. Só o mês corrente do ano escolhido e dos vizinhos, na
+ *    FIPE pública. Responde "quanto vale hoje" e "quanto custa um ano de idade".
+ *  - `completa`: paga. A série de 24 meses. O que a FIPE pública entrega vem
+ *    dela, de graça; os meses que o plano gratuito corta (402) vêm da Tabela
+ *    FIPE da APIBrasil (`apiBrasilFipe.ts`), a R$ 0,06 por mês.
+ */
+export type ModoDaAnalise = "pontual" | "completa";
+
+/** O leitor pago, montado pela rota. `null` quando o ambiente não tem APIBRASIL_TOKEN. */
+export interface LeitorPago {
+  ler: (busca: Busca) => Promise<LeituraPaga>;
+  /** Homologação: o fornecedor devolve um carro de exemplo e não cobra. Nada disso é tabela. */
+  homologacao: boolean;
+}
+
+/** Depois de quantas falhas pagas SEGUIDAS a fila paga para: cada uma pode ter sido cobrada. */
+const FALHAS_PAGAS_QUE_PARAM = 3;
+
 export type ResultadoDoMercado =
-  | { ok: true; mercado: MercadoDoModelo; chamadas: number; avisos: string[] }
+  | { ok: true; mercado: MercadoDoModelo; chamadas: number; chamadasPagas: number; avisos: string[] }
   | { ok: false; status: 502 | 429; motivo: string };
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -132,8 +154,10 @@ const nomeDoMes = (r: ReferenciaDaFipe) => `${MESES[r.mes - 1] ?? r.mes}/${r.ano
 
 export async function consultarMercado(
   pedido: PedidoDeModelo,
-  deps: { buscar: BuscarNaFipe; token: string | undefined; banco: BancoDoHistorico },
+  deps: { buscar: BuscarNaFipe; token: string | undefined; banco: BancoDoHistorico; modo?: ModoDaAnalise; pago?: LeitorPago | null },
 ): Promise<ResultadoDoMercado> {
+  const modo = deps.modo ?? "completa";
+  const pago = modo === "completa" ? (deps.pago ?? null) : null;
   let referencias: ReferenciaDaFipe[];
   try {
     referencias = await referenciasDaFipe(deps.buscar, deps.token);
@@ -159,7 +183,10 @@ export async function consultarMercado(
   let corte = corteEmMemoria && agora - corteEmMemoria.em < VALIDADE_DAS_REFERENCIAS_MS ? corteEmMemoria.chave : null;
   // A fila inteira, sem o corte: quem pula é o trabalhador, olhando o corte da hora. Se o
   // mês corrente vier com valor, o corte cai e os meses anteriores entram nesta mesma leitura.
-  const fila = planoDeBusca(pedido, referencias, linhas);
+  const chaveAtual = referencias[0] ? chaveDaReferencia(referencias[0]) : null;
+  const planoInteiro = planoDeBusca(pedido, referencias, linhas);
+  // Pontual: só o mês corrente (o ano escolhido e os vizinhos). A série é da consulta completa.
+  const fila = modo === "pontual" ? planoInteiro.filter((b) => chaveDaReferencia(b.referencia) === chaveAtual) : planoInteiro;
   const novas: LinhaDoHistorico[] = [];
   let chamadas = 0;
   let falhas = 0;
@@ -169,14 +196,60 @@ export async function consultarMercado(
   let proxima = 0;
   // A fila vai do mês mais novo para trás: o resto dela, depois de um 402, também está fora do plano.
   // O mês corrente nunca é pulado: custa uma chamada e é por ele que se percebe o plano de volta.
-  const chaveAtual = referencias[0] ? chaveDaReferencia(referencias[0]) : null;
   const pulaPeloCorte = (b: Busca) => corte !== null && chaveDaReferencia(b.referencia) !== chaveAtual && foraDoPlano(b.referencia, corte);
   // O corte só é regravado (e o prazo de 6h só recomeça) quando um 402 ou um valor novo o muda NESTA leitura.
   let corteMudou = false;
+
+  // A parte paga: só meses que o plano gratuito corta, e só na consulta completa.
+  let chamadasPagas = 0;
+  let pagosComValor = 0;
+  let conferidosEmTeste = 0;
+  let falhasPagas = 0;
+  let seguidasPagas = 0;
+  let pagoParado: string | null = null;
+  const motivosPagos = new Map<string, number>();
+  const semValorPago: LinhaDoHistorico[] = [];
+  const lerPago = async (busca: Busca) => {
+    if (!pago || pagoParado) return;
+    chamadasPagas++;
+    const r = await pago.ler(busca);
+    const linha = (valor: number | null, v?: ValorDaFipe): LinhaDoHistorico => ({
+      ano: busca.ano,
+      referencia: chaveDaReferencia(busca.referencia),
+      valor,
+      marca: v?.marca ?? null,
+      modelo: v?.modelo ?? null,
+      combustivel: v?.combustivel ?? null,
+      codigoFipe: v?.codigoFipe ?? null,
+    });
+    if (r.tipo === "valor") {
+      seguidasPagas = 0;
+      // Em homologação o valor é de exemplo: confere o contrato, e não vira tabela.
+      if (pago.homologacao) conferidosEmTeste++;
+      else {
+        pagosComValor++;
+        novas.push(linha(r.valor.valor, r.valor));
+      }
+    } else if (r.tipo === "sem_valor") {
+      seguidasPagas = 0;
+      if (!pago.homologacao) semValorPago.push(linha(null));
+    } else if (r.tipo === "sem_saldo" || r.tipo === "sem_acesso") {
+      pagoParado = r.motivo;
+    } else {
+      falhasPagas++;
+      seguidasPagas++;
+      motivosPagos.set(r.porque, (motivosPagos.get(r.porque) ?? 0) + 1);
+      if (seguidasPagas >= FALHAS_PAGAS_QUE_PARAM) pagoParado = `A APIBrasil ${r.porque} em ${FALHAS_PAGAS_QUE_PARAM} meses seguidos, e a consulta paga parou para não cobrar à toa.`;
+    }
+  };
+
   const trabalhar = async () => {
     while (!limite && seguidas < FALHAS_SEGUIDAS_QUE_PARAM && proxima < fila.length) {
       const busca = fila[proxima++];
-      if (pulaPeloCorte(busca)) continue;
+      if (pulaPeloCorte(busca)) {
+        await lerPago(busca);
+        continue;
+      }
       chamadas++;
       const leitura = await lerUmMes(pedido, busca, deps.buscar, deps.token);
       if (leitura.tipo === "limite") limite = true;
@@ -186,6 +259,9 @@ export async function consultarMercado(
           corte = chave;
           corteMudou = true;
         }
+        // O mês corrente nunca vai para a paga: sem ele a análise não existe, e o
+        // problema é o token da FIPE, que a mensagem de baixo explica.
+        if (chave !== chaveAtual) await lerPago(busca);
       }
       else if (leitura.tipo === "falha") {
         falhas++;
@@ -204,6 +280,15 @@ export async function consultarMercado(
   };
   await Promise.all(Array.from({ length: Math.min(CHAMADAS_SIMULTANEAS, fila.length) }, trabalhar));
 
+  // "Não tinha o carro neste mês" pago só fica guardado se a mesma leitura trouxe
+  // algum valor pago: se TODAS dizem "não tinha", o suspeito é o pedido, e guardar
+  // esconderia esses meses para sempre.
+  if (semValorPago.length > 0 && pagosComValor > 0) novas.push(...semValorPago);
+  else if (semValorPago.length > 0) {
+    falhasPagas += semValorPago.length;
+    motivosPagos.set("disse que não tinha o carro", semValorPago.length);
+  }
+
   if (novas.length > 0 && guardado.ok) {
     const gravacao = await deps.banco.gravar(pedido, novas);
     if (!gravacao.ok) avisos.push("Os meses lidos agora não puderam ser guardados; a próxima abertura vai buscá-los de novo.");
@@ -221,11 +306,27 @@ export async function consultarMercado(
       ? { ok: false, status: 429, motivo: "A FIPE atingiu o limite de consultas de hoje. Os modelos já consultados continuam abrindo; os novos, amanhã." }
       : { ok: false, status: 502, motivo: "A FIPE não devolveu o valor deste mês para o modelo escolhido." };
   }
-  if (mercado.mesesForaDoPlano > 0) {
-    const r = referencias.find((x) => foraDoPlano(x, corte));
+  if (chamadasPagas > 0) {
+    console.info(`[FIPE paga] mercado por modelo: ${chamadasPagas} consultas na APIBrasil`, { pedido: `${pedido.marca}/${pedido.modelo}/${pedido.ano}`, comValor: pagosComValor, falhas: falhasPagas, homologacao: !!pago?.homologacao });
+  }
+  if (pago?.homologacao && chamadasPagas > 0) {
     avisos.push(
-      `O plano gratuito da FIPE só libera os meses mais recentes: de ${r ? nomeDoMes(r) : "um certo mês"} para trás, ela responde 402 e pede o plano pago (Pro, em fipe.api.br). ` +
-        `O gráfico mostra ${mercado.historico.length} ${mercado.historico.length === 1 ? "mês" : "meses"}; analisar de novo não traz os outros ${mercado.mesesForaDoPlano}.`,
+      `A APIBrasil está em modo de teste (APIBRASIL_HOMOLOGACAO): ${conferidosEmTeste} de ${chamadasPagas} meses responderam no formato certo, nada foi cobrado, e os valores de exemplo não entram no gráfico nem ficam guardados.`,
+    );
+  }
+  if (pagoParado) avisos.push(pagoParado);
+  else if (falhasPagas > 0) {
+    const porque = [...motivosPagos].sort((a, b) => b[1] - a[1])[0][0];
+    console.warn(`[FIPE paga] ${falhasPagas} de ${chamadasPagas} consultas pagas sem valor`, Object.fromEntries(motivosPagos));
+    avisos.push(`A APIBrasil ${porque} em ${falhasPagas} ${falhasPagas === 1 ? "mês" : "meses"}; eles não foram guardados.`);
+  }
+  if (mercado.mesesForaDoPlano > 0 && modo === "completa") {
+    const r = referencias.find((x) => foraDoPlano(x, corte));
+    const desde = r ? nomeDoMes(r) : "um certo mês";
+    avisos.push(
+      !deps.pago
+        ? `A FIPE gratuita só libera os meses mais recentes (de ${desde} para trás ela pede plano pago), e este ambiente está sem APIBRASIL_TOKEN para buscar o resto. O gráfico mostra ${mercado.historico.length} ${mercado.historico.length === 1 ? "mês" : "meses"}.`
+        : `${mercado.mesesForaDoPlano} ${mercado.mesesForaDoPlano === 1 ? "mês ficou" : "meses ficaram"} sem valor: a FIPE gratuita não libera de ${desde} para trás e a consulta paga não completou. Analisar de novo paga só o que falta.`,
     );
   }
   if (limite) avisos.push("A FIPE atingiu o limite de consultas de hoje no meio da leitura: o histórico está incompleto e se completa na próxima abertura.");
@@ -242,7 +343,32 @@ export async function consultarMercado(
     }
   }
 
-  return { ok: true, mercado, chamadas, avisos };
+  return { ok: true, mercado, chamadas, chamadasPagas, avisos };
+}
+
+/**
+ * Quantos meses a consulta completa pode cobrar, antes de rodar: os meses da
+ * série que não estão guardados. Com o corte do plano gratuito em memória, só
+ * os que estão para trás dele; sem, é um teto (a FIPE gratuita pode entregar
+ * alguns). Não chama a FIPE além da lista de meses, que fica em memória.
+ */
+export async function estimarConsultaCompleta(
+  pedido: PedidoDeModelo,
+  deps: { buscar: BuscarNaFipe; token: string | undefined; banco: BancoDoHistorico },
+): Promise<{ ok: true; mesesPagosNoMaximo: number } | { ok: false; status: 502; motivo: string }> {
+  let referencias: ReferenciaDaFipe[];
+  try {
+    referencias = await referenciasDaFipe(deps.buscar, deps.token);
+  } catch (erro) {
+    return { ok: false, status: 502, motivo: `Não deu para ler os meses da tabela FIPE: ${(erro as Error).message}.` };
+  }
+  const recorte = referencias.slice(0, MESES_DE_HISTORICO + 1);
+  const guardado = await deps.banco.ler(pedido, chaveDaReferencia(recorte[recorte.length - 1]));
+  const linhas = guardado.ok ? guardado.linhas : [];
+  const chaveAtual = referencias[0] ? chaveDaReferencia(referencias[0]) : null;
+  const corte = corteEmMemoria && Date.now() - corteEmMemoria.em < VALIDADE_DAS_REFERENCIAS_MS ? corteEmMemoria.chave : null;
+  const anteriores = planoDeBusca(pedido, referencias, linhas).filter((b) => chaveDaReferencia(b.referencia) !== chaveAtual);
+  return { ok: true, mesesPagosNoMaximo: corte === null ? anteriores.length : anteriores.filter((b) => foraDoPlano(b.referencia, corte)).length };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
