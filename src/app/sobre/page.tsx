@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import SobreClientWrapper from "../../components/SobreClientWrapper";
-import { AberturaDaMotors } from "../../components/marca/usosDoLogo";
 import { getEstoque } from "../../lib/supabase";
 import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
@@ -129,7 +128,6 @@ export default async function SobrePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: grafo }}
       />
-      <AberturaDaMotors />
       <SobreClientWrapper
         totalEstoque={totalEstoque}
         autor={autor}
