@@ -88,7 +88,6 @@ function itemDePlaca(l: Record<string, unknown>): ItemDoHistorico | null {
   const placa = texto(l.placa);
   const quando = texto(l.criado_em);
   if (!placa || !quando) return null;
-  const retrato = (l.retrato && typeof l.retrato === "object" ? l.retrato : {}) as { veiculo?: { descricao?: unknown } };
   const homologacao = l.homologacao === true;
   return {
     chave: `p:${String(l.id)}`,
@@ -96,7 +95,7 @@ function itemDePlaca(l: Record<string, unknown>): ItemDoHistorico | null {
     quando,
     quem: texto(l.consultado_por_nome),
     titulo: placa,
-    detalhe: texto(retrato.veiculo?.descricao),
+    detalhe: texto(l.descricao),
     custo: homologacao ? 0 : numero(l.custo),
     homologacao,
     abrir: { tipo: "placa", placa },
@@ -105,7 +104,8 @@ function itemDePlaca(l: Record<string, unknown>): ItemDoHistorico | null {
 
 const COLUNAS_DE_MODELO =
   "id, tipo, marca_codigo, modelo_codigo, ano, rotulo, modo, referencia, fipe_atual, meses_na_serie, chamadas_pagas, custo, homologacao, criado_por_nome, criado_em";
-const COLUNAS_DE_PLACA = "id, placa, retrato, custo, homologacao, criado_em, consultado_por_nome";
+// Só a descrição do carro sai do retrato: nada do resto (nem peso, nem dado que a lista não usa).
+const COLUNAS_DE_PLACA = "id, placa, descricao:retrato->veiculo->>descricao, custo, homologacao, criado_em, consultado_por_nome";
 
 async function lerModelos(
   supabase: SupabaseClient,

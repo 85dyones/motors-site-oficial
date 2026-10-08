@@ -890,9 +890,27 @@ p {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
+  /* No tema escuro, o papel volta às cores do claro: os gráficos pintam com
+     estas variáveis (`fill="var(--mt-ink)"`), e não só com `color`. */
+  .dark [data-relatorio] {
+    --mt-ink: #16161a;
+    --mt-bg: #ffffff;
+    --mt-surface: #ffffff;
+    --mt-neutral-300: #d4d4d8;
+    --mt-neutral-400: #a1a1aa;
+    --mt-neutral-500: #71717a;
+    --mt-neutral-600: #52525b;
+    --mt-neutral-700: #3f3f46;
+    --mt-neutral-800: #27272a;
+    --mt-regua: #16161a;
+    --mt-regua-media: #a1a1aa;
+    --mt-regua-fina: #d4d4d8;
+    --cp-serie-fipe: #2a78d6;
+    --cp-serie-compra: #1baf7a;
+  }
   .dark [data-relatorio],
   .dark [data-relatorio] * {
-    color: #111 !important;
+    color: #16161a !important;
     background-color: transparent !important;
   }
 }

@@ -258,7 +258,7 @@ describe("a consulta Por modelo, paga", () => {
     await irPara("modelo");
     await analisar("modelo");
     const pergunta = confirm.mock.calls[0][0] as { message: string };
-    expect(pergunta.message).toContain("Até 22 meses");
+    expect(pergunta.message).toContain("T-Cross Highline 1.4 TSI 2022: até 22 meses");
     expect(pergunta.message).toContain("R$\u00a01,32");
     expect(chamadas.map((c) => c.corpo)).toEqual([{ ...PEDIDO, modo: "completa", estimar: true }]);
     expect(abaDe("modelo").querySelector("[data-tendencia]")).toBeNull();

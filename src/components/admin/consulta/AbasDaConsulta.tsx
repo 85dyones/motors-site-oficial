@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ParametrosDaCurva } from "../../../lib/avaliacaoRecomendacao";
 import type { LeituraDasRecentes } from "../../../lib/consultaDePlaca-servidor";
 import type { ItemDoHistorico, LeituraDoHistorico } from "../../../lib/historicoDeConsultas";
@@ -101,13 +101,20 @@ export default function AbasDaConsulta({
     // O cabeçalho da impressão precisa estar na tela antes do diálogo abrir.
     setTimeout(() => window.print(), 50);
   };
+  // Ctrl+P também leva a hora certa. A hora nunca é calculada na renderização:
+  // servidor e navegador discordariam no minuto (erro de hidratação).
+  useEffect(() => {
+    const antes = () => setImpressoEm(agoraNaImpressao());
+    window.addEventListener("beforeprint", antes);
+    return () => window.removeEventListener("beforeprint", antes);
+  }, []);
 
   return (
     <div className="mt-consulta mx-auto flex w-full max-w-5xl flex-col gap-6" data-relatorio>
       {/* Só no papel: de quem é, o que é e quando foi impresso. */}
       <div className="so-impressao" data-cabecalho-da-impressao>
         <strong>Motors Store · Consulta de veículos · {atual.rotulo}</strong>
-        <span>Impresso em {impressoEm ?? agoraNaImpressao()} · uso interno da equipe</span>
+        <span>{impressoEm ? `Impresso em ${impressoEm} · ` : ""}uso interno da equipe</span>
       </div>
       <header className="flex flex-col gap-3">
         <div className="nao-imprimir flex flex-wrap items-end justify-between gap-3">

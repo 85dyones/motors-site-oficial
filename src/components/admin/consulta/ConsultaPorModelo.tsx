@@ -188,10 +188,14 @@ export default function ConsultaPorModelo({
     // Nada a cobrar: tudo guardado, ou o ambiente sem token (o aviso vem na resposta), ou modo de teste.
     if (n === 0 || !json.temToken || json.homologacao) return true;
     const valor = json.precoPorMes ? ` (até ${reaisComCentavos(n * json.precoPorMes)})` : "";
+    // O nome do carro na pergunta: quem abre dois itens seguidos precisa saber por qual está pagando.
+    const carro = [marcas.opcoes.find((o) => o.codigo === pedido.marca)?.nome, modelos.opcoes.find((o) => o.codigo === pedido.modelo)?.nome, pedido.ano.slice(0, 4)]
+      .filter(Boolean)
+      .join(" ");
     return confirm({
       title: "Consulta completa paga",
       message:
-        `Até ${n} ${n === 1 ? "mês" : "meses"} da tabela FIPE na APIBrasil${valor}. ` +
+        `${carro ? `${carro}: até` : "Até"} ${n} ${n === 1 ? "mês" : "meses"} da tabela FIPE na APIBrasil${valor}. ` +
         "Os meses que a FIPE gratuita entrega e os já guardados não são cobrados, e o que vier fica guardado para as próximas consultas.",
       confirmLabel: "Consultar",
       type: "warning",
@@ -202,7 +206,10 @@ export default function ConsultaPorModelo({
    * `doGuardado`: abre só do que está guardado — nenhuma chamada, nenhum custo,
    * nenhuma confirmação. Se nada estiver guardado, cai na análise de sempre.
    */
+  // Cada análise pedida ganha um número; resposta de uma análise já ultrapassada não toca a tela nem cai na paga.
+  const ultimaAnalise = useRef(0);
   const analisar = async (pedido: SelecaoDeModelo, doGuardado = false) => {
+    const minha = ++ultimaAnalise.current;
     setErro(null);
     setCarregando(true);
     let semGuardado = false;
@@ -223,6 +230,7 @@ export default function ConsultaPorModelo({
         mesesNovos?: number | null;
         error?: string;
       };
+      if (minha !== ultimaAnalise.current) return;
       if (doGuardado && res.status === 404) semGuardado = true;
       else if (!res.ok || !json.mercado) {
         setErro(json.error || "A análise não voltou.");
@@ -237,12 +245,12 @@ export default function ConsultaPorModelo({
         if (!doGuardado) router.refresh();
       }
     } catch {
-      setErro("Sem conexão com o servidor.");
+      if (minha === ultimaAnalise.current) setErro("Sem conexão com o servidor.");
     } finally {
-      setCarregando(false);
+      if (minha === ultimaAnalise.current) setCarregando(false);
     }
     // Nada guardado deste modelo e ano: a consulta de sempre (na paga, com a pergunta do custo).
-    if (semGuardado) await analisar(pedido);
+    if (semGuardado && minha === ultimaAnalise.current) await analisar(pedido);
   };
 
   /** Reabre um modelo: os anos vêm da cascata da FIPE; com `doGuardado`, o retrato vem só do banco. */

@@ -72,7 +72,7 @@ const LINHA_DE_MODELO = {
   criado_por_nome: "Dyones Oliveira",
   criado_em: "2026-10-08T17:25:00Z",
 };
-const LINHA_DE_PLACA = { id: "p1", placa: "ABC1D23", retrato: { veiculo: { descricao: "VW T-CROSS" } }, custo: "30", homologacao: false, criado_em: "2026-10-07T12:00:00Z", consultado_por_nome: "Ana" };
+const LINHA_DE_PLACA = { id: "p1", placa: "ABC1D23", descricao: "VW T-CROSS", custo: "30", homologacao: false, criado_em: "2026-10-07T12:00:00Z", consultado_por_nome: "Ana" };
 
 describe("a leitura do histórico", () => {
   it("modelos e placas numa lista só, do mais novo para o mais antigo, com quem e quanto", async () => {

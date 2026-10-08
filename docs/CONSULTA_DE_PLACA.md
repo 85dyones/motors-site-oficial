@@ -83,7 +83,9 @@ o endereço antigo redireciona), com três abas:**
    `20261008120000_consultas_de_modelo`: quem, quando, modo, FIPE, meses e
    custo; nome e hora carimbados pelo banco). Abrir um item NÃO chama ninguém:
    o modelo abre com `modo: "guardado"` (só `fipe_historico`), a placa da
-   consulta guardada. "Atualizar dados" roda a análise da aba, que busca só o
+   consulta guardada. (A tela ainda carrega a lista de modelos e anos da
+   cascata da FIPE grátis para preencher os seletores: duas chamadas grátis.)
+   "Atualizar dados" roda a análise da aba, que busca só o
    que falta (na paga, com a pergunta do custo). Sem a migração, a lista mostra
    os modelos pelo que está guardado, sem quem nem custo.
 
