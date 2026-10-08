@@ -52,6 +52,9 @@ html:not(.dark) .la[data-tema="auto"] {
   --la-m1: #b39171;
   --la-m2: #cdb08e;
 }
+/* Sem câmera nada sai da caixa de propósito, e a fresta de luz passa um
+   pouco das bordas da palavra: cortar ali comeria a ponta dela. */
+.la[data-camera="nao"] { overflow: visible; }
 .la svg {
   display: block;
   width: 100%;

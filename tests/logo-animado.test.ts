@@ -5,7 +5,6 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import LogoAnimado from "../src/components/marca/LogoAnimado";
 import { CSS_DO_LOGO_ANIMADO } from "../src/components/marca/logoAnimadoCss";
-import { ROTAS_COM_FECHO } from "../src/lib/fechoComLogo";
 
 /**
  * O logo animado (07/10/2026) entrou com uma condição do dono: não pesar no
@@ -35,15 +34,29 @@ describe("logo animado: o peso", () => {
 
   it("nenhum componente de cliente importa o desenho", () => {
     // Importado por um "use client", os caminhos do SVG iriam para o
-    // JavaScript da página. O rodapé e o cabeçalho são os candidatos óbvios.
+    // JavaScript da página. O rodapé e o cabeçalho são os candidatos óbvios:
+    // por isso recebem o logo pronto, por prop, do layout.
     const culpados = arquivosDe("src")
       .filter((a) => /^["']use client["']/m.test(ler(a)))
-      .filter((a) => /from\s+["'][^"']*marca\/(LogoAnimado|FechoComLogo)["']/.test(ler(a)));
+      .filter((a) => /from\s+["'][^"']*marca\/(LogoAnimado|usosDoLogo)["']/.test(ler(a)));
     expect(culpados).toEqual([]);
+    const layout = ler("src/app/layout.tsx");
+    expect(layout).toMatch(/logo=\{<LogoDaBarra /);
+    expect(layout).toMatch(/logoCompacto=\{<LogoDaBarra /);
+    expect(layout).toMatch(/logo=\{<LogoDoRodape \/>\}/);
   });
 
-  it("o layout raiz não importa o logo: ele não vai no HTML de toda página", () => {
-    expect(ler("src/app/layout.tsx")).not.toMatch(/marca\/(LogoAnimado|FechoComLogo)/);
+  it("o logo que vai em toda página é o simples, e pesa menos da metade", () => {
+    // Cabeçalho (dois, um por largura) e rodapé: três cópias no HTML de toda
+    // página.
+    const usos = ler("src/components/marca/usosDoLogo.tsx");
+    for (const uso of ["LogoDaBarra", "LogoDoRodape"]) {
+      const corpo = usos.slice(usos.indexOf(`export function ${uso}`)).split("\nexport function")[0];
+      expect(corpo, uso).toMatch(/<LogoAnimado[^>]*\ssimples\s/);
+    }
+    const svg = (props: object) => renderToStaticMarkup(createElement(LogoAnimado, props)).replace(/<style[\s\S]*?<\/style>/, "");
+    expect(svg({ simples: true }).length).toBeLessThan(4.5 * 1024);
+    expect(svg({ simples: true })).not.toMatch(/<filter|<clipPath|la-brilho/);
   });
 
   it("não existe folha de estilo própria: o CSS vai dentro do HTML", () => {
@@ -112,21 +125,18 @@ describe("logo animado: parado, é o logo pronto", () => {
   });
 });
 
-describe("o fecho com o logo e o rodapé andam juntos", () => {
-  const PAGINA_DA_ROTA: Record<string, string> = {
-    "/": "src/app/page.tsx",
-    "/sobre": "src/app/sobre/page.tsx",
-  };
-
-  it("toda rota da lista desenha o fecho, e só elas", () => {
-    expect([...ROTAS_COM_FECHO].sort()).toEqual(Object.keys(PAGINA_DA_ROTA).sort());
-    const comFecho = arquivosDe("src/app").filter((a) => /<FechoComLogo \/>/.test(ler(a)));
-    expect(comFecho.sort()).toEqual(Object.values(PAGINA_DA_ROTA).sort());
+describe("onde o logo aparece", () => {
+  it("o grande fica só na entrada de /sobre, antes do conteúdo", () => {
+    const comAbertura = arquivosDe("src/app").filter((a) => /<AberturaDaMotors \/>/.test(ler(a)));
+    expect(comAbertura).toEqual(["src/app/sobre/page.tsx"]);
+    const sobre = ler("src/app/sobre/page.tsx");
+    expect(sobre.indexOf("<AberturaDaMotors />")).toBeLessThan(sobre.indexOf("<SobreClientWrapper"));
   });
 
-  it("o rodapé lê a mesma lista para tirar o logo pequeno", () => {
-    const rodape = ler("src/components/Footer.tsx");
-    expect(rodape).toMatch(/ROTAS_COM_FECHO\.includes\(usePathname\(\)/);
-    expect(rodape).toMatch(/\{!comFecho && \(/);
+  it("cabeçalho e rodapé seguem inteiros sem o logo animado", () => {
+    // Os testes de renderização dos dois não passam o logo: o SVG parado
+    // continua sendo o que aparece quando a prop falta.
+    expect(ler("src/components/Header.tsx")).toMatch(/\{logo \? \(\s*logo\s*\) : !usarFallbackTextual \? \(/);
+    expect(ler("src/components/Footer.tsx")).toMatch(/\{logo \?\? \(/);
   });
 });

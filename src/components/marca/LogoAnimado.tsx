@@ -87,6 +87,7 @@ export default function LogoAnimado({
   camera = true,
   duracao,
   traco,
+  simples = false,
   rotulo = "Motors Store",
   className,
 }: {
@@ -112,6 +113,16 @@ export default function LogoAnimado({
    * padrão, 2,5, some abaixo de ~300 px de largura: ali use 6 a 8.
    */
   traco?: number;
+  /**
+   * O logo como detalhe (cabeçalho, rodapé): sem brilhos, sem reflexos e sem
+   * câmera, e com o desenho encostado nas bordas da caixa.
+   *
+   * Em 40 px de altura nada disso se vê, e é o que mais pesa: os dois
+   * reflexos precisam de um recorte com a forma das asas e da palavra, ou
+   * seja, repetem todos os caminhos do logo. Sem eles o SVG cai para a
+   * metade, e este é o que vai no HTML de TODA página.
+   */
+  simples?: boolean;
   rotulo?: string;
   className?: string;
 }) {
@@ -119,6 +130,8 @@ export default function LogoAnimado({
   // `url(#…)` do segundo pegaria o degradê do primeiro, com as cores erradas.
   const id = `la${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const metal = `url(#${id}m)`;
+  const comCamera = camera && !simples;
+  const brilho = (sufixo: string) => (simples ? undefined : `url(#${id}${sufixo})`);
 
   const estilo: Record<string, string> = {};
   if (duracao) estilo["--la-dur"] = `${duracao}s`;
@@ -136,13 +149,13 @@ export default function LogoAnimado({
         aria-label={rotulo}
         data-tema={tema}
         data-la={tocar ? "tocando" : undefined}
-        data-camera={camera ? undefined : "nao"}
+        data-camera={comCamera ? undefined : "nao"}
         className={className ? `la ${className}` : "la"}
         style={estilo as CSSProperties}
       >
         {/* O centro do viewBox é o centro do logo (750, 376): é em torno dele
             que a câmera abre, e o CSS conta com isso. */}
-        <svg viewBox="-90 -64 1680 880" aria-hidden="true" focusable="false">
+        <svg viewBox={simples ? "0 0 1500 752" : "-90 -64 1680 880"} aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id={`${id}m`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1500" y2="760">
               <stop offset="0" className="la-m0" />
@@ -150,42 +163,46 @@ export default function LogoAnimado({
               <stop offset="0.62" className="la-m1" />
               <stop offset="1" className="la-m0" />
             </linearGradient>
-            <linearGradient id={`${id}b`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#fff" stopOpacity="0" />
-              <stop offset="0.5" stopColor="#fff" stopOpacity="0.55" />
-              <stop offset="1" stopColor="#fff" stopOpacity="0" />
-            </linearGradient>
-            <radialGradient id={`${id}h`}>
-              <stop offset="0" className="la-halo-cor" stopOpacity="0.5" />
-              <stop offset="1" className="la-halo-cor" stopOpacity="0" />
-            </radialGradient>
-            <filter id={`${id}g`} x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="5" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            {/* O da barra tem caixa em unidade da prancha: uma barra de 3 de
-                altura não tem "200% da própria altura" que caiba um brilho. */}
-            <filter id={`${id}gb`} filterUnits="userSpaceOnUse" x="-60" y="660" width="1620" height="120">
-              <feGaussianBlur stdDeviation="5" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <clipPath id={`${id}a`}>
-              <path d={ASA_E} />
-              <path d={ASA_D} />
-            </clipPath>
-            <clipPath id={`${id}p`}>
-              {MOTORS.map((m, i) => (
-                <path key={i} d={m.d} clipRule="evenodd" transform={m.dx ? `translate(${m.dx},0)` : undefined} />
-              ))}
-            </clipPath>
+            {!simples && (
+              <>
+                <linearGradient id={`${id}b`} x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stopColor="#fff" stopOpacity="0" />
+                  <stop offset="0.5" stopColor="#fff" stopOpacity="0.55" />
+                  <stop offset="1" stopColor="#fff" stopOpacity="0" />
+                </linearGradient>
+                <radialGradient id={`${id}h`}>
+                  <stop offset="0" className="la-halo-cor" stopOpacity="0.5" />
+                  <stop offset="1" className="la-halo-cor" stopOpacity="0" />
+                </radialGradient>
+                <filter id={`${id}g`} x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="5" result="b" />
+                  <feMerge>
+                    <feMergeNode in="b" />
+                    <feMergeNode in="b" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                {/* O da barra tem caixa em unidade da prancha: uma barra de 3 de
+                    altura não tem "200% da própria altura" que caiba um brilho. */}
+                <filter id={`${id}gb`} filterUnits="userSpaceOnUse" x="-60" y="660" width="1620" height="120">
+                  <feGaussianBlur stdDeviation="5" result="b" />
+                  <feMerge>
+                    <feMergeNode in="b" />
+                    <feMergeNode in="b" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                <clipPath id={`${id}a`}>
+                  <path d={ASA_E} />
+                  <path d={ASA_D} />
+                </clipPath>
+                <clipPath id={`${id}p`}>
+                  {MOTORS.map((m, i) => (
+                    <path key={i} d={m.d} clipRule="evenodd" transform={m.dx ? `translate(${m.dx},0)` : undefined} />
+                  ))}
+                </clipPath>
+              </>
+            )}
           </defs>
 
           {/* ─── Asas ─── */}
@@ -193,13 +210,15 @@ export default function LogoAnimado({
             <path d={ASA_E} fill={metal} />
             <path d={ASA_D} fill={metal} />
           </g>
-          <g filter={`url(#${id}g)`}>
+          <g filter={brilho("g")}>
             <path className="la-traco" d={TRACO_E} pathLength={1} />
             <path className="la-traco" d={TRACO_D} pathLength={1} />
           </g>
-          <g clipPath={`url(#${id}a)`}>
-            <rect className="la-brilho la-brilho-asas" x={-400} y={-120} width={260} height={640} fill={`url(#${id}b)`} />
-          </g>
+          {!simples && (
+            <g clipPath={`url(#${id}a)`}>
+              <rect className="la-brilho la-brilho-asas" x={-400} y={-120} width={260} height={640} fill={`url(#${id}b)`} />
+            </g>
+          )}
 
           {/* ─── MOTORS ───
               A palavra aparece atrás de uma fresta de luz que corre da esquerda
@@ -219,19 +238,21 @@ export default function LogoAnimado({
               </g>
             ))}
           </g>
-          <g filter={`url(#${id}g)`}>
+          <g filter={brilho("g")}>
             <rect className="la-fresta" x={-42} y={444} width={4} height={208} />
           </g>
-          <g clipPath={`url(#${id}p)`}>
-            <rect className="la-brilho la-brilho-palavra" x={-400} y={420} width={220} height={260} fill={`url(#${id}b)`} />
-          </g>
+          {!simples && (
+            <g clipPath={`url(#${id}p)`}>
+              <rect className="la-brilho la-brilho-palavra" x={-400} y={420} width={220} height={260} fill={`url(#${id}b)`} />
+            </g>
+          )}
 
           {/* ─── Barra de luz, que vira as duas réguas do STORE ─── */}
           {/* O halo fica FORA do grupo que corre: ele abre menos que a barra. */}
-          <ellipse className="la-halo" cx={750} cy={720} rx={240} ry={26} fill={`url(#${id}h)`} />
+          {!simples && <ellipse className="la-halo" cx={750} cy={720} rx={240} ry={26} fill={`url(#${id}h)`} />}
           <g className="la-corrida">
             <g className="la-luz">
-              <g filter={`url(#${id}gb)`}>
+              <g filter={brilho("gb")}>
                 {REGUAS.map((r) => (
                   <rect key={r.lado} className={`la-regua la-regua-${r.lado} la-regua-luz`} x={r.x} y={704} width={286} height={32} />
                 ))}

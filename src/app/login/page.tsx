@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "../../lib/supabase-server";
 import LoginForm from "../../components/LoginForm";
 import { Rotulo } from "../../components/modernist/primitivos";
-import { LogoDoAcesso } from "../../components/marca/FechoComLogo";
+import { LogoDoAcesso } from "../../components/marca/usosDoLogo";
 
 export const metadata = {
   title: "Acesso Restrito — Motors Store",
