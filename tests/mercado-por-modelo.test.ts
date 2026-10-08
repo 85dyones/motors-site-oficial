@@ -599,6 +599,21 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
       expect(pagas).toEqual([]);
     });
 
+    it("mês pago com outro código FIPE é outro carro: não entra, e três seguidos param a paga", async () => {
+      const outro: LeituraPaga = { tipo: "valor", valor: { valor: 90000, marca: "VW", modelo: "T-Cross", anoModelo: 2022, combustivel: "Flex", codigoFipe: "999000-1" } };
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => outro) });
+      expect(gravadas.some((l) => l.codigoFipe === "999000-1")).toBe(false);
+      expect(pagas.length).toBeLessThanOrEqual(3 + 2);
+      expect(r.ok && r.avisos.join(" ")).toContain("outro carro");
+    });
+
+    it("o banco não guardou: a paga para em vez de cobrar o que se perderia", async () => {
+      const bancoQueFalha: BancoDoHistorico = { ler: async () => ({ ok: true, linhas: [] }), gravar: async () => ({ ok: false, motivo: "x" }) };
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: bancoQueFalha, modo: "completa", pago: leitor(() => VALOR_PAGO) });
+      expect(pagas.length).toBeLessThan(MESES_DE_HISTORICO - 2);
+      expect(r.ok && r.avisos.join(" ")).toContain("o banco não guardou");
+    });
+
     it("histórico ilegível: a paga não roda (cobraria de novo o que já foi pago) e a tela diz por quê", async () => {
       const r = await consultarMercado(PEDIDO, {
         buscar: buscar as never,

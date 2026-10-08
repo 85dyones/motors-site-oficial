@@ -192,7 +192,11 @@ export async function consultarMercado(
   // meses já guardados, e o que viesse agora também não ficaria.
   const pago = modo === "completa" && guardado.ok ? (deps.pago ?? null) : null;
   if (modo === "completa" && deps.pago && !guardado.ok) {
-    avisos.push("A consulta paga não rodou: sem o histórico guardado ela cobraria de novo meses já pagos. Analise de novo em instantes.");
+    avisos.push(
+      guardado.faltaMigracao
+        ? `A consulta paga não roda sem a tabela do histórico (migração ${MIGRACAO_DO_HISTORICO_DA_FIPE}): o que ela trouxesse não ficaria guardado e seria cobrado de novo.`
+        : "A consulta paga não rodou: sem o histórico guardado ela cobraria de novo meses já pagos. Analise de novo em instantes.",
+    );
   }
 
   // Só o que falta, em poucas chamadas por vez. Um 429 para a fila: insistir
@@ -215,7 +219,11 @@ export async function consultarMercado(
     if (!guardado.ok || pendentes.length === 0 || (!tudo && pendentes.length < GRAVAR_A_CADA)) return;
     const lote = pendentes.splice(0);
     const gravacao = await deps.banco.gravar(pedido, lote);
-    if (!gravacao.ok) falhouAoGravar = true;
+    if (!gravacao.ok) {
+      falhouAoGravar = true;
+      // O que viesse depois também não ficaria: a paga para em vez de cobrar o que se perde.
+      pagoParado ??= "A consulta paga parou: o banco não guardou os meses que chegaram, e os próximos seriam cobrados para nada.";
+    }
     else mesesPagosGuardados += lote.filter((l) => pagas.has(l) && l.valor !== null).length;
   };
   const nova = async (l: LinhaDoHistorico, paga = false) => {
@@ -246,10 +254,13 @@ export async function consultarMercado(
     ? Promise.resolve(guardadoHoje.valor !== null)
     : new Promise((resolver) => (liberarAPaga = resolver));
   const ehOMesDeHoje = (b: Busca) => b.ano === pedido.ano && chaveDaReferencia(b.referencia) === chaveAtual;
+  // O código FIPE do carro de hoje: mês pago com outro código é outro carro (ou o de exemplo do fornecedor).
+  let codigoDeHoje: string | null = guardadoHoje?.codigoFipe ?? null;
 
   // A parte paga: só meses que o plano gratuito corta, e só na consulta completa.
   let chamadasPagas = 0;
   let naoTinhaSeguidos = 0;
+  let paradoPorNaoTinha = false;
   let pagosComValor = 0;
   let conferidosEmTeste = 0;
   let falhasPagas = 0;
@@ -276,7 +287,13 @@ export async function consultarMercado(
       combustivel: v?.combustivel ?? null,
       codigoFipe: v?.codigoFipe ?? null,
     });
-    if (r.tipo === "valor") {
+    if (r.tipo === "valor" && !pago.homologacao && codigoDeHoje && r.valor.codigoFipe && r.valor.codigoFipe !== codigoDeHoje) {
+      falhasPagas++;
+      seguidasPagas++;
+      const porque = `respondeu outro carro (FIPE ${r.valor.codigoFipe})`;
+      motivosPagos.set(porque, (motivosPagos.get(porque) ?? 0) + 1);
+      if (seguidasPagas >= FALHAS_PAGAS_QUE_PARAM) pagoParado = `A APIBrasil ${porque} em ${FALHAS_PAGAS_QUE_PARAM} meses seguidos, e a consulta paga parou para não cobrar à toa.`;
+    } else if (r.tipo === "valor") {
       seguidasPagas = 0;
       naoTinhaSeguidos = 0;
       // Em homologação o valor é de exemplo: confere o contrato, e não vira tabela.
@@ -290,6 +307,7 @@ export async function consultarMercado(
       if (!pago.homologacao) semValorPago.push(linha(null));
       // "Não tinha" em série antes de qualquer valor: o suspeito é o pedido, e cada um foi cobrado.
       if (pagosComValor === 0 && ++naoTinhaSeguidos >= FALHAS_PAGAS_QUE_PARAM) {
+        paradoPorNaoTinha = true;
         pagoParado = `A APIBrasil respondeu "não tinha este carro" nos ${FALHAS_PAGAS_QUE_PARAM} primeiros meses pagos. Pode ser o pedido, e não o carro: a consulta paga parou e nada disso foi guardado.`;
       }
     } else if (r.tipo === "sem_saldo" || r.tipo === "sem_acesso") {
@@ -317,7 +335,10 @@ export async function consultarMercado(
       }
       chamadas++;
       const leitura = await lerUmMes(pedido, busca, deps.buscar, deps.token);
-      if (ehOMesDeHoje(busca)) liberarAPaga(leitura.tipo === "valor" && leitura.linha.valor !== null);
+      if (ehOMesDeHoje(busca)) {
+        if (leitura.tipo === "valor") codigoDeHoje = leitura.linha.codigoFipe;
+        liberarAPaga(leitura.tipo === "valor" && leitura.linha.valor !== null);
+      }
       if (leitura.tipo === "limite") limite = true;
       else if (leitura.tipo === "foraDoPlano") {
         const chave = chaveDaReferencia(leitura.busca.referencia);
@@ -350,7 +371,8 @@ export async function consultarMercado(
   // "Não tinha o carro neste mês" pago só fica guardado se a mesma leitura trouxe
   // algum valor pago: se TODAS dizem "não tinha", o suspeito é o pedido, e guardar
   // esconderia esses meses para sempre.
-  if (semValorPago.length > 0 && pagosComValor > 0) for (const l of semValorPago) await nova(l, true);
+  // Parada por "não tinha" em série não guarda os "não tinha", mesmo que um valor atrasado tenha chegado depois.
+  if (semValorPago.length > 0 && pagosComValor > 0 && !paradoPorNaoTinha) for (const l of semValorPago) await nova(l, true);
   else if (semValorPago.length > 0 && !pagoParado) {
     falhasPagas += semValorPago.length;
     motivosPagos.set("disse que não tinha o carro", semValorPago.length);
