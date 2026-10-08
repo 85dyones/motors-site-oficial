@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import SobreClientWrapper from "../../components/SobreClientWrapper";
+import FechoComLogo from "../../components/marca/FechoComLogo";
 import { getEstoque } from "../../lib/supabase";
 import { disponiveisDe } from "../../lib/regrasEstoque";
 import { getCachedSettings } from "../../lib/settings";
@@ -135,6 +136,7 @@ export default async function SobrePage() {
         sobre={aboutSettings}
         empresa={companySettings}
       />
+      <FechoComLogo />
     </>
   );
 }
