@@ -197,7 +197,7 @@ function clienteNovoEscrevendo(): Linha {
 
 async function entregar(
   corpo: unknown,
-  credencial: { token?: string; bearer?: string } = {},
+  credencial: { token?: string; bearer?: string; autorizacao?: string } = {},
 ): Promise<{ status: number; corpo: Linha }> {
   const url = new URL("https://motorsstore.com.br/api/chatwoot/eventos");
   if (credencial.token !== undefined) url.searchParams.set("token", credencial.token);
@@ -206,6 +206,7 @@ async function entregar(
     "user-agent": AGENTE_DO_CHATWOOT,
   };
   if (credencial.bearer !== undefined) headers.Authorization = `Bearer ${credencial.bearer}`;
+  if (credencial.autorizacao !== undefined) headers.Authorization = credencial.autorizacao;
   const r = await rota.POST(new Request(url, { method: "POST", body: JSON.stringify(corpo), headers }));
   return { status: r.status, corpo: (await r.json()) as Linha };
 }
@@ -306,6 +307,10 @@ describe("23/09 a 08/10: a URL do Chatwoot com o token antigo", () => {
 
   it("o alerta não leva o token, nem o recebido nem o certo, nem o texto de quem bateu", async () => {
     await entregar(respostaDaConsultora(), { token: TOKEN_ANTIGO });
+    await entregar(respostaDaConsultora(), { bearer: TOKEN_ANTIGO });
+    // Sem as duas chamadas, as negativas abaixo passariam sobre uma lista
+    // vazia — inclusive contra a rota que não avisava ninguém.
+    expect(registrarFalha).toHaveBeenCalledTimes(2);
     const tudo = JSON.stringify(registrarFalha.mock.calls);
 
     expect(tudo).not.toContain(TOKEN_ANTIGO);
@@ -329,6 +334,14 @@ describe("23/09 a 08/10: a URL do Chatwoot com o token antigo", () => {
     expect(escritas).toEqual([]);
   });
 
+  it("`?token=` vazio e `Authorization` que não é Bearer também não são credencial desta porta", async () => {
+    const vazio = await entregar(respostaDaConsultora(), { token: "" });
+    const basico = await entregar(respostaDaConsultora(), { autorizacao: "Basic dXN1YXJpbzpzZW5oYQ==" });
+
+    expect([vazio.status, basico.status]).toEqual([401, 401]);
+    expect(registrarFalha).not.toHaveBeenCalled();
+  });
+
   it("sem CHATWOOT_WEBHOOK_TOKEN na Vercel: 503, e o alerta tem assunto próprio", async () => {
     vi.stubEnv("CHATWOOT_WEBHOOK_TOKEN", "");
     const { status } = await entregar(respostaDaConsultora(), { token: TOKEN_ANTIGO });
@@ -342,6 +355,14 @@ describe("23/09 a 08/10: a URL do Chatwoot com o token antigo", () => {
     );
     expect(textoDoAlerta().length).toBeLessThanOrEqual(300);
     expect(escritas).toEqual([]);
+  });
+
+  it("sem a variável, avisa mesmo sem credencial: ninguém entra, e a porta está mesmo fechada", async () => {
+    vi.stubEnv("CHATWOOT_WEBHOOK_TOKEN", "");
+    await entregar(respostaDaConsultora());
+
+    expect(registrarFalha).toHaveBeenCalledTimes(1);
+    expect(registrarFalha.mock.calls[0]?.[1]).toBe("chatwoot-entrada-sem-token");
   });
 });
 

@@ -468,12 +468,23 @@ de 23/09; da das 12:40 em diante, todas levaram 401 (log da Vercel:
 
 O parser não tinha mudado, e não era ele: a entrega morria na porta, antes
 de o corpo ser lido. O defeito de verdade foi o 401 ficar só no log. Desde
-então, **401 de quem trouxe credencial** (query ou Bearer) é parada de
-negócio: `registrarFalha("parada", "chatwoot-entrada-recusada")` vai ao
-WhatsApp pelo `alertaDeFalha`, com a carência de 30 minutos por assunto. A
-falta da variável (503) avisa por `chatwoot-entrada-sem-token`. Requisição
-sem credencial nenhuma é varredura e fica só no log. O alerta nunca leva o
+então, **401 de quem trouxe credencial** (`?token=` não vazio, ou
+`Authorization: Bearer`) é parada de negócio:
+`registrarFalha("parada", "chatwoot-entrada-recusada")` vai ao WhatsApp pelo
+`alertaDeFalha`. A carência é de 30 minutos por assunto **e por instância**
+da função, em memória: com várias instâncias, ou logo depois de um deploy,
+pode sair mais de um aviso. Recusa sem credencial (inclusive `?token=` vazio
+e `Authorization: Basic`) é varredura e fica só no log. O alerta nunca leva o
 token nem o `User-Agent` de quem bateu.
+
+A falta da variável (503) avisa por `chatwoot-entrada-sem-token` com
+qualquer requisição, com ou sem credencial: sem ela ninguém entra, então
+quem bater está mostrando uma porta que de fato está fechada.
+
+⚠️ O que isso não barra: um estranho que mande `?token=qualquer-coisa` faz o
+alerta sair, no ritmo da carência. Separar isso de um defeito real pediria
+um sinal que ele não fabrica, como quanto tempo faz desde a última entrega
+aceita, e a rota não guarda isso hoje.
 
 **Para trocar o token sem derrubar a entrada:**
 

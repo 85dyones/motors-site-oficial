@@ -129,6 +129,10 @@ async function autorizar(request: Request, url: URL): Promise<NextResponse | nul
   // 503 e não 401, pela razão que `autorizarFunil` já registrou: o problema é
   // de configuração nossa, e 401 mandaria o outro lado tentar outro token para
   // sempre.
+  //
+  // O alerta daqui sai para qualquer requisição, com ou sem credencial: sem a
+  // variável ninguém consegue entrar, então quem quer que bata está
+  // mostrando uma porta que de fato está fechada.
   if (!segredo) {
     console.error(
       "[Chatwoot] CHATWOOT_WEBHOOK_TOKEN não configurado. Porta de entrada indisponível.",
@@ -188,19 +192,29 @@ async function autorizar(request: Request, url: URL): Promise<NextResponse | nul
   // Quem TROUXE credencial e foi recusado é, quase sempre, a integração com o
   // token velho — o caso de 23/09, que durou quinze dias só no log. Vai ao
   // WhatsApp como parada, com a carência de 30 min por assunto do
-  // `alertaDeFalha`: o Chatwoot bate a cada mensagem, e o que sai é um aviso a
-  // cada meia hora com a conta das engolidas, não um por entrega.
+  // `alertaDeFalha`: o Chatwoot bate a cada mensagem, e o que sai é um aviso
+  // por meia hora com a conta das engolidas, não um por entrega. A carência é
+  // por INSTÂNCIA, em memória (ver `alertaDeFalha.ts`): com várias instâncias
+  // quentes, ou logo depois de um deploy, sai mais de um.
   //
-  // Sem credencial nenhuma é varredura de robô: fica só no log, senão qualquer
-  // estranho faria o celular do dono tocar.
+  // "Trouxe credencial" é um `?token=` NÃO VAZIO ou um `Bearer` — as duas
+  // formas que esta porta aceita. Sem nenhuma delas (inclusive `?token=` vazio
+  // e `Authorization: Basic`), é varredura de robô e fica só no log.
+  //
+  // ⚠️ Isso barra a varredura, não quem quer incomodar: um estranho que mande
+  // `?token=qualquer-coisa` faz o alerta sair, no ritmo da carência. Separar
+  // os dois pediria um sinal que ele não fabrica (por exemplo, quanto tempo
+  // faz desde a última entrega ACEITA), e esta rota não guarda isso hoje.
   //
   // O alerta leva a FORMA da credencial e nada que o chamador escreveu: nem o
   // valor, nem o `User-Agent`. Texto de quem bate numa porta pública não vai
   // para o WhatsApp de ninguém — o agente fica no log acima.
-  if (cabecalho || veioQuery) {
+  const tokenNaQuery = Boolean(url.searchParams.get("token")?.trim());
+  const bearer = /^Bearer\s+\S/i.test(cabecalho ?? "");
+  if (tokenNaQuery || bearer) {
     // A query é o webhook nativo do Chatwoot; o cabeçalho, o n8n.
-    const onde = veioQuery ? "da URL do webhook" : "do Bearer";
-    const conserto = veioQuery
+    const onde = tokenNaQuery ? "da URL do webhook" : "do Bearer";
+    const conserto = tokenNaQuery
       ? "pôr o token atual na URL do webhook, no Chatwoot"
       : "pôr o token atual no Bearer de quem chama";
     await registrarFalha(
