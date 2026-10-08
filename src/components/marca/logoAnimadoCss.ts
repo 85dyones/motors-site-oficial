@@ -52,6 +52,9 @@ html:not(.dark) .la[data-tema="auto"] {
   --la-m1: #b39171;
   --la-m2: #cdb08e;
 }
+/* Sem câmera nada sai da caixa de propósito, e a fresta de luz passa um
+   pouco das bordas da palavra: cortar ali comeria a ponta dela. */
+.la[data-camera="nao"] { overflow: visible; }
 .la svg {
   display: block;
   width: 100%;
@@ -92,18 +95,14 @@ html:not(.dark) .la[data-tema="auto"] {
 .la-regua-e { transform-origin: 0% 50%; }
 .la-regua-d { transform-origin: 100% 50%; }
 
-/* Ligação.
-   "armado": parado no primeiro quadro, à espera (quem põe é
-   LogoAoEntrarNaTela, só depois da hidratação). "tocando": roda uma vez e
-   para no logo pronto. */
+/* Ligação: com "tocando" o logo roda uma vez e para no logo pronto. Quem
+   põe o atributo é o servidor (tocar ao abrir) ou LogoAoPassarOMouse. */
 .la[data-la] svg,
 .la[data-la] svg * {
   animation-duration: var(--la-dur);
   animation-timing-function: linear;
   animation-fill-mode: both;
 }
-.la[data-la="armado"] svg,
-.la[data-la="armado"] svg * { animation-play-state: paused; }
 
 /* A câmera é a única animação no elemento svg: transform e scale de uma
    caixa CSS sobem para o compositor e não repintam o desenho. */

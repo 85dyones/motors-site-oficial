@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
@@ -59,7 +59,20 @@ const LOGO_DO_CABECALHO = "/marca/motors-store-vertical-negativo.svg";
 // docblock de lá tem a ordem, o porquê da extração e a medição de largura.
 const NAV = MENU_DO_CABECALHO;
 
-export default function Header() {
+export default function Header({
+  logo,
+  logoCompacto,
+}: {
+  /**
+   * O logo animado da barra do desktop e o da barra compacta, prontos, vindos
+   * do layout (`marca/usosDoLogo.tsx`). São DOIS nós, e não o mesmo nó usado
+   * duas vezes: cada um tem os seus ids de degradê, e o primeiro fica dentro
+   * de um `display: none` em metade das telas. Sem eles (teste, ou um layout
+   * que não os passe) vale o SVG parado de `LOGO_DO_CABECALHO`.
+   */
+  logo?: ReactNode;
+  logoCompacto?: ReactNode;
+} = {}) {
   const { companySettings } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -95,7 +108,9 @@ export default function Header() {
       {/* ─── Desktop ─── */}
       <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-5 px-10 lg:flex desktop:gap-9">
         <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">
-          {!usarFallbackTextual ? (
+          {logo ? (
+            logo
+          ) : !usarFallbackTextual ? (
             <Image
               key={logoSrc}
               src={encodeURI(logoSrc)}
@@ -219,7 +234,9 @@ export default function Header() {
       {/* ─── Mobile e tablet (até lg) ─── */}
       <div className="flex h-[58px] items-center gap-3 px-[18px] lg:hidden">
         <Link href="/" className="mt-foco mr-auto flex items-center gap-2.5">
-          {!usarFallbackTextual ? (
+          {logoCompacto ? (
+            logoCompacto
+          ) : !usarFallbackTextual ? (
             <Image
               key={logoSrc}
               src={encodeURI(logoSrc)}

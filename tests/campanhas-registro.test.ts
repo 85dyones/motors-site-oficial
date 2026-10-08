@@ -267,7 +267,8 @@ describe("o aviso legal segue outra régua", () => {
     const layout = lerCodigo("src/app/layout.tsx");
     const blocos = (layout.match(/<MolduraDoSite>[\s\S]*?<\/MolduraDoSite>/g) ?? []).join("\n");
     expect(blocos, "nenhum bloco <MolduraDoSite> no layout").not.toBe("");
-    for (const peca of ["<Header />", "<Footer", "<LeadPopup />"]) {
+    // `<Header`, sem fechar: desde 07/10 ele recebe os logos por prop.
+    for (const peca of ["<Header", "<Footer", "<LeadPopup />"]) {
       expect(blocos, `${peca} saiu de dentro de <MolduraDoSite>`).toContain(peca);
     }
   });

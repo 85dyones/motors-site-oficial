@@ -3,6 +3,7 @@ import "./globals.css";
 import AntigravityTracker from "../components/AntigravityTracker";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { LogoDaBarra, LogoDoRodape } from "../components/marca/usosDoLogo";
 import LeadPopup from "../components/LeadPopup";
 import CookieConsentBanner from "../components/CookieConsentBanner";
 import MolduraDoSite, { AvisoLegalDoSite } from "../components/MolduraDoSite";
@@ -147,13 +148,19 @@ export default async function RootLayout({
               está escrito lá, e é que um componente dentro deste layout não
               enxerga nem o erro pré-hidratação nem o crash da própria raiz. */}
           <MolduraDoSite>
-            <Header />
+            {/* Os logos animados vão prontos, por prop: cabeçalho e rodapé
+                são "use client" (ver `marca/usosDoLogo.tsx`). As alturas são
+                as do SVG parado que eles substituem; animam ao passar o mouse. */}
+            <Header
+              logo={<LogoDaBarra className="w-[80px]" />}
+              logoCompacto={<LogoDaBarra className="w-[72px]" />}
+            />
           </MolduraDoSite>
           <main className="flex-grow flex flex-col">
             {children}
           </main>
           <MolduraDoSite>
-            <Footer navegacao={navegacaoDoRodape} />
+            <Footer navegacao={navegacaoDoRodape} logo={<LogoDoRodape />} />
             <LeadPopup />
           </MolduraDoSite>
           {/* Fora da moldura de NAVEGAÇÃO, e de propósito: a landing page de

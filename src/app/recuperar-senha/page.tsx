@@ -1,7 +1,7 @@
 import Link from "next/link";
 import RecuperarSenhaForm from "../../components/RecuperarSenhaForm";
 import { Rotulo } from "../../components/modernist/primitivos";
-import { LogoDoAcesso } from "../../components/marca/FechoComLogo";
+import { LogoDoAcesso } from "../../components/marca/usosDoLogo";
 
 export const metadata = {
   title: "Recuperar senha — Motors Store",

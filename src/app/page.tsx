@@ -2,7 +2,6 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { areasVisiveis, normalizarAreas } from "../lib/areasDoSite";
 import HeroHome from "../components/modernist/HeroHome";
-import FechoComLogo from "../components/marca/FechoComLogo";
 import ContagemDeEstoque from "../components/ContagemDeEstoque";
 import BuscaRegua from "../components/modernist/BuscaRegua";
 import BotaoWhatsApp from "../components/modernist/BotaoWhatsApp";
@@ -518,10 +517,6 @@ export default async function Home() {
       {areasVisiveis(configDasAreas).map((area) => (
         <Fragment key={area.id}>{blocos[area.id]}</Fragment>
       ))}
-
-      {/* Fora da lista de áreas, como a contagem lá em cima: é o fecho da
-          página, e não uma seção que o painel reordena. */}
-      <FechoComLogo />
     </div>
   );
 }

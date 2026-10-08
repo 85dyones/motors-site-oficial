@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from "../../lib/supabase-server";
 import { ehInvestidor, ehStaff } from "../../lib/permissoes";
 import DefinirSenhaForm from "../../components/DefinirSenhaForm";
 import { Rotulo } from "../../components/modernist/primitivos";
-import { LogoDoAcesso } from "../../components/marca/FechoComLogo";
+import { LogoDoAcesso } from "../../components/marca/usosDoLogo";
 
 export const metadata = {
   title: "Definir senha — Motors Store",
