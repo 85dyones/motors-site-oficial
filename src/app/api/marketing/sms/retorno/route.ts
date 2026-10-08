@@ -28,7 +28,14 @@ export async function POST(request: NextRequest) {
   const recebido = bearer ?? request.nextUrl.searchParams.get("token");
   if (!tokenConfere(recebido, tokenDoRetorno)) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
-  const avisos = lerRetornoDoSms(await request.json().catch(() => null));
+  const corpo = await request.json().catch(() => null);
+  const avisos = lerRetornoDoSms(corpo);
+  // O aviso como veio, sem número nem texto de quem respondeu: é nele que está o porquê de um
+  // "invalid" (ex.: blocked_at, error_at), que a doc não explica.
+  const SEM_DADO_PESSOAL = new Set(["number", "phone", "telefone", "mensagem", "message", "reply", "text", "body", "content"]);
+  const brutos = (Array.isArray(corpo) ? corpo : corpo && typeof corpo === "object" ? [corpo] : [])
+    .filter((i): i is Record<string, unknown> => !!i && typeof i === "object")
+    .map((i) => Object.fromEntries(Object.entries(i).filter(([k]) => !SEM_DADO_PESSOAL.has(k.toLowerCase()))));
   if (avisos.length === 0) return NextResponse.json({ recebidos: 0, achados: 0 });
 
   let admin;
@@ -40,6 +47,6 @@ export async function POST(request: NextRequest) {
   const achados = await registrarRetorno(admin, avisos);
   // O caminho de cada SMS no log (sem número nem texto de resposta): é como se segue um teste,
   // que não tem envio gravado, e como se descobre por que algo não chegou.
-  console.info("[SMS retorno]", { recebidos: avisos.length, achados, avisos: avisos.map((a) => ({ id: a.id, status: a.statusBruto })) });
+  console.info("[SMS retorno]", JSON.stringify({ recebidos: avisos.length, achados, avisos: brutos }));
   return NextResponse.json({ recebidos: avisos.length, achados });
 }

@@ -206,6 +206,8 @@ export default function NovaCampanhaDeSms({
   const [erro, setErro] = useState<string | null>(null);
 
   const [telefoneDoTeste, setTelefoneDoTeste] = useState("");
+  // A operadora do número do teste (opcional): a doc da APIBrasil traz `operator` no exemplo, sem dizer se é obrigatório.
+  const [operadoraDoTeste, setOperadoraDoTeste] = useState("");
   const [testando, setTestando] = useState(false);
   const [teste, setTeste] = useState<{ ok: boolean; texto: string; fornecedor?: RespostaDoTeste["fornecedor"]; custo?: number | null } | null>(null);
 
@@ -363,7 +365,7 @@ export default function NovaCampanhaDeSms({
     setTeste(null);
     setTestando(true);
     try {
-      const { ok, json } = await ler<RespostaDoTeste>(await fetch("/api/marketing/sms/teste", emJson({ telefone: telefoneDoTeste, veiculoId: carro?.id ?? null, mensagem: mensagem.trim() })));
+      const { ok, json } = await ler<RespostaDoTeste>(await fetch("/api/marketing/sms/teste", emJson({ telefone: telefoneDoTeste, veiculoId: carro?.id ?? null, mensagem: mensagem.trim(), operadora: operadoraDoTeste || null })));
       if (!ok || !json.texto) setTeste({ ok: false, texto: json.error || "O teste não foi enviado." });
       else setTeste({ ok: true, texto: json.texto, fornecedor: json.fornecedor, custo: json.custo ?? null });
     } catch {
@@ -742,6 +744,16 @@ export default function NovaCampanhaDeSms({
                 placeholder="(41) 90000-0000"
                 data-telefone-do-teste
               />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className={dica}>Operadora (opcional)</span>
+              <select className={campo} value={operadoraDoTeste} onChange={(e) => setOperadoraDoTeste(e.target.value)} data-operadora-do-teste>
+                <option value="">Não informar</option>
+                <option value="claro">Claro</option>
+                <option value="vivo">Vivo</option>
+                <option value="tim">TIM</option>
+                <option value="oi">Oi</option>
+              </select>
             </label>
             <button
               type="button"
