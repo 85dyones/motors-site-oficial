@@ -150,7 +150,7 @@ export default async function RootLayout({
           <MolduraDoSite>
             {/* Os logos animados vão prontos, por prop: cabeçalho e rodapé
                 são "use client" (ver `marca/usosDoLogo.tsx`). As alturas são
-                as do SVG parado que eles substituem: 40 px e 36 px. */}
+                as do SVG parado que eles substituem; animam ao passar o mouse. */}
             <Header
               logo={<LogoDaBarra className="w-[80px]" />}
               logoCompacto={<LogoDaBarra className="w-[72px]" />}

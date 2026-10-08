@@ -19,8 +19,8 @@ import { CSS_DO_LOGO_ANIMADO } from "./logoAnimadoCss";
  *   desligada ou com "reduzir movimento" no sistema, o visitante vê o logo
  *   inteiro. Nada depende de a animação terminar.
  * - Não é imagem de LCP nem fica na frente de conteúdo: quem decide quando
- *   ela toca é `data-la`, e o uso abaixo da dobra passa por
- *   `LogoAoEntrarNaTela`, que só liga quando a faixa aparece.
+ *   ela toca é `data-la`, posto pelo servidor (`tocar`) ou pelo
+ *   `LogoAoPassarOMouse`.
  *
  * A geometria é a do projeto de design (prancha de 1500 × 752), não a dos
  * SVGs de `public/marca/`: os tempos da animação foram desenhados sobre ela.
@@ -88,6 +88,7 @@ export default function LogoAnimado({
   duracao,
   traco,
   simples = false,
+  arranjo = "vertical",
   rotulo = "Motors Store",
   className,
 }: {
@@ -98,7 +99,8 @@ export default function LogoAnimado({
   tema?: TemaDoLogo;
   /**
    * Toca assim que a página pinta, sem JavaScript. Para logo que já nasce
-   * visível (login). Abaixo da dobra, deixe `false` e use `LogoAoEntrarNaTela`.
+   * visível (login, abertura de /sobre). Para tocar ao passar o mouse,
+   * deixe `false` e envolva em `LogoAoPassarOMouse`.
    */
   tocar?: boolean;
   /**
@@ -123,6 +125,13 @@ export default function LogoAnimado({
    * metade, e este é o que vai no HTML de TODA página.
    */
   simples?: boolean;
+  /**
+   * `vertical`: o símbolo em cima da palavra (o desenho do projeto de
+   * design). `horizontal`: o símbolo à esquerda, na proporção exata de
+   * `public/marca/motors-store-horizontal-negativo.svg` (363 × 61), para
+   * caber onde o logo horizontal já está, como no rodapé. Sem câmera.
+   */
+  arranjo?: "vertical" | "horizontal";
   rotulo?: string;
   className?: string;
 }) {
@@ -130,7 +139,13 @@ export default function LogoAnimado({
   // `url(#…)` do segundo pegaria o degradê do primeiro, com as cores erradas.
   const id = `la${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const metal = `url(#${id}m)`;
-  const comCamera = camera && !simples;
+  const horizontal = arranjo === "horizontal";
+  const comCamera = camera && !simples && !horizontal;
+  // O símbolo do logo horizontal tem o MESMO tamanho das asas do vertical (a
+  // escala do arquivo da marca dá 381 de altura; as asas têm 380). Só muda o
+  // lugar: à esquerda da palavra, com o topo 52 acima de MOTORS e 104 de
+  // vão, as medidas do arquivo da marca multiplicadas por 6,25.
+  const caixa = horizontal ? "-776 407 2276 380" : simples ? "0 0 1500 752" : "-90 -64 1680 880";
   const brilho = (sufixo: string) => (simples ? undefined : `url(#${id}${sufixo})`);
 
   const estilo: Record<string, string> = {};
@@ -155,7 +170,7 @@ export default function LogoAnimado({
       >
         {/* O centro do viewBox é o centro do logo (750, 376): é em torno dele
             que a câmera abre, e o CSS conta com isso. */}
-        <svg viewBox={simples ? "0 0 1500 752" : "-90 -64 1680 880"} aria-hidden="true" focusable="false">
+        <svg viewBox={caixa} aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id={`${id}m`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1500" y2="760">
               <stop offset="0" className="la-m0" />
@@ -206,19 +221,21 @@ export default function LogoAnimado({
           </defs>
 
           {/* ─── Asas ─── */}
-          <g className="la-asas">
-            <path d={ASA_E} fill={metal} />
-            <path d={ASA_D} fill={metal} />
-          </g>
-          <g filter={brilho("g")}>
-            <path className="la-traco" d={TRACO_E} pathLength={1} />
-            <path className="la-traco" d={TRACO_D} pathLength={1} />
-          </g>
-          {!simples && (
-            <g clipPath={`url(#${id}a)`}>
-              <rect className="la-brilho la-brilho-asas" x={-400} y={-120} width={260} height={640} fill={`url(#${id}b)`} />
+          <g transform={horizontal ? "translate(-1186,407)" : undefined}>
+            <g className="la-asas">
+              <path d={ASA_E} fill={metal} />
+              <path d={ASA_D} fill={metal} />
             </g>
-          )}
+            <g filter={brilho("g")}>
+              <path className="la-traco" d={TRACO_E} pathLength={1} />
+              <path className="la-traco" d={TRACO_D} pathLength={1} />
+            </g>
+            {!simples && (
+              <g clipPath={`url(#${id}a)`}>
+                <rect className="la-brilho la-brilho-asas" x={-400} y={-120} width={260} height={640} fill={`url(#${id}b)`} />
+              </g>
+            )}
+          </g>
 
           {/* ─── MOTORS ───
               A palavra aparece atrás de uma fresta de luz que corre da esquerda

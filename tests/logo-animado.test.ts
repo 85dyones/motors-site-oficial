@@ -12,8 +12,8 @@ import { CSS_DO_LOGO_ANIMADO } from "../src/components/marca/logoAnimadoCss";
  *
  * O que este arquivo NÃO prova: que a animação está bonita, nem que os quadros
  * batem com o projeto de design. Isso foi conferido quadro a quadro no
- * navegador, e só olho confere. Também não prova o `LogoAoEntrarNaTela`: o
- * `IntersectionObserver` não existe no jsdom.
+ * navegador, e só olho confere. O `LogoAoPassarOMouse` foi conferido no
+ * Chromium (passar o mouse, tirar no meio, passar de novo).
  */
 
 const raiz = join(__dirname, "..");
@@ -48,7 +48,7 @@ describe("logo animado: o peso", () => {
 
   it("o logo que vai em toda página é o simples, e pesa menos da metade", () => {
     // Cabeçalho (dois, um por largura) e rodapé: três cópias no HTML de toda
-    // página.
+    // página. O do rodapé é o arranjo horizontal, também simples.
     const usos = ler("src/components/marca/usosDoLogo.tsx");
     for (const uso of ["LogoDaBarra", "LogoDoRodape"]) {
       const corpo = usos.slice(usos.indexOf(`export function ${uso}`)).split("\nexport function")[0];
@@ -131,6 +131,25 @@ describe("onde o logo aparece", () => {
     expect(comAbertura).toEqual(["src/app/sobre/page.tsx"]);
     const sobre = ler("src/app/sobre/page.tsx");
     expect(sobre.indexOf("<AberturaDaMotors />")).toBeLessThan(sobre.indexOf("<SobreClientWrapper"));
+  });
+
+  it("cabeçalho e rodapé: parados no lugar de sempre, animam ao passar o mouse", () => {
+    const usos = ler("src/components/marca/usosDoLogo.tsx");
+    for (const uso of ["LogoDaBarra", "LogoDoRodape"]) {
+      const corpo = usos.slice(usos.indexOf(`export function ${uso}`)).split("\nexport function")[0];
+      expect(corpo, uso).toContain("<LogoAoPassarOMouse");
+      expect(corpo, uso).not.toMatch(/\stocar[\s/>]/);
+    }
+    // O tamanho de antes: 80/72 de largura na barra, 191 no rodapé.
+    expect(ler("src/app/layout.tsx")).toMatch(/<LogoDaBarra className="w-\[80px\]" \/>[\s\S]*<LogoDaBarra className="w-\[72px\]" \/>/);
+    expect(usos).toMatch(/w-\[191px\][\s\S]*arranjo="horizontal"/);
+  });
+
+  it("o horizontal tem a proporção do arquivo da marca", () => {
+    const html = renderToStaticMarkup(createElement(LogoAnimado, { arranjo: "horizontal", simples: true }));
+    const [, , w, h] = html.match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
+    const marca = ler("public/marca/motors-store-horizontal-negativo.svg").match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
+    expect(w / h).toBeCloseTo(marca[2] / marca[3], 1);
   });
 
   it("cabeçalho e rodapé seguem inteiros sem o logo animado", () => {
