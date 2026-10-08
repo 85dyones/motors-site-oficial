@@ -90,7 +90,9 @@ export default function ConsultaPorModelo({
   const router = useRouter();
   const { confirm } = useConfirm();
   const completa = modo === "completa";
-  const [custo, setCusto] = useState<{ chamadasPagas: number; custo: number | null } | null>(null);
+  const [custo, setCusto] = useState<{ chamadasPagas: number; custo: number | null; guardados: number } | null>(null);
+  // O modelo que está NA TELA (e não o que está nos seletores agora): é ele que o "ver a série" leva.
+  const [analisado, setAnalisado] = useState<SelecaoDeModelo | null>(null);
   const [marcas, setMarcas] = useState<Lista>({ ...VAZIA, carregando: true });
   const [modelos, setModelos] = useState<Lista>(VAZIA);
   const [anos, setAnos] = useState<Lista>(VAZIA);
@@ -203,6 +205,7 @@ export default function ConsultaPorModelo({
         mercado?: MercadoDoModelo;
         avisos?: string[];
         chamadasPagas?: number;
+        mesesPagosGuardados?: number;
         custo?: number | null;
         error?: string;
       };
@@ -212,7 +215,8 @@ export default function ConsultaPorModelo({
       }
       setMercado(json.mercado);
       setAvisos(json.avisos ?? []);
-      setCusto(completa ? { chamadasPagas: json.chamadasPagas ?? 0, custo: json.custo ?? null } : null);
+      setCusto(completa ? { chamadasPagas: json.chamadasPagas ?? 0, custo: json.custo ?? null, guardados: json.mesesPagosGuardados ?? 0 } : null);
+      setAnalisado(pedido);
       avaliacao.zerar();
       // "Modelos já consultados" é do servidor.
       router.refresh();
@@ -345,7 +349,7 @@ export default function ConsultaPorModelo({
                 <button
                   type="button"
                   className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2 text-[11px]"
-                  onClick={() => aoPedirCompleta({ marca, modelo, ano, anos: anos.opcoes.map((o) => o.codigo) })}
+                  onClick={() => analisado && aoPedirCompleta({ ...analisado })}
                 >
                   Ver histórico e tendência
                 </button>
@@ -406,10 +410,14 @@ export default function ConsultaPorModelo({
             </p>
           </section>
 
-          {custo && custo.chamadasPagas > 0 && (
+          {/* Custo zero é o modo de teste: o aviso de homologação já diz o que houve. */}
+          {custo && custo.chamadasPagas > 0 && custo.custo !== 0 && (
             <p className={dica} data-custo-da-consulta>
-              Esta análise consultou {custo.chamadasPagas} {custo.chamadasPagas === 1 ? "mês" : "meses"} na APIBrasil
-              {custo.custo !== null ? ` (${reaisComCentavos(custo.custo)})` : ""}. Eles ficaram guardados: reabrir este modelo não paga de novo.
+              Esta análise fez {custo.chamadasPagas} {custo.chamadasPagas === 1 ? "consulta paga" : "consultas pagas"} na APIBrasil
+              {custo.custo !== null ? ` (${reaisComCentavos(custo.custo)})` : ""}.{" "}
+              {custo.guardados > 0
+                ? `${custo.guardados} ${custo.guardados === 1 ? "mês ficou guardado e não paga" : "meses ficaram guardados e não pagam"} de novo.`
+                : "Nenhum mês novo ficou guardado."}
             </p>
           )}
 

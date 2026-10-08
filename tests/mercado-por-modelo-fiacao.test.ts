@@ -148,7 +148,7 @@ const PEDIDO = { tipo: "carros", marca: "59", modelo: "5940", ano: "2022-1", ano
 
 beforeEach(() => {
   chamadas = [];
-  resposta = { status: 200, corpo: { mercado: mercado(), avisos: [], chamadasPagas: 22, custo: 1.32 } };
+  resposta = { status: 200, corpo: { mercado: mercado(), avisos: [], chamadasPagas: 22, mesesPagosGuardados: 22, custo: 1.32 } };
   estimativa = { mesesPagosNoMaximo: 22, precoPorMes: 0.06, temToken: true, homologacao: false };
   refresh.mockClear();
   confirm.mockClear();
@@ -205,9 +205,11 @@ describe("a FIPE grátis", () => {
     expect(abaDe("fipe").querySelector("[role=alert]")?.textContent).toContain("limite de consultas de hoje");
   });
 
-  it("'Ver histórico e tendência' leva o modelo à aba paga, que pergunta o custo antes de consultar", async () => {
+  it("'Ver histórico e tendência' leva à aba paga o modelo que está NA TELA, e ela pergunta o custo antes de consultar", async () => {
     await montar();
     await analisar("fipe");
+    // Trocar o ano depois de consultar não muda o que o botão leva: leva o que está na tela.
+    await escolher("fipe", 2, "2021-1");
     chamadas = [];
     const botao = [...abaDe("fipe").querySelectorAll("button")].find((b) => b.textContent?.includes("Ver histórico"))!;
     await act(async () => {
@@ -222,6 +224,17 @@ describe("a FIPE grátis", () => {
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(abaDe("modelo").querySelector("[data-tendencia]")).toBeTruthy();
     expect(seletores("modelo")[2].value).toBe("2022-1");
+  });
+
+  it("modo de teste (custo zero): o rodapé de custo não aparece; quem fala é o aviso", async () => {
+    resposta = { status: 200, corpo: { mercado: mercado(), avisos: ["A APIBrasil está em modo de teste"], chamadasPagas: 22, mesesPagosGuardados: 0, custo: 0 } };
+    estimativa = { ...estimativa, homologacao: true };
+    await montar();
+    await irPara("modelo");
+    await analisar("modelo");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(abaDe("modelo").querySelector("[data-custo-da-consulta]")).toBeNull();
+    expect(abaDe("modelo").textContent).toContain("modo de teste");
   });
 });
 
@@ -254,8 +267,9 @@ describe("a consulta Por modelo, paga", () => {
     await irPara("modelo");
     await analisar("modelo");
     const custo = abaDe("modelo").querySelector("[data-custo-da-consulta]")?.textContent ?? "";
-    expect(custo).toContain("22 meses");
+    expect(custo).toContain("22 consultas pagas");
     expect(custo).toContain("1,32");
+    expect(custo).toContain("22 meses ficaram guardados");
   });
 
   it("o alerta de tendência vem com forma, rótulo escrito e as frases que o sustentam", async () => {

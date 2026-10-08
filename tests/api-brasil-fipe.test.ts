@@ -60,6 +60,21 @@ describe("a resposta", () => {
     expect(lerRespostaDaTabelaPaga(null)).toMatchObject({ tipo: "falha" });
     expect(lerRespostaDaTabelaPaga({ error: false, data: [] })).toMatchObject({ tipo: "falha" });
   });
+
+  it("'não encontrado' que não fala do carro é falha, e não 'não tinha'", () => {
+    expect(lerRespostaDaTabelaPaga({ error: true, message: "Token não encontrado" })).toMatchObject({ tipo: "falha" });
+    expect(lerRespostaDaTabelaPaga({ error: true, message: "Serviço não encontrado" })).toMatchObject({ tipo: "falha" });
+    expect(lerRespostaDaTabelaPaga({ error: true, message: "Veículo não encontrado" })).toEqual({ tipo: "sem_valor" });
+  });
+
+  it("fora da homologação, o carro de exemplo ou outro ano-modelo não vira tabela", () => {
+    const exemplo = { error: false, data: { Valor: "R$ 123.456,78", Marca: "MARCA HOMOLOG", Modelo: "MODELO HOMOLOG", AnoModelo: 2024, CodigoFipe: "999999-9" } };
+    expect(lerRespostaDaTabelaPaga(exemplo, { anoModelo: 2024, homologacao: false })).toMatchObject({ tipo: "falha" });
+    expect(lerRespostaDaTabelaPaga(exemplo, { anoModelo: 2022, homologacao: true })).toMatchObject({ tipo: "valor" });
+    const outroAno = { error: false, data: { Valor: "R$ 90.000,00", Marca: "VW", AnoModelo: 2021 } };
+    expect(lerRespostaDaTabelaPaga(outroAno, { anoModelo: 2022, homologacao: false })).toMatchObject({ tipo: "falha" });
+    expect(lerRespostaDaTabelaPaga(outroAno, { anoModelo: 2021, homologacao: false })).toMatchObject({ tipo: "valor" });
+  });
 });
 
 describe("a chamada", () => {

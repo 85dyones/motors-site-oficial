@@ -36,7 +36,7 @@ import { APIBRASIL_CONSULTA_DE_VEICULOS, type BuscarNaApiBrasil } from "./apiBra
 export const PRODUTO_TABELA_FIPE = "consulta-valor-com-todos-parametros";
 
 /** Um mês da tabela custa pouco e responde rápido; a espera é curta para a fila andar. */
-export const ESPERA_DA_TABELA_FIPE_MS = 20000;
+export const ESPERA_DA_TABELA_FIPE_MS = 12000;
 
 const TIPO_DE_VEICULO: Record<TipoFipe, number> = { carros: 1, motos: 2, caminhoes: 3 };
 
@@ -86,12 +86,20 @@ const texto = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v.trim
 /**
  * "Não tinha este carro neste mês". A FIPE oficial responde isso com
  * `{ codigo: "2", erro: "Parâmetros inválidos" }`; o fornecedor embrulha em
- * `error`/`message`. Qualquer outra recusa é falha, e falha não fica guardada.
+ * `error`/`message`. Estreito de propósito: "token não encontrado" ou
+ * "serviço não encontrado" são falha, e falha não fica guardada.
  */
-const NAO_TINHA = /par[âa]metros? inv[áa]lidos?|n[ãa]o encontrad|nenhum (ve[íi]culo|resultado|registro)|sem resultado|inexistente/i;
+const NAO_TINHA = /par[âa]metros? inv[áa]lidos?|(ve[íi]culo|modelo|valor) n[ãa]o encontrad|nenhum ve[íi]culo/i;
 
-/** Lê o corpo de uma resposta 200 (ou 4xx com corpo). Puro. */
-export function lerRespostaDaTabelaPaga(corpo: unknown): LeituraPaga {
+/** A marca do carro de exemplo da homologação: com ela na resposta, o valor não é tabela. */
+const DADO_DE_EXEMPLO = /homolog/i;
+
+/**
+ * Lê o corpo de uma resposta 200 (ou 4xx com corpo). Puro. Com `anoModelo`,
+ * confere que o carro que voltou é o do pedido: resposta de outro ano, ou com
+ * a marca do carro de exemplo, é falha (e falha não fica guardada).
+ */
+export function lerRespostaDaTabelaPaga(corpo: unknown, esperado?: { anoModelo: number; homologacao: boolean }): LeituraPaga {
   if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) return { tipo: "falha", porque: "respondeu algo ilegível" };
   const c = corpo as Record<string, unknown>;
   const data = c.data && typeof c.data === "object" && !Array.isArray(c.data) ? (c.data as Record<string, unknown>) : null;
@@ -107,6 +115,13 @@ export function lerRespostaDaTabelaPaga(corpo: unknown): LeituraPaga {
   const valor = digitos ? Number(digitos) / 100 : NaN;
   if (!Number.isFinite(valor) || valor <= 0) return { tipo: "falha", porque: "respondeu sem o valor" };
   const anoModelo = Number(data.AnoModelo);
+  // Em homologação o carro de exemplo é o esperado: quem chama confere o formato e descarta o valor.
+  if (!esperado?.homologacao && [data.Marca, data.Modelo, data.CodigoFipe].some((v) => typeof v === "string" && (DADO_DE_EXEMPLO.test(v) || v.trim() === "999999-9"))) {
+    return { tipo: "falha", porque: "respondeu o carro de exemplo da homologação" };
+  }
+  if (esperado && !esperado.homologacao && Number.isInteger(anoModelo) && anoModelo > 0 && anoModelo !== esperado.anoModelo) {
+    return { tipo: "falha", porque: `respondeu outro ano-modelo (${anoModelo})` };
+  }
   return {
     tipo: "valor",
     valor: {
@@ -141,7 +156,7 @@ export async function lerMesNaTabelaPaga(
     if (r.status === 402) return { tipo: "sem_saldo", motivo: "A conta da APIBrasil está sem saldo. Ponha crédito no painel deles e analise de novo." };
     if (r.status === 401 || r.status === 403) return { tipo: "sem_acesso", motivo: "A APIBrasil recusou o token da loja. Confira APIBRASIL_TOKEN na Vercel." };
     if (r.status >= 500) return { tipo: "falha", porque: `está fora do ar (HTTP ${r.status})` };
-    return lerRespostaDaTabelaPaga(await r.json().catch(() => null));
+    return lerRespostaDaTabelaPaga(await r.json().catch(() => null), { anoModelo: corpo.anoModelo as number, homologacao: opcoes.homologacao });
   } catch (erro) {
     return { tipo: "falha", porque: (erro as Error)?.name === "AbortError" ? "não respondeu a tempo" : "não respondeu" };
   } finally {

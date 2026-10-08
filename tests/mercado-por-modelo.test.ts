@@ -330,7 +330,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
   });
 
   it("primeira consulta: busca tudo, com o mês no parâmetro, e guarda", async () => {
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.chamadas).toBe(MESES_DE_HISTORICO + 1 + 2);
@@ -342,11 +342,11 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
   });
 
   it("segunda consulta: nenhuma chamada de valor", async () => {
-    await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     guardadas = [...gravadas];
     pedidas = [];
     gravadas = [];
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r.ok && r.chamadas).toBe(0);
     // Nem a lista de meses: ela fica em memória.
     expect(pedidas).toEqual([]);
@@ -355,7 +355,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
 
   it("404 é resposta: o mês fica guardado como 'sem valor' e some da série", async () => {
     respostaDe = (url) => (url.includes("years/2022-1?reference=310") ? { status: 404, corpo: { error: "not found" } } : padrao(url));
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: undefined, banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: undefined, banco: banco(), modo: "completa" });
     expect(r.ok && r.mercado.historico).toHaveLength(MESES_DE_HISTORICO);
     expect(r.ok && r.mercado.mesesQueFaltaram).toBe(0);
     expect(gravadas.filter((l) => l.valor === null)).toHaveLength(1);
@@ -363,7 +363,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
 
   it("429 logo no mês corrente: para a fila e diz que é o limite do dia", async () => {
     respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : { status: 429, corpo: {} });
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r).toMatchObject({ ok: false, status: 429 });
     // Uma chamada por trabalhador: ninguém insiste contra o limite.
     expect(pedidas.filter((u) => !u.endsWith("/references")).length).toBeLessThanOrEqual(5);
@@ -372,7 +372,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
   it("429 no meio: entrega o que tem e avisa que o histórico está incompleto", async () => {
     let n = 0;
     respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : ++n > 10 ? { status: 429, corpo: {} } : { status: 200, corpo: valor });
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.mercado.mesesQueFaltaram).toBeGreaterThan(0);
@@ -384,7 +384,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     // O que aconteceu em 07/10/2026 no Preview, sem token: quatro vieram, o resto não.
     let n = 0;
     respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : ++n > 4 ? { status: 403, corpo: {} } : { status: 200, corpo: valor });
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: undefined, banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: undefined, banco: banco(), modo: "completa" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(gravadas).toHaveLength(4);
@@ -397,7 +397,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
   it("falha solta no meio não para a fila, e com token não se fala de token", async () => {
     let n = 0;
     respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : ++n % 6 === 0 ? { status: 500, corpo: {} } : { status: 200, corpo: valor });
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r.ok && r.chamadas).toBe(MESES_DE_HISTORICO + 1 + 2);
     expect(r.ok && r.avisos.join(" ")).toContain("respondeu 500");
     expect(r.ok && r.avisos.join(" ")).not.toContain("FIPE_API_TOKEN");
@@ -407,7 +407,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     // O que aconteceu em 07 e 08/10/2026 em produção, com token: outubro, setembro e agosto vieram; julho para trás, 402.
     const fora = (url: string) => /reference=(\d+)/.test(url) && Number(/reference=(\d+)/.exec(url)![1]) <= 327;
     respostaDe = (url) => (fora(url) ? { status: 402, corpo: {} } : padrao(url));
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.mercado.historico).toHaveLength(3);
@@ -424,7 +424,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     // De novo: o que veio está guardado e o corte está em memória, então nenhuma chamada.
     guardadas = [...gravadas];
     pedidas = [];
-    const de_novo = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const de_novo = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(de_novo.ok && de_novo.chamadas).toBe(0);
     expect(pedidas).toEqual([]);
     expect(de_novo.ok && de_novo.mercado.mesesForaDoPlano).toBe(MESES_DE_HISTORICO + 1 - 3);
@@ -436,13 +436,13 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
       vi.setSystemTime(new Date("2026-10-08T10:00:00Z"));
       const fora = (url: string) => /reference=(\d+)/.test(url) && Number(/reference=(\d+)/.exec(url)![1]) <= 327;
       respostaDe = (url) => (fora(url) ? { status: 402, corpo: {} } : padrao(url));
-      await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+      await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
 
       // 5h depois, outro modelo: o mês corrente é consultado, os meses cortados não.
       vi.setSystemTime(new Date("2026-10-08T15:00:00Z"));
       pedidas = [];
       const outro = { ...PEDIDO, modelo: "6000" };
-      await consultarMercado(outro, { buscar: buscar as never, token: "tok", banco: banco() });
+      await consultarMercado(outro, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
       expect(pedidas.some((u) => u.includes("/6000/") && u.includes("reference=330"))).toBe(true);
       expect(pedidas.some((u) => fora(u))).toBe(false);
 
@@ -451,7 +451,7 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
       respostaDe = padrao;
       guardadas = [...gravadas];
       gravadas = [];
-      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
       expect(r.ok && r.mercado.mesesForaDoPlano).toBe(0);
       expect(r.ok && r.mercado.historico).toHaveLength(MESES_DE_HISTORICO + 1);
     } finally {
@@ -461,16 +461,16 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
 
   it("402 no mês corrente e depois o plano volta: a próxima consulta tenta o mês corrente e o corte cai", async () => {
     respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : { status: 402, corpo: {} });
-    expect((await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() })).ok).toBe(false);
+    expect((await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" })).ok).toBe(false);
     respostaDe = padrao;
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r.ok && r.mercado.mesesForaDoPlano).toBe(0);
     expect(r.ok && r.mercado.historico).toHaveLength(MESES_DE_HISTORICO + 1);
   });
 
   it("402 no mês corrente: diz que é o plano da FIPE, e não limite do dia", async () => {
     respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : { status: 402, corpo: {} });
-    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" });
     expect(r).toMatchObject({ ok: false, status: 502 });
     expect(!r.ok && r.motivo).toContain("plano");
   });
@@ -574,17 +574,70 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
       expect(r.ok && r.avisos.join(" ")).toContain("APIBRASIL_TOKEN");
     });
 
-    it("a estimativa: sem corte conhecido é o teto; com o corte, só os meses para trás dele; guardado não conta", async () => {
+    it("a estimativa é um teto: todo mês da série que não está guardado, mesmo com o corte conhecido", async () => {
       const antes = await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
       expect(antes).toEqual({ ok: true, mesesPagosNoMaximo: MESES_DE_HISTORICO });
-      await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "pontual" });
-      // O corte só se aprende pedindo um mês antigo.
+      // Com o corte aprendido, continua o teto: quais meses a gratuita entrega muda na virada do mês.
       await consultarMercado({ ...PEDIDO, modelo: "6000" }, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: null });
-      const depois = await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
-      expect(depois).toEqual({ ok: true, mesesPagosNoMaximo: MESES_DE_HISTORICO - 2 });
+      expect(await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() })).toEqual({ ok: true, mesesPagosNoMaximo: MESES_DE_HISTORICO });
+      // Guardado não conta.
       guardadas = gravadas.filter((l) => l.ano === PEDIDO.ano);
-      const com_guardado = await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
-      expect(com_guardado.ok && com_guardado.mesesPagosNoMaximo).toBeLessThanOrEqual(MESES_DE_HISTORICO - 2);
+      expect(await estimarConsultaCompleta(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() })).toEqual({ ok: true, mesesPagosNoMaximo: MESES_DE_HISTORICO - 2 });
+    });
+
+    it("'não tinha' pago em série antes de qualquer valor: para no terceiro, e nada fica guardado", async () => {
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => ({ tipo: "sem_valor" })) });
+      expect(pagas.length).toBeLessThanOrEqual(3 + 2);
+      expect(r.ok && r.avisos.join(" ")).toContain("Pode ser o pedido");
+      expect(gravadas.some((l) => l.valor === null)).toBe(false);
+    });
+
+    it("a paga só começa com o valor de hoje em mãos: mês corrente 402 não cobra nada", async () => {
+      respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : { status: 402, corpo: {} });
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa", pago: leitor(() => VALOR_PAGO) });
+      expect(r.ok).toBe(false);
+      expect(pagas).toEqual([]);
+    });
+
+    it("histórico ilegível: a paga não roda (cobraria de novo o que já foi pago) e a tela diz por quê", async () => {
+      const r = await consultarMercado(PEDIDO, {
+        buscar: buscar as never,
+        token: "tok",
+        banco: banco({ ok: false, faltaMigracao: false, motivo: "timeout" }),
+        modo: "completa",
+        pago: leitor(() => VALOR_PAGO),
+      });
+      expect(pagas).toEqual([]);
+      expect(r.ok && r.avisos.join(" ")).toContain("A consulta paga não rodou");
+    });
+
+    it("grava em lotes durante a leitura, e para no prazo sem perder o que já foi pago", async () => {
+      let lotes = 0;
+      const bancoContado: BancoDoHistorico = {
+        ler: async () => ({ ok: true, linhas: [] }),
+        gravar: async (_p, linhas) => {
+          lotes++;
+          gravadas.push(...linhas);
+          return { ok: true };
+        },
+      };
+      const lento = leitor(() => VALOR_PAGO);
+      const devagar: LeitorPago = { homologacao: false, ler: async (b) => (await new Promise((r) => setTimeout(r, 5)), lento.ler(b)) };
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: bancoContado, modo: "completa", pago: devagar, prazoMs: 25 });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.avisos.join(" ")).toContain("parou no tempo");
+      // Tudo o que foi pago com valor ficou guardado, e o número que a tela mostra bate.
+      expect(gravadas.filter((l) => l.valor === 90000)).toHaveLength(r.mesesPagosGuardados);
+      expect(r.chamadasPagas).toBeLessThan(MESES_DE_HISTORICO - 2);
+
+      // Sem prazo apertado, mais de um lote: o que foi pago não espera o fim para ser guardado.
+      lotes = 0;
+      gravadas = [];
+      pagas = [];
+      esquecerReferencias();
+      await consultarMercado({ ...PEDIDO, modelo: "7000" }, { buscar: buscar as never, token: "tok", banco: bancoContado, modo: "completa", pago: leitor(() => VALOR_PAGO) });
+      expect(lotes).toBeGreaterThan(2);
     });
   });
 
@@ -601,8 +654,8 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
 
   it("a FIPE fora do ar na lista de meses é 502, e a falha não fica em memória", async () => {
     respostaDe = () => ({ status: 503, corpo: {} });
-    expect(await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() })).toMatchObject({ ok: false, status: 502 });
+    expect(await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" })).toMatchObject({ ok: false, status: 502 });
     respostaDe = padrao;
-    expect((await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() })).ok).toBe(true);
+    expect((await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco(), modo: "completa" })).ok).toBe(true);
   });
 });

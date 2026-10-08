@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
       avisos: resultado.avisos,
       modo,
       chamadasPagas: resultado.chamadasPagas,
+      mesesPagosGuardados: resultado.mesesPagosGuardados,
       // Em homologação nada é cobrado: o custo mostrado é zero.
       custo: apiBrasil.homologacao ? 0 : preco === null ? null : Math.round(resultado.chamadasPagas * preco * 100) / 100,
     },
