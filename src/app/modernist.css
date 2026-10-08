@@ -838,3 +838,61 @@ p {
     transform: scaleX(1);
   }
 }
+
+/* — impressão da Consulta de veículos (dono, 08/10/2026: "imprimir em pdf
+   este relatório, para uso da equipe") —
+   O botão chama a impressão do navegador, que salva em PDF. Sai só o que está
+   dentro de `[data-relatorio]` (a aba aberta: as outras têm `hidden`), sem
+   menu, rodapé, aviso de cookies, formulário nem botões (`.nao-imprimir`).
+   `.so-impressao` é o cabeçalho que só existe no papel. No tema escuro o papel
+   continua claro: texto escuro, fundo branco. */
+.so-impressao {
+  display: none;
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  [data-relatorio],
+  [data-relatorio] * {
+    visibility: visible;
+  }
+  [data-relatorio] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  [data-relatorio] .nao-imprimir {
+    display: none !important;
+  }
+  [data-relatorio] .so-impressao {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-bottom: 2px solid #111;
+    padding-bottom: 6px;
+    font-size: 11px;
+  }
+  [data-relatorio] section,
+  [data-relatorio] tr,
+  [data-relatorio] svg {
+    break-inside: avoid;
+  }
+  [data-relatorio] svg {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .dark [data-relatorio],
+  .dark [data-relatorio] * {
+    color: #111 !important;
+    background-color: transparent !important;
+  }
+}

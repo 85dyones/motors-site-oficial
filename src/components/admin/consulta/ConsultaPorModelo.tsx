@@ -73,6 +73,11 @@ export interface SelecaoDeModelo {
   anos: string[];
 }
 
+/** Um modelo vindo de fora da aba: da FIPE grátis ("ver a série") ou do histórico (`guardado`: abre sem chamar ninguém). */
+export interface PedidoDeFora extends SelecaoDeModelo {
+  guardado?: boolean;
+}
+
 export default function ConsultaPorModelo({
   curva,
   recentes,
@@ -84,7 +89,7 @@ export default function ConsultaPorModelo({
   recentes: LeituraDosModelos;
   modo: "pontual" | "completa";
   /** Um modelo escolhido na outra aba (o "ver a série" da pontual). Cada objeto novo dispara uma análise. */
-  pedidoDeFora?: SelecaoDeModelo | null;
+  pedidoDeFora?: PedidoDeFora | null;
   aoPedirCompleta?: (s: SelecaoDeModelo) => void;
 }) {
   const router = useRouter();
@@ -93,6 +98,8 @@ export default function ConsultaPorModelo({
   const [custo, setCusto] = useState<{ chamadasPagas: number; custo: number | null; guardados: number } | null>(null);
   // O modelo que está NA TELA (e não o que está nos seletores agora): é ele que o "ver a série" leva.
   const [analisado, setAnalisado] = useState<SelecaoDeModelo | null>(null);
+  // Aberto do guardado: de quando é a tabela, e quantos meses a FIPE já tem depois (se se sabe).
+  const [guardado, setGuardado] = useState<{ ate: string; mesesNovos: number | null } | null>(null);
   const [marcas, setMarcas] = useState<Lista>({ ...VAZIA, carregando: true });
   const [modelos, setModelos] = useState<Lista>(VAZIA);
   const [anos, setAnos] = useState<Lista>(VAZIA);
@@ -191,15 +198,20 @@ export default function ConsultaPorModelo({
     });
   };
 
-  const analisar = async (pedido: SelecaoDeModelo) => {
+  /**
+   * `doGuardado`: abre só do que está guardado — nenhuma chamada, nenhum custo,
+   * nenhuma confirmação. Se nada estiver guardado, cai na análise de sempre.
+   */
+  const analisar = async (pedido: SelecaoDeModelo, doGuardado = false) => {
     setErro(null);
     setCarregando(true);
+    let semGuardado = false;
     try {
-      if (completa && !(await confirmarCusto(pedido))) return;
+      if (!doGuardado && completa && !(await confirmarCusto(pedido))) return;
       const res = await fetch("/api/consulta-placa/modelo", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tipo: TIPO, ...pedido, modo }),
+        body: JSON.stringify({ tipo: TIPO, ...pedido, modo: doGuardado ? "guardado" : modo }),
       });
       const json = (await res.json().catch(() => ({}))) as {
         mercado?: MercadoDoModelo;
@@ -207,41 +219,47 @@ export default function ConsultaPorModelo({
         chamadasPagas?: number;
         mesesPagosGuardados?: number;
         custo?: number | null;
+        guardadoAte?: string;
+        mesesNovos?: number | null;
         error?: string;
       };
-      if (!res.ok || !json.mercado) {
+      if (doGuardado && res.status === 404) semGuardado = true;
+      else if (!res.ok || !json.mercado) {
         setErro(json.error || "A análise não voltou.");
-        return;
+      } else {
+        setMercado(json.mercado);
+        setAvisos(json.avisos ?? []);
+        setCusto(completa && !doGuardado ? { chamadasPagas: json.chamadasPagas ?? 0, custo: json.custo ?? null, guardados: json.mesesPagosGuardados ?? 0 } : null);
+        setGuardado(doGuardado && json.guardadoAte ? { ate: json.guardadoAte, mesesNovos: json.mesesNovos ?? null } : null);
+        setAnalisado(pedido);
+        avaliacao.zerar();
+        // O histórico e os "já consultados" são do servidor; abrir o guardado não muda nada lá.
+        if (!doGuardado) router.refresh();
       }
-      setMercado(json.mercado);
-      setAvisos(json.avisos ?? []);
-      setCusto(completa ? { chamadasPagas: json.chamadasPagas ?? 0, custo: json.custo ?? null, guardados: json.mesesPagosGuardados ?? 0 } : null);
-      setAnalisado(pedido);
-      avaliacao.zerar();
-      // "Modelos já consultados" é do servidor.
-      router.refresh();
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
       setCarregando(false);
     }
+    // Nada guardado deste modelo e ano: a consulta de sempre (na paga, com a pergunta do custo).
+    if (semGuardado) await analisar(pedido);
   };
 
-  /** Reabre um modelo já consultado: os anos vêm da FIPE, o histórico já está guardado. */
-  const reabrir = async (m: { marcaCodigo: string; modeloCodigo: string; ano: string }) => {
+  /** Reabre um modelo: os anos vêm da cascata da FIPE; com `doGuardado`, o retrato vem só do banco. */
+  const reabrir = async (m: { marcaCodigo: string; modeloCodigo: string; ano: string }, doGuardado = false) => {
     setErro(null);
     await escolherMarca(m.marcaCodigo);
     const opcoes = await escolherModelo(m.modeloCodigo, m.marcaCodigo);
     setAno(m.ano);
-    await analisar({ marca: m.marcaCodigo, modelo: m.modeloCodigo, ano: m.ano, anos: opcoes.map((o) => o.codigo) });
+    await analisar({ marca: m.marcaCodigo, modelo: m.modeloCodigo, ano: m.ano, anos: opcoes.map((o) => o.codigo) }, doGuardado);
   };
 
   // O modelo que veio da aba grátis: cada pedido novo (objeto novo) abre uma vez.
-  const ultimoDeFora = useRef<SelecaoDeModelo | null>(null);
+  const ultimoDeFora = useRef<PedidoDeFora | null>(null);
   useEffect(() => {
     if (!pedidoDeFora || pedidoDeFora === ultimoDeFora.current) return;
     ultimoDeFora.current = pedidoDeFora;
-    void reabrir({ marcaCodigo: pedidoDeFora.marca, modeloCodigo: pedidoDeFora.modelo, ano: pedidoDeFora.ano });
+    void reabrir({ marcaCodigo: pedidoDeFora.marca, modeloCodigo: pedidoDeFora.modelo, ano: pedidoDeFora.ano }, pedidoDeFora.guardado === true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pedidoDeFora]);
 
@@ -266,7 +284,7 @@ export default function ConsultaPorModelo({
   return (
     <div className="mt-consulta flex w-full flex-col gap-6">
       <form
-        className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)_auto]"
+        className="nao-imprimir grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)_auto]"
         onSubmit={(e) => {
           e.preventDefault();
           if (marca && modelo && ano) void analisar({ marca, modelo, ano, anos: anos.opcoes.map((o) => o.codigo) });
@@ -322,6 +340,33 @@ export default function ConsultaPorModelo({
         </div>
       ))}
 
+      {mercado && guardado && analisado && (
+        <div data-aberto-do-guardado className="flex flex-wrap items-center gap-3 border border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-ink">
+          <SinalDeEstado estado="nao_conferido" />
+          <span className="min-w-0 flex-1">
+            <strong className="font-extrabold">Aberto do histórico, sem nenhuma consulta.</strong> Tabela guardada até{" "}
+            {mesAno({ ano: Number(guardado.ate.slice(0, 4)), mes: Number(guardado.ate.slice(5, 7)) })}.
+            {guardado.mesesNovos === null
+              ? ""
+              : guardado.mesesNovos === 0
+                ? " Já é o mês mais novo da FIPE."
+                : ` A FIPE já tem ${guardado.mesesNovos} ${guardado.mesesNovos === 1 ? "mês mais novo" : "meses mais novos"}.`}
+            {completa
+              ? " Atualizar busca só o que falta: os meses recentes vêm da FIPE grátis e, se algum for pago, o custo é perguntado antes."
+              : " Atualizar traz o valor do mês mais novo, de graça."}
+          </span>
+          <button
+            type="button"
+            disabled={carregando}
+            className="nao-imprimir mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2 text-[11px]"
+            onClick={() => void analisar(analisado)}
+            data-atualizar-dados
+          >
+            Atualizar dados
+          </button>
+        </div>
+      )}
+
       {mercado && !completa && (
         <>
           <section aria-label="FIPE de hoje" data-fipe-pontual className="flex flex-col gap-3 border-2 border-mt-ink bg-mt-surface p-5">
@@ -342,7 +387,7 @@ export default function ConsultaPorModelo({
               </div>
             </div>
             {aoPedirCompleta && (
-              <div className="flex flex-wrap items-center gap-3 border-t border-mt-regua-fina pt-3">
+              <div className="nao-imprimir flex flex-wrap items-center gap-3 border-t border-mt-regua-fina pt-3">
                 <p className="m-0 flex-1 text-xs text-mt-neutral-800">
                   Para onde a tabela deste modelo está indo, mês a mês, e quanto ele perde de pátio: consulta Por modelo, paga.
                 </p>
@@ -502,15 +547,15 @@ export default function ConsultaPorModelo({
       )}
 
       {recentes.ok && recentes.modelos.length > 0 && (
-        <section aria-label="Modelos já consultados" className={secao}>
-          <h2 className={`${rotulo} m-0`}>MODELOS JÁ CONSULTADOS</h2>
+        <section aria-label="Modelos já consultados" className={`nao-imprimir ${secao}`}>
+          <h2 className={`${rotulo} m-0`}>MODELOS JÁ CONSULTADOS · ABRIR NÃO CUSTA</h2>
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
             {recentes.modelos.map((m) => (
               <li key={`${m.marcaCodigo}-${m.modeloCodigo}-${m.ano}`}>
                 <button
                   type="button"
                   disabled={carregando}
-                  onClick={() => void reabrir(m)}
+                  onClick={() => void reabrir(m, true)}
                   className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-3 py-2 text-[11px] normal-case tracking-normal"
                 >
                   {m.rotulo}

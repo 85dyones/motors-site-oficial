@@ -91,11 +91,21 @@ let estimativa: Record<string, unknown>;
 let container: HTMLDivElement;
 let root: Root;
 
+let historico: unknown = { ok: true, itens: [], semRegistroDeModelo: false };
+let respostaDoGuardado: { status: number; corpo: unknown };
+let respostaDaPesquisa: unknown;
+
 async function montar(modelos: unknown = { ok: true, modelos: [] }) {
   globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+    if (url.startsWith("/api/consulta-placa/historico")) {
+      chamadas.push({ url, corpo: {} });
+      return { ok: true, status: 200, json: async () => respostaDaPesquisa };
+    }
     const corpo = JSON.parse(String(opcoes?.body)) as Record<string, unknown>;
     chamadas.push({ url, corpo });
+    if (url === "/api/consulta-placa") return { ok: true, status: 200, json: async () => ({ consulta: null }) };
     if (corpo.estimar) return { ok: true, status: 200, json: async () => estimativa };
+    if (corpo.modo === "guardado") return { ok: respostaDoGuardado.status < 400, status: respostaDoGuardado.status, json: async () => respostaDoGuardado.corpo };
     return { ok: resposta.status < 400, status: resposta.status, json: async () => resposta.corpo };
   }) as never;
   const { default: AbasDaConsulta } = await import("../src/components/admin/consulta/AbasDaConsulta");
@@ -103,7 +113,7 @@ async function montar(modelos: unknown = { ok: true, modelos: [] }) {
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root.render(createElement(AbasDaConsulta, { recentes: { ok: true, consultas: [] }, modelos, curva: CURVA, temToken: true, homologacao: false } as never));
+    root.render(createElement(AbasDaConsulta, { recentes: { ok: true, consultas: [] }, modelos, curva: CURVA, temToken: true, homologacao: false, historico } as never));
   });
   await esperar();
 }
@@ -116,10 +126,10 @@ async function esperar() {
   }
 }
 
-const abaDe = (chave: "fipe" | "modelo" | "placa") => container.querySelector(`[data-aba='${chave}']`) as HTMLElement;
+const abaDe = (chave: "fipe" | "modelo" | "placa" | "historico") => container.querySelector(`[data-aba='${chave}']`) as HTMLElement;
 const seletores = (chave: "fipe" | "modelo") => [...abaDe(chave).querySelectorAll("select")] as HTMLSelectElement[];
 
-async function irPara(chave: "fipe" | "modelo" | "placa") {
+async function irPara(chave: "fipe" | "modelo" | "placa" | "historico") {
   await act(async () => {
     (container.querySelector(`input[value='${chave}']`) as HTMLInputElement).click();
   });
@@ -150,6 +160,9 @@ beforeEach(() => {
   chamadas = [];
   resposta = { status: 200, corpo: { mercado: mercado(), avisos: [], chamadasPagas: 22, mesesPagosGuardados: 22, custo: 1.32 } };
   estimativa = { mesesPagosNoMaximo: 22, precoPorMes: 0.06, temToken: true, homologacao: false };
+  historico = { ok: true, itens: [], semRegistroDeModelo: false };
+  respostaDoGuardado = { status: 200, corpo: { mercado: mercado(), avisos: [], modo: "guardado", guardadoAte: "2026-10", mesesNovos: 0, chamadasPagas: 0, custo: 0 } };
+  respostaDaPesquisa = { ok: true, itens: [], semRegistroDeModelo: false };
   refresh.mockClear();
   confirm.mockClear();
   confirm.mockImplementation(async () => true);
@@ -309,9 +322,12 @@ describe("os modelos já consultados", () => {
       botao.click();
     });
     await esperar();
+    // Do guardado: nenhuma chamada à FIPE nem à paga, e a tela diz isso.
     expect(chamadas).toHaveLength(1);
-    expect(chamadas[0].corpo).toMatchObject({ marca: "59", modelo: "5940", ano: "2022-1", modo: "pontual" });
+    expect(chamadas[0].corpo).toMatchObject({ marca: "59", modelo: "5940", ano: "2022-1", modo: "guardado" });
     expect(seletores("fipe")[2].value).toBe("2022-1");
+    expect(abaDe("fipe").querySelector("[data-aberto-do-guardado]")?.textContent).toContain("sem nenhuma consulta");
+    expect(abaDe("fipe").querySelector("[data-aberto-do-guardado]")?.textContent).toContain("Já é o mês mais novo");
   });
 
   it("sem a tabela no banco, a aba avisa da migração e continua funcionando", async () => {
@@ -319,5 +335,128 @@ describe("os modelos já consultados", () => {
     expect(abaDe("fipe").textContent).toContain("20261006190000_fipe_historico");
     await analisar("fipe");
     expect(abaDe("fipe").querySelector("[data-fipe-atual]")).toBeTruthy();
+  });
+});
+
+const ITEM_MODELO = {
+  chave: "m:1",
+  tipo: "modelo",
+  quando: "2026-10-08T17:25:00Z",
+  quem: "Dyones Oliveira",
+  titulo: "VW - VolksWagen T-Cross Highline 1.4 TSI 2022",
+  detalhe: "FIPE R$ 126.000 · out/2026 · 25 meses",
+  custo: 1.32,
+  homologacao: false,
+  abrir: { tipo: "modelo", modo: "completa", marca: "59", modelo: "5940", ano: "2022-1" },
+};
+const ITEM_PLACA = { chave: "p:1", tipo: "placa", quando: "2026-10-07T12:00:00Z", quem: "Dyones Oliveira", titulo: "ABC1D23", detalhe: "VW T-CROSS", custo: 30, homologacao: false, abrir: { tipo: "placa", placa: "ABC1D23" } };
+
+describe("o histórico de consultas", () => {
+  it("lista as consultas da equipe, com tipo, resultado, custo e quem", async () => {
+    historico = { ok: true, itens: [ITEM_MODELO, ITEM_PLACA], semRegistroDeModelo: false };
+    await montar();
+    await irPara("historico");
+    const linhas = [...abaDe("historico").querySelectorAll("tr[data-item-do-historico]")];
+    expect(linhas.map((l) => l.getAttribute("data-item-do-historico"))).toEqual(["modelo", "placa"]);
+    expect(linhas[0].textContent).toContain("T-Cross");
+    expect(linhas[0].textContent).toMatch(/R\$\s1,32/);
+    expect(linhas[0].textContent).toContain("Dyones");
+    expect(chamadas).toEqual([]);
+  });
+
+  it("abrir um modelo pago do histórico: vai à aba Por modelo, do guardado, sem perguntar custo; 'Atualizar dados' pergunta", async () => {
+    historico = { ok: true, itens: [ITEM_MODELO], semRegistroDeModelo: false };
+    respostaDoGuardado = { status: 200, corpo: { ...(respostaDoGuardado.corpo as object), mesesNovos: 1 } };
+    await montar();
+    await irPara("historico");
+    const abrir = [...abaDe("historico").querySelectorAll("button")].find((b) => b.textContent === "Abrir")!;
+    await act(async () => {
+      abrir.click();
+    });
+    await esperar();
+    expect(abaDe("modelo").hidden).toBe(false);
+    expect(chamadas.map((c) => c.corpo)).toEqual([{ ...PEDIDO, modo: "guardado" }]);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(abaDe("modelo").querySelector("[data-tendencia]")).toBeTruthy();
+    expect(abaDe("modelo").querySelector("[data-aberto-do-guardado]")?.textContent).toContain("1 mês mais novo");
+
+    chamadas = [];
+    await act(async () => {
+      (abaDe("modelo").querySelector("[data-atualizar-dados]") as HTMLButtonElement).click();
+    });
+    await esperar();
+    expect(chamadas.map((c) => c.corpo)).toEqual([
+      { ...PEDIDO, modo: "completa", estimar: true },
+      { ...PEDIDO, modo: "completa" },
+    ]);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(abaDe("modelo").querySelector("[data-aberto-do-guardado]")).toBeNull();
+  });
+
+  it("nada guardado ainda: abrir cai na consulta de sempre (na paga, com a pergunta do custo)", async () => {
+    historico = { ok: true, itens: [ITEM_MODELO], semRegistroDeModelo: false };
+    respostaDoGuardado = { status: 404, corpo: { error: "nada" } };
+    await montar();
+    await irPara("historico");
+    await act(async () => {
+      [...abaDe("historico").querySelectorAll("button")].find((b) => b.textContent === "Abrir")!.click();
+    });
+    await esperar();
+    expect(chamadas.map((c) => c.corpo.modo)).toEqual(["guardado", "completa", "completa"]);
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("abrir uma placa do histórico vai à aba da placa e pede só a guardada", async () => {
+    historico = { ok: true, itens: [ITEM_PLACA], semRegistroDeModelo: false };
+    await montar();
+    await irPara("historico");
+    await act(async () => {
+      [...abaDe("historico").querySelectorAll("button")].find((b) => b.textContent === "Abrir")!.click();
+    });
+    await esperar();
+    expect(abaDe("placa").hidden).toBe(false);
+    expect(chamadas[0]).toEqual({ url: "/api/consulta-placa", corpo: { placa: "ABC1D23", soGuardada: true } });
+  });
+
+  it("a pesquisa vai ao banco com o termo e o filtro, e mostra o que voltou", async () => {
+    respostaDaPesquisa = { ok: true, itens: [ITEM_PLACA], semRegistroDeModelo: false };
+    await montar();
+    await irPara("historico");
+    const campo = abaDe("historico").querySelector("[data-pesquisa-do-historico]") as HTMLInputElement;
+    await act(async () => {
+      const definir = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      definir.call(campo, "t-cross");
+      campo.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400));
+    });
+    await esperar();
+    expect(chamadas.map((c) => c.url)).toEqual(["/api/consulta-placa/historico?q=t-cross&tipo=todas"]);
+    expect(abaDe("historico").querySelectorAll("tr[data-item-do-historico]")).toHaveLength(1);
+  });
+
+  it("sem o registro no banco, avisa da migração", async () => {
+    historico = { ok: true, itens: [], semRegistroDeModelo: true };
+    await montar();
+    expect(abaDe("historico").querySelector("[data-sem-registro]")?.textContent).toContain("20261008120000_consultas_de_modelo");
+  });
+});
+
+describe("a impressão", () => {
+  it("o botão abre a impressão do navegador, com o cabeçalho da loja e sem o que é só da tela", async () => {
+    const imprimir = vi.fn();
+    window.print = imprimir;
+    await montar();
+    await act(async () => {
+      (container.querySelector("[data-imprimir]") as HTMLButtonElement).click();
+      await new Promise((r) => setTimeout(r, 80));
+    });
+    expect(imprimir).toHaveBeenCalledTimes(1);
+    const relatorio = container.querySelector("[data-relatorio]")!;
+    expect(relatorio.querySelector("[data-cabecalho-da-impressao]")?.textContent).toContain("Motors Store · Consulta de veículos · FIPE · GRÁTIS");
+    // Formulário, abas e botões não vão para o papel.
+    expect(abaDe("fipe").querySelector("form")?.classList.contains("nao-imprimir")).toBe(true);
+    expect(container.querySelector("[role=radiogroup]")?.classList.contains("nao-imprimir")).toBe(true);
   });
 });

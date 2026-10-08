@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "../ConfirmDialog";
 import type { ParametrosDaCurva } from "../../../lib/avaliacaoRecomendacao";
@@ -75,8 +75,11 @@ export default function ConsultaDePlaca({
   curva,
   temToken,
   homologacao,
+  placaDeFora = null,
 }: {
   recentes: LeituraDasRecentes;
+  /** Uma placa aberta pelo histórico. Cada objeto novo abre uma vez, do guardado (sem custo). */
+  placaDeFora?: { placa: string } | null;
   /** A curva de deságio vigente, ou `null` se não deu para ler. */
   curva: ParametrosDaCurva | null;
   temToken: boolean;
@@ -176,6 +179,15 @@ export default function ConsultaDePlaca({
     }
   };
 
+  // A placa que veio do histórico: `consultar` tenta o guardado primeiro, e o guardado não custa.
+  const ultimaDeFora = useRef<{ placa: string } | null>(null);
+  useEffect(() => {
+    if (!placaDeFora || placaDeFora === ultimaDeFora.current) return;
+    ultimaDeFora.current = placaDeFora;
+    void consultar(placaDeFora.placa);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placaDeFora]);
+
   const leituraAcima = retrato ? leituraAcimaDoHodometro(retrato.leiturasDeKm, avaliacao.kmNumero) : null;
   const qualificacao = retrato
     ? qualificarCompra(retrato, { acimaDoTeto: avaliacao.recomendacao?.acima_do_teto === true, leituraAcima })
@@ -214,7 +226,7 @@ export default function ConsultaDePlaca({
       )}
 
       <form
-        className="flex flex-wrap items-end gap-3"
+        className="nao-imprimir flex flex-wrap items-end gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           void consultar(placa);
@@ -492,7 +504,7 @@ export default function ConsultaDePlaca({
       )}
 
       {recentes.ok && recentes.consultas.length > 0 && (
-        <section aria-label="Consultas recentes" className={secao}>
+        <section aria-label="Consultas recentes" className={`nao-imprimir ${secao}`}>
           <h2 className={`${rotulo} m-0`}>CONSULTAS RECENTES · REABRIR NÃO CUSTA</h2>
           <div className="overflow-x-auto">
             <table className="mt-tabela text-xs">

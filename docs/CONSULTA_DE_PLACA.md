@@ -77,6 +77,19 @@ o endereço antigo redireciona), com três abas:**
    - resposta com o carro de exemplo ou outro ano-modelo é falha;
    - em homologação os valores de exemplo são conferidos e descartados.
 3. **Por placa · paga**: a consulta de placa de sempre.
+4. **Histórico** (08/10/2026): todas as consultas da equipe numa lista com
+   pesquisa (`GET /api/consulta-placa/historico?q=&tipo=`). Cada análise de
+   modelo que dá certo fica em `consultas_de_modelo` (migração
+   `20261008120000_consultas_de_modelo`: quem, quando, modo, FIPE, meses e
+   custo; nome e hora carimbados pelo banco). Abrir um item NÃO chama ninguém:
+   o modelo abre com `modo: "guardado"` (só `fipe_historico`), a placa da
+   consulta guardada. "Atualizar dados" roda a análise da aba, que busca só o
+   que falta (na paga, com a pergunta do custo). Sem a migração, a lista mostra
+   os modelos pelo que está guardado, sem quem nem custo.
+
+**Imprimir / salvar PDF**: o botão chama a impressão do navegador; sai só a aba
+aberta, com um cabeçalho da loja e sem menu, formulário nem botões (CSS de
+`@media print` em `modernist.css`, `.nao-imprimir` e `.so-impressao`).
 
 O que ela NÃO sabe: nada do carro em si. Leilão, sinistro, gravame e débito só
 existem na aba da placa.
