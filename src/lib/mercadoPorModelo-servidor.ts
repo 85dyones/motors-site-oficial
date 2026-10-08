@@ -157,7 +157,9 @@ export async function consultarMercado(
   // contra o limite só queima o teto de amanhã.
   const agora = Date.now();
   let corte = corteEmMemoria && agora - corteEmMemoria.em < VALIDADE_DAS_REFERENCIAS_MS ? corteEmMemoria.chave : null;
-  const fila = planoDeBusca(pedido, referencias, linhas, corte);
+  // A fila inteira, sem o corte: quem pula é o trabalhador, olhando o corte da hora. Se o
+  // mês corrente vier com valor, o corte cai e os meses anteriores entram nesta mesma leitura.
+  const fila = planoDeBusca(pedido, referencias, linhas);
   const novas: LinhaDoHistorico[] = [];
   let chamadas = 0;
   let falhas = 0;
@@ -166,7 +168,11 @@ export async function consultarMercado(
   let limite = false;
   let proxima = 0;
   // A fila vai do mês mais novo para trás: o resto dela, depois de um 402, também está fora do plano.
-  const pulaPeloCorte = (b: Busca) => corte !== null && foraDoPlano(b.referencia, corte);
+  // O mês corrente nunca é pulado: custa uma chamada e é por ele que se percebe o plano de volta.
+  const chaveAtual = referencias[0] ? chaveDaReferencia(referencias[0]) : null;
+  const pulaPeloCorte = (b: Busca) => corte !== null && chaveDaReferencia(b.referencia) !== chaveAtual && foraDoPlano(b.referencia, corte);
+  // O corte só é regravado (e o prazo de 6h só recomeça) quando um 402 ou um valor novo o muda NESTA leitura.
+  let corteMudou = false;
   const trabalhar = async () => {
     while (!limite && seguidas < FALHAS_SEGUIDAS_QUE_PARAM && proxima < fila.length) {
       const busca = fila[proxima++];
@@ -176,7 +182,10 @@ export async function consultarMercado(
       if (leitura.tipo === "limite") limite = true;
       else if (leitura.tipo === "foraDoPlano") {
         const chave = chaveDaReferencia(leitura.busca.referencia);
-        if (corte === null || chave > corte) corte = chave;
+        if (corte === null || chave > corte) {
+          corte = chave;
+          corteMudou = true;
+        }
       }
       else if (leitura.tipo === "falha") {
         falhas++;
@@ -185,6 +194,11 @@ export async function consultarMercado(
       } else {
         seguidas = 0;
         novas.push(leitura.linha);
+        // Veio valor de um mês que o corte dava como fora do plano: o plano mudou, o corte cai.
+        if (corte !== null && chaveDaReferencia(leitura.busca.referencia) <= corte) {
+          corte = null;
+          corteMudou = true;
+        }
       }
     }
   };
@@ -196,7 +210,7 @@ export async function consultarMercado(
   }
   linhas.push(...novas);
 
-  if (corte !== null) corteEmMemoria = { em: agora, chave: corte };
+  if (corteMudou) corteEmMemoria = corte === null ? null : { em: agora, chave: corte };
 
   const mercado = montarMercado(pedido, referencias, linhas, corte);
   if (!mercado) {
