@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { lerRespostaDoSms, enviarSms, APIBRASIL_ENVIO_DE_SMS } from "../src/lib/apiBrasilSms";
+import { lerRespostaDoSms, enviarSms, lerOperadora, APIBRASIL_ENVIO_DE_SMS } from "../src/lib/apiBrasilSms";
 import { familiaDoModelo, familiasNoTexto, marcaCanonica } from "../src/lib/familiaDoModelo";
 import { PERFIS, podeFazer } from "../src/lib/permissoes";
 import { PISO_DA_BANDA, TETO_DA_BANDA } from "../src/lib/similares";
@@ -538,6 +538,18 @@ describe("a resposta da APIBrasil a um envio", () => {
   it("5xx e corpo ilegível: pode ter saído", () => {
     expect(lerRespostaDoSms(503, null)).toMatchObject({ ok: false, paraOLote: true, podeTerSaido: true });
     expect(lerRespostaDoSms(200, null)).toMatchObject({ ok: false, podeTerSaido: true });
+  });
+
+  it("a operadora só vai quando escolhida, e só uma das quatro", async () => {
+    const corpos: Array<Record<string, unknown>> = [];
+    const buscar = async (_u: string, init: { body: string }) => (corpos.push(JSON.parse(init.body)), { status: 200, json: async () => ({ error: false }) });
+    const base = { numero: "5541999990000", mensagem: "oi", token: "t", tipo: "sms-marketing", homologacao: false, retorno: null, buscar: buscar as never };
+    await enviarSms({ ...base, operadora: "claro" });
+    await enviarSms(base);
+    expect(corpos[0].operator).toBe("claro");
+    expect("operator" in corpos[1]).toBe(false);
+    expect(lerOperadora("vivo")).toBe("vivo");
+    expect(lerOperadora("nextel")).toBeNull();
   });
 
   it("o pedido leva número, texto, tipo, resposta ligada e o endereço do retorno", async () => {

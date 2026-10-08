@@ -351,7 +351,7 @@ describe("o formulário de nova campanha", () => {
     expect(q<HTMLButtonElement>("[data-enviar-teste]").disabled).toBe(true);
     await digitar(q<HTMLInputElement>("[data-telefone-do-teste]"), "(41) 98888-7777");
     await clicar(q("[data-enviar-teste]"));
-    expect(chamadas).toEqual([{ url: "/api/marketing/sms/teste", metodo: "POST", corpo: { telefone: "(41) 98888-7777", veiculoId: 12, mensagem: MENSAGEM_PADRAO } }]);
+    expect(chamadas).toEqual([{ url: "/api/marketing/sms/teste", metodo: "POST", corpo: { telefone: "(41) 98888-7777", veiculoId: 12, mensagem: MENSAGEM_PADRAO, operadora: null } }]);
     expect(q("[data-resultado-do-teste='ok']").textContent).toContain("Sair: responda SAIR");
   });
 
@@ -528,7 +528,7 @@ describe("o formulário de nova campanha", () => {
     expect(q<HTMLButtonElement>("[data-enviar-teste]").disabled).toBe(true);
     await clicar(q("input[name='modo-do-publico'][value='perfil']"));
     await clicar(q("[data-enviar-teste]"));
-    expect(chamadas).toEqual([{ url: "/api/marketing/sms/teste", metodo: "POST", corpo: { telefone: "(41) 98888-7777", veiculoId: null, mensagem: MENSAGEM_PADRAO_SEM_CARRO } }]);
+    expect(chamadas).toEqual([{ url: "/api/marketing/sms/teste", metodo: "POST", corpo: { telefone: "(41) 98888-7777", veiculoId: null, mensagem: MENSAGEM_PADRAO_SEM_CARRO, operadora: null } }]);
   });
 
   // ── Hora de trocar, destino do link e a prévia de leads (07/10/2026) ────────

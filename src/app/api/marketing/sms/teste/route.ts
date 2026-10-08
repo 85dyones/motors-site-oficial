@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lerOperadora } from "../../../../../lib/apiBrasilSms";
 import { autorizarCampanhasDeSms, enviarTeste } from "../../../../../lib/smsCampanhas-servidor";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
   const porta = await autorizarCampanhasDeSms();
   if (!porta.ok) return NextResponse.json({ error: porta.motivo }, { status: porta.status, headers: SEM_CACHE });
 
-  const corpo = (await request.json().catch(() => null)) as { telefone?: unknown; veiculoId?: unknown; mensagem?: unknown; destino?: unknown } | null;
+  const corpo = (await request.json().catch(() => null)) as { telefone?: unknown; veiculoId?: unknown; mensagem?: unknown; destino?: unknown; operadora?: unknown } | null;
   const telefone = typeof corpo?.telefone === "string" ? corpo.telefone : "";
   const mensagem = typeof corpo?.mensagem === "string" ? corpo.mensagem.trim() : "";
   // Campanha por perfil pode não ter carro: aí o link do teste leva ao estoque.
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const destino = corpo?.destino === "avaliacao" ? "avaliacao" : "estoque";
-  const r = await enviarTeste(porta.admin, { telefone, veiculoId, mensagem, destino });
+  const r = await enviarTeste(porta.admin, { telefone, veiculoId, mensagem, destino, operadora: lerOperadora(corpo?.operadora) });
   if (!r.ok) return NextResponse.json({ error: r.motivo }, { status: r.status, headers: SEM_CACHE });
   return NextResponse.json({ ok: true, texto: r.texto, fornecedor: r.fornecedor, custo: r.custo }, { headers: SEM_CACHE });
 }

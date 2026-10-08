@@ -18,6 +18,10 @@
  */
 import { numeroDoFornecedor } from "./consultaDePlaca";
 
+export const OPERADORAS = ["claro", "vivo", "tim", "oi"] as const;
+export type Operadora = (typeof OPERADORAS)[number];
+export const lerOperadora = (v: unknown): Operadora | null => (typeof v === "string" && (OPERADORAS as readonly string[]).includes(v) ? (v as Operadora) : null);
+
 export const APIBRASIL_ENVIO_DE_SMS = "https://gateway.apibrasil.io/api/v2/sms/send/credits";
 export const TIPO_DE_SMS_PADRAO = "sms-marketing";
 /** Quanto se espera cada SMS. Curto: o lote inteiro tem de caber na função. */
@@ -97,6 +101,12 @@ export async function enviarSms(sms: {
   homologacao: boolean;
   /** Para onde o fornecedor avisa entrega e resposta. Sem ela, só se sabe que o SMS foi aceito. */
   retorno: string | null;
+  /**
+   * `operator` da doc (o exemplo traz "claro"; a doc não diz se é obrigatório).
+   * Só o teste manda, quando a pessoa escolhe: é como se descobre se o
+   * "invalid" do primeiro teste real (08/10/2026) vinha da falta dele.
+   */
+  operadora?: Operadora | null;
   buscar?: BuscarNoSms;
 }): Promise<RespostaDoSms> {
   const buscar = sms.buscar ?? ((url, init) => fetch(url, { ...init, cache: "no-store" }));
@@ -111,6 +121,7 @@ export async function enviarSms(sms: {
         number: sms.numero,
         message: sms.mensagem,
         user_reply: true,
+        ...(sms.operadora ? { operator: sms.operadora } : {}),
         ...(sms.retorno ? { webhook_url: sms.retorno } : {}),
         homolog: sms.homologacao,
       }),
