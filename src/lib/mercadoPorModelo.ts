@@ -202,7 +202,16 @@ export interface Busca {
  * escolhido e o mês corrente de cada ano da comparação, menos o que o banco
  * já tem. O mês corrente do ano escolhido vem primeiro: sem ele não há tela.
  */
-export function planoDeBusca(pedido: PedidoDeModelo, referencias: ReferenciaDaFipe[], guardadas: LinhaDoHistorico[]): Busca[] {
+/**
+ * O plano gratuito da FIPE (fipe.api.br) só libera os meses mais recentes: em
+ * 07 e 08/10/2026, com token, outubro, setembro e agosto vieram e julho para
+ * trás respondeu 402 (Payment Required). `corteDoPlano` é a chave do mês mais
+ * novo que respondeu 402; ele e todos os anteriores ficam fora do plano.
+ * Tentar de novo não traz esses meses: só o plano pago da FIPE traz.
+ */
+export const foraDoPlano = (r: ReferenciaDaFipe, corteDoPlano: string | null) => corteDoPlano !== null && chaveDaReferencia(r) <= corteDoPlano;
+
+export function planoDeBusca(pedido: PedidoDeModelo, referencias: ReferenciaDaFipe[], guardadas: LinhaDoHistorico[], corteDoPlano: string | null = null): Busca[] {
   const tem = new Set(guardadas.map((l) => `${l.ano}|${l.referencia}`));
   const falta = (ano: string, r: ReferenciaDaFipe) => !tem.has(`${ano}|${chaveDaReferencia(r)}`);
   const [atual, ...anteriores] = referencias.slice(0, MESES_DE_HISTORICO + 1);
@@ -211,7 +220,7 @@ export function planoDeBusca(pedido: PedidoDeModelo, referencias: ReferenciaDaFi
   const plano: Busca[] = [];
   if (falta(pedido.ano, atual)) plano.push({ ano: pedido.ano, referencia: atual });
   for (const ano of pedido.outrosAnos) if (falta(ano, atual)) plano.push({ ano, referencia: atual });
-  for (const r of anteriores) if (falta(pedido.ano, r)) plano.push({ ano: pedido.ano, referencia: r });
+  for (const r of anteriores) if (falta(pedido.ano, r) && !foraDoPlano(r, corteDoPlano)) plano.push({ ano: pedido.ano, referencia: r });
   return plano;
 }
 
@@ -246,8 +255,10 @@ export interface MercadoDoModelo {
   historico: PontoDaFipe[];
   /** Do ano-modelo mais novo para o mais antigo. */
   porAno: AnoDoModelo[];
-  /** Quantos meses do recorte ficaram sem leitura (rede, limite da FIPE). */
+  /** Quantos meses do recorte ficaram sem leitura (rede, limite da FIPE). Tentar de novo pode trazê-los. */
   mesesQueFaltaram: number;
+  /** Quantos meses do recorte o plano da FIPE não libera (402). Tentar de novo NÃO os traz. */
+  mesesForaDoPlano: number;
 }
 
 const pct1 = (de: number, ate: number) => Math.round(((ate - de) / de) * 1000) / 10;
@@ -256,7 +267,7 @@ const pct1 = (de: number, ate: number) => Math.round(((ate - de) / de) * 1000) /
  * Monta o retrato a partir das linhas (guardadas e recém-lidas). `null` quando
  * o mês corrente do ano escolhido não veio: sem a FIPE de hoje não há análise.
  */
-export function montarMercado(pedido: PedidoDeModelo, referencias: ReferenciaDaFipe[], linhas: LinhaDoHistorico[]): MercadoDoModelo | null {
+export function montarMercado(pedido: PedidoDeModelo, referencias: ReferenciaDaFipe[], linhas: LinhaDoHistorico[], corteDoPlano: string | null = null): MercadoDoModelo | null {
   const recorte = referencias.slice(0, MESES_DE_HISTORICO + 1);
   const atual = recorte[0];
   if (!atual) return null;
@@ -266,9 +277,11 @@ export function montarMercado(pedido: PedidoDeModelo, referencias: ReferenciaDaF
 
   const historico: PontoDaFipe[] = [];
   let mesesQueFaltaram = 0;
+  let mesesForaDoPlano = 0;
   for (const r of recorte) {
     const l = porChave.get(`${pedido.ano}|${chaveDaReferencia(r)}`);
-    if (!l) mesesQueFaltaram++;
+    if (!l && foraDoPlano(r, corteDoPlano)) mesesForaDoPlano++;
+    else if (!l) mesesQueFaltaram++;
     else if (l.valor !== null) historico.push({ ano: r.ano, mes: r.mes, valor: l.valor });
   }
   historico.sort((a, b) => a.ano - b.ano || a.mes - b.mes);
@@ -303,6 +316,7 @@ export function montarMercado(pedido: PedidoDeModelo, referencias: ReferenciaDaF
     historico,
     porAno,
     mesesQueFaltaram,
+    mesesForaDoPlano,
   };
 }
 

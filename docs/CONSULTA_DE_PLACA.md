@@ -44,6 +44,15 @@ análise de um modelo gasta cerca de 30 chamadas do teto diário do token, e as
 seguintes, nenhuma (no mês seguinte, só os meses novos). Sem a migração
 `20261006190000_fipe_historico` a aba funciona, mas não guarda nada.
 
+**O plano gratuito da FIPE só libera os meses mais recentes.** Em 07 e
+08/10/2026, com o token em produção, outubro, setembro e agosto vieram e julho
+para trás respondeu 402 (Payment Required). O 402 não é tratado como falha: a
+leitura para, o mês mais novo recusado fica em memória por 6 horas (nenhuma
+chamada é gasta nele de novo) e a tela diz quantos meses o plano não cobre.
+Com isso, gráfico de 24 meses e alerta de desvalorização (pede 6 meses) só
+funcionam com o plano pago da FIPE (Pro, fipe.api.br). Assinado o plano, nada
+muda no código: em até 6 horas o corte expira e os meses passam a vir.
+
 O que ela NÃO sabe: nada do carro em si. Leilão, sinistro, gravame e débito só
 existem na aba da placa.
 

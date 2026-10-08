@@ -24,6 +24,7 @@ import { ESPERA_MAXIMA_MS, urlNaV2, type BuscarNaFipe } from "./fipeNoServidor";
 import {
   MESES_DE_HISTORICO,
   chaveDaReferencia,
+  foraDoPlano,
   lerReferencias,
   lerValorDaFipe,
   montarMercado,
@@ -53,9 +54,17 @@ const VALIDADE_DAS_REFERENCIAS_MS = 6 * 60 * 60 * 1000;
 
 let referenciasEmMemoria: { em: number; lista: ReferenciaDaFipe[] } | null = null;
 
-/** Só para os testes: cada um começa sem a lista em memória. */
+/**
+ * O mês mais novo que a FIPE recusou com 402 (fora do plano). Fica em memória
+ * pelo mesmo tempo que a lista de meses: depois disso, uma chamada confere de
+ * novo, e assinar o plano pago passa a valer sem mexer em código.
+ */
+let corteEmMemoria: { em: number; chave: string } | null = null;
+
+/** Só para os testes: cada um começa sem a lista e sem o corte em memória. */
 export function esquecerReferencias(): void {
   referenciasEmMemoria = null;
+  corteEmMemoria = null;
 }
 
 function cabecalhos(token: string | undefined): Record<string, string> {
@@ -78,6 +87,7 @@ export async function referenciasDaFipe(buscar: BuscarNaFipe, token: string | un
 type Leitura =
   | { tipo: "valor"; busca: Busca; linha: LinhaDoHistorico }
   | { tipo: "limite" }
+  | { tipo: "foraDoPlano"; busca: Busca }
   | { tipo: "falha"; porque: string };
 
 async function lerUmMes(pedido: PedidoDeModelo, busca: Busca, buscar: BuscarNaFipe, token: string | undefined): Promise<Leitura> {
@@ -94,6 +104,9 @@ async function lerUmMes(pedido: PedidoDeModelo, busca: Busca, buscar: BuscarNaFi
   try {
     const r = await buscar(url, { headers: cabecalhos(token), signal: AbortSignal.timeout(ESPERA_MAXIMA_MS) });
     if (r.status === 429) return { tipo: "limite" };
+    // 402: o mês existe, mas o plano da FIPE não libera. Não é falha de rede e
+    // não passa insistindo: só o plano pago traz.
+    if (r.status === 402) return { tipo: "foraDoPlano", busca };
     // 404: naquele mês a FIPE ainda não tinha este ano-modelo. É resposta, e
     // fica guardada como "sem valor" para não ser perguntada de novo.
     if (r.status === 404) return { tipo: "valor", busca, linha: vazia(null) };
@@ -113,6 +126,9 @@ export interface BancoDoHistorico {
 export type ResultadoDoMercado =
   | { ok: true; mercado: MercadoDoModelo; chamadas: number; avisos: string[] }
   | { ok: false; status: 502 | 429; motivo: string };
+
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const nomeDoMes = (r: ReferenciaDaFipe) => `${MESES[r.mes - 1] ?? r.mes}/${r.ano}`;
 
 export async function consultarMercado(
   pedido: PedidoDeModelo,
@@ -139,7 +155,9 @@ export async function consultarMercado(
 
   // Só o que falta, em poucas chamadas por vez. Um 429 para a fila: insistir
   // contra o limite só queima o teto de amanhã.
-  const fila = planoDeBusca(pedido, referencias, linhas);
+  const agora = Date.now();
+  let corte = corteEmMemoria && agora - corteEmMemoria.em < VALIDADE_DAS_REFERENCIAS_MS ? corteEmMemoria.chave : null;
+  const fila = planoDeBusca(pedido, referencias, linhas, corte);
   const novas: LinhaDoHistorico[] = [];
   let chamadas = 0;
   let falhas = 0;
@@ -147,12 +165,19 @@ export async function consultarMercado(
   const motivos = new Map<string, number>();
   let limite = false;
   let proxima = 0;
+  // A fila vai do mês mais novo para trás: o resto dela, depois de um 402, também está fora do plano.
+  const pulaPeloCorte = (b: Busca) => corte !== null && foraDoPlano(b.referencia, corte);
   const trabalhar = async () => {
     while (!limite && seguidas < FALHAS_SEGUIDAS_QUE_PARAM && proxima < fila.length) {
       const busca = fila[proxima++];
+      if (pulaPeloCorte(busca)) continue;
       chamadas++;
       const leitura = await lerUmMes(pedido, busca, deps.buscar, deps.token);
       if (leitura.tipo === "limite") limite = true;
+      else if (leitura.tipo === "foraDoPlano") {
+        const chave = chaveDaReferencia(leitura.busca.referencia);
+        if (corte === null || chave > corte) corte = chave;
+      }
       else if (leitura.tipo === "falha") {
         falhas++;
         seguidas++;
@@ -171,11 +196,23 @@ export async function consultarMercado(
   }
   linhas.push(...novas);
 
-  const mercado = montarMercado(pedido, referencias, linhas);
+  if (corte !== null) corteEmMemoria = { em: agora, chave: corte };
+
+  const mercado = montarMercado(pedido, referencias, linhas, corte);
   if (!mercado) {
+    if (corte !== null && referencias[0] && foraDoPlano(referencias[0], corte)) {
+      return { ok: false, status: 502, motivo: "A FIPE recusou o mês corrente por plano (402): o token da loja perdeu acesso à tabela. Confira a assinatura em fipe.api.br." };
+    }
     return limite
       ? { ok: false, status: 429, motivo: "A FIPE atingiu o limite de consultas de hoje. Os modelos já consultados continuam abrindo; os novos, amanhã." }
       : { ok: false, status: 502, motivo: "A FIPE não devolveu o valor deste mês para o modelo escolhido." };
+  }
+  if (mercado.mesesForaDoPlano > 0) {
+    const r = referencias.find((x) => foraDoPlano(x, corte));
+    avisos.push(
+      `O plano gratuito da FIPE só libera os meses mais recentes: de ${r ? nomeDoMes(r) : "um certo mês"} para trás, ela responde 402 e pede o plano pago (Pro, em fipe.api.br). ` +
+        `O gráfico mostra ${mercado.historico.length} ${mercado.historico.length === 1 ? "mês" : "meses"}; analisar de novo não traz os outros ${mercado.mesesForaDoPlano}.`,
+    );
   }
   if (limite) avisos.push("A FIPE atingiu o limite de consultas de hoje no meio da leitura: o histórico está incompleto e se completa na próxima abertura.");
   else if (falhas > 0) {
