@@ -20,6 +20,7 @@ import {
   ORCAMENTO_DO_CHATWOOT_MS,
 } from "../../../../lib/atribuicaoDoChatwoot-servidor";
 import { configDoChatwoot, type Resultado } from "../../../../lib/etiquetasDoChatwoot";
+import { registrarFalha } from "../../../../lib/observabilidade";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,26 @@ export const dynamic = "force-dynamic";
  * desativa webhook que responde erro com frequência, e um webhook desativado
  * reabre exatamente o buraco que esta rota veio tapar — sem avisar ninguém. O
  * que deu errado sai no corpo e no log, onde dá para auditar, e não no status.
+ *
+ * ---------------------------------------------------------------------------
+ * E por que a recusa de credencial procura o dono (2026-10-08)
+ * ---------------------------------------------------------------------------
+ * Em 2026-09-23, às 12:13 UTC, `CHATWOOT_WEBHOOK_TOKEN` foi trocado na Vercel
+ * e o site foi republicado oito segundos depois, no mesmo commit. A URL do
+ * webhook no Chatwoot continuou com o token antigo em `?token=`. Dali em
+ * diante TODA entrega levou 401: a última aceita foi às 00:59 UTC de 23/09, a
+ * primeira recusada às 12:40.
+ *
+ * Por quinze dias o Chatwoot bateu, a rota recusou, e o único rastro era um
+ * `console.warn` que ninguém lia. Nesse tempo nenhuma resposta de consultor
+ * reiniciou o relógio (zero `contato` pelo Chatwoot desde 22/09, que sozinho
+ * teve 24), nenhuma conversa nova do WhatsApp virou lead, e o motor fez 1.583
+ * transferências automáticas em 40 leads. É o defeito que `alertaDeFalha.ts`
+ * registrou com a CAPI em 02/09: o log existia o tempo todo, e log só avisa
+ * quem está olhando.
+ *
+ * Por isso a recusa de quem TROUXE credencial é parada de negócio e vai ao
+ * WhatsApp pela costura da observabilidade. Ver `autorizar`.
  */
 
 /** O que a rota fez, para sair na resposta e no log. */
@@ -89,7 +110,20 @@ function registrar(desfecho: Desfecho, tipo: string): void {
   );
 }
 
-function autorizar(request: Request, url: URL): NextResponse | null {
+/** Chaves ESTÁVEIS da carência do alerta — não carregam status nem forma. */
+const ALERTA_SEM_TOKEN = "chatwoot-entrada-sem-token";
+const ALERTA_RECUSADA = "chatwoot-entrada-recusada";
+
+/**
+ * O que deixa de acontecer enquanto a entrada está fechada.
+ *
+ * Os textos do alerta cabem em 300 caracteres de propósito: é onde o
+ * `alertaDeFalha` corta, e o pedaço que cairia é justamente o conserto.
+ */
+const O_QUE_PAROU =
+  "Resposta no Chatwoot não reinicia o relógio do funil e conversa nova do WhatsApp não vira lead.";
+
+async function autorizar(request: Request, url: URL): Promise<NextResponse | null> {
   const segredo = (process.env.CHATWOOT_WEBHOOK_TOKEN || "").trim();
 
   // 503 e não 401, pela razão que `autorizarFunil` já registrou: o problema é
@@ -98,6 +132,12 @@ function autorizar(request: Request, url: URL): NextResponse | null {
   if (!segredo) {
     console.error(
       "[Chatwoot] CHATWOOT_WEBHOOK_TOKEN não configurado. Porta de entrada indisponível.",
+    );
+    await registrarFalha(
+      "parada",
+      ALERTA_SEM_TOKEN,
+      `Entrada do Chatwoot fechada (503): falta CHATWOOT_WEBHOOK_TOKEN na Vercel. ${O_QUE_PAROU}`,
+      { rota: "/api/chatwoot/eventos", metodo: "POST", origem: "servidor" },
     );
     return NextResponse.json(
       { error: "Entrada do Chatwoot indisponível: token não configurado." },
@@ -135,21 +175,49 @@ function autorizar(request: Request, url: URL): NextResponse | null {
   // O que entra: de onde veio e QUAL FORMA de credencial apareceu. O que nunca
   // entra: o valor recebido, nem parte dele. Log de token é token vazado — e
   // este viaja em URL, que já é o elo mais fraco por natureza.
+  const veioQuery = url.searchParams.has("token");
   console.warn(
     "[Chatwoot] 401 —",
     JSON.stringify({
       agente: request.headers.get("User-Agent")?.slice(0, 120) ?? "(sem user-agent)",
       veio_cabecalho: Boolean(cabecalho),
-      veio_query: url.searchParams.has("token"),
+      veio_query: veioQuery,
     }),
   );
+
+  // Quem TROUXE credencial e foi recusado é, quase sempre, a integração com o
+  // token velho — o caso de 23/09, que durou quinze dias só no log. Vai ao
+  // WhatsApp como parada, com a carência de 30 min por assunto do
+  // `alertaDeFalha`: o Chatwoot bate a cada mensagem, e o que sai é um aviso a
+  // cada meia hora com a conta das engolidas, não um por entrega.
+  //
+  // Sem credencial nenhuma é varredura de robô: fica só no log, senão qualquer
+  // estranho faria o celular do dono tocar.
+  //
+  // O alerta leva a FORMA da credencial e nada que o chamador escreveu: nem o
+  // valor, nem o `User-Agent`. Texto de quem bate numa porta pública não vai
+  // para o WhatsApp de ninguém — o agente fica no log acima.
+  if (cabecalho || veioQuery) {
+    // A query é o webhook nativo do Chatwoot; o cabeçalho, o n8n.
+    const onde = veioQuery ? "da URL do webhook" : "do Bearer";
+    const conserto = veioQuery
+      ? "pôr o token atual na URL do webhook, no Chatwoot"
+      : "pôr o token atual no Bearer de quem chama";
+    await registrarFalha(
+      "parada",
+      ALERTA_RECUSADA,
+      `Chatwoot recusado (401): o token ${onde} não confere com CHATWOOT_WEBHOOK_TOKEN da Vercel. ` +
+        `${O_QUE_PAROU} Conserto: ${conserto}. Se foi teste seu, ignore.`,
+      { rota: "/api/chatwoot/eventos", metodo: "POST", origem: "servidor" },
+    );
+  }
 
   return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 }
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  const negado = autorizar(request, url);
+  const negado = await autorizar(request, url);
   if (negado) return negado;
 
   let supabase;
