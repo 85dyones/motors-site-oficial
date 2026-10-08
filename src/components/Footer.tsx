@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
@@ -42,17 +42,7 @@ function AnoAtual() {
   return <>{ano}</>;
 }
 
-export default function Footer({
-  navegacao,
-  logo,
-}: {
-  navegacao?: NavegacaoDoRodape;
-  /**
-   * O logo animado, pronto, vindo do layout (`marca/usosDoLogo.tsx`). Sem
-   * ele (teste, ou um layout que não o passe) vale o SVG parado de sempre.
-   */
-  logo?: ReactNode;
-}) {
+export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape }) {
   const { companySettings } = useTheme();
   const razaoSocial = razaoSocialAparte(companySettings);
   const marcas = navegacao?.marcas ?? [];
@@ -69,16 +59,14 @@ export default function Footer({
                 em texto com uma barra ferrugem que não faz parte da marca
                 (revisão de UI de 29/09). O nome da loja segue no `alt`. */}
             <div className="mb-5">
-              {logo ?? (
-                <Image
-                  src="/marca/motors-store-horizontal-negativo.svg"
-                  alt={companySettings.name}
-                  width={191}
-                  height={32}
-                  unoptimized
-                  className="h-8 w-auto"
-                />
-              )}
+              <Image
+                src="/marca/motors-store-horizontal-negativo.svg"
+                alt={companySettings.name}
+                width={191}
+                height={32}
+                unoptimized
+                className="h-8 w-auto"
+              />
             </div>
             <p className="m-0 max-w-[300px] text-[13px] leading-relaxed">
               Compra, venda e troca de seminovos selecionados. De cada dez
