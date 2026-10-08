@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { tendenciaDaFipe, type PontoDaFipe } from "../src/lib/consultaDePlaca";
 import {
   ANOS_NA_COMPARACAO,
@@ -77,6 +77,7 @@ const mercadoCom = (historico: PontoDaFipe[], porAno: MercadoDoModelo["porAno"] 
   historico,
   porAno,
   mesesQueFaltaram: 0,
+  mesesForaDoPlano: 0,
 });
 
 describe("o pedido", () => {
@@ -399,6 +400,78 @@ describe("a busca: o que está guardado não gasta o teto da FIPE", () => {
     expect(r.ok && r.chamadas).toBe(MESES_DE_HISTORICO + 1 + 2);
     expect(r.ok && r.avisos.join(" ")).toContain("respondeu 500");
     expect(r.ok && r.avisos.join(" ")).not.toContain("FIPE_API_TOKEN");
+  });
+
+  it("402 é mês fora do plano da FIPE: para, mostra o que veio, não manda tentar de novo e não insiste depois", async () => {
+    // O que aconteceu em 07 e 08/10/2026 em produção, com token: outubro, setembro e agosto vieram; julho para trás, 402.
+    const fora = (url: string) => /reference=(\d+)/.test(url) && Number(/reference=(\d+)/.exec(url)![1]) <= 327;
+    respostaDe = (url) => (fora(url) ? { status: 402, corpo: {} } : padrao(url));
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.mercado.historico).toHaveLength(3);
+    expect(r.mercado.mesesForaDoPlano).toBe(MESES_DE_HISTORICO + 1 - 3);
+    expect(r.mercado.mesesQueFaltaram).toBe(0);
+    // Três do mês corrente, dois meses anteriores, e no máximo um 402 por trabalhador.
+    expect(r.chamadas).toBeLessThanOrEqual(3 + 2 + 3);
+    const aviso = r.avisos.join(" ");
+    expect(aviso).toContain("julho/2026");
+    expect(aviso).toContain("402");
+    expect(aviso).not.toContain("busca só o que falta");
+    expect(gravadas.every((l) => l.valor !== null)).toBe(true);
+
+    // De novo: o que veio está guardado e o corte está em memória, então nenhuma chamada.
+    guardadas = [...gravadas];
+    pedidas = [];
+    const de_novo = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    expect(de_novo.ok && de_novo.chamadas).toBe(0);
+    expect(pedidas).toEqual([]);
+    expect(de_novo.ok && de_novo.mercado.mesesForaDoPlano).toBe(MESES_DE_HISTORICO + 1 - 3);
+  });
+
+  it("o corte do plano expira 6h depois do 402, mesmo com consultas no meio, e o mês corrente nunca é pulado", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-08T10:00:00Z"));
+      const fora = (url: string) => /reference=(\d+)/.test(url) && Number(/reference=(\d+)/.exec(url)![1]) <= 327;
+      respostaDe = (url) => (fora(url) ? { status: 402, corpo: {} } : padrao(url));
+      await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+
+      // 5h depois, outro modelo: o mês corrente é consultado, os meses cortados não.
+      vi.setSystemTime(new Date("2026-10-08T15:00:00Z"));
+      pedidas = [];
+      const outro = { ...PEDIDO, modelo: "6000" };
+      await consultarMercado(outro, { buscar: buscar as never, token: "tok", banco: banco() });
+      expect(pedidas.some((u) => u.includes("/6000/") && u.includes("reference=330"))).toBe(true);
+      expect(pedidas.some((u) => fora(u))).toBe(false);
+
+      // 6h01 depois do 402 (e não da última consulta): o plano foi assinado, os meses voltam.
+      vi.setSystemTime(new Date("2026-10-08T16:01:00Z"));
+      respostaDe = padrao;
+      guardadas = [...gravadas];
+      gravadas = [];
+      const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+      expect(r.ok && r.mercado.mesesForaDoPlano).toBe(0);
+      expect(r.ok && r.mercado.historico).toHaveLength(MESES_DE_HISTORICO + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("402 no mês corrente e depois o plano volta: a próxima consulta tenta o mês corrente e o corte cai", async () => {
+    respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : { status: 402, corpo: {} });
+    expect((await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() })).ok).toBe(false);
+    respostaDe = padrao;
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    expect(r.ok && r.mercado.mesesForaDoPlano).toBe(0);
+    expect(r.ok && r.mercado.historico).toHaveLength(MESES_DE_HISTORICO + 1);
+  });
+
+  it("402 no mês corrente: diz que é o plano da FIPE, e não limite do dia", async () => {
+    respostaDe = (url) => (url.endsWith("/references") ? padrao(url) : { status: 402, corpo: {} });
+    const r = await consultarMercado(PEDIDO, { buscar: buscar as never, token: "tok", banco: banco() });
+    expect(r).toMatchObject({ ok: false, status: 502 });
+    expect(!r.ok && r.motivo).toContain("plano");
   });
 
   it("sem a tabela no banco: funciona, não grava e avisa da migração", async () => {

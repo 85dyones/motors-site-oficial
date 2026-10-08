@@ -79,6 +79,7 @@ function mercado(): MercadoDoModelo {
       { ano: "2021-1", anoModelo: 2021, valor: 115000, escolhido: false, abaixoDoSeguintePct: -9.1 },
     ],
     mesesQueFaltaram: 0,
+    mesesForaDoPlano: 0,
   };
 }
 
