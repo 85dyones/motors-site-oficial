@@ -6,19 +6,21 @@ import { lerParametrosDaCurva } from "../src/lib/avaliacaoRecomendacao";
 import type { MercadoDoModelo } from "../src/lib/mercadoPorModelo";
 
 /**
- * As abas de `/admin/consulta-placa` montadas de verdade (06/10/2026): só o
- * `fetch`, a cascata da FIPE, o `next/navigation` e o diálogo são dublados.
+ * As abas de `/admin/consulta-veiculos` montadas de verdade (06 e 08/10/2026):
+ * só o `fetch`, a cascata da FIPE, o `next/navigation` e o diálogo são
+ * dublados.
  *
- * O que só a fiação prova: a tela ABRE na aba sem custo, a análise por modelo
- * nunca bate na rota paga, e o alerta de tendência chega com forma e rótulo,
- * e não só com cor.
+ * O que só a fiação prova: a tela ABRE na aba grátis; a grátis pede só o
+ * modo pontual; a paga pergunta o custo ANTES de cobrar e não cobra sem o
+ * "sim"; e o alerta de tendência chega com forma e rótulo, e não só com cor.
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
-vi.mock("../src/components/admin/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: vi.fn(async () => true) }) }));
+const confirm = vi.fn<(o: unknown) => Promise<boolean>>(async () => true);
+vi.mock("../src/components/admin/ConfirmDialog", () => ({ useConfirm: () => ({ confirm }) }));
 vi.mock("../src/lib/consultaFipe", () => ({
   listarMarcas: async () => [{ codigo: "59", nome: "VW - VolksWagen" }],
   listarModelos: async () => [{ codigo: "5940", nome: "T-Cross Highline 1.4 TSI" }],
@@ -85,12 +87,15 @@ function mercado(): MercadoDoModelo {
 
 let chamadas: Array<{ url: string; corpo: Record<string, unknown> }>;
 let resposta: { status: number; corpo: unknown };
+let estimativa: Record<string, unknown>;
 let container: HTMLDivElement;
 let root: Root;
 
 async function montar(modelos: unknown = { ok: true, modelos: [] }) {
   globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
-    chamadas.push({ url, corpo: JSON.parse(String(opcoes?.body)) });
+    const corpo = JSON.parse(String(opcoes?.body)) as Record<string, unknown>;
+    chamadas.push({ url, corpo });
+    if (corpo.estimar) return { ok: true, status: 200, json: async () => estimativa };
     return { ok: resposta.status < 400, status: resposta.status, json: async () => resposta.corpo };
   }) as never;
   const { default: AbasDaConsulta } = await import("../src/components/admin/consulta/AbasDaConsulta");
@@ -100,41 +105,54 @@ async function montar(modelos: unknown = { ok: true, modelos: [] }) {
   await act(async () => {
     root.render(createElement(AbasDaConsulta, { recentes: { ok: true, consultas: [] }, modelos, curva: CURVA, temToken: true, homologacao: false } as never));
   });
+  await esperar();
+}
+
+async function esperar() {
+  for (let i = 0; i < 3; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+}
+
+const abaDe = (chave: "fipe" | "modelo" | "placa") => container.querySelector(`[data-aba='${chave}']`) as HTMLElement;
+const seletores = (chave: "fipe" | "modelo") => [...abaDe(chave).querySelectorAll("select")] as HTMLSelectElement[];
+
+async function irPara(chave: "fipe" | "modelo" | "placa") {
   await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
+    (container.querySelector(`input[value='${chave}']`) as HTMLInputElement).click();
   });
 }
 
-const aba = () => container.querySelector("[data-aba='modelo']") as HTMLElement;
-const seletores = () => [...aba().querySelectorAll("select")] as HTMLSelectElement[];
-
-async function escolher(indice: number, valor: string) {
-  const campo = seletores()[indice];
+async function escolher(chave: "fipe" | "modelo", indice: number, valor: string) {
+  const campo = seletores(chave)[indice];
   await act(async () => {
     campo.value = valor;
     campo.dispatchEvent(new Event("change", { bubbles: true }));
   });
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  await esperar();
 }
 
-async function analisar() {
-  await escolher(0, "59");
-  await escolher(1, "5940");
-  await escolher(2, "2022-1");
+async function analisar(chave: "fipe" | "modelo") {
+  await escolher(chave, 0, "59");
+  await escolher(chave, 1, "5940");
+  await escolher(chave, 2, "2022-1");
   await act(async () => {
-    (aba().querySelector("form") as HTMLFormElement).requestSubmit();
+    (abaDe(chave).querySelector("form") as HTMLFormElement).requestSubmit();
   });
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  await esperar();
 }
+
+const PEDIDO = { tipo: "carros", marca: "59", modelo: "5940", ano: "2022-1", anos: ["2023-1", "2022-1", "2021-1"] };
 
 beforeEach(() => {
   chamadas = [];
-  resposta = { status: 200, corpo: { mercado: mercado(), avisos: [] } };
+  resposta = { status: 200, corpo: { mercado: mercado(), avisos: [], chamadasPagas: 22, mesesPagosGuardados: 22, custo: 1.32 } };
+  estimativa = { mesesPagosNoMaximo: 22, precoPorMes: 0.06, temToken: true, homologacao: false };
   refresh.mockClear();
+  confirm.mockClear();
+  confirm.mockImplementation(async () => true);
 });
 
 afterEach(() => {
@@ -142,95 +160,164 @@ afterEach(() => {
   container.remove();
 });
 
-describe("as duas abas", () => {
-  it("a tela abre na aba sem custo, e a da placa fica montada e escondida", async () => {
+describe("as três abas", () => {
+  it("a tela abre na FIPE grátis; a paga e a da placa ficam montadas e escondidas", async () => {
     await montar();
-    expect(aba().hidden).toBe(false);
-    expect((container.querySelector("[data-aba='placa']") as HTMLElement).hidden).toBe(true);
-    expect(container.querySelector("[data-descricao-da-aba]")?.textContent).toContain("Não gasta consulta");
-    await act(async () => {
-      (container.querySelector("input[value='placa']") as HTMLInputElement).click();
-    });
-    expect(aba().hidden).toBe(true);
-    expect(container.querySelector("[data-descricao-da-aba]")?.textContent).toContain("consulta paga");
+    expect(container.querySelector("h1")?.textContent).toBe("Consulta de veículos");
     expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(abaDe("fipe").hidden).toBe(false);
+    expect(abaDe("modelo").hidden).toBe(true);
+    expect(abaDe("placa").hidden).toBe(true);
+    expect(container.querySelector("[data-descricao-da-aba]")?.textContent).toContain("Não gasta nada");
+    await irPara("placa");
+    expect(abaDe("fipe").hidden).toBe(true);
+    expect(container.querySelector("[data-descricao-da-aba]")?.textContent).toContain("consulta paga");
   });
 });
 
-describe("a análise por modelo", () => {
-  it("a cascata tira o zero-km e manda os anos do modelo para a comparação, só na rota gratuita", async () => {
+describe("a FIPE grátis", () => {
+  it("a cascata tira o zero-km e pede só o modo pontual, uma chamada, sem estimar custo", async () => {
     await montar();
-    await escolher(0, "59");
-    await escolher(1, "5940");
-    expect([...seletores()[2].options].map((o) => o.value)).toEqual(["", "2023-1", "2022-1", "2021-1"]);
-    await analisar();
-    expect(chamadas).toEqual([
-      { url: "/api/consulta-placa/modelo", corpo: { tipo: "carros", marca: "59", modelo: "5940", ano: "2022-1", anos: ["2023-1", "2022-1", "2021-1"] } },
-    ]);
+    await escolher("fipe", 0, "59");
+    await escolher("fipe", 1, "5940");
+    expect([...seletores("fipe")[2].options].map((o) => o.value)).toEqual(["", "2023-1", "2022-1", "2021-1"]);
+    await analisar("fipe");
+    expect(chamadas).toEqual([{ url: "/api/consulta-placa/modelo", corpo: { ...PEDIDO, modo: "pontual" } }]);
+    expect(confirm).not.toHaveBeenCalled();
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("o alerta de tendência vem com forma, rótulo escrito e as frases que o sustentam", async () => {
+  it("mostra a FIPE de hoje, a faixa de compra e o ano a ano, e não a série nem a tendência", async () => {
     await montar();
-    await analisar();
-    const alerta = container.querySelector("[data-tendencia]")!;
-    expect(alerta.getAttribute("data-tendencia")).toBe("acelerando");
-    expect(alerta.querySelector("svg[data-estado='impeditivo']")).toBeTruthy();
-    expect(alerta.textContent).toContain("ALERTA");
-    expect(alerta.textContent).toContain("Desvalorizando cada vez mais rápido");
-    expect(alerta.textContent).toContain("ganhando velocidade");
-    // E diz o que NÃO é: a tabela, e não o carro.
-    expect(alerta.textContent).toContain("Por placa");
-    expect(container.querySelector("[data-meses-de-queda]")?.textContent).toBe("24");
-  });
-
-  it("a faixa de compra sai da mesma curva da aba da placa", async () => {
-    await montar();
-    await analisar();
+    await analisar("fipe");
     const fipe = mercado().fipeAtual;
-    const esperado = Math.round(fipe * 0.8).toLocaleString("pt-BR");
-    expect(aba().querySelector("[data-faixa-de-compra]")?.textContent).toContain(esperado);
-  });
-
-  it("três gráficos, cada um com os mesmos números em tabela ou em texto", async () => {
-    await montar();
-    await analisar();
-    expect(aba().querySelector("svg[aria-label^='FIPE']")).toBeTruthy();
-    expect(aba().querySelector("svg[aria-label^='Variação percentual']")).toBeTruthy();
-    expect(aba().querySelector("svg[aria-label^='Valor FIPE de hoje']")).toBeTruthy();
-    const anos = [...aba().querySelectorAll("tr[data-ano]")];
-    expect(anos.map((l) => l.getAttribute("data-ano"))).toEqual(["2023", "2022", "2021"]);
-    expect(anos[1].textContent).toContain("escolhido");
-    expect(anos[1].textContent).toContain("-8,3%");
+    expect(abaDe("fipe").querySelector("[data-fipe-atual]")?.textContent).toContain(fipe.toLocaleString("pt-BR"));
+    expect(abaDe("fipe").querySelector("[data-faixa-de-compra]")?.textContent).toContain(Math.round(fipe * 0.8).toLocaleString("pt-BR"));
+    expect([...abaDe("fipe").querySelectorAll("tr[data-ano]")].map((l) => l.getAttribute("data-ano"))).toEqual(["2023", "2022", "2021"]);
+    expect(abaDe("fipe").querySelector("[data-tendencia]")).toBeNull();
+    expect(abaDe("fipe").querySelector("svg[aria-label^='Variação percentual']")).toBeNull();
   });
 
   it("limite da FIPE vira aviso na tela, e não tela em branco", async () => {
     resposta = { status: 429, corpo: { error: "A FIPE atingiu o limite de consultas de hoje." } };
     await montar();
-    await analisar();
-    expect(aba().querySelector("[role=alert]")?.textContent).toContain("limite de consultas de hoje");
-    expect(container.querySelector("[data-tendencia]")).toBeNull();
+    await analisar("fipe");
+    expect(abaDe("fipe").querySelector("[role=alert]")?.textContent).toContain("limite de consultas de hoje");
   });
 
-  it("modelo já consultado reabre com um clique", async () => {
-    await montar({ ok: true, modelos: [{ tipo: "carros", marcaCodigo: "59", modeloCodigo: "5940", ano: "2022-1", rotulo: "T-Cross Highline 1.4 TSI 2022" }] });
-    const botao = [...aba().querySelectorAll("button")].find((b) => b.textContent?.includes("T-Cross"))!;
+  it("'Ver histórico e tendência' leva à aba paga o modelo que está NA TELA, e ela pergunta o custo antes de consultar", async () => {
+    await montar();
+    await analisar("fipe");
+    // Trocar o ano depois de consultar não muda o que o botão leva: leva o que está na tela.
+    await escolher("fipe", 2, "2021-1");
+    chamadas = [];
+    const botao = [...abaDe("fipe").querySelectorAll("button")].find((b) => b.textContent?.includes("Ver histórico"))!;
     await act(async () => {
       botao.click();
     });
+    await esperar();
+    expect(abaDe("modelo").hidden).toBe(false);
+    expect(chamadas.map((c) => c.corpo)).toEqual([
+      { ...PEDIDO, modo: "completa", estimar: true },
+      { ...PEDIDO, modo: "completa" },
+    ]);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(abaDe("modelo").querySelector("[data-tendencia]")).toBeTruthy();
+    expect(seletores("modelo")[2].value).toBe("2022-1");
+  });
+
+  it("modo de teste (custo zero): o rodapé de custo não aparece; quem fala é o aviso", async () => {
+    resposta = { status: 200, corpo: { mercado: mercado(), avisos: ["A APIBrasil está em modo de teste"], chamadasPagas: 22, mesesPagosGuardados: 0, custo: 0 } };
+    estimativa = { ...estimativa, homologacao: true };
+    await montar();
+    await irPara("modelo");
+    await analisar("modelo");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(abaDe("modelo").querySelector("[data-custo-da-consulta]")).toBeNull();
+    expect(abaDe("modelo").textContent).toContain("modo de teste");
+  });
+});
+
+describe("a consulta Por modelo, paga", () => {
+  it("diz quantos meses e quanto pode custar, e sem o 'sim' não consulta", async () => {
+    confirm.mockImplementation(async () => false);
+    await montar();
+    await irPara("modelo");
+    await analisar("modelo");
+    const pergunta = confirm.mock.calls[0][0] as { message: string };
+    expect(pergunta.message).toContain("Até 22 meses");
+    expect(pergunta.message).toContain("R$\u00a01,32");
+    expect(chamadas.map((c) => c.corpo)).toEqual([{ ...PEDIDO, modo: "completa", estimar: true }]);
+    expect(abaDe("modelo").querySelector("[data-tendencia]")).toBeNull();
+  });
+
+  it("nada a cobrar (tudo guardado): consulta direto, sem perguntar", async () => {
+    estimativa = { ...estimativa, mesesPagosNoMaximo: 0 };
+    resposta = { status: 200, corpo: { mercado: mercado(), avisos: [], chamadasPagas: 0, custo: 0 } };
+    await montar();
+    await irPara("modelo");
+    await analisar("modelo");
+    expect(confirm).not.toHaveBeenCalled();
+    expect(chamadas).toHaveLength(2);
+    expect(abaDe("modelo").querySelector("[data-custo-da-consulta]")).toBeNull();
+  });
+
+  it("depois de consultar, diz quantos meses foram pagos e quanto custou", async () => {
+    await montar();
+    await irPara("modelo");
+    await analisar("modelo");
+    const custo = abaDe("modelo").querySelector("[data-custo-da-consulta]")?.textContent ?? "";
+    expect(custo).toContain("22 consultas pagas");
+    expect(custo).toContain("1,32");
+    expect(custo).toContain("22 meses ficaram guardados");
+  });
+
+  it("o alerta de tendência vem com forma, rótulo escrito e as frases que o sustentam", async () => {
+    await montar();
+    await irPara("modelo");
+    await analisar("modelo");
+    const alerta = abaDe("modelo").querySelector("[data-tendencia]")!;
+    expect(alerta.getAttribute("data-tendencia")).toBe("acelerando");
+    expect(alerta.querySelector("svg[data-estado='impeditivo']")).toBeTruthy();
+    expect(alerta.textContent).toContain("ALERTA");
+    expect(alerta.textContent).toContain("Desvalorizando cada vez mais rápido");
+    expect(alerta.textContent).toContain("ganhando velocidade");
+    expect(alerta.textContent).toContain("Por placa");
+    expect(abaDe("modelo").querySelector("[data-meses-de-queda]")?.textContent).toBe("24");
+  });
+
+  it("três gráficos, cada um com os mesmos números em tabela ou em texto, e a faixa da mesma curva", async () => {
+    await montar();
+    await irPara("modelo");
+    await analisar("modelo");
+    const aba = abaDe("modelo");
+    expect(aba.querySelector("svg[aria-label^='FIPE']")).toBeTruthy();
+    expect(aba.querySelector("svg[aria-label^='Variação percentual']")).toBeTruthy();
+    expect(aba.querySelector("svg[aria-label^='Valor FIPE de hoje']")).toBeTruthy();
+    const anos = [...aba.querySelectorAll("tr[data-ano]")];
+    expect(anos[1].textContent).toContain("escolhido");
+    expect(anos[1].textContent).toContain("-8,3%");
+    expect(aba.querySelector("[data-faixa-de-compra]")?.textContent).toContain(Math.round(mercado().fipeAtual * 0.8).toLocaleString("pt-BR"));
+  });
+});
+
+describe("os modelos já consultados", () => {
+  it("reabrem com um clique, na aba em que se clicou", async () => {
+    await montar({ ok: true, modelos: [{ tipo: "carros", marcaCodigo: "59", modeloCodigo: "5940", ano: "2022-1", rotulo: "T-Cross Highline 1.4 TSI 2022" }] });
+    const botao = [...abaDe("fipe").querySelectorAll("button")].find((b) => b.textContent?.includes("T-Cross"))!;
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
+      botao.click();
     });
+    await esperar();
     expect(chamadas).toHaveLength(1);
-    expect(chamadas[0].corpo).toMatchObject({ marca: "59", modelo: "5940", ano: "2022-1" });
-    expect(container.querySelector("[data-tendencia]")).toBeTruthy();
-    expect(seletores()[2].value).toBe("2022-1");
+    expect(chamadas[0].corpo).toMatchObject({ marca: "59", modelo: "5940", ano: "2022-1", modo: "pontual" });
+    expect(seletores("fipe")[2].value).toBe("2022-1");
   });
 
   it("sem a tabela no banco, a aba avisa da migração e continua funcionando", async () => {
     await montar({ ok: false, faltaMigracao: true, motivo: "relation does not exist" });
-    expect(aba().textContent).toContain("20261006190000_fipe_historico");
-    await analisar();
-    expect(container.querySelector("[data-tendencia]")).toBeTruthy();
+    expect(abaDe("fipe").textContent).toContain("20261006190000_fipe_historico");
+    await analisar("fipe");
+    expect(abaDe("fipe").querySelector("[data-fipe-atual]")).toBeTruthy();
   });
 });

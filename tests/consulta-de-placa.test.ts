@@ -406,7 +406,7 @@ describe("quem consulta", () => {
   it("o trilho e a RLS repetem os mesmos três papéis", () => {
     const raiz = join(__dirname, "..");
     const trilho = readFileSync(join(raiz, "src", "components", "admin", "SidebarNav.tsx"), "utf8");
-    expect(trilho).toMatch(/name: "Consulta de placa", href: "\/admin\/consulta-placa", roles: \["admin", "gestor", "comercial"\]/);
+    expect(trilho).toMatch(/name: "Consulta de veículos", href: "\/admin\/consulta-veiculos", roles: \["admin", "gestor", "comercial"\]/);
     const sql = readFileSync(join(raiz, "supabase", "migrations", "20261006180000_consultas_de_placa.sql"), "utf8");
     for (const papel of PAPEIS_QUE_CONSULTAM_PLACA) expect(sql).toContain(`tem_papel(auth.uid(), '${papel}')`);
     expect(sql).not.toMatch(/tem_papel\(auth\.uid\(\), '(marketing|financeiro|sdr)'\)/);

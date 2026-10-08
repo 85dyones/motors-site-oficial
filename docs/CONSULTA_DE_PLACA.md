@@ -55,6 +55,29 @@ Com isso, gráfico de 24 meses e alerta de desvalorização (pede 6 meses) só
 funcionam com o plano pago da FIPE (Pro, fipe.api.br). Assinado o plano, nada
 muda no código: em até 6 horas o corte expira e os meses passam a vir.
 
+**Desde 08/10/2026 a tela é "Consulta de veículos" (`/admin/consulta-veiculos`;
+o endereço antigo redireciona), com três abas:**
+
+1. **FIPE · grátis** (`modo: "pontual"`): só o mês corrente do ano escolhido e
+   dos anos vizinhos, na FIPE pública. Valor de hoje, ano a ano e faixa de
+   compra. Nunca chama a APIBrasil.
+2. **Por modelo · paga** (`modo: "completa"`): a série de 24 meses. O que a
+   FIPE gratuita entrega vem dela; os meses que ela corta (402) vêm da "Tabela
+   Fipe Crédito" da APIBrasil (`lib/apiBrasilFipe.ts`, R$ 0,06 por mês). Antes
+   de cobrar, a tela pede `estimar: true` e mostra "até N meses (até R$ X)"
+   (`APIBRASIL_FIPE_PRECO`); N é um teto (todo mês da série não guardado) e,
+   sem o "sim", nada é consultado. Regras da parte paga:
+   - só começa com o valor de HOJE do ano escolhido em mãos;
+   - não roda se o histórico guardado não pôde ser lido (cobraria de novo);
+   - grava em lotes de 6 durante a leitura e para aos 40 s (a rota tem 60):
+     o que foi pago não se perde se a leitura parar;
+   - para em falta de saldo, token recusado, 3 falhas seguidas ou 3 "não
+     tinha o carro" antes de qualquer valor (o suspeito é o pedido);
+   - "não tinha" só é guardado se a mesma leitura trouxe algum valor pago;
+   - resposta com o carro de exemplo ou outro ano-modelo é falha;
+   - em homologação os valores de exemplo são conferidos e descartados.
+3. **Por placa · paga**: a consulta de placa de sempre.
+
 O que ela NÃO sabe: nada do carro em si. Leilão, sinistro, gravame e débito só
 existem na aba da placa.
 

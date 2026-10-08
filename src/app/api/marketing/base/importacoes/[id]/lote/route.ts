@@ -19,7 +19,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!porta.ok) return NextResponse.json({ error: porta.motivo }, { status: porta.status, headers: SEM_CACHE });
 
   const { id } = await params;
-  const r = await importarLote(porta.admin, id, await request.json().catch(() => null));
+  // A chave de serviço grava a base; a sessão lê o estoque da equipe (a placa, para ligar o carro).
+  const r = await importarLote(porta.admin, id, await request.json().catch(() => null), porta.supabase);
   if (!r.ok) return NextResponse.json({ error: r.motivo }, { status: r.status, headers: SEM_CACHE });
   return NextResponse.json(
     { contatosNovos: r.contatosNovos, contatosAtualizados: r.contatosAtualizados, registrosNovos: r.registrosNovos, recusados: r.recusados },

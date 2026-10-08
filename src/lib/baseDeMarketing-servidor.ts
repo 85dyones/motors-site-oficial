@@ -27,6 +27,7 @@ import {
   type ResumoDaBase,
 } from "./baseDeMarketing";
 import { ehTabelaAusente } from "./consultaDePlaca-servidor";
+import { lerComoEquipe } from "./colunasDoEstoque";
 import { familiaDoModelo, marcaCanonica } from "./familiaDoModelo";
 import { DATA_DESCONHECIDA } from "./smsCampanhas";
 import type { Veiculo } from "../types";
@@ -212,21 +213,25 @@ export function contatoParaOBanco(c: ContatoImportado, origem: OrigemDeImportaca
 }
 
 /**
- * O estoque para a correlação, lido direto de `estoque_motors` com a chave de
- * serviço: id, marca, modelo e placa de todo carro, vendido ou não.
+ * O estoque para a correlação: id, marca, modelo e placa. Placa é coluna da
+ * equipe: vem da view `estoque_motors_equipe`, pela SESSÃO de quem importa
+ * (Administrador ou Marketing, ambos da equipe), por `lerComoEquipe`.
  *
- * NÃO passa por `getEstoque({ incluirPlaca })`: aquela leitura vai pela view da
- * equipe, que só devolve linha para uma SESSÃO de equipe. Com a chave de
- * serviço ela volta vazia e `getEstoque` lança "estoque indisponível" — foi o
- * que derrubou o primeiro lote em produção (07/10/2026).
+ * Duas portas erradas que já foram tentadas (07/10/2026):
+ *  - a view pela chave de serviço: ela filtra por `is_staff(auth.uid())`, e a
+ *    chave de serviço não tem `auth.uid()` — volta vazia (`getEstoque` lançava
+ *    "estoque indisponível" e derrubou o primeiro lote em produção);
+ *  - a tabela pela chave de serviço: funciona, mas fura o invariante de que
+ *    toda leitura literal de `estoque_motors` pede só coluna pública
+ *    (`tests/documento-e-custo-so-para-a-equipe.test.ts`).
  *
  * Falha aqui não derruba a importação: sem o índice a pessoa entra do mesmo
  * jeito, com marca e modelo, e só fica sem a ligação com o carro do estoque.
  */
-export async function lerIndiceDoEstoque(admin: SupabaseClient): Promise<IndiceDoEstoque> {
-  const { data, error } = await admin.from("estoque_motors").select("id, marca, modelo, placa").limit(5000);
-  if (error || !data) {
-    console.error("[base de marketing] estoque não lido; o lote segue sem ligar carro por placa:", error?.code, error?.message);
+export async function lerIndiceDoEstoque(sessao: SupabaseClient): Promise<IndiceDoEstoque> {
+  const { data, error } = await lerComoEquipe((origem) => sessao.from(origem).select("id, marca, modelo, placa").limit(5000));
+  if (error || !data || data.length === 0) {
+    console.error("[base de marketing] estoque não lido; o lote segue sem ligar carro ao estoque:", error?.code ?? "0 linhas", error?.message ?? "");
     return indexarEstoque([]);
   }
   return indexarEstoque(
@@ -234,7 +239,7 @@ export async function lerIndiceDoEstoque(admin: SupabaseClient): Promise<IndiceD
   );
 }
 
-export async function importarLote(admin: SupabaseClient, id: string, corpo: unknown): Promise<({ ok: true } & RespostaDoLoteDeImportacao) | Falha> {
+export async function importarLote(admin: SupabaseClient, id: string, corpo: unknown, sessao: SupabaseClient): Promise<({ ok: true } & RespostaDoLoteDeImportacao) | Falha> {
   if (!ehUuid(id)) return { ok: false, status: 404, motivo: "Importação não encontrada." };
   const brutos = (corpo && typeof corpo === "object" ? (corpo as { contatos?: unknown }).contatos : null) as unknown;
   if (!Array.isArray(brutos) || brutos.length === 0) return { ok: false, status: 400, motivo: "O lote veio vazio." };
@@ -249,7 +254,7 @@ export async function importarLote(admin: SupabaseClient, id: string, corpo: unk
   const recusados = brutos.length - contatos.length;
   if (contatos.length === 0) return { ok: true, contatosNovos: 0, contatosAtualizados: 0, registrosNovos: 0, recusados };
 
-  const indice = await lerIndiceDoEstoque(admin);
+  const indice = await lerIndiceDoEstoque(sessao);
   const { data, error: erroDoLote } = await admin.rpc("marketing_importar_lote", {
     p_importacao: id,
     p_contatos: contatos.map((c) => contatoParaOBanco(c, importacao.origem as OrigemDeImportacao, indice)),
