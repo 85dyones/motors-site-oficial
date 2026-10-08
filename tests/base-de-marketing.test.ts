@@ -24,8 +24,8 @@ import {
  * CPF, RG e endereço da planilha não passam daqui.
  */
 
-// A correlação lê `estoque_motors` direto, com a chave de serviço. `getEstoque` com placa passa
-// pela view da equipe, que não devolve nada sem sessão: se alguém voltar a usá-la aqui, quebra.
+// A correlação lê a view da equipe pela SESSÃO de quem importa. `getEstoque` com a chave de
+// serviço volta vazio (a view pede auth.uid()): se alguém voltar a usá-lo aqui, quebra.
 vi.mock("../src/lib/supabase", () => ({
   getEstoque: async () => {
     throw new Error("EstoqueIndisponivelError: a importação não pode depender de getEstoque");
@@ -202,18 +202,28 @@ describe("a importação", () => {
   function banco(opcoes: { importacao?: object | null; erroDoLote?: boolean; estoqueFora?: boolean } = {}) {
     const chamadas: Array<{ nome: string; args: Record<string, unknown> }> = [];
     const inseridas: object[] = [];
+    const lidasNaSessao: string[] = [];
+    const sessao = {
+      from: (origem: string) => (
+        lidasNaSessao.push(origem),
+        { select: () => ({ limit: async () => (opcoes.estoqueFora ? { data: null, error: { message: "fora" } } : { data: ESTOQUE.map((c) => ({ ...c, id: Number(c.id) })), error: null }) }) }
+      ),
+    };
     const admin = {
-      from: (tabela: string) => tabela === "estoque_motors" ? { select: () => ({ limit: async () => (opcoes.estoqueFora ? { data: null, error: { message: "fora" } } : { data: ESTOQUE.map((c) => ({ ...c, id: Number(c.id) })), error: null }) }) } : ({
+      from: (tabela: string) => {
+        if (tabela.startsWith("estoque_motors")) throw new Error("o estoque não é lido pela chave de serviço");
+        return {
         insert: (v: object) => (inseridas.push(v), { select: () => ({ single: async () => ({ data: { id: ID }, error: null }) }) }),
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: opcoes.importacao === undefined ? { id: ID, origem: "revenda_mais" } : opcoes.importacao, error: null }) }) }),
-      }),
+        };
+      },
       rpc: async (nome: string, args: Record<string, unknown>) => {
         chamadas.push({ nome, args });
         if (nome === "marketing_importar_lote") return opcoes.erroDoLote ? { data: null, error: { message: "x" } } : { data: [{ contatos_novos: 1, contatos_atualizados: 0, registros_novos: 2 }], error: null };
         return { data: [{ contatos_removidos: 3, registros_removidos: 5 }], error: null };
       },
     };
-    return { admin: admin as never, chamadas, inseridas };
+    return { admin: admin as never, sessao: sessao as never, chamadas, inseridas, lidasNaSessao };
   }
 
   it("abrir: origem e linhas conferidas, autor gravado", async () => {
@@ -225,35 +235,44 @@ describe("a importação", () => {
 
   it("lote: confere de novo cada contato, liga o carro e entrega ao banco no formato dele", async () => {
     const b = banco();
-    const r = await importarLote(b.admin, ID, {
-      contatos: [
-        { telefone: "41 99999-0001", nome: "Maria", cpf: "111.222.333-44", canais: ["OLX"], registros: [{ origemId: "100", tipo: "interesse", marca: "VOLKSWAGEN", modelo: "T CROSS", placa: "TBA3H95" }] },
-        { telefone: "4133330000", nome: "Fixo" },
-      ],
-    });
+    const r = await importarLote(
+      b.admin,
+      ID,
+      {
+        contatos: [
+          { telefone: "41 99999-0001", nome: "Maria", cpf: "111.222.333-44", canais: ["OLX"], registros: [{ origemId: "100", tipo: "interesse", marca: "VOLKSWAGEN", modelo: "T CROSS", placa: "TBA3H95" }] },
+          { telefone: "4133330000", nome: "Fixo" },
+        ],
+      },
+      b.sessao,
+    );
     expect(r).toEqual({ ok: true, contatosNovos: 1, contatosAtualizados: 0, registrosNovos: 2, recusados: 1 });
     const enviado = b.chamadas[0].args;
     expect(enviado.p_importacao).toBe(ID);
     expect(enviado.p_contatos).toHaveLength(1);
     expect(JSON.stringify(enviado)).not.toContain("111.222");
     expect((enviado.p_contatos as Array<{ registros: Array<Record<string, unknown>> }>)[0].registros[0]).toMatchObject({ origem_id: "rm:100", veiculo_id: 8479269, tipo: "interesse" });
+    // A placa vem da view da equipe, pela sessão; a tabela nunca é lida pela chave de serviço.
+    expect(b.lidasNaSessao).toEqual(["estoque_motors_equipe"]);
   });
 
   it("estoque fora do ar não derruba a importação: a pessoa entra, só sem a ligação com o carro", async () => {
     const b = banco({ estoqueFora: true });
-    const r = await importarLote(b.admin, ID, { contatos: [{ telefone: "41 99999-0001", registros: [{ origemId: "100", tipo: "interesse", marca: "VOLKSWAGEN", modelo: "T CROSS", placa: "TBA3H95" }] }] });
+    const r = await importarLote(b.admin, ID, { contatos: [{ telefone: "41 99999-0001", registros: [{ origemId: "100", tipo: "interesse", marca: "VOLKSWAGEN", modelo: "T CROSS", placa: "TBA3H95" }] }] }, b.sessao);
     expect(r).toMatchObject({ ok: true, contatosNovos: 1 });
     expect((b.chamadas[0].args.p_contatos as Array<{ registros: Array<Record<string, unknown>> }>)[0].registros[0]).toMatchObject({ veiculo_id: null, marca: "VOLKSWAGEN", placa: "TBA3H95" });
   });
 
   it("lote grande demais, vazio, id torto ou importação que não existe não chegam ao banco", async () => {
     const b = banco();
-    expect(await importarLote(b.admin, ID, { contatos: Array.from({ length: CONTATOS_POR_LOTE + 1 }, () => ({ telefone: "41999990001" })) })).toMatchObject({ ok: false, status: 400 });
-    expect(await importarLote(b.admin, ID, { contatos: [] })).toMatchObject({ ok: false, status: 400 });
-    expect(await importarLote(b.admin, "nao-e-uuid", { contatos: [{ telefone: "41999990001" }] })).toMatchObject({ ok: false, status: 404 });
-    expect(await importarLote(banco({ importacao: null }).admin, ID, { contatos: [{ telefone: "41999990001" }] })).toMatchObject({ ok: false, status: 404 });
+    expect(await importarLote(b.admin, ID, { contatos: Array.from({ length: CONTATOS_POR_LOTE + 1 }, () => ({ telefone: "41999990001" })) }, b.sessao)).toMatchObject({ ok: false, status: 400 });
+    expect(await importarLote(b.admin, ID, { contatos: [] }, b.sessao)).toMatchObject({ ok: false, status: 400 });
+    expect(await importarLote(b.admin, "nao-e-uuid", { contatos: [{ telefone: "41999990001" }] }, b.sessao)).toMatchObject({ ok: false, status: 404 });
+    const semImportacao = banco({ importacao: null });
+    expect(await importarLote(semImportacao.admin, ID, { contatos: [{ telefone: "41999990001" }] }, semImportacao.sessao)).toMatchObject({ ok: false, status: 404 });
     expect(b.chamadas).toEqual([]);
-    expect(await importarLote(banco({ erroDoLote: true }).admin, ID, { contatos: [{ telefone: "41999990001" }] })).toMatchObject({ ok: false, status: 502 });
+    const loteRecusado = banco({ erroDoLote: true });
+    expect(await importarLote(loteRecusado.admin, ID, { contatos: [{ telefone: "41999990001" }] }, loteRecusado.sessao)).toMatchObject({ ok: false, status: 502 });
   });
 
   it("desfazer devolve o que saiu", async () => {
