@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import AbasDaConsulta from "../../../components/admin/consulta/AbasDaConsulta";
 import { configuracaoDaApiBrasil } from "../../../lib/apiBrasil";
 import { autorizarConsultaDePlaca, lerConsultasRecentes } from "../../../lib/consultaDePlaca-servidor";
+import { lerHistoricoDeConsultas } from "../../../lib/historicoDeConsultas-servidor";
 import { lerModelosRecentes } from "../../../lib/mercadoPorModelo-servidor";
 import { lerParametrosVigentes, type ClienteDeLeitura } from "../../../lib/parametrosDaAvaliacao";
 
@@ -32,12 +33,15 @@ export default async function ConsultaDeVeiculosPage() {
   const porta = await autorizarConsultaDePlaca();
   if (!porta.ok) redirect(porta.status === 401 ? "/login" : "/admin");
 
-  const [recentes, modelos, curva] = await Promise.all([
+  const [recentes, modelos, curva, historico] = await Promise.all([
     lerConsultasRecentes(porta.supabase),
     lerModelosRecentes(porta.supabase),
     lerParametrosVigentes(porta.supabase as unknown as ClienteDeLeitura),
+    lerHistoricoDeConsultas(porta.supabase, { termo: null, filtro: "todas" }),
   ]);
   const { token, homologacao } = configuracaoDaApiBrasil();
 
-  return <AbasDaConsulta recentes={recentes} modelos={modelos} curva={curva} temToken={token !== null} homologacao={homologacao} />;
+  return (
+    <AbasDaConsulta recentes={recentes} modelos={modelos} curva={curva} temToken={token !== null} homologacao={homologacao} historico={historico} />
+  );
 }

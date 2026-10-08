@@ -3,7 +3,9 @@ import { configuracaoDaApiBrasil } from "../../../../lib/apiBrasil";
 import { lerMesNaTabelaPaga, precoDaTabelaPaga } from "../../../../lib/apiBrasilFipe";
 import { autorizarConsultaDePlaca } from "../../../../lib/consultaDePlaca-servidor";
 import { lerPedidoDeModelo } from "../../../../lib/mercadoPorModelo";
+import { registrarConsultaDeModelo } from "../../../../lib/historicoDeConsultas-servidor";
 import {
+  abrirGuardado,
   bancoDoHistorico,
   consultarMercado,
   estimarConsultaCompleta,
@@ -23,6 +25,8 @@ const SEM_CACHE = { "Cache-Control": "no-store" };
  *
  *  - `modo: "pontual"` (padrão): grátis. O valor de hoje do ano escolhido e
  *    dos vizinhos, pela FIPE pública e o token gratuito da loja.
+ *  - `modo: "guardado"`: abre do que está em `fipe_historico`, sem chamar
+ *    ninguém (o histórico de consultas). Não registra consulta nova.
  *  - `modo: "completa"`: paga. A série de 24 meses; os meses que a FIPE
  *    gratuita corta vêm da Tabela FIPE da APIBrasil (R$ 0,06 por mês).
  *    Com `estimar: true` só devolve quantos meses PODEM ser cobrados, para a
@@ -47,11 +51,22 @@ export async function POST(request: NextRequest) {
       { status: 400, headers: SEM_CACHE },
     );
   }
+  const banco = bancoDoHistorico(porta.supabase);
+
+  // Abrir o que já está guardado: zero chamadas, zero custo.
+  if (corpo?.modo === "guardado") {
+    const aberto = await abrirGuardado(pedido, { banco });
+    if (!aberto.ok) return NextResponse.json({ error: aberto.motivo }, { status: aberto.status, headers: SEM_CACHE });
+    return NextResponse.json(
+      { mercado: aberto.mercado, avisos: [], modo: "guardado", guardadoAte: aberto.guardadoAte, mesesNovos: aberto.mesesNovos, chamadasPagas: 0, custo: 0 },
+      { headers: SEM_CACHE },
+    );
+  }
+
   const modo: ModoDaAnalise = corpo?.modo === "completa" ? "completa" : "pontual";
 
   const buscar = (url: string, init: RequestInit) => fetch(url, { ...init, cache: "no-store" });
   const token = process.env.FIPE_API_TOKEN;
-  const banco = bancoDoHistorico(porta.supabase);
   const apiBrasil = configuracaoDaApiBrasil();
   const preco = precoDaTabelaPaga();
 
@@ -85,6 +100,17 @@ export async function POST(request: NextRequest) {
   if (!resultado.ok) {
     return NextResponse.json({ error: resultado.motivo }, { status: resultado.status, headers: SEM_CACHE });
   }
+  // Em homologação nada é cobrado: o custo mostrado é zero.
+  const custo = apiBrasil.homologacao ? 0 : preco === null ? null : Math.round(resultado.chamadasPagas * preco * 100) / 100;
+  // O histórico da equipe: quem consultou o quê, e quanto custou. Melhor esforço.
+  await registrarConsultaDeModelo(porta.supabase, {
+    pedido,
+    mercado: resultado.mercado,
+    modo,
+    chamadasPagas: resultado.chamadasPagas,
+    custo: resultado.chamadasPagas === 0 ? 0 : custo,
+    homologacao: apiBrasil.homologacao,
+  });
   return NextResponse.json(
     {
       mercado: resultado.mercado,
@@ -92,8 +118,7 @@ export async function POST(request: NextRequest) {
       modo,
       chamadasPagas: resultado.chamadasPagas,
       mesesPagosGuardados: resultado.mesesPagosGuardados,
-      // Em homologação nada é cobrado: o custo mostrado é zero.
-      custo: apiBrasil.homologacao ? 0 : preco === null ? null : Math.round(resultado.chamadasPagas * preco * 100) / 100,
+      custo,
     },
     { headers: SEM_CACHE },
   );

@@ -442,6 +442,49 @@ export async function consultarMercado(
 }
 
 /**
+ * Abre um modelo SÓ do que está guardado em `fipe_historico` (dono,
+ * 08/10/2026: "ao acessar uma pesquisa antiga"). Nenhuma chamada: nem à FIPE
+ * gratuita, nem à paga. O "hoje" do retrato é o mês mais novo guardado do ano
+ * escolhido; os meses mais recentes vêm pelo "Atualizar dados", que é a
+ * análise de sempre e busca só o que falta.
+ *
+ * `mesesNovos` diz quantos meses a FIPE já tem depois do guardado, quando a
+ * lista de meses está em memória (de outra consulta recente); senão, `null`:
+ * para saber, seria preciso perguntar à FIPE, e abrir o guardado não pergunta.
+ */
+export async function abrirGuardado(
+  pedido: PedidoDeModelo,
+  deps: { banco: BancoDoHistorico },
+): Promise<{ ok: true; mercado: MercadoDoModelo; guardadoAte: string; mesesNovos: number | null } | { ok: false; status: 404 | 502; motivo: string }> {
+  const guardado = await deps.banco.ler(pedido, "2000-01-01");
+  if (!guardado.ok) {
+    return {
+      ok: false,
+      status: 502,
+      motivo: guardado.faltaMigracao ? `A tabela do histórico ainda não existe (migração ${MIGRACAO_DO_HISTORICO_DA_FIPE}).` : "Não deu para ler o histórico guardado.",
+    };
+  }
+  const doAno = guardado.linhas.filter((l) => l.ano === pedido.ano && l.valor !== null).map((l) => l.referencia).sort();
+  const ultima = doAno[doAno.length - 1];
+  if (!ultima) return { ok: false, status: 404, motivo: "Este modelo e ano ainda não têm nada guardado." };
+  const [anoUltimo, mesUltimo] = ultima.split("-").map(Number);
+  // Os meses do recorte, do guardado mais novo para trás; o código do mês não importa para montar.
+  const referencias: ReferenciaDaFipe[] = Array.from({ length: MESES_DE_HISTORICO + 1 }, (_, i) => {
+    const indice = anoUltimo * 12 + (mesUltimo - 1) - i;
+    return { codigo: 0, ano: Math.floor(indice / 12), mes: (indice % 12) + 1 };
+  });
+  const mercado = montarMercado(pedido, referencias, guardado.linhas);
+  if (!mercado) return { ok: false, status: 404, motivo: "Este modelo e ano ainda não têm nada guardado." };
+  const naMemoria = referenciasEmMemoria && Date.now() - referenciasEmMemoria.em < VALIDADE_DAS_REFERENCIAS_MS ? referenciasEmMemoria.lista : null;
+  return {
+    ok: true,
+    mercado,
+    guardadoAte: ultima.slice(0, 7),
+    mesesNovos: naMemoria ? naMemoria.filter((r) => chaveDaReferencia(r) > ultima).length : null,
+  };
+}
+
+/**
  * Quantos meses a consulta completa pode cobrar, antes de rodar: os meses da
  * série que não estão guardados. É um TETO: a FIPE gratuita entrega alguns de
  * graça, mas quais muda na virada do mês, e a tela promete "até N". Não chama

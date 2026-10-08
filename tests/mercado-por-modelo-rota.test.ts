@@ -16,10 +16,16 @@ vi.mock("../src/lib/consultaDePlaca-servidor", () => ({
 
 const consultarMercado = vi.fn();
 const estimarConsultaCompleta = vi.fn();
+const abrirGuardado = vi.fn();
+const registrarConsultaDeModelo = vi.fn(async () => {});
+vi.mock("../src/lib/historicoDeConsultas-servidor", () => ({
+  registrarConsultaDeModelo: (...a: unknown[]) => registrarConsultaDeModelo(...(a as [])),
+}));
 const bancoDoHistorico = vi.fn(() => "banco");
 vi.mock("../src/lib/mercadoPorModelo-servidor", () => ({
   consultarMercado: (...a: unknown[]) => consultarMercado(...a),
   estimarConsultaCompleta: (...a: unknown[]) => estimarConsultaCompleta(...a),
+  abrirGuardado: (...a: unknown[]) => abrirGuardado(...a),
   bancoDoHistorico: (...a: unknown[]) => bancoDoHistorico(...(a as [])),
 }));
 
@@ -50,8 +56,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   porta = { ok: true, supabase: "sessao", usuarioId: "u1" };
   apiBrasil = { token: "tok-api", homologacao: false };
-  consultarMercado.mockResolvedValue({ ok: true, mercado: { fipeAtual: 128430 }, chamadas: 27, chamadasPagas: 0, avisos: ["aviso"] });
+  consultarMercado.mockResolvedValue({ ok: true, mercado: { fipeAtual: 128430 }, chamadas: 27, chamadasPagas: 0, mesesPagosGuardados: 0, avisos: ["aviso"] });
   estimarConsultaCompleta.mockResolvedValue({ ok: true, mesesPagosNoMaximo: 22 });
+  abrirGuardado.mockResolvedValue({ ok: true, mercado: { fipeAtual: 1 }, guardadoAte: "2026-10", mesesNovos: null });
 });
 
 describe("POST /api/consulta-placa/modelo", () => {
@@ -78,7 +85,7 @@ describe("POST /api/consulta-placa/modelo", () => {
   it("sem modo é a pontual, grátis: devolve o mercado sem cache, com o banco da sessão e SEM leitor pago", async () => {
     const r = await enviar(PEDIDO);
     expect(r.status).toBe(200);
-    expect(r.json).toEqual({ mercado: { fipeAtual: 128430 }, avisos: ["aviso"], modo: "pontual", chamadasPagas: 0, custo: 0 });
+    expect(r.json).toEqual({ mercado: { fipeAtual: 128430 }, avisos: ["aviso"], modo: "pontual", chamadasPagas: 0, mesesPagosGuardados: 0, custo: 0 });
     expect(r.cache).toBe("no-store");
     expect(bancoDoHistorico).toHaveBeenCalledWith("sessao");
     const [pedido, deps] = consultarMercado.mock.calls[0];
@@ -89,6 +96,30 @@ describe("POST /api/consulta-placa/modelo", () => {
     // Modo que não é "completa" é pontual: ninguém paga por engano.
     await enviar({ ...PEDIDO, modo: "qualquer" });
     expect(consultarMercado.mock.calls[1][1]).toMatchObject({ modo: "pontual", pago: null });
+  });
+
+  it("guardado: abre do banco, sem FIPE, sem paga e sem registrar consulta nova", async () => {
+    const r = await enviar({ ...PEDIDO, modo: "guardado" });
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ modo: "guardado", guardadoAte: "2026-10", mesesNovos: null, custo: 0, chamadasPagas: 0 });
+    expect(abrirGuardado).toHaveBeenCalledTimes(1);
+    expect(consultarMercado).not.toHaveBeenCalled();
+    expect(lerMesNaTabelaPaga).not.toHaveBeenCalled();
+    expect(registrarConsultaDeModelo).not.toHaveBeenCalled();
+    abrirGuardado.mockResolvedValueOnce({ ok: false, status: 404, motivo: "nada guardado" });
+    expect((await enviar({ ...PEDIDO, modo: "guardado" })).status).toBe(404);
+  });
+
+  it("análise que deu certo fica registrada no histórico, com modo e custo; a que falhou, não", async () => {
+    await enviar(PEDIDO);
+    expect(registrarConsultaDeModelo).toHaveBeenCalledTimes(1);
+    expect((registrarConsultaDeModelo.mock.calls[0] as unknown[])[1]).toMatchObject({ modo: "pontual", chamadasPagas: 0, custo: 0, homologacao: false });
+    consultarMercado.mockResolvedValueOnce({ ok: true, mercado: { fipeAtual: 1 }, chamadas: 5, chamadasPagas: 22, mesesPagosGuardados: 22, avisos: [] });
+    await enviar({ ...PEDIDO, modo: "completa" });
+    expect((registrarConsultaDeModelo.mock.calls[1] as unknown[])[1]).toMatchObject({ modo: "completa", chamadasPagas: 22, custo: 1.32 });
+    consultarMercado.mockResolvedValueOnce({ ok: false, status: 502, motivo: "fora" });
+    await enviar(PEDIDO);
+    expect(registrarConsultaDeModelo).toHaveBeenCalledTimes(2);
   });
 
   it("estimar não consulta nem cobra: só diz quantos meses podem ser pagos, e a que preço", async () => {

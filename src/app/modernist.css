@@ -838,3 +838,79 @@ p {
     transform: scaleX(1);
   }
 }
+
+/* — impressão da Consulta de veículos (dono, 08/10/2026: "imprimir em pdf
+   este relatório, para uso da equipe") —
+   O botão chama a impressão do navegador, que salva em PDF. Sai só o que está
+   dentro de `[data-relatorio]` (a aba aberta: as outras têm `hidden`), sem
+   menu, rodapé, aviso de cookies, formulário nem botões (`.nao-imprimir`).
+   `.so-impressao` é o cabeçalho que só existe no papel. No tema escuro o papel
+   continua claro: texto escuro, fundo branco. */
+.so-impressao {
+  display: none;
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  [data-relatorio],
+  [data-relatorio] * {
+    visibility: visible;
+  }
+  [data-relatorio] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  [data-relatorio] .nao-imprimir {
+    display: none !important;
+  }
+  [data-relatorio] .so-impressao {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-bottom: 2px solid #111;
+    padding-bottom: 6px;
+    font-size: 11px;
+  }
+  [data-relatorio] section,
+  [data-relatorio] tr,
+  [data-relatorio] svg {
+    break-inside: avoid;
+  }
+  [data-relatorio] svg {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* No tema escuro, o papel volta às cores do claro: os gráficos pintam com
+     estas variáveis (`fill="var(--mt-ink)"`), e não só com `color`. */
+  .dark [data-relatorio] {
+    --mt-ink: #16161a;
+    --mt-bg: #ffffff;
+    --mt-surface: #ffffff;
+    --mt-neutral-300: #d4d4d8;
+    --mt-neutral-400: #a1a1aa;
+    --mt-neutral-500: #71717a;
+    --mt-neutral-600: #52525b;
+    --mt-neutral-700: #3f3f46;
+    --mt-neutral-800: #27272a;
+    --mt-regua: #16161a;
+    --mt-regua-media: #a1a1aa;
+    --mt-regua-fina: #d4d4d8;
+    --cp-serie-fipe: #2a78d6;
+    --cp-serie-compra: #1baf7a;
+  }
+  .dark [data-relatorio],
+  .dark [data-relatorio] * {
+    color: #16161a !important;
+    background-color: transparent !important;
+  }
+}

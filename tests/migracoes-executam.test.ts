@@ -204,6 +204,17 @@ const CADEIA = [
   // Aponta para `leads` (o recorte do andaime já tem `id uuid`) e não toca
   // `estoque_motors`. O andaime não precisou de nada novo.
   "20261007120000_sms_campanhas.sql",
+  // As consultas de modelo (2026-10-08): o registro de cada análise feita
+  // pelas abas de modelo, para o histórico da equipe e a conta do gasto.
+  // Entra na cadeia porque o aceite veste admin, gestor, comercial,
+  // marketing, um comercial desativado, cliente, anon e service_role para
+  // provar quem lê e quem inclui, que autor, nome, data e org forjados pela
+  // tela são sobrescritos pelo gatilho de carimbo (é a conta do gasto), que
+  // ninguém edita nem apaga, e tenta gravar o inválido em cada regra. RLS,
+  // privilégio, gatilho e CHECK só se provam num banco de verdade. Usa
+  // `tem_papel`, `autor_atual` e `org_padrao`; o andaime não precisou de nada
+  // novo.
+  "20261008120000_consultas_de_modelo.sql",
 ];
 
 /**
