@@ -38,5 +38,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Servidor sem chave de serviço." }, { status: 503 });
   }
   const achados = await registrarRetorno(admin, avisos);
+  // O caminho de cada SMS no log (sem número nem texto de resposta): é como se segue um teste,
+  // que não tem envio gravado, e como se descobre por que algo não chegou.
+  console.info("[SMS retorno]", { recebidos: avisos.length, achados, avisos: avisos.map((a) => ({ id: a.id, status: a.statusBruto })) });
   return NextResponse.json({ recebidos: avisos.length, achados });
 }

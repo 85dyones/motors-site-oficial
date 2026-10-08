@@ -499,8 +499,29 @@ describe("o resumo", () => {
 
 describe("a resposta da APIBrasil a um envio", () => {
   it("aceito: guarda o id e o custo, com vírgula ou ponto", () => {
-    expect(lerRespostaDoSms(200, { error: false, response: { id: "sms_1", status: "processed" }, tax: "0,10" })).toEqual({ ok: true, id: "sms_1", custo: 0.1 });
-    expect(lerRespostaDoSms(200, { id: 55, status: "processed" })).toEqual({ ok: true, id: "55", custo: null });
+    expect(lerRespostaDoSms(200, { error: false, response: { id: "sms_1", status: "processed" }, tax: "0,10" })).toMatchObject({ ok: true, id: "sms_1", custo: 0.1 });
+    expect(lerRespostaDoSms(200, { id: 55, status: "processed" })).toMatchObject({ ok: true, id: "55", custo: null });
+  });
+
+  it("lê a resposta como a doc do SMS Marketing mostra (08/10/2026): id em response.data, mensagem e situação", () => {
+    const doc = {
+      error: false,
+      message: "Dados validos! Voce foi tarifado em R$ 0,08.",
+      balance: "250,700",
+      tax: "0,080",
+      api_limit_for: "credit",
+      homolog: false,
+      response: { status: "success", message: "Message sent successfully", data: { id: "118011503269e0cff74c375567372441", status: "processed" } },
+    };
+    expect(lerRespostaDoSms(200, doc)).toEqual({
+      ok: true,
+      id: "118011503269e0cff74c375567372441",
+      custo: 0.08,
+      fornecedor: { mensagem: "Dados validos! Voce foi tarifado em R$ 0,08.", situacao: "processed", homologacao: false },
+    });
+    // O fornecedor tratando como teste, mesmo sem a gente pedir: a tela tem de dizer.
+    expect(lerRespostaDoSms(200, { ...doc, homolog: true })).toMatchObject({ ok: true, fornecedor: { homologacao: true } });
+    expect(lerRespostaDoSms(200, { ...doc, api_limit_for: "homolog" })).toMatchObject({ ok: true, fornecedor: { homologacao: true } });
   });
 
   it("sem saldo e token recusado param o lote, e o SMS certamente não saiu", () => {

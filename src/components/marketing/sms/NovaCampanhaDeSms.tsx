@@ -150,7 +150,13 @@ const MOTIVOS_DE_FORA: Array<{ chave: keyof PreviaDaCampanha["fora"]; rotulo: st
 
 type RespostaDaPrevia = { previa?: PreviaDaCampanha; error?: string };
 type RespostaDeCriar = { id?: string; error?: string };
-type RespostaDoTeste = { ok?: boolean; texto?: string; error?: string };
+type RespostaDoTeste = {
+  ok?: boolean;
+  texto?: string;
+  fornecedor?: { mensagem: string | null; situacao: string | null; homologacao: boolean };
+  custo?: number | null;
+  error?: string;
+};
 
 /** O corpo de um POST em JSON. O `fetch` fica escrito em cada chamada, com o caminho literal: é o que a guarda de rotas lê. */
 const emJson = (corpo: unknown): RequestInit => ({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) });
@@ -201,7 +207,7 @@ export default function NovaCampanhaDeSms({
 
   const [telefoneDoTeste, setTelefoneDoTeste] = useState("");
   const [testando, setTestando] = useState(false);
-  const [teste, setTeste] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [teste, setTeste] = useState<{ ok: boolean; texto: string; fornecedor?: RespostaDoTeste["fornecedor"]; custo?: number | null } | null>(null);
 
   const porPerfil = modo === "perfil";
   const criterio = criterioDoModo[modo];
@@ -359,7 +365,7 @@ export default function NovaCampanhaDeSms({
     try {
       const { ok, json } = await ler<RespostaDoTeste>(await fetch("/api/marketing/sms/teste", emJson({ telefone: telefoneDoTeste, veiculoId: carro?.id ?? null, mensagem: mensagem.trim() })));
       if (!ok || !json.texto) setTeste({ ok: false, texto: json.error || "O teste não foi enviado." });
-      else setTeste({ ok: true, texto: json.texto });
+      else setTeste({ ok: true, texto: json.texto, fornecedor: json.fornecedor, custo: json.custo ?? null });
     } catch {
       setTeste({ ok: false, texto: "Sem conexão com o servidor." });
     } finally {
@@ -751,10 +757,35 @@ export default function NovaCampanhaDeSms({
             {semCarro && destino !== DESTINO_PADRAO ? ` O link do teste abre sempre o estoque; na campanha, ele abre ${destinoNaFrase(destino)}.` : ""}
           </p>
           {teste && (
-            <div role="status" className={faixa} style={{ borderColor: COR_DO_ESTADO[teste.ok ? "ok" : "impeditivo"] }} data-resultado-do-teste={teste.ok ? "ok" : "erro"}>
-              <SinalDeEstado estado={teste.ok ? "ok" : "impeditivo"} rotulo={teste.ok ? "Enviado" : "Não enviado"} />
-              <span className="min-w-0 break-words">
-                <strong>{teste.ok ? "Teste enviado:" : "Teste não enviado:"}</strong> {teste.texto}
+            <div
+              role="status"
+              className={faixa}
+              style={{ borderColor: COR_DO_ESTADO[!teste.ok ? "impeditivo" : teste.fornecedor?.homologacao ? "atencao" : "ok"] }}
+              data-resultado-do-teste={!teste.ok ? "erro" : teste.fornecedor?.homologacao ? "homologacao" : "ok"}
+            >
+              <SinalDeEstado
+                estado={!teste.ok ? "impeditivo" : teste.fornecedor?.homologacao ? "atencao" : "ok"}
+                rotulo={!teste.ok ? "Não enviado" : teste.fornecedor?.homologacao ? "Em teste" : "Aceito"}
+              />
+              <span className="flex min-w-0 flex-col gap-1 break-words">
+                <span>
+                  <strong>
+                    {!teste.ok
+                      ? "Teste não enviado:"
+                      : teste.fornecedor?.homologacao
+                        ? "A APIBrasil tratou como teste (homologação): nada sai para o celular e nada é cobrado. Mensagem:"
+                        : "A APIBrasil aceitou o envio:"}
+                  </strong>{" "}
+                  {teste.texto}
+                </span>
+                {teste.ok && teste.fornecedor && (
+                  <span className="text-[11px] text-mt-neutral-700" data-resposta-do-fornecedor>
+                    Resposta da APIBrasil: {teste.fornecedor.mensagem ?? "sem mensagem"}
+                    {teste.fornecedor.situacao ? ` · situação "${teste.fornecedor.situacao}"` : ""}
+                    {typeof teste.custo === "number" ? ` · tarifa ${teste.custo.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : " · sem tarifa informada"}
+                    . Aceito não é entregue: a operadora pode levar alguns minutos ou barrar a mensagem.
+                  </span>
+                )}
               </span>
             </div>
           )}

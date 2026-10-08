@@ -20,7 +20,7 @@
  */
 import { randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { enviarSms, TIPO_DE_SMS_PADRAO, type BuscarNoSms } from "./apiBrasilSms";
+import { enviarSms, TIPO_DE_SMS_PADRAO, type BuscarNoSms, type DitoDoFornecedor } from "./apiBrasilSms";
 import { ehTabelaAusente } from "./consultaDePlaca-servidor";
 import { nomeComAno } from "./nomeDoVeiculo";
 import { ehStaff, perfisDe, podeFazer } from "./permissoes";
@@ -690,7 +690,7 @@ export async function enviarTeste(
   admin: SupabaseClient,
   pedido: { telefone: string; veiculoId: number | null; mensagem: string; destino?: DestinoSemCarro },
   deps: { buscar?: BuscarNoSms } = {},
-): Promise<{ ok: true; texto: string } | { ok: false; status: 400 | 402 | 502 | 503; motivo: string }> {
+): Promise<{ ok: true; texto: string; fornecedor: DitoDoFornecedor; custo: number | null } | { ok: false; status: 400 | 402 | 502 | 503; motivo: string }> {
   const segredos = segredosDoSms();
   if (!segredos.token) return { ok: false, status: 503, motivo: "Falta APIBRASIL_TOKEN neste ambiente: sem ele nenhum SMS sai." };
   const numero = telefoneParaSms(pedido.telefone);
@@ -711,9 +711,15 @@ export async function enviarTeste(
   // O teste também é um SMS: quem pediu para sair não recebe nem esse.
   const { data: saiu } = await admin.from("sms_descadastros").select("telefone").eq("telefone", numero).limit(1);
   if (((saiu ?? []) as unknown[]).length > 0) return { ok: false, status: 400, motivo: "Este número pediu para sair da lista de SMS." };
-  const r = await enviarSms({ numero, mensagem: texto, token: segredos.token, tipo: segredos.tipo, homologacao: segredos.homologacao, retorno: null, buscar: deps.buscar });
-  if (!r.ok) return { ok: false, status: /saldo/.test(r.motivo) ? 402 : 502, motivo: r.motivo };
-  return { ok: true, texto };
+  // Com o endereço do retorno: o teste não tem envio gravado, mas os avisos (aceito, na operadora) ficam no log.
+  const r = await enviarSms({ numero, mensagem: texto, token: segredos.token, tipo: segredos.tipo, homologacao: segredos.homologacao, retorno: segredos.urlDoRetorno, buscar: deps.buscar });
+  if (!r.ok) {
+    console.warn("[SMS teste] a APIBrasil recusou", { motivo: r.motivo, tipo: segredos.tipo, homologacao: segredos.homologacao });
+    return { ok: false, status: /saldo/.test(r.motivo) ? 402 : 502, motivo: r.motivo };
+  }
+  // Sem o número: só o que a conta precisa para entender "disse que foi e não chegou".
+  console.info("[SMS teste] resposta da APIBrasil", { id: r.id, custo: r.custo, tipo: segredos.tipo, homologacaoPedida: segredos.homologacao, ...r.fornecedor });
+  return { ok: true, texto, fornecedor: r.fornecedor, custo: r.custo };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

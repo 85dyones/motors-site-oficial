@@ -28,8 +28,22 @@ export type BuscarNoSms = (
   init: { method: "POST"; headers: Record<string, string>; body: string; signal: AbortSignal },
 ) => Promise<{ status: number; json: () => Promise<unknown> }>;
 
+/**
+ * O que o fornecedor disse, para a tela e o log (08/10/2026: o primeiro teste
+ * real "foi enviado" e não chegou, e não havia como saber o que a APIBrasil
+ * respondeu). Sem o número do destinatário: só o que é da conta.
+ */
+export interface DitoDoFornecedor {
+  /** `message` do corpo, ex.: "Dados validos! Voce foi tarifado em R$ 0,08." */
+  mensagem: string | null;
+  /** `response.data.status` (ex.: "processed") ou `response.status`. */
+  situacao: string | null;
+  /** O fornecedor tratou como teste: `homolog: true` ou `api_limit_for: "homolog"`. Nada sai, nada é cobrado. */
+  homologacao: boolean;
+}
+
 export type RespostaDoSms =
-  | { ok: true; id: string | null; custo: number | null }
+  | { ok: true; id: string | null; custo: number | null; fornecedor: DitoDoFornecedor }
   | {
       ok: false;
       motivo: string;
@@ -58,12 +72,20 @@ export function lerRespostaDoSms(status: number, corpo: unknown): RespostaDoSms 
     // Não dá para saber qual: o lote segue, e a recusa fica escrita em cada envio.
     return { ok: false, motivo: mensagem ?? (typeof erro === "string" ? erro.slice(0, 200) : `A APIBrasil recusou o envio (HTTP ${status}).`), paraOLote: false, podeTerSaido: false };
   }
-  const dados = objeto(c.response) ?? objeto(c.data) ?? c;
-  const id = dados.id ?? dados.message_id ?? c.id;
+  // A doc (SMS Marketing, 08/10/2026) põe o id em `response.data.id`; versões antigas, em `response.id`.
+  const resposta = objeto(c.response);
+  const dados = objeto(resposta?.data) ?? resposta ?? objeto(c.data) ?? c;
+  const id = dados.id ?? dados.message_id ?? resposta?.id ?? c.id;
+  const texto = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v.trim().slice(0, 200) : null);
   return {
     ok: true,
     id: typeof id === "string" || typeof id === "number" ? String(id) : null,
     custo: numeroDoFornecedor(c.tax ?? dados.tax ?? dados.cost),
+    fornecedor: {
+      mensagem,
+      situacao: texto(dados.status) ?? texto(resposta?.status),
+      homologacao: c.homolog === true || c.api_limit_for === "homolog",
+    },
   };
 }
 
