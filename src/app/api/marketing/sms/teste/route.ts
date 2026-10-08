@@ -27,5 +27,5 @@ export async function POST(request: NextRequest) {
   const destino = corpo?.destino === "avaliacao" ? "avaliacao" : "estoque";
   const r = await enviarTeste(porta.admin, { telefone, veiculoId, mensagem, destino });
   if (!r.ok) return NextResponse.json({ error: r.motivo }, { status: r.status, headers: SEM_CACHE });
-  return NextResponse.json({ ok: true, texto: r.texto }, { headers: SEM_CACHE });
+  return NextResponse.json({ ok: true, texto: r.texto, fornecedor: r.fornecedor, custo: r.custo }, { headers: SEM_CACHE });
 }
