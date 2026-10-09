@@ -34,13 +34,18 @@ const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciament
  * monitor alto (1920×1080 e acima) ele aparece, e é por isso que o último
  * degrau existe. Mudou o texto ou o layout da calculadora, vale medir de novo.
  *
+ * O último degrau vai em rem (112,5rem = 1800 px), não em px: o Tailwind v4 não
+ * ordena um breakpoint arbitrário em px contra os do tema, que são em rem, e o
+ * emitia antes do `sm:` — o `lg:` ganhava e o degrau não valia. Medido no
+ * preview: 20 px de deslocamento em 1920×1080 com `min-[1800px]`.
+ *
  * Mesma borda e mesmo fundo da calculadora, para a troca não piscar.
  */
 function LugarDaCalculadora() {
   return (
     <div
       aria-hidden="true"
-      className="min-h-[922px] border-t-2 border-mt-regua bg-mt-surface sm:min-h-[790px] md:min-h-[634px] lg:min-h-[472.5px] min-[1800px]:min-h-[453px]"
+      className="min-h-[922px] border-t-2 border-mt-regua bg-mt-surface sm:min-h-[790px] md:min-h-[634px] lg:min-h-[472.5px] min-[112.5rem]:min-h-[453px]"
     />
   );
 }

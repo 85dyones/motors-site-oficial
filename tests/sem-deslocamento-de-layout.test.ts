@@ -36,6 +36,9 @@ describe("sem deslocamento de layout no que monta tarde", () => {
   it("a calculadora de /financiamento tem um `loading` que ocupa a faixa dela", () => {
     const fonte = ler("src/components/SimuladorDeFinanciamento.tsx");
     expect(fonte).toMatch(/import\("\.\/CalculadoraFinanciamento"\),\s*\{[^}]*loading:/);
+    // Breakpoint arbitrário em px sai antes dos do tema (em rem) no CSS gerado,
+    // e o degrau dele perde para o `lg:` sem ninguém ver.
+    expect(fonte).not.toMatch(/min-\[[\d.]+px\]:/);
   });
 
   it("a linha de verificação de /contato some de vista sem desmontar", () => {
