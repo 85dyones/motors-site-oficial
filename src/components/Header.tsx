@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "../app/ThemeContext";
 import BotaoWhatsApp from "./modernist/BotaoWhatsApp";
+import LogoAnimado from "./modernist/LogoAnimado";
 import { linkWhatsApp } from "../lib/whatsapp";
 import { MENU_DO_CABECALHO } from "../lib/menuDoCabecalho";
 import { CAMINHO_DO_REPASSE } from "../lib/repasseNaNavegacao";
@@ -52,8 +52,14 @@ import { trackContactClick } from "../lib/telemetry";
  * mesma do PNG antigo. Um campo só não tem como servir a um cabeçalho que é
  * sempre escuro. Ele continua valendo onde o fundo é claro: a prévia de
  * compartilhamento (`app/og/route.tsx`) e a barra do painel.
+ *
+ * Desde 09/10 o logo não é mais o arquivo, e sim `LogoAnimado` (a abertura v3
+ * do Claude Design), desenhado com os mesmos traçados de
+ * `motors-store-vertical-negativo.svg` e na mesma caixa: 40px de altura e 80px
+ * de largura no desktop, 36px no celular. A régua da barra não muda. Por ser
+ * SVG dentro da página, não há arquivo que possa falhar ao carregar, e o
+ * nome em texto que substituía o logo nesse caso saiu junto.
  */
-const LOGO_DO_CABECALHO = "/marca/motors-store-vertical-negativo.svg";
 
 // A lista saiu daqui em 07/09 e virou dado em `lib/menuDoCabecalho.ts`. O
 // docblock de lá tem a ordem, o porquê da extração e a medição de largura.
@@ -65,10 +71,7 @@ export default function Header() {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const pathname = usePathname();
 
-  // Fixo: ver `LOGO_DO_CABECALHO`. Só a falha de carregamento é estado.
-  const logoSrc = LOGO_DO_CABECALHO;
-  const [logoFalhou, setLogoFalhou] = useState(false);
-  const usarFallbackTextual = logoFalhou;
+  const nomeDaLoja = companySettings?.name || "Motors Store";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -95,23 +98,7 @@ export default function Header() {
       {/* ─── Desktop ─── */}
       <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-5 px-10 lg:flex desktop:gap-9">
         <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">
-          {!usarFallbackTextual ? (
-            <Image
-              key={logoSrc}
-              src={encodeURI(logoSrc)}
-              alt={companySettings?.name || "Motors Store"}
-              width={80}
-              height={40}
-              priority
-              unoptimized
-              onError={() => setLogoFalhou(true)}
-              className="h-10 w-auto max-w-[170px] object-contain object-left"
-            />
-          ) : (
-            <span className="text-[18px] font-extrabold tracking-[.02em]">
-              MOTORS<span className="font-normal text-mt-inverso-suave"> STORE</span>
-            </span>
-          )}
+          <LogoAnimado variante="vertical" rotulo={nomeDaLoja} className="h-10 w-auto" />
         </Link>
 
         {/* A barra tem 68px e uma linha só de rótulo. Sem `whitespace-nowrap`
@@ -219,21 +206,7 @@ export default function Header() {
       {/* ─── Mobile e tablet (até lg) ─── */}
       <div className="flex h-[58px] items-center gap-3 px-[18px] lg:hidden">
         <Link href="/" className="mt-foco mr-auto flex items-center gap-2.5">
-          {!usarFallbackTextual ? (
-            <Image
-              key={logoSrc}
-              src={encodeURI(logoSrc)}
-              alt={companySettings?.name || "Motors Store"}
-              width={72}
-              height={36}
-              priority
-              unoptimized
-              onError={() => setLogoFalhou(true)}
-              className="h-9 w-auto max-w-[130px] object-contain object-left"
-            />
-          ) : (
-            <span className="text-[15px] font-extrabold">MOTORS</span>
-          )}
+          <LogoAnimado variante="vertical" rotulo={nomeDaLoja} className="h-9 w-auto" />
         </Link>
 
         <Link href="/estoque" aria-label="Buscar no estoque" className="mt-foco p-1">
