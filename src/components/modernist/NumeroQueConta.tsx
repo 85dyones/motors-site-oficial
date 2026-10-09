@@ -7,8 +7,10 @@ const APARECE_EM_MS = 700;
 
 /**
  * Um número que conta de zero até o valor — tarefa 3.7 da revisão de UI de
- * 29/09, o único movimento de entrada do site, junto com a régua da capa que
- * se desenha.
+ * 29/09, junto com a régua da capa que se desenha. Foi o único movimento de
+ * entrada do site até 09/10; o resto segue a regra do "movimento com função"
+ * (fim de `modernist.css`). Contar do zero continua sendo só da capa: o número
+ * que muda depois de um gesto gira no `Hodometro`.
  *
  * A coreografia: a régua se desenha, e os números aparecem (`.mt-numeros-
  * surgem`, invisíveis até 0,7 s) já contando. O servidor desenha o valor

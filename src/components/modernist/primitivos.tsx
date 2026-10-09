@@ -59,7 +59,10 @@ export function CabecalhoSecao({
 }) {
   return (
     <div
-      className={`flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-regua pb-4 ${className}`}
+      /* `mt-cabecalho-secao`: a régua se desenha com a rolagem onde o
+         navegador sabe (modernist.css, "movimento com função"). A borda fica
+         aqui mesmo assim: é ela que aparece onde não sabe. */
+      className={`mt-cabecalho-secao flex flex-wrap items-end justify-between gap-4 border-b-2 border-mt-regua pb-4 ${className}`}
     >
       <div>
         {numero && <div className="mt-secao-numero mb-2.5">{numero}</div>}
@@ -144,7 +147,7 @@ export function LinkRegua({
   return (
     <Link href={href} className={`mt-link-regua mt-foco ${className}`}>
       {children}
-      <span className="text-mt-accent">
+      <span className="mt-link-regua-seta text-mt-accent">
         <Seta size={15} />
       </span>
     </Link>
@@ -167,8 +170,9 @@ export function EstatisticasRegua({
   inverso?: boolean;
   /**
    * A régua de cima se desenha da esquerda para a direita ao carregar — só a
-   * da capa da home (tarefa 3.7, "o único movimento do site"). Com movimento
-   * reduzido ela já aparece inteira (`.mt-regua-desenha`, modernist.css).
+   * da capa da home (tarefa 3.7), que é a única que entra animada sem esperar
+   * a rolagem. Com movimento reduzido ela já aparece inteira
+   * (`.mt-regua-desenha`, modernist.css).
    */
   desenhar?: boolean;
   className?: string;
@@ -410,7 +414,7 @@ export function CardVeiculo({
             {periciaAprovada && (
               <span
                 data-selo="pericia"
-                className="flex items-center gap-1.5 bg-mt-inverso-fundo px-2 py-1.5 text-[11px] font-extrabold tracking-[.12em] text-mt-inverso"
+                className="mt-selo-pericia flex items-center gap-1.5 bg-mt-inverso-fundo px-2 py-1.5 text-[11px] font-extrabold tracking-[.12em] text-mt-inverso"
               >
                 <span className="h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
                 PERÍCIA APROVADA
@@ -525,12 +529,13 @@ export function CardVeiculo({
             )}
           </div>
           {/* O card inteiro já é o link; isto é só o convite visível, com a
-              régua de ação — a única ferrugem do card. */}
+              régua de ação — a única ferrugem do card. No mouse a régua se
+              redesenha e a seta anda (`.mt-convite`, modernist.css). */}
           <span
             aria-hidden="true"
-            className={`mb-1 shrink-0 border-b-2 border-mt-accent pb-1 text-[11px] font-extrabold tracking-[.1em] ${cor.valor} group-hover:text-mt-accent`}
+            className={`mt-convite mb-1 shrink-0 border-b-2 border-mt-accent pb-1 text-[11px] font-extrabold tracking-[.1em] ${cor.valor} group-hover:text-mt-accent`}
           >
-            VER CARRO →
+            VER CARRO <span className="mt-convite-seta">→</span>
           </span>
         </div>
       </div>

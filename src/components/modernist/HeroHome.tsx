@@ -30,13 +30,24 @@ export default function HeroHome({
   /** Marcas distintas no estoque disponível — ver `lib/estatisticasEstoque`. */
   totalMarcas: number;
 }) {
-  const [atual, setAtual] = useState(0);
+  // `anterior` é o slide que está saindo: a foto dele continua o zoom lento
+  // enquanto esmaece (`data-slide="saindo"`, modernist.css), em vez de voltar
+  // ao tamanho original no meio da troca. Os dois mudam juntos, num estado só.
+  const [{ atual, anterior }, setSlide] = useState<{ atual: number; anterior: number | null }>({
+    atual: 0,
+    anterior: null,
+  });
+  const irPara = (proximo: (i: number) => number) =>
+    setSlide((s) => {
+      const destino = proximo(s.atual);
+      return destino === s.atual ? s : { atual: destino, anterior: s.atual };
+    });
   const [pausado, setPausado] = useState(false);
 
   useEffect(() => {
     if (slides.length < 2 || pausado) return;
     const t = setInterval(
-      () => setAtual((i) => (i + 1) % slides.length),
+      () => irPara((i) => (i + 1) % slides.length),
       INTERVALO_MS,
     );
     return () => clearInterval(t);
@@ -134,6 +145,7 @@ export default function HeroHome({
           <div
             key={v.id}
             aria-hidden={i !== atual}
+            data-slide={i === atual ? "ativo" : i === anterior ? "saindo" : undefined}
             className="absolute inset-0 transition-opacity duration-[900ms] ease-out"
             style={{ opacity: i === atual ? 1 : 0 }}
           >
@@ -142,6 +154,11 @@ export default function HeroHome({
               src={foto}
               alt={i === atual ? `${v.marca} ${v.modelo} em destaque` : ""}
               loading={i === 0 ? "eager" : "lazy"}
+              /* A primeira foto é o LCP da home no desktop. Sem prioridade ela
+                 disputava a rede com as três fotos prioritárias da grade de
+                 destaques (medido em 09/10: LCP de 1,2 a 1,3 s, o maior entre
+                 as páginas no visual novo). */
+              fetchPriority={i === 0 ? "high" : undefined}
               /* O recorte olha para baixo do centro, não para o centro.
                *
                * Foto de carro tem o veículo na metade inferior do quadro e
@@ -149,7 +166,7 @@ export default function HeroHome({
                * padrão (50% 50%) a faixa do hero come as rodas e mantém o
                * que não interessa; puxando para 62% o carro entra inteiro e
                * o que se perde é o topo do fundo. */
-              className="h-full w-full object-cover object-[50%_62%]"
+              className="mt-hero-foto h-full w-full object-cover object-[50%_62%]"
             />
           </div>
         );
@@ -265,7 +282,7 @@ export default function HeroHome({
               <button
                 key={v.id}
                 type="button"
-                onClick={() => setAtual(i)}
+                onClick={() => irPara(() => i)}
                 aria-current={i === atual}
                 /* 64px abaixo de `sm` porque a régua é de largura FIXA: com
                    quatro slides, 4x76 + 3x16 = 352px estoura os 343px úteis de

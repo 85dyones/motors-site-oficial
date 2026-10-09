@@ -216,6 +216,9 @@
 
 /* — link sublinhado em régua vermelha — */
 .mt-link-regua {
+  /* `relative`: no mouse, a régua se redesenha num pseudo-elemento por cima
+     da borda (seção "movimento com função", no fim do arquivo). */
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -414,12 +417,12 @@
 .mt-grupo > legend + * {
   clear: both;
 }
-/* — o único movimento de entrada do site (tarefa 3.7, 29/09) —
+/* — a régua da capa e os números (tarefa 3.7, 29/09) —
    Na capa da home, a régua de 2px sob o título se desenha da esquerda para a
    direita e, quando ela termina, os números aparecem contando até o valor
-   (NumeroQueConta). Nenhum outro elemento entra animado — o crossfade das
-   fotos e a barra da paginação são troca de slide, não entrada. Com
-   movimento reduzido, tudo já aparece pronto. */
+   (NumeroQueConta). Até 09/10 este era o único movimento de entrada do site.
+   Desde então vale a regra do "movimento com função", na seção de mesmo nome
+   no fim deste arquivo. Com movimento reduzido, tudo já aparece pronto. */
 .mt-regua-desenha {
   transform-origin: left center;
   animation: mt-regua-desenha 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
@@ -448,9 +451,8 @@
 }
 
 /* — a foto surge e o card responde (qualidade percebida, 30/09) —
-   Nada disto é movimento de entrada: a régua da capa continua sendo o único.
-   São respostas a um carregamento (a foto que chega) e a um gesto (o mouse ou
-   o dedo sobre o card).
+   Nada disto é movimento de entrada. São respostas a um carregamento (a foto
+   que chega) e a um gesto (o mouse ou o dedo sobre o card).
 
    A foto: o fundo cinza do card já segurava o lugar; agora a foto esmaece por
    cima dele em vez de aparecer de uma vez. Quem liga `data-surge` é
@@ -1220,5 +1222,216 @@ p {
   }
   to {
     transform: translateX(2300px);
+  }
+}
+
+/* — movimento com função (Onda 1 do plano de movimento, 09/10/2026) —
+   Até 09/10 o site tinha uma regra: só a capa da home entrava animada. Ela
+   foi trocada por cinco, que valem para todo movimento novo:
+
+   1. O que o visitante veio ver nunca espera. A foto do hero, o título, a
+      foto e o preço da ficha aparecem prontos: um elemento com opacidade
+      zero não conta como pintado, e o LCP atrasaria junto.
+   2. Só `transform`, opacidade e recorte. Nada que mude altura, largura ou
+      posição no fluxo: é o que mantém o CLS em zero.
+   3. CSS primeiro; JavaScript só responde a um gesto (clique, filtro, troca
+      de prazo). Nenhuma biblioteca de animação.
+   4. Quem pede menos movimento, ou usa navegador sem suporte, vê o estado
+      final: a régua desenhada, o número no lugar, a foto parada.
+   5. Se serve para qualquer loja, fica de fora. Cada movimento conta algo da
+      Motors: a régua do sistema, o hodômetro, a perícia.
+
+   Por isso as regras abaixo moram fora de `@layer components`: elas trocam a
+   cor de bordas que as utilities do Tailwind pintam, e fora das camadas o
+   CSS ganha das camadas. */
+
+/* A régua do cabeçalho de seção (`CabecalhoSecao`) se desenha enquanto o
+   título sobe na tela. Quem desenha é a própria rolagem: quem rola rápido vê
+   a régua pronta, quem lê vê ela andar. A borda de 2px continua lá, só fica
+   transparente, então a caixa não muda de altura; o desenho é um
+   pseudo-elemento por cima dela. Sem suporte a `animation-timeline`, a borda
+   segue pintada como sempre. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .mt-cabecalho-secao {
+      position: relative;
+      border-bottom-color: transparent;
+    }
+    .mt-cabecalho-secao::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -2px;
+      height: 2px;
+      background: var(--mt-regua);
+      transform-origin: left center;
+      animation: mt-regua-desenha linear both;
+      animation-timeline: view();
+      animation-range: cover 4% cover 34%;
+    }
+  }
+}
+
+/* O convite do card ("VER CARRO →") e os links em régua: no mouse, a régua
+   vermelha sai pela direita e volta pela esquerda, e a seta anda 3 px. A
+   régua animada é um pseudo-elemento sobre a borda, que fica transparente só
+   enquanto o mouse está em cima. No toque, nada disto acontece. */
+.mt-convite {
+  position: relative;
+}
+.mt-convite-seta,
+.mt-link-regua-seta {
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+/* O selo de perícia do card ganha o reflexo de bronze da logo: uma faixa de
+   luz cruza o selo quando o mouse entra no card. */
+.mt-selo-pericia {
+  position: relative;
+  overflow: hidden;
+}
+.mt-selo-pericia::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 243, 226, 0.55), transparent);
+  transform: translateX(-120%) skewX(-20deg);
+  pointer-events: none;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mt-card:hover .mt-convite,
+  .mt-link-regua:hover {
+    border-bottom-color: transparent;
+  }
+  .mt-card:hover .mt-convite::after,
+  .mt-link-regua:hover::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 2px;
+    background: var(--mt-accent);
+    animation: mt-sublinha 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .mt-card:hover .mt-convite-seta,
+  .mt-link-regua:hover .mt-link-regua-seta {
+    transform: translateX(3px);
+  }
+  .mt-card:hover .mt-selo-pericia::after {
+    animation: mt-selo-reflexo 0.9s cubic-bezier(0.65, 0, 0.35, 1);
+  }
+}
+@keyframes mt-sublinha {
+  0% {
+    transform: scaleX(1);
+    transform-origin: right center;
+  }
+  45% {
+    transform: scaleX(0);
+    transform-origin: right center;
+  }
+  46% {
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  100% {
+    transform: scaleX(1);
+    transform-origin: left center;
+  }
+}
+@keyframes mt-selo-reflexo {
+  from {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-20deg);
+  }
+}
+
+/* A foto do hero cresce 6% enquanto está no ar: os 5,2 s do slide mais o
+   0,9 s da troca. A que sai (`data-slide="saindo"`) continua de onde estava
+   enquanto esmaece, em vez de voltar ao tamanho original. É só `transform`
+   numa foto que já está pintada: o LCP não muda. A origem é o mesmo ponto do
+   recorte (`object-[50%_62%]`), para o zoom ir na direção do carro. */
+.mt-hero-foto {
+  transform-origin: 50% 62%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-slide="ativo"] > .mt-hero-foto,
+  [data-slide="saindo"] > .mt-hero-foto {
+    animation: mt-hero-zoom 6.1s linear both;
+  }
+}
+@keyframes mt-hero-zoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+/* O hodômetro (`Hodometro`): o número real fica no texto, transparente, e é
+   ele que dá a largura, a linha de base e o que o leitor de tela lê. Por cima
+   dele, cada algarismo é uma fita de 0 a 9 que desliza até o dígito. Os
+   dígitos e os sinais da fita são conteúdo de CSS, então o texto da página
+   continua sendo só o número. Sem kerning, para o texto de baixo e a fita de
+   cima terem exatamente as mesmas larguras.
+
+   A fita mede a altura em `lh` (a altura da linha). Navegador que não
+   conhece a unidade (Safari anterior ao 16.4) mostraria a fita inteira, de 0
+   a 9, empilhada: por isso a fita só existe dentro do `@supports`, e fora
+   dele o número aparece como sempre, sem girar. */
+.mt-hodometro {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-kerning: none;
+}
+.mt-hodometro-rolo {
+  display: none;
+}
+@supports (height: 1lh) {
+  .mt-hodometro-valor {
+    color: transparent;
+  }
+  .mt-hodometro-rolo {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    pointer-events: none;
+  }
+  /* Corta só em cima e embaixo: com o tracking apertado do sistema (-0,03 a
+     -0,04em) o algarismo passa um fio da própria casa, e `overflow: hidden`
+     cortava esse fio. */
+  .mt-hodometro-casa {
+    display: block;
+    height: 1lh;
+    clip-path: inset(0 -0.25em);
+  }
+  .mt-hodometro-fita {
+    display: block;
+    transform: translateY(calc(var(--mt-hodometro-digito) * -1lh));
+    transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--mt-hodometro-ordem) * 45ms);
+  }
+  .mt-hodometro-fita::before {
+    content: "0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";
+    display: block;
+    white-space: pre;
+  }
+  .mt-hodometro-sinal::before {
+    content: attr(data-sinal);
+    white-space: pre;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-hodometro-fita {
+    transition: none;
   }
 }
