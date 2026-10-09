@@ -11,7 +11,8 @@ import TituloDeBloco from "./TituloDeBloco";
  *
  * CONCLUIR e Remarcar não gravam nada sozinhos: abrem o registro já começado
  * ("Feito: ..." ou "Remarcado: ..."), porque concluir um passo é registrar o
- * que aconteceu e dizer o seguinte.
+ * que aconteceu. O passo seguinte é opcional (2026-10-09): concluído sem passo
+ * novo, o passo feito sai do lead.
  */
 export default function ProximoPassoDoLead({
   lead,

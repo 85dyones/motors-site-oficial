@@ -845,7 +845,7 @@ describe("POST /api/leads/[id]/interacoes", () => {
     expect(d.ok).toBe(true);
     expect(rpcs).toHaveLength(1);
     expect(rpcs[0].args).toMatchObject({ p_lead: DA_ANA, p_tipo: "nota", p_passo: null, p_vence_em: null });
-    expect(rpcs[0].args).not.toHaveProperty("p_concluir_passo");
+    expect(rpcs[0].args).not.toHaveProperty("p_passo_concluido");
   });
 
   it("meio passo: 400 com `proximo_passo_incompleto`, e a função não é chamada", async () => {
@@ -861,10 +861,11 @@ describe("POST /api/leads/[id]/interacoes", () => {
     expect(rpcs).toEqual([]);
   });
 
-  it("CONCLUIR sem passo novo manda `p_concluir_passo`, para o passo feito sair do lead", async () => {
-    const { status } = await registrar(DA_ANA, { tipo: "nota", texto: "Feito: Ligar.", concluir_passo: true });
+  it("CONCLUIR sem passo novo manda o carimbo do passo feito, exato, para ele sair do lead", async () => {
+    const carimbo = "2026-10-03T14:00:00.123456+00:00";
+    const { status } = await registrar(DA_ANA, { tipo: "nota", texto: "Feito: Ligar.", passo_concluido: carimbo });
     expect(status).toBe(200);
-    expect(rpcs[0].args).toMatchObject({ p_passo: null, p_vence_em: null, p_concluir_passo: true });
+    expect(rpcs[0].args).toMatchObject({ p_passo: null, p_vence_em: null, p_passo_concluido: carimbo });
   });
 
   it("lead fechado dispensa o próximo passo", async () => {

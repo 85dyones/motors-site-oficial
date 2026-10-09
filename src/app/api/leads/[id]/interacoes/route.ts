@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { decidirInteracao, type CorpoDaInteracao } from "../../../../../lib/gestaoDoLead";
 import {
   lerLeadNoEscopo,
+  MIGRACAO_DO_PASSO_CONCLUIDO,
   relerDepoisDeRegistrar,
   respostaDoErroDaFuncao,
   sessaoDeLeads,
@@ -44,7 +45,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       p_lead: id,
       ...decisao.args,
     });
-    if (error) return respostaDoErroDaFuncao(error);
+    // Só o CONCLUIR sem passo novo manda `p_passo_concluido`: se a função não
+    // casar, quem falta é a migração dele, e não a da gestão.
+    if (error) {
+      return respostaDoErroDaFuncao(error, decisao.args.p_passo_concluido ? MIGRACAO_DO_PASSO_CONCLUIDO : undefined);
+    }
 
     const relido = await relerDepoisDeRegistrar(supabase, id, String(interacaoId));
     return NextResponse.json({

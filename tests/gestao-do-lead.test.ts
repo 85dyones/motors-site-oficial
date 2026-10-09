@@ -175,7 +175,7 @@ describe("decidirInteracao — o que a função do banco aceita", () => {
       const d = decidirInteracao(corpo);
       expect(d.ok, JSON.stringify(corpo)).toBe(true);
       if (d.ok) expect(d.args, JSON.stringify(corpo)).toMatchObject({ p_passo: null, p_vence_em: null });
-      if (d.ok) expect(d.args, JSON.stringify(corpo)).not.toHaveProperty("p_concluir_passo");
+      if (d.ok) expect(d.args, JSON.stringify(corpo)).not.toHaveProperty("p_passo_concluido");
     }
   });
 
@@ -196,25 +196,39 @@ describe("decidirInteracao — o que a função do banco aceita", () => {
   });
 
   /**
-   * O CONCLUIR sem passo novo. Sem o sinal, a função manteria no lead o passo
-   * que acabou de ser feito (20261009120000). O sinal só viaja quando é
-   * `true` e não há passo novo: com passo novo, ele já substitui o feito, e
-   * a chamada de seis argumentos segue valendo antes da migração.
+   * O CONCLUIR sem passo novo. Sem o carimbo, a função manteria no lead o
+   * passo que acabou de ser feito (20261009120000). Com ele, ela só limpa o
+   * passo se ainda for o concluído: o "Chegou na loja" ou um colega podem ter
+   * trocado o passo entre o CONCLUIR e o REGISTRAR. O carimbo só viaja sem
+   * passo novo, e vai como veio: o banco compara microssegundos, e o `Date`
+   * guarda milissegundos.
    */
-  it("CONCLUIR sem passo novo pede para limpar o passo; com passo novo, ou sem o sinal, não", () => {
-    const concluido = decidirInteracao({ tipo: "nota", texto: "Feito: Ligar.", concluir_passo: true });
-    expect(concluido.ok && concluido.args.p_concluir_passo).toBe(true);
-    const comNovo = decidirInteracao({ tipo: "nota", texto: "Feito: Ligar.", concluir_passo: true, ...PASSO });
-    expect(comNovo.ok && comNovo.args).not.toHaveProperty("p_concluir_passo");
-    for (const sinal of [false, "true", 1, null, undefined]) {
-      const d = decidirInteracao({ tipo: "nota", texto: "x", concluir_passo: sinal });
-      expect(d.ok && d.args, String(sinal)).not.toHaveProperty("p_concluir_passo");
+  it("CONCLUIR sem passo novo manda o carimbo exato do passo feito; com passo novo, não", () => {
+    const CARIMBO = "2026-10-03T14:00:00.123456+00:00";
+    const concluido = decidirInteracao({ tipo: "nota", texto: "Feito: Ligar.", passo_concluido: CARIMBO });
+    expect(concluido.ok && concluido.args.p_passo_concluido).toBe(CARIMBO);
+    const comEspacos = decidirInteracao({ tipo: "nota", texto: "x", passo_concluido: ` ${CARIMBO} ` });
+    expect(comEspacos.ok && comEspacos.args.p_passo_concluido).toBe(CARIMBO);
+    const comNovo = decidirInteracao({ tipo: "nota", texto: "Feito: Ligar.", passo_concluido: CARIMBO, ...PASSO });
+    expect(comNovo.ok && comNovo.args).not.toHaveProperty("p_passo_concluido");
+    for (const vazio of [null, undefined, ""]) {
+      const d = decidirInteracao({ tipo: "nota", texto: "x", passo_concluido: vazio });
+      expect(d.ok && d.args, String(vazio)).not.toHaveProperty("p_passo_concluido");
     }
-    // O sinal não salva meio passo.
-    expect(decidirInteracao({ tipo: "nota", texto: "x", concluir_passo: true, proximo_passo: "Ligar" })).toMatchObject({
-      ok: false,
-      codigo: "proximo_passo_incompleto",
-    });
+  });
+
+  it("carimbo ilegível é recusado, em vez de concluir o passo errado ou nenhum", () => {
+    for (const ruim of [true, 1, "ontem", "2026-10-03T14:00:00", "2026-13-40T14:00:00Z"]) {
+      expect(decidirInteracao({ tipo: "nota", texto: "x", passo_concluido: ruim }), String(ruim)).toMatchObject({
+        ok: false,
+        status: 400,
+        codigo: "data_invalida",
+      });
+    }
+    // O carimbo não salva meio passo.
+    expect(
+      decidirInteracao({ tipo: "nota", texto: "x", passo_concluido: "2026-10-03T14:00:00Z", proximo_passo: "Ligar" }),
+    ).toMatchObject({ ok: false, codigo: "proximo_passo_incompleto" });
   });
 
   it("a data precisa de fuso: sem ele o servidor leria em UTC e gravaria três horas errado", () => {

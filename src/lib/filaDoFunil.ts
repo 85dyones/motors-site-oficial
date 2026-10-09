@@ -359,10 +359,11 @@ export interface FormDoRegistro {
   /** `HH:MM`, no relógio da loja. */
   hora: string;
   /**
-   * O registro começou pelo CONCLUIR. Sem passo novo, o passo feito sai do
-   * lead; sem esta marca, a nota sem passo mantém o passo que o lead tinha.
+   * O registro começou pelo CONCLUIR: o `proximo_passo_definido_em` do passo
+   * concluído. Sem passo novo, esse passo sai do lead, se ainda for ele; sem
+   * esta marca, a nota sem passo mantém o passo que o lead tinha.
    */
-  concluindo: boolean;
+  passoConcluido: string | null;
 }
 
 export const FORM_DO_REGISTRO_VAZIO: FormDoRegistro = {
@@ -372,7 +373,7 @@ export const FORM_DO_REGISTRO_VAZIO: FormDoRegistro = {
   passo: "",
   dia: "",
   hora: "",
-  concluindo: false,
+  passoConcluido: null,
 };
 
 /** A hora que o campo assume quando se escolhe o dia antes dela. */
@@ -421,10 +422,16 @@ export function comSugestao(form: FormDoRegistro, sugestao: { texto: string; ven
 
 /**
  * CONCLUIR: o registro abre com "Feito: {passo}. " e o próximo passo vazio.
- * Registrado assim, sem passo novo, o passo feito sai do lead.
+ * Registrado assim, sem passo novo, o passo feito sai do lead. `definidoEm` é
+ * o carimbo dele: se o passo do lead mudar antes do REGISTRAR (o "Chegou na
+ * loja", um colega), o carimbo não bate e o passo novo fica.
  */
-export function formAoConcluir(passo: string): FormDoRegistro {
-  return { ...FORM_DO_REGISTRO_VAZIO, texto: `Feito: ${passo.trim()}. `, concluindo: true };
+export function formAoConcluir(passo: string, definidoEm: string | null | undefined): FormDoRegistro {
+  return {
+    ...FORM_DO_REGISTRO_VAZIO,
+    texto: `Feito: ${passo.trim()}. `,
+    passoConcluido: definidoEm?.trim() || null,
+  };
 }
 
 /** Remarcar: "Remarcado: " e o mesmo passo, para trocar só a data. */
@@ -441,7 +448,7 @@ export function corpoDoRegistro(form: FormDoRegistro): CorpoDaInteracao {
     texto: form.texto.trim(),
     proximo_passo: form.passo.trim(),
     ...(venceEm ? { proximo_passo_vence_em: venceEm } : {}),
-    ...(form.concluindo ? { concluir_passo: true } : {}),
+    ...(form.passoConcluido ? { passo_concluido: form.passoConcluido } : {}),
   };
 }
 
@@ -468,7 +475,7 @@ export function estadoDoRegistro(form: FormDoRegistro, agora: number): EstadoDoR
     const { p_passo: passo, p_vence_em: vence } = decisao.args;
     const dica = passo
       ? `O card passa a mostrar “${passo}” · ${rotuloDoPasso(vence, agora, "lista") ?? ""}.`
-      : decisao.args.p_concluir_passo
+      : decisao.args.p_passo_concluido
         ? "Pronto para registrar. O passo concluído sai do card."
         : "Pronto para registrar.";
     return { pode: true, dica, corpo };
@@ -594,7 +601,9 @@ export const AVISO_DE_LEAD_FECHADO =
  * e quem ligou e fecha a gaveta não perde nada.
  */
 export function registroEmAndamento(form: FormDoRegistro): boolean {
-  return (["resultado", "texto", "passo", "dia", "hora"] as const).some(
+  // `passoConcluido` conta: o CONCLUIR é um registro começado, mesmo que o
+  // "Feito: ..." tenha sido apagado.
+  return (["resultado", "texto", "passo", "dia", "hora", "passoConcluido"] as const).some(
     (campo) => form[campo] !== FORM_DO_REGISTRO_VAZIO[campo],
   );
 }

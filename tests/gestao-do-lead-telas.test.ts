@@ -138,7 +138,8 @@ function dublarFetch() {
         ultima_interacao: { tipo: corpo.tipo, quando, texto: corpo.texto || "Atendeu", autor: "Ana" },
       });
       const item = {
-        id: "interacao:nova",
+        // Um id por registro: dois registros seguidos no mesmo teste repetiriam a chave do React.
+        id: `interacao:nova-${(historico[lead.id] ?? []).length}`,
         origem: "humana",
         tipo: corpo.tipo,
         rotulo: "Anotação",
@@ -728,13 +729,15 @@ describe("registrar interação", () => {
     expect(dica()).toBe("Falta o dia e a hora do próximo passo, ou apague o passo.");
   });
 
-  it("CONCLUIR sem passo novo manda a rota tirar o passo feito; a nota comum, não", async () => {
+  it("CONCLUIR sem passo novo manda o carimbo do passo feito; a nota comum, não", async () => {
     await montarPagina("l1");
+    const carimbo = (umLead("l1") as Record<string, unknown>).proximo_passo_definido_em;
+    expect(carimbo).toBeTruthy();
     await clicar(botao("CONCLUIR"));
     await clicar(registrar());
     await assentar();
     const concluir = chamadas.filter((c) => c.metodo === "POST" && c.url === "/api/leads/l1/interacoes").at(-1)!;
-    expect(concluir.corpo).toMatchObject({ tipo: "nota", texto: "Feito: Cobrar retorno da proposta.", concluir_passo: true });
+    expect(concluir.corpo).toMatchObject({ tipo: "nota", texto: "Feito: Cobrar retorno da proposta.", passo_concluido: carimbo });
     expect(concluir.corpo).not.toHaveProperty("proximo_passo_vence_em");
 
     await mudar(campoDoTexto(), "Mandei as fotos do carro.");
@@ -742,7 +745,7 @@ describe("registrar interação", () => {
     await assentar();
     const nota = chamadas.filter((c) => c.metodo === "POST" && c.url === "/api/leads/l1/interacoes").at(-1)!;
     expect(nota.corpo).toMatchObject({ tipo: "nota", texto: "Mandei as fotos do carro." });
-    expect(nota.corpo).not.toHaveProperty("concluir_passo");
+    expect(nota.corpo).not.toHaveProperty("passo_concluido");
   });
 
   it("LIGAR é um link tel: e pré-seleciona Ligação; a conversa pré-seleciona WhatsApp e registra o contato", async () => {
