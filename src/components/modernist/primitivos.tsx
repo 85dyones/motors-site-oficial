@@ -367,13 +367,13 @@ export function CardVeiculo({
              miniatura de 240px — é o caso em que o srcset ainda vale mais que
              a cota.
 
-             ⚠️ Desde 29/09 a foto nossa também tem `srcset`, mas não pela
-             Vercel: `FotoPropriaDoCard` pede cada largura ao redimensionamento
-             do próprio Storage (`urlDaFotoNaLargura`). A capa de 1280px saía
-             inteira num card de 308px — ~126 KB contra ~31 KB a 640px — e era
-             essa espera que aparecia como bloco cinza no topo do `/estoque`.
-             O item 1 acima continua valendo: nada disso passa pelo
-             `/_next/image`. */
+             ⚠️ De 29/09 a 09/10 a foto nossa teve `srcset` pelo
+             redimensionamento do Storage do Supabase — e a cota dele (100
+             fotos de origem por mês no Pro) acabava no primeiro dia. Desde
+             09/10 `FotoPropriaDoCard` serve a versão `web` gravada no envio
+             (1280px, ~90 KB), sem transformação nenhuma; ver
+             `urlDaVersaoGravada`. O item 1 acima continua valendo: nada disso
+             passa pelo `/_next/image`. */
           ehFotoPropria(foto) ? (
             <FotoPropriaDoCard
               src={foto}

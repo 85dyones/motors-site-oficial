@@ -240,3 +240,60 @@ chaves de cache dobra.
   `upload-branding/route.ts:66` converte todo upload para `.webp` — o logo do
   painel quase nunca aparece no card de compartilhamento, que cai sempre no PNG
   local.
+
+---
+
+## Adendo de 2026-10-09 — a cota de transformação do Supabase
+
+Em 29/09 o card e a galeria da ficha passaram a pedir cada largura ao
+redimensionamento do Storage (`/storage/v1/render/image/…`), para fugir da cota
+da Vercel. Isso desfez a decisão da migração F0-p, que tinha deixado essa
+transformação de fora de propósito: ela cobra por **foto de origem** distinta
+no ciclo, com 100 incluídas no Pro. O excedente custa US$ 5 a cada 1.000 com o
+Spend Cap desligado. Com o Spend Cap ligado, entra em período de carência e,
+depois dele, em restrição de Fair Use, que vale para a organização inteira.
+
+Medido nos logs do projeto (`edge_logs`, 24 h até 09/10 ~14h UTC):
+
+| | Pedidos | Fotos de origem distintas |
+|---|---|---|
+| Galeria da ficha (`-zap.jpg`) | 851 | **174** |
+| Capa do card (`-web.webp`) | 637 | 13 |
+| **Total** | 1.488 | **187** |
+
+A cota do mês acabava no primeiro dia. E o número só cresce: hoje 14 dos 88
+carros ativos têm foto própria (194 fotos). Com o estoque inteiro no bucket,
+seriam ~1.300 origens por mês (todas as `zap` da galeria mais uma capa por carro).
+
+**O que mudou:** nenhuma foto nossa passa mais por transformação. O envio já
+grava duas larguras de cada foto, e o `srcset` escolhe entre elas
+(`urlDaVersaoGravada` em `lib/fotosDoVeiculo.ts`):
+
+- card → a `web` (1280 px, WebP, ~90 KB), `unoptimized`;
+- galeria, miniaturas e tela cheia → a `web` até 1280 px e a `zap` (1600 px,
+  JPEG, ~224 KB) acima disso.
+
+O par sai do nome do arquivo (`<lote>-zap.jpg` ↔ `<lote>-web.webp`). Conferido
+no bucket: as 449 `zap` gravadas no estoque e no repasse têm a `web` irmã.
+
+**O custo:** mais byte em dois lugares. A capa do card no desktop vai de ~31 KB
+(640 px transformados) para ~90 KB. A miniatura da ficha baixa a `web`, mas é a
+mesma URL do slide do carrossel, então o navegador baixa uma vez só. No celular
+quase nada muda, porque o `srcset` já pedia 1080–1200 px. Se o peso do card
+voltar a pesar no LCP, a saída sem cota é gravar uma terceira versão menor
+(~640 px) no envio, junto das outras duas.
+
+**Trava:** `tests/fotos-sem-transformacao.test.ts` reprova qualquer
+`render/image` ou `transform: {` no código de `src/`. Antes, a trava existia só
+para a galeria do painel, e o card e a ficha passaram por fora dela.
+
+**Depois do deploy, no painel do Supabase (só o dono faz):**
+
+1. *Storage → Settings → Enable Image Transformations*: **desligar**. O código
+   não usa mais a transformação. Desligada, nenhum robô que guardou URL
+   `render/image` antiga consegue gastar a cota.
+2. *Organization → Usage*: o ciclo atual já passou das 100 origens, e o deploy
+   não desconta o que já foi gasto. Se o Spend Cap estiver ligado e chegou o
+   aviso de carência, a escolha é entre desligar o Spend Cap até a virada do
+   ciclo (o excedente deste ciclo deve caber em um pacote de US$ 5, porque o bucket inteiro tem ~1.100 arquivos) e correr o risco da
+   restrição.
