@@ -16,8 +16,8 @@ import { useSurgimento } from "../modernist/useSurgimento";
  *
  * Agora o `srcset` escolhe entre as duas versões que o envio já gravou: a
  * `web` (1280 px) até essa largura e a `zap` (1600 px) acima — o carrossel em
- * tela retina e a tela cheia, onde a foto é ampliada. Miniatura e slide do
- * carrossel pedem a MESMA `web`, então o navegador baixa uma vez.
+ * tela retina e a tela cheia, onde a foto é ampliada. No celular, miniatura e
+ * slide do carrossel pedem a mesma `web`, e o navegador baixa uma vez.
  *
  * Foto nossa sem `zap` (coluna sem par) não tem o que escolher: vai inteira,
  * `unoptimized`. Com o `loader`, o Next acusaria em dev um loader que "não

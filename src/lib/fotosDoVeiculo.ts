@@ -197,8 +197,11 @@ const SUFIXO_WEB = `-web.${EXTENSAO_DA_VARIANTE.web}`;
  * e no script de migração. Conferido em 09/10 contra o bucket: as 449 `zap`
  * gravadas no estoque e no repasse têm a `web` irmã.
  *
- * `null` quando a URL não é uma `zap` nossa — a do carro57, a `web` que já é a
- * menor, ou qualquer nome fora do desenho de `caminhoDaFoto`.
+ * `null` quando a URL não é nossa ou não termina em `-zap.jpg` — a do carro57,
+ * a `web` que já é a menor. O nome é a única garantia: uma `-zap.jpg` posta no
+ * bucket à mão, sem a irmã, daria 404 até 1280 px. Nenhum caminho do código
+ * grava assim — o painel, o repasse e a migração só registram a foto depois
+ * das duas versões no bucket.
  */
 export function versaoWebDaFoto(url: string | null | undefined): string | null {
   const limpo = (url ?? "").trim().split("?")[0];
@@ -213,7 +216,7 @@ export function versaoWebDaFoto(url: string | null | undefined): string | null {
  * De 29/09 a 09/10 a foto nossa ia ao redimensionamento do Supabase
  * (`/storage/v1/render/image/…`). Ele cobra por FOTO DE ORIGEM distinta no
  * ciclo: 100 incluídas no Pro, o resto é excedente — ou restrição, com o Spend
- * Cap ligado. Medido nos logs do projeto em 09/10, em 24 h: 1.486 pedidos de
+ * Cap ligado. Medido nos logs do projeto em 09/10, em 24 h: 1.488 pedidos de
  * 187 fotos de origem distintas, 174 delas da galeria da ficha (cada `zap` de
  * cada carro é uma origem) e 13 capas de card. A cota do mês acabava no
  * primeiro dia, e o número cresce com cada carro que ganha foto própria. É a

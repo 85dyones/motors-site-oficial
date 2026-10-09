@@ -350,7 +350,7 @@ export function CardVeiculo({
                 cresce, e mandá-lo inteiro pelo otimizador é comprar de volta o
                 mesmo 402.
              2. **Não há o que otimizar.** A foto nossa já sai tratada do
-                envio: 1280px no lado maior, WebP, ~150 KB
+                envio: 1280px no lado maior, WebP, ~90 KB
                 (`imageProcessor.processarFotoDeVeiculo`), servida pelo CDN do
                 Supabase. O otimizador cortaria pouco e cobraria por isso.
 
@@ -362,10 +362,10 @@ export function CardVeiculo({
              `srcset` e sem WebP, e é esse o defeito que o `next/image` veio
              corrigir em 2026-08-25.
 
-             A PDP não recebe o mesmo tratamento, de propósito: lá a fonte é
-             `whatsapp_images` (1600px) e a mesma foto é desenhada como
-             miniatura de 240px — é o caso em que o srcset ainda vale mais que
-             a cota.
+             A PDP tem `srcset` também para a foto nossa: lá a fonte é
+             `whatsapp_images` (1600px) e a mesma foto vai de miniatura de 240px
+             à tela cheia. Desde 09/10 o `srcset` escolhe entre as duas versões
+             gravadas no envio (`FotoDaFicha`).
 
              ⚠️ De 29/09 a 09/10 a foto nossa teve `srcset` pelo
              redimensionamento do Storage do Supabase — e a cota dele (100

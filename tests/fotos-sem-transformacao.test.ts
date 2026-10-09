@@ -124,16 +124,26 @@ function arquivosDe(raiz: string): string[] {
   return achados;
 }
 
+/** Os arquivos de código da raiz: `next.config.ts` e onde moraria um `loaderFile`. */
+function arquivosDaRaiz(): string[] {
+  return readdirSync(".").filter((nome) => /\.(ts|js|mjs|cjs)$/.test(nome) && statSync(nome).isFile());
+}
+
 describe("nenhum código do site pede transformação ao Storage", () => {
   // A trava vivia só na galeria do painel (`fotos-do-veiculo.test.ts`), e o
   // card e a ficha passaram por fora dela em 29/09. Aqui ela vale para `src/`
-  // inteiro. Comentário pode citar o endereço — é a nota explicando por que
-  // ele saiu —, código não.
-  const arquivos = arquivosDe("src");
+  // inteiro e para a raiz — o loader do Supabase que a documentação dele
+  // sugere é um `loaderFile` declarado no `next.config`. Comentário pode citar
+  // o endereço — é a nota explicando por que ele saiu —, código não.
+  const arquivos = [...arquivosDe("src"), ...arquivosDaRaiz()];
 
   it("a varredura enxerga o código", () => {
     expect(arquivos).toContain("src/lib/fotosDoVeiculo.ts");
     expect(arquivos).toContain("src/components/ficha/FotoDaFicha.tsx");
+    expect(arquivos).toContain("next.config.ts");
+    // E lê o código, não só o nome: sem comentários, o que sobra ainda tem a
+    // função. Uma leitura que apagasse tudo deixaria as travas abaixo verdes.
+    expect(semComentarios(ler("src/lib/fotosDoVeiculo.ts"))).toContain("export function urlDaVersaoGravada(");
   });
 
   it("ninguém monta o endereço de `render/image`", () => {

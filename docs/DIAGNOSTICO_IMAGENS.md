@@ -276,15 +276,23 @@ grava duas larguras de cada foto, e o `srcset` escolhe entre elas
 O par sai do nome do arquivo (`<lote>-zap.jpg` ↔ `<lote>-web.webp`). Conferido
 no bucket: as 449 `zap` gravadas no estoque e no repasse têm a `web` irmã.
 
-**O custo:** mais byte em dois lugares. A capa do card no desktop vai de ~31 KB
-(640 px transformados) para ~90 KB. A miniatura da ficha baixa a `web`, mas é a
-mesma URL do slide do carrossel, então o navegador baixa uma vez só. No celular
-quase nada muda, porque o `srcset` já pedia 1080–1200 px. Se o peso do card
-voltar a pesar no LCP, a saída sem cota é gravar uma terceira versão menor
+**O custo:** mais byte em três lugares.
+
+- A capa do card no desktop vai de ~31 KB (640 px transformados) para ~90 KB.
+- A miniatura da ficha baixa a `web`. No celular é a mesma URL do slide do
+  carrossel, e o navegador baixa uma vez. No desktop retina o slide é a `zap`,
+  e a miniatura é um download a mais.
+- O `srcset` do Next pula de 1200w para 1920w. O celular grande com 3x de
+  densidade (iPhone Plus/Pro Max, 430 px de largura) pede mais que 1200 px e
+  recebe a `zap` em JPEG (~224 KB) na capa da ficha. Antes recebia uma WebP de
+  1600 px transformada. Os demais celulares ficam na `web`.
+
+Se o peso pesar no LCP, a saída sem cota é gravar uma terceira versão menor
 (~640 px) no envio, junto das outras duas.
 
 **Trava:** `tests/fotos-sem-transformacao.test.ts` reprova qualquer
-`render/image` ou `transform: {` no código de `src/`. Antes, a trava existia só
+`render/image` ou `transform: {` no código de `src/` e nos arquivos de código
+da raiz (onde moraria um `loaderFile`). Antes, a trava existia só
 para a galeria do painel, e o card e a ficha passaram por fora dela.
 
 **Depois do deploy, no painel do Supabase (só o dono faz):**
