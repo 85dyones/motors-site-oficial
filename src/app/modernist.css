@@ -914,3 +914,280 @@ p {
     background-color: transparent !important;
   }
 }
+
+/* — o logo que acende (v3 do Claude Design, 09/10/2026) —
+   O componente é `LogoAnimado` (o docblock de lá conta a sequência e o que
+   mudou para caber em 40 px). Aqui ficam os tempos, copiados do design:
+   Ignition 0 s, Trace 1,6 s, Reveal 3,2 s, Signature 5,0 s, Hold 6,2 s, fim em
+   8,2 s. As curvas são as três do design:
+     entra   = easeOutCubic   cubic-bezier(0.33, 1, 0.68, 1)
+     desenha = easeInOutCubic cubic-bezier(0.65, 0, 0.35, 1)
+     estala  = easeOutExpo    cubic-bezier(0.16, 1, 0.3, 1)
+
+   O estado sem animação é o quadro final: é o que vê quem pede movimento
+   reduzido, o rodapé que já estava na tela, e cada elemento quando a sua
+   animação termina. Por isso as animações só declaram de onde partem.
+
+   `data-logo`: "acende" toca, "armado" espera no quadro zero (o rodapé fora
+   da tela), "parado" não tem animação nenhuma. */
+.mt-logo {
+  overflow: visible;
+}
+.mt-logo-luz-abre,
+.mt-logo-halo,
+.mt-logo-regua-esq,
+.mt-logo-regua-dir,
+.mt-logo-fenda {
+  transform-box: fill-box;
+}
+.mt-logo-luz-abre,
+.mt-logo-halo {
+  transform-origin: center;
+}
+.mt-logo-regua-esq,
+.mt-logo-fenda {
+  transform-origin: left center;
+}
+.mt-logo-regua-dir {
+  transform-origin: right center;
+}
+/* Quadro final das peças que só existem durante a abertura. */
+.mt-logo-luz-apaga,
+.mt-logo-tracos,
+.mt-logo-varredor,
+.mt-logo-reluz {
+  opacity: 0;
+}
+.mt-logo-varre,
+.mt-logo-reflexo-asas {
+  transform: translateX(1900px);
+}
+.mt-logo-reluz {
+  transform: translateX(2000px);
+}
+.mt-logo-reflexo-palavra {
+  transform: translateX(2300px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Ignition: a barra pisca (0,25 s a 60%, 0,55 s cheia), corre de 3% à
+     largura toda, esmaece a 45% enquanto a luz contorna as asas e some
+     quando vira régua de bronze. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-luz-pisca {
+    animation: mt-logo-pisca 0.62s linear both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-luz-abre {
+    animation: mt-logo-abre 0.88s cubic-bezier(0.65, 0, 0.35, 1) 0.62s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-halo {
+    animation: mt-logo-halo 0.88s cubic-bezier(0.65, 0, 0.35, 1) 0.62s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-luz-esmaece {
+    animation: mt-logo-esmaece 0.8s cubic-bezier(0.65, 0, 0.35, 1) 1.6s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-luz-apaga {
+    animation: mt-logo-apaga 1s cubic-bezier(0.65, 0, 0.35, 1) 5s both;
+  }
+
+  /* Trace: o contorno se desenha em 1,5 s e some enquanto a asa enche. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-traco {
+    animation: mt-logo-traca 1.5s cubic-bezier(0.65, 0, 0.35, 1) 1.6s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-tracos {
+    animation: mt-logo-apaga 0.8s cubic-bezier(0.33, 1, 0.68, 1) 3.5s both;
+  }
+
+  /* Reveal: as asas enchem, o reflexo passa por elas, e a fenda de luz
+     revela o MOTORS enquanto as letras se juntam no lugar. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-asas {
+    animation: mt-logo-surge 0.9s cubic-bezier(0.33, 1, 0.68, 1) 3.2s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-varre {
+    animation: mt-logo-varre 1.1s cubic-bezier(0.65, 0, 0.35, 1) 3.35s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-fenda {
+    animation: mt-logo-fenda 1.2s cubic-bezier(0.65, 0, 0.35, 1) 3.55s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-varredor {
+    animation: mt-logo-acesa 1.2s linear 3.55s;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-varredor-corre {
+    animation: mt-logo-corre 1.2s cubic-bezier(0.65, 0, 0.35, 1) 3.55s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-letra {
+    animation: mt-logo-assenta 1.55s cubic-bezier(0.33, 1, 0.68, 1) 3.55s both;
+  }
+
+  /* Signature: a barra se abre no meio até virar as duas réguas (a de luz
+     apaga enquanto a de bronze surge) e o STORE chega das pontas. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-regua-esq,
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-regua-dir {
+    animation: mt-logo-parte 1s cubic-bezier(0.65, 0, 0.35, 1) 5s both;
+  }
+  /* Depois da regra de cima, de propósito: a régua de bronze tem as duas
+     classes e precisa das duas animações. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-regua-bronze {
+    animation:
+      mt-logo-parte 1s cubic-bezier(0.65, 0, 0.35, 1) 5s both,
+      mt-logo-surge 1s cubic-bezier(0.65, 0, 0.35, 1) 5s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-store {
+    animation: mt-logo-chega 0.9s cubic-bezier(0.33, 1, 0.68, 1) var(--mt-logo-atraso) both;
+  }
+
+  /* Hold: o brilho cruza o MOTORS. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-reluz {
+    animation:
+      mt-logo-reluz 1.2s cubic-bezier(0.65, 0, 0.35, 1) 6.5s both,
+      mt-logo-acesa 1.2s linear 6.5s;
+  }
+
+  /* O reflexo do mouse só vale com o logo pronto: antes do fim da abertura
+     ele passaria sobre asas que ainda não existem. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-liberado {
+    animation: mt-logo-libera 0s linear 8.2s both;
+  }
+  .mt-logo[data-reflexo] .mt-logo-reflexo-asas {
+    animation: mt-logo-varre 1.1s cubic-bezier(0.65, 0, 0.35, 1) both;
+  }
+  .mt-logo[data-reflexo] .mt-logo-reflexo-palavra {
+    animation: mt-logo-reflexo-palavra 1.2s cubic-bezier(0.65, 0, 0.35, 1) 0.15s both;
+  }
+}
+.mt-logo[data-logo="armado"] * {
+  animation-play-state: paused;
+}
+
+/* Duas piscadas, como motor pegando: a primeira sobe a 60% em 0,07 s e cai
+   em 0,18 s; a segunda acende inteira em 0,07 s e fica. */
+@keyframes mt-logo-pisca {
+  0%,
+  40.32% {
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  51.61% {
+    opacity: 0.6;
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  80.65%,
+  88.71% {
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes mt-logo-abre {
+  from {
+    transform: scaleX(0.03);
+  }
+}
+/* O halo acompanha a barra: raio de 64,8 (60 + 160 × 3%) a 220. */
+@keyframes mt-logo-halo {
+  from {
+    transform: scaleX(0.2945);
+  }
+}
+@keyframes mt-logo-esmaece {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+@keyframes mt-logo-apaga {
+  from {
+    opacity: 1;
+  }
+}
+@keyframes mt-logo-surge {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mt-logo-traca {
+  from {
+    stroke-dashoffset: 1px;
+  }
+}
+@keyframes mt-logo-varre {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(1900px);
+  }
+}
+/* A fenda começa com 60 de largura (de -100 a -40, antes do M) e termina
+   com 1640 (até 1540, depois do S). */
+@keyframes mt-logo-fenda {
+  from {
+    transform: scaleX(0.0366);
+  }
+}
+@keyframes mt-logo-corre {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(1580px);
+  }
+}
+/* Sem `fill-mode`: só acende enquanto a animação dura, como no design, onde
+   o elemento só existe entre o começo e o fim do movimento. */
+@keyframes mt-logo-acesa {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+/* Cada letra parte 4,5% mais longe do centro (`--mt-logo-dx`). */
+@keyframes mt-logo-assenta {
+  from {
+    transform: translateX(var(--mt-logo-dx));
+  }
+}
+/* De meia largura (750) e 14 de altura até a régua (286 × 32,3). */
+@keyframes mt-logo-parte {
+  from {
+    transform: scale(2.6224, 0.4334);
+  }
+}
+/* Cada letra do STORE parte 22% mais longe do centro. */
+@keyframes mt-logo-chega {
+  from {
+    opacity: 0;
+    transform: translateX(var(--mt-logo-dx));
+  }
+}
+@keyframes mt-logo-reluz {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(2000px);
+  }
+}
+/* Duração zero, como a garantia da foto (`mt-surge-garantia`): com 1 ms e
+   `step-end` o Chromium termina em 99,99…% e o degrau nunca sobe. */
+@keyframes mt-logo-libera {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* No reflexo do mouse o brilho vai até 2300, onde já passou do S inteiro: o
+   elemento não some no fim, ele sai. */
+@keyframes mt-logo-reflexo-palavra {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateX(2300px);
+  }
+}

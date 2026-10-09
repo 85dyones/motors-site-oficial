@@ -1,9 +1,9 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
+import LogoAnimado from "./modernist/LogoAnimado";
 import type { NavegacaoDoRodape } from "../lib/navegacaoDoRodape";
 import { colunasDoRodape } from "../lib/colunasDoRodape";
 import { trackContactClick } from "../lib/telemetry";
@@ -57,14 +57,16 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
           <div className="flex-[1.2]">
             {/* O logo inteiro, na versão para fundo escuro, no lugar do nome
                 em texto com uma barra ferrugem que não faz parte da marca
-                (revisão de UI de 29/09). O nome da loja segue no `alt`. */}
+                (revisão de UI de 29/09). O nome da loja segue no rótulo.
+                Desde 09/10 ele acende como o do cabeçalho (`LogoAnimado`),
+                no mesmo tamanho de antes, mas só quando o rodapé aparece na
+                tela: tocar a abertura lá embaixo, na carga, seria tocar para
+                ninguém. */}
             <div className="mb-5">
-              <Image
-                src="/marca/motors-store-horizontal-negativo.svg"
-                alt={companySettings.name}
-                width={191}
-                height={32}
-                unoptimized
+              <LogoAnimado
+                variante="horizontal"
+                rotulo={companySettings.name}
+                inicio="visivel"
                 className="h-8 w-auto"
               />
             </div>
