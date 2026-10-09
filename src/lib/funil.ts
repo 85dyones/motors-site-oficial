@@ -1106,15 +1106,38 @@ export interface LinhaDaFilaDoFunil {
  *     telefone é um aviso que espera o vendedor chegar na loja.
  *  3. **Nunca cita valor nem CPF.** A mensagem trafega por WhatsApp; o mínimo
  *     necessário é nome, carro e link.
+ *
+ * O link é a conversa no **Chatwoot**, nunca `wa.me` (pedido do dono em
+ * 2026-10-09: *"esse link do falar agora precisa ser o do chatwoot"*). É a
+ * mesma razão da decisão de 2026-08-31 para o card: o `wa.me` abria o WhatsApp
+ * pessoal do vendedor, a conversa saía do registro, e a resposta dele não
+ * reiniciava o relógio do funil — o mesmo relógio que gerou o aviso.
+ *
+ * A conversa é a mais recente do lead em `atendimentos`, pela régua de
+ * `maisRecentePrimeiro` — a mesma do card, para aviso e card abrirem a mesma
+ * conversa. Lead sem conversa (formulário em que o cliente ainda não
+ * escreveu) recebe o link do lead no painel, onde o vendedor vê tudo e decide
+ * por onde abordar. Diferente do botão do card, o aviso não cai no `wa.me`.
  */
 export function mensagemDeAlerta(
   linha: LinhaDaFilaDoFunil,
-  opcoes: { loja?: string | null } = {},
+  opcoes: {
+    loja?: string | null;
+    /** Id da conversa mais recente do lead no Chatwoot, quando existe. */
+    conversaChatwoot?: number | string | null;
+    /** Endereço absoluto do lead no painel, para quando não há conversa. */
+    linkDoLead?: string | null;
+  } = {},
 ): string {
   const carro = linha.interesse?.trim() ? ` — ${linha.interesse.trim()}` : "";
   const parado = formatarPrazo(linha.minutos_parado);
-  const link = linkDeConversa(linha.telefone);
-  const rodape = link ? `\n\nFalar agora: ${link}` : "";
+  const noChatwoot = linkDaConversa(opcoes.conversaChatwoot);
+  const noPainel = opcoes.linkDoLead?.trim() ?? "";
+  const rodape = noChatwoot
+    ? `\n\nFalar agora: ${noChatwoot}`
+    : noPainel
+      ? `\n\nAbrir no painel: ${noPainel}`
+      : "";
   const loja = opcoes.loja?.trim() ? `[${opcoes.loja.trim()}] ` : "";
 
   if (linha.aviso === "atribuicao") {

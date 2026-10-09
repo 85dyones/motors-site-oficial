@@ -8,6 +8,9 @@ import {
   numeroDiscavel,
   type LinhaDaFilaDoFunil,
 } from "../../../../lib/funil";
+import { maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
+import { urlDoLead } from "../../../../lib/filaDoFunil";
+import { urlDoSite } from "../../../../lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +106,33 @@ export async function POST(request: Request) {
       suprimido_por: l.suprimido_por,
     }));
 
+  // A conversa do Chatwoot de cada lead da fila, para o link do aviso
+  // (2026-10-09: o link é o do Chatwoot, não o `wa.me`). Uma leitura para a
+  // fila inteira, e a conversa mais recente de cada lead pela régua de
+  // `maisRecentePrimeiro` — a mesma do card do kanban.
+  //
+  // Falhar aqui não pode segurar o aviso: no modo reservado o lead JÁ foi
+  // transferido, e o novo dono precisa saber. Sem a conversa, o link cai no
+  // painel.
+  const conversaPorLead = new Map<string, number>();
+  const aEntregar = linhas.filter((l) => !l.suprimido_por).map((l) => l.lead_id);
+  if (aEntregar.length > 0) {
+    const { data: atendimentos, error: erroAtendimentos } = await supabase
+      .from("atendimentos")
+      .select("lead_id, chatwoot_conversation_id, iniciado_em, created_at")
+      .in("lead_id", aEntregar);
+    if (erroAtendimentos) {
+      console.warn("[Funil] Sem a conversa do Chatwoot nos avisos:", erroAtendimentos.message);
+    } else {
+      for (const a of maisRecentePrimeiro(atendimentos ?? [])) {
+        const conversa = Number(a.chatwoot_conversation_id);
+        if (a.lead_id && !conversaPorLead.has(a.lead_id) && conversa > 0) {
+          conversaPorLead.set(a.lead_id, conversa);
+        }
+      }
+    }
+  }
+
   const fila: Record<string, unknown>[] = [];
   // Aviso montado e sem para quem entregar. Só acontece se alguém apagar o
   // telefone do vendedor entre a montagem da fila e aqui — mas se acontecer,
@@ -136,7 +166,11 @@ export async function POST(request: Request) {
       },
       // Em transferência e atribuição, quem estava antes — o texto cita.
       responsavel_anterior: linha.aviso === "estagnacao" ? null : linha.responsavel,
-      mensagem: mensagemDeAlerta(linha, { loja }),
+      mensagem: mensagemDeAlerta(linha, {
+        loja,
+        conversaChatwoot: conversaPorLead.get(linha.lead_id) ?? null,
+        linkDoLead: urlDoSite(urlDoLead(linha.lead_id)),
+      }),
     });
   }
 
