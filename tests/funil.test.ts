@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { semComentarios } from "./fonte";
@@ -532,13 +532,55 @@ describe("o aviso que chega no WhatsApp do vendedor", () => {
     suprimido_por: null,
   };
 
-  it("diz o que fazer e traz o link junto", () => {
-    // Alerta que obriga a abrir o painel para achar o telefone é alerta que
-    // espera o vendedor chegar na loja.
-    const texto = mensagemDeAlerta(base, { loja: "Motors" });
-    expect(texto).toContain("Ana Souza");
-    expect(texto).toContain("2 dias");
-    expect(texto).toContain("https://wa.me/5541997372165");
+  describe("o link do aviso é a conversa no Chatwoot, nunca o wa.me (2026-10-09)", () => {
+    beforeEach(() => {
+      vi.stubEnv("NEXT_PUBLIC_CHATWOOT_URL", "https://chat.exemplo.com.br");
+      vi.stubEnv("NEXT_PUBLIC_CHATWOOT_CONTA_ID", "3");
+    });
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("diz o que fazer e leva à conversa do lead no Chatwoot", () => {
+      // Alerta que obriga a abrir o painel para achar o telefone é alerta que
+      // espera o vendedor chegar na loja. E o link não é o `wa.me`: ele abria
+      // o WhatsApp pessoal, e a resposta não reiniciava o relógio do funil.
+      const texto = mensagemDeAlerta(base, {
+        loja: "Motors",
+        conversaChatwoot: 436,
+        linkDoLead: "https://motorsstore.com.br/admin/leads/1",
+      });
+      expect(texto).toContain("Ana Souza");
+      expect(texto).toContain("2 dias");
+      expect(texto).toContain("Falar agora: https://chat.exemplo.com.br/app/accounts/3/conversations/436");
+      expect(texto).not.toContain("wa.me");
+      expect(texto).not.toContain("/admin/leads/");
+    });
+
+    it("lead sem conversa leva ao painel, e não ao WhatsApp", () => {
+      // Formulário em que o cliente ainda não escreveu: não há conversa no
+      // Chatwoot. O botão do card cai no `wa.me`; o aviso, não.
+      const texto = mensagemDeAlerta(
+        { ...base, aviso: "transferencia", novo_responsavel: "Carla", novo_whatsapp: "+5541999990002" },
+        { linkDoLead: "https://motorsstore.com.br/admin/leads/1" },
+      );
+      expect(texto).toContain("Abrir no painel: https://motorsstore.com.br/admin/leads/1");
+      expect(texto).not.toContain("wa.me");
+    });
+
+    it("conversa com id inválido não vira link quebrado: cai no painel", () => {
+      const texto = mensagemDeAlerta(base, {
+        conversaChatwoot: "undefined",
+        linkDoLead: "https://motorsstore.com.br/admin/leads/1",
+      });
+      expect(texto).toContain("Abrir no painel:");
+      expect(texto).not.toContain("/conversations/");
+    });
+
+    it("sem Chatwoot configurado e sem painel, o aviso sai sem link — mas nunca com wa.me", () => {
+      vi.stubEnv("NEXT_PUBLIC_CHATWOOT_URL", "");
+      const texto = mensagemDeAlerta(base, { conversaChatwoot: 436 });
+      expect(texto).toContain("Ana Souza");
+      expect(texto).not.toMatch(/Falar agora|Abrir no painel|wa\.me/);
+    });
   });
 
   it("nunca leva valor de negócio nem documento", () => {
