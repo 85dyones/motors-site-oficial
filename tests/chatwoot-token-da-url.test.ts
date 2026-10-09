@@ -318,6 +318,29 @@ describe("23/09 a 08/10: a URL do Chatwoot com o token antigo", () => {
     expect(tudo).not.toContain("rest-client");
   });
 
+  it("o log do 401 diz por que não conferiu, sem nunca mostrar o token", async () => {
+    // 2026-10-09: a variável da Vercel preenchida com "Bearer <token>" e a URL
+    // do Chatwoot com o token puro — o MESMO valor, estragado de um lado.
+    vi.stubEnv("CHATWOOT_WEBHOOK_TOKEN", `Bearer ${TOKEN_ATUAL}`);
+    await entregar(respostaDaConsultora(), { token: TOKEN_ATUAL });
+    await entregar(respostaDaConsultora(), { token: TOKEN_ANTIGO });
+
+    const linhas = vi.mocked(console.warn).mock.calls.filter((c) => c[0] === "[Chatwoot] 401 —");
+    expect(linhas).toHaveLength(2);
+    const [estragado, outro] = linhas.map((c) => JSON.parse(String(c[1])) as Linha);
+    expect(estragado).toMatchObject({
+      veio_query: true,
+      diagnostico: "esperado_com_bearer",
+      recebido_tamanho: TOKEN_ATUAL.length,
+      esperado_tamanho: `Bearer ${TOKEN_ATUAL}`.length,
+    });
+    expect(outro).toMatchObject({ diagnostico: "diferente", recebido_tamanho: TOKEN_ANTIGO.length });
+
+    const tudo = JSON.stringify(linhas);
+    expect(tudo).not.toContain(TOKEN_ATUAL);
+    expect(tudo).not.toContain(TOKEN_ANTIGO);
+  });
+
   it("o Bearer errado — o caminho do n8n — também avisa, com o conserto do Bearer", async () => {
     const { status } = await entregar(respostaDaConsultora(), { bearer: TOKEN_ANTIGO });
 
