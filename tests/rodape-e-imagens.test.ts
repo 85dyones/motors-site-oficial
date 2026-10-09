@@ -111,7 +111,7 @@ describe("as fotos dos cards passam pelo otimizador", () => {
 
   it("`CardVeiculo` usa `next/image`", () => {
     // Pelas duas irmãs cliente (30/09, esmaecimento da foto): a do carro57
-    // pelo otimizador, a nossa pelo redimensionamento do Storage.
+    // pelo otimizador, a nossa pela versão `web` gravada no envio.
     expect(fonte).toContain("<FotoOtimizadaDoCard");
     expect(fonte).toContain("<FotoPropriaDoCard");
     for (const irma of ["FotoOtimizadaDoCard", "FotoPropriaDoCard"]) {

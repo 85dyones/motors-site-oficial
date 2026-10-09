@@ -178,33 +178,40 @@ describe("as fotos da ficha não passam pelo otimizador quando são nossas", () 
   const NOSSA = "https://zwbqmzgnagfeqinqkolp.supabase.co/storage/v1/object/public/veiculos/123/a-web.webp";
   const DO_CARRO57 = "https://s3.carro57.com.br/FC/9037/foto.jpg";
 
-  it("a nossa vai com o loader do Storage; a do carro57, sem", async () => {
+  const ZAP = NOSSA.replace("-web.webp", "-zap.jpg");
+
+  it("a nossa escolhe entre as versões gravadas; a do carro57 vai ao otimizador", async () => {
     const { default: FotoDaFicha } = await import("../src/components/ficha/FotoDaFicha");
     await montar(
       createElement("div", null, [
-        createElement(FotoDaFicha, { key: "a", src: NOSSA, alt: "a", fill: true }),
+        createElement(FotoDaFicha, { key: "a", src: ZAP, alt: "a", fill: true }),
         createElement(FotoDaFicha, { key: "b", src: DO_CARRO57, alt: "b", fill: true }),
       ]),
     );
-    const nossa = imagens.find((p) => p.src === NOSSA)!;
+    const nossa = imagens.find((p) => p.src === ZAP)!;
     const deFora = imagens.find((p) => p.src === DO_CARRO57)!;
     expect(typeof nossa.loader).toBe("function");
-    expect((nossa.loader as (a: object) => string)({ src: NOSSA, width: 640 })).toContain(
-      "/storage/v1/render/image/public/",
-    );
+    expect(nossa.unoptimized).toBeUndefined();
     expect(deFora.loader).toBeUndefined();
+    expect(deFora.unoptimized).toBeUndefined();
   });
 
-  it("a galeria pede até 1600 px, a largura da versão `zap` — não o teto de 1280 do card", async () => {
+  it("até 1280 px a galeria serve a `web`; acima, a `zap` de 1600 — nunca o `render/image`", async () => {
     const { default: FotoDaFicha } = await import("../src/components/ficha/FotoDaFicha");
-    const { LARGURA_DA_VERSAO_ZAP } = await import("../src/lib/fotosDoVeiculo");
-    const { LADO_DA_VARIANTE } = await import("../src/lib/imageProcessor");
-    expect(LARGURA_DA_VERSAO_ZAP).toBe(LADO_DA_VARIANTE.zap);
-    const zap = NOSSA.replace("-web.webp", "-zap.jpg");
-    await montar(createElement(FotoDaFicha, { src: zap, alt: "z", fill: true }));
-    const carregar = imagens.find((p) => p.src === zap)!.loader as (a: object) => string;
-    expect(carregar({ src: zap, width: 3840 })).toContain("width=1600&");
-    expect(carregar({ src: zap, width: 828 })).toContain("width=828&");
+    await montar(createElement(FotoDaFicha, { src: ZAP, alt: "z", fill: true }));
+    const carregar = imagens.find((p) => p.src === ZAP)!.loader as (a: object) => string;
+    expect(carregar({ src: ZAP, width: 384 })).toBe(NOSSA);
+    expect(carregar({ src: ZAP, width: 1200 })).toBe(NOSSA);
+    expect(carregar({ src: ZAP, width: 1920 })).toBe(ZAP);
+    expect(carregar({ src: ZAP, width: 3840 })).toBe(ZAP);
+  });
+
+  it("a nossa sem `zap` não tem o que escolher: vai inteira", async () => {
+    const { default: FotoDaFicha } = await import("../src/components/ficha/FotoDaFicha");
+    await montar(createElement(FotoDaFicha, { src: NOSSA, alt: "w", fill: true }));
+    const web = imagens.find((p) => p.src === NOSSA)!;
+    expect(web.unoptimized).toBe(true);
+    expect(web.loader).toBeUndefined();
   });
 
   it("a galeria, as miniaturas e a tela cheia usam FotoDaFicha — nenhum next/image direto", () => {

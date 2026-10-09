@@ -40,6 +40,8 @@ vi.mock("next/link", () => ({
 
 const CARRO57 = "https://s3.carro57.com.br/mt/1/foto.jpg";
 const NOSSA = "https://zwbqmzgnagfeqinqkolp.supabase.co/storage/v1/object/public/veiculos/1/web/1.webp";
+/** A da galeria de verdade: a `zap`, que vai pelo loader das versões gravadas. */
+const NOSSA_ZAP = "https://zwbqmzgnagfeqinqkolp.supabase.co/storage/v1/object/public/veiculos/1/a-zap.jpg";
 
 let raiz: Root | null = null;
 let palco: HTMLDivElement | null = null;
@@ -96,6 +98,7 @@ describe("1 · a foto surge em vez de piscar", () => {
     for (const [Componente, src] of [
       [FotoPropriaDoCard, NOSSA],
       [FotoDaFicha, NOSSA],
+      [FotoDaFicha, NOSSA_ZAP],
       [FotoDaFicha, CARRO57],
     ] as const) {
       const img = (await montar(createElement(Componente, { src, alt: "x", fill: true }))).querySelector("img")!;

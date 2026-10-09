@@ -179,49 +179,66 @@ export function ehFotoPropria(url: string | null | undefined): boolean {
 }
 
 /**
- * A foto nossa na largura em que a tela vai desenhá-la — pelo redimensionamento
- * do próprio Storage (`/storage/v1/render/image/public/…`).
- *
- * Por que existe (revisão de UI de 29/09, tarefa 1.9): o card servia a versão
- * `web` inteira, 1280 px e ~90–130 KB, num espaço de 308 px no desktop. As três
- * primeiras capas do `/estoque` já carregavam com prioridade; o cinza que se via
- * era a espera pelos bytes. A 640 px a mesma capa tem ~31 KB (era 126 KB).
- *
- * Por que o Storage e não o otimizador da Vercel: a cota da Vercel já estourou
- * (402 em produção, ver `primitivos.tsx`), e a transformação do Supabase está no
- * plano Pro da organização, cobrada por FOTO DE ORIGEM (100 por mês incluídas),
- * não por largura pedida — então o srcset inteiro de uma capa conta uma vez.
- * Conferido em 29/09 contra o projeto: `?width=640&resize=contain` devolve
- * 640×427 em WebP.
- *
- * Nunca pede mais que a versão gravada (`LARGURA_DA_VERSAO_WEB`): ampliar só
- * gastaria byte. URL que não é do nosso bucket volta como veio.
+ * A largura gravada de cada versão (`LADO_DA_VARIANTE` em `imageProcessor.ts`):
+ * a `web` com 1280 px, a `zap` com 1600 px — a da galeria da ficha e da tela
+ * cheia, onde a foto é ampliada e o pixel a mais aparece.
  */
 export const LARGURA_DA_VERSAO_WEB = 1280;
-
-/**
- * A versão `zap` (`whatsapp_images`) é gravada com 1600 px — a da galeria da
- * ficha e da tela cheia, onde a foto é ampliada e o pixel a mais aparece
- * (`LADO_DA_VARIANTE` em `imageProcessor.ts`). Quem desenha a galeria passa
- * este teto; o card fica no da versão `web`.
- */
 export const LARGURA_DA_VERSAO_ZAP = 1600;
 
-export function urlDaFotoNaLargura(
-  url: string,
-  largura: number,
-  qualidade = 75,
-  teto = LARGURA_DA_VERSAO_WEB,
-): string {
-  const limpo = url.trim();
-  if (limpo.indexOf(PREFIXO_PUBLICO) < 0) return url;
-  const semQuery = limpo.split("?")[0];
-  const renderizada = semQuery.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
-  const w = Math.max(1, Math.min(Math.round(largura), teto));
-  // `resize=contain` é obrigatório: só com `width`, o Storage mantém a altura
-  // ORIGINAL e corta o centro — a capa de 1280×853 pedida a 640 voltava como
-  // um retrato de 640×853 (medido em 29/09). Com `contain`, 640×427.
-  return `${renderizada}?width=${w}&resize=contain&quality=${qualidade}`;
+const SUFIXO_ZAP = `-zap.${EXTENSAO_DA_VARIANTE.zap}`;
+const SUFIXO_WEB = `-web.${EXTENSAO_DA_VARIANTE.web}`;
+
+/**
+ * A versão `web` (1280 px, WebP) da mesma fotografia, a partir da `zap`.
+ *
+ * O par sai do NOME, não do índice das colunas: `caminhoDaFoto` grava
+ * `<lote>-zap.jpg` e `<lote>-web.webp` com o mesmo lote, no painel, no repasse
+ * e no script de migração. Conferido em 09/10 contra o bucket: as 449 `zap`
+ * gravadas no estoque e no repasse têm a `web` irmã.
+ *
+ * `null` quando a URL não é nossa ou não termina em `-zap.jpg` — a do carro57,
+ * a `web` que já é a menor. O nome é a única garantia: uma `-zap.jpg` posta no
+ * bucket à mão, sem a irmã, daria 404 até 1280 px. Nenhum caminho do código
+ * grava assim — o painel, o repasse e a migração só registram a foto depois
+ * das duas versões no bucket.
+ */
+export function versaoWebDaFoto(url: string | null | undefined): string | null {
+  const limpo = (url ?? "").trim().split("?")[0];
+  if (!ehFotoPropria(limpo) || !limpo.endsWith(SUFIXO_ZAP)) return null;
+  return limpo.slice(0, -SUFIXO_ZAP.length) + SUFIXO_WEB;
+}
+
+/**
+ * A versão GRAVADA da foto nossa que serve à largura pedida — sem transformar
+ * nada no Storage.
+ *
+ * De 29/09 a 09/10 a foto nossa ia ao redimensionamento do Supabase
+ * (`/storage/v1/render/image/…`). Ele cobra por FOTO DE ORIGEM distinta no
+ * ciclo: 100 incluídas no Pro, o resto é excedente — ou restrição, com o Spend
+ * Cap ligado. Medido nos logs do projeto em 09/10, em 24 h: 1.488 pedidos de
+ * 187 fotos de origem distintas, 174 delas da galeria da ficha (cada `zap` de
+ * cada carro é uma origem) e 13 capas de card. A cota do mês acabava no
+ * primeiro dia, e o número cresce com cada carro que ganha foto própria. É a
+ * mesma conta que a migração F0-p já tinha feito para deixar a transformação
+ * de fora (`20260829180000_f0p_storage_das_fotos_do_veiculo.sql`).
+ *
+ * O envio já grava cada fotografia em duas larguras
+ * (`processarFotoDeVeiculo`), então a escada responsiva existe no bucket, em
+ * dois degraus, de graça:
+ *
+ *   • até 1280 px → a `web` (WebP, ~90 KB) — card, miniaturas, carrossel no
+ *     celular;
+ *   • acima disso → a `zap` (JPEG, ~224 KB) — carrossel em tela retina e a
+ *     tela cheia.
+ *
+ * A `web` nunca sobe para a `zap`: quem chega com a `web` fica nela. URL que
+ * não é do nosso bucket volta como veio.
+ */
+export function urlDaVersaoGravada(url: string, largura: number): string {
+  const web = versaoWebDaFoto(url);
+  if (web === null) return url;
+  return largura <= LARGURA_DA_VERSAO_WEB ? web : url.trim().split("?")[0];
 }
 
 /** Uma fotografia do anúncio, nas suas duas versões. */
