@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { decidirInteracao, leadEstaAberto, type CorpoDaInteracao } from "../../../../../lib/gestaoDoLead";
+import { decidirInteracao, type CorpoDaInteracao } from "../../../../../lib/gestaoDoLead";
 import {
   lerLeadNoEscopo,
   relerDepoisDeRegistrar,
@@ -20,8 +20,8 @@ export const dynamic = "force-dynamic";
  *     qualquer lead pelo id; sem a guarda, o vendedor registraria (e mudaria o
  *     próximo passo) no lead do colega;
  *  2. a VALIDAÇÃO, em `decidirInteracao`: a mesma função que a tela usa para
- *     habilitar o botão. Enquanto o lead está aberto, sem próximo passo é 400
- *     com `codigo: "proximo_passo_obrigatorio"`;
+ *     habilitar o botão. O próximo passo é opcional (2026-10-09); se vier,
+ *     vem com texto e data, senão é 400 com `codigo: "proximo_passo_incompleto"`;
  *  3. a FUNÇÃO, que grava o registro e o próximo passo numa transação só e
  *     reinicia o relógio da estagnação.
  */
@@ -31,11 +31,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { supabase, visao, recusa } = await sessaoDeLeads();
     if (recusa) return recusa;
 
-    const guarda = await lerLeadNoEscopo(supabase, visao, id, "id, responsavel, desfecho");
+    const guarda = await lerLeadNoEscopo(supabase, visao, id, "id, responsavel");
     if (guarda.recusa) return guarda.recusa;
 
     const corpo = (await request.json().catch(() => null)) as CorpoDaInteracao | null;
-    const decisao = decidirInteracao(corpo, { aberto: leadEstaAberto(guarda.lead as { desfecho?: string | null }) });
+    const decisao = decidirInteracao(corpo);
     if (!decisao.ok) {
       return NextResponse.json({ error: decisao.erro, codigo: decisao.codigo }, { status: decisao.status });
     }

@@ -586,15 +586,18 @@ describe("registrar interação", () => {
     expect(registrar().disabled).toBe(true);
     expect(dica()).toBe("Escreva o que aconteceu.");
     expect(campoDoTexto().placeholder).toBe("O que foi combinado…");
-    expect(texto(container.querySelector('[data-bloco="c"] legend'))).toBe("Próximo passo · obrigatório");
+    // O passo é opcional desde 2026-10-09, com o lead aberto também.
+    expect(texto(container.querySelector('[data-bloco="c"] legend'))).toBe("Próximo passo · opcional");
 
+    // Só o que aconteceu já registra: a nota de atendimento não pede passo.
     await mudar(campoDoTexto(), "Falei com ela, quer a proposta por escrito.");
-    expect(registrar().disabled).toBe(true);
-    expect(dica()).toBe("Falta o próximo passo: toque numa sugestão ou escreva.");
+    expect(registrar().disabled).toBe(false);
+    expect(dica()).toBe("Pronto para registrar.");
 
+    // Começou um passo? Aí ele vem inteiro.
     await mudar(campoDoPasso(), "Enviar proposta");
     expect(registrar().disabled).toBe(true);
-    expect(dica()).toBe("Falta o dia e a hora do próximo passo.");
+    expect(dica()).toBe("Falta o dia e a hora do próximo passo, ou apague o passo.");
 
     await clicar(botao("Amanhã", grupo("Dia do próximo passo")!));
     expect(registrar().disabled).toBe(false);
@@ -610,7 +613,8 @@ describe("registrar interação", () => {
     expect([...resultado.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Atendeu", "Não atendeu", "Caixa postal"]);
 
     await clicar(botao("Não atendeu", resultado));
-    expect(dica()).toBe("Falta o próximo passo: toque numa sugestão ou escreva.");
+    expect(dica()).toBe("Pronto para registrar.");
+    expect(registrar().disabled).toBe(false);
 
     // As outras duas trocam o placeholder; o resultado some fora da ligação.
     await clicar(botao("WhatsApp", grupo("Tipo de registro")!));
@@ -714,11 +718,31 @@ describe("registrar interação", () => {
     expect(campoDoTexto().value).toBe("Feito: Cobrar retorno da proposta. ");
     expect(campoDoPasso().value).toBe("");
     expect(document.activeElement).toBe(campoDoTexto());
+    // Sem passo novo, registra e tira o passo feito do card.
+    expect(registrar().disabled).toBe(false);
+    expect(dica()).toBe("Pronto para registrar. O passo concluído sai do card.");
 
     await clicar(botao("Remarcar"));
     expect(campoDoTexto().value).toBe("Remarcado: ");
     expect(campoDoPasso().value).toBe("Cobrar retorno da proposta");
-    expect(dica()).toBe("Falta o dia e a hora do próximo passo.");
+    expect(dica()).toBe("Falta o dia e a hora do próximo passo, ou apague o passo.");
+  });
+
+  it("CONCLUIR sem passo novo manda a rota tirar o passo feito; a nota comum, não", async () => {
+    await montarPagina("l1");
+    await clicar(botao("CONCLUIR"));
+    await clicar(registrar());
+    await assentar();
+    const concluir = chamadas.filter((c) => c.metodo === "POST" && c.url === "/api/leads/l1/interacoes").at(-1)!;
+    expect(concluir.corpo).toMatchObject({ tipo: "nota", texto: "Feito: Cobrar retorno da proposta.", concluir_passo: true });
+    expect(concluir.corpo).not.toHaveProperty("proximo_passo_vence_em");
+
+    await mudar(campoDoTexto(), "Mandei as fotos do carro.");
+    await clicar(registrar());
+    await assentar();
+    const nota = chamadas.filter((c) => c.metodo === "POST" && c.url === "/api/leads/l1/interacoes").at(-1)!;
+    expect(nota.corpo).toMatchObject({ tipo: "nota", texto: "Mandei as fotos do carro." });
+    expect(nota.corpo).not.toHaveProperty("concluir_passo");
   });
 
   it("LIGAR é um link tel: e pré-seleciona Ligação; a conversa pré-seleciona WhatsApp e registra o contato", async () => {

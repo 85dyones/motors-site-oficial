@@ -215,6 +215,15 @@ const CADEIA = [
   // `tem_papel`, `autor_atual` e `org_padrao`; o andaime não precisou de nada
   // novo.
   "20261008120000_consultas_de_modelo.sql",
+  // O próximo passo opcional e o CONCLUIR sem passo novo (2026-10-09). Entra
+  // na cadeia porque troca a assinatura de `registrar_interacao_do_lead` (DROP
+  // e CREATE): o aceite prova que sobra uma função só, que a chamada de seis
+  // argumentos da rota continua casando, e veste um vendedor para provar que a
+  // nota sem passo mantém o passo e que o CONCLUIR sem passo novo o limpa —
+  // SECURITY DEFINER, gatilho do lead e privilégio de anon só se provam num
+  // banco de verdade. Vem depois da 20260925130000, que deu `org_id` à tabela
+  // que a função grava, e da RLS por escopo, que a função atravessa.
+  "20261009120000_concluir_passo_sem_proximo.sql",
 ];
 
 /**

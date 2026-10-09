@@ -88,12 +88,10 @@ describe("o vocabulário é o do banco", () => {
 // ---------------------------------------------------------------------------
 
 describe("decidirInteracao — o que a função do banco aceita", () => {
-  const ABERTO = { aberto: true };
-  const FECHADO = { aberto: false };
   const PASSO = { proximo_passo: "Ligar de novo", proximo_passo_vence_em: sp("2026-10-04", "10:00") };
 
   it("nota com texto e próximo passo: vai, com o texto aparado e a data em UTC", () => {
-    const d = decidirInteracao({ tipo: "nota", texto: "  Pediu fotos  ", ...PASSO }, ABERTO);
+    const d = decidirInteracao({ tipo: "nota", texto: "  Pediu fotos  ", ...PASSO });
     expect(d).toEqual({
       ok: true,
       args: {
@@ -108,7 +106,7 @@ describe("decidirInteracao — o que a função do banco aceita", () => {
 
   it("ligação com resultado dispensa o texto; os três resultados valem", () => {
     for (const resultado of RESULTADOS_DA_LIGACAO) {
-      const d = decidirInteracao({ tipo: "ligacao", resultado, ...PASSO }, ABERTO);
+      const d = decidirInteracao({ tipo: "ligacao", resultado, ...PASSO });
       expect(d.ok, resultado).toBe(true);
       if (d.ok) expect(d.args).toMatchObject({ p_tipo: "ligacao", p_resultado: resultado, p_texto: null });
     }
@@ -116,7 +114,7 @@ describe("decidirInteracao — o que a função do banco aceita", () => {
 
   it("os quatro tipos valem com texto", () => {
     for (const tipo of TIPOS_DE_INTERACAO) {
-      expect(decidirInteracao({ tipo, texto: "ok", ...PASSO }, ABERTO).ok, tipo).toBe(true);
+      expect(decidirInteracao({ tipo, texto: "ok", ...PASSO }).ok, tipo).toBe(true);
     }
   });
 
@@ -129,69 +127,103 @@ describe("decidirInteracao — o que a função do banco aceita", () => {
       { tipo: "ligacao" },
       { tipo: "ligacao", resultado: "" },
     ]) {
-      const d = decidirInteracao({ ...corpo, ...PASSO }, ABERTO);
+      const d = decidirInteracao({ ...corpo, ...PASSO });
       expect(d, JSON.stringify(corpo)).toMatchObject({ ok: false, status: 400, codigo: "interacao_vazia" });
     }
-    const ligacao = decidirInteracao({ tipo: "ligacao", ...PASSO }, ABERTO);
+    const ligacao = decidirInteracao({ tipo: "ligacao", ...PASSO });
     expect(!ligacao.ok && ligacao.erro).toBe("Marque se atendeu ou escreva o que aconteceu.");
-    const nota = decidirInteracao({ tipo: "nota", ...PASSO }, ABERTO);
+    const nota = decidirInteracao({ tipo: "nota", ...PASSO });
     expect(!nota.ok && nota.erro).toBe("Escreva o que aconteceu.");
   });
 
   it("tipo fora da lista é recusado", () => {
     for (const tipo of ["email", "", null, undefined, 3, "Nota"]) {
-      const d = decidirInteracao({ tipo, texto: "x", ...PASSO }, ABERTO);
+      const d = decidirInteracao({ tipo, texto: "x", ...PASSO });
       expect(d, String(tipo)).toMatchObject({ ok: false, codigo: "tipo_invalido" });
     }
-    expect(decidirInteracao(null, ABERTO)).toMatchObject({ ok: false, codigo: "tipo_invalido" });
+    expect(decidirInteracao(null)).toMatchObject({ ok: false, codigo: "tipo_invalido" });
   });
 
   it("resultado inventado, ou resultado fora de ligação, é recusado e não descartado", () => {
-    expect(decidirInteracao({ tipo: "ligacao", resultado: "ocupado", ...PASSO }, ABERTO)).toMatchObject({
+    expect(decidirInteracao({ tipo: "ligacao", resultado: "ocupado", ...PASSO })).toMatchObject({
       ok: false,
       codigo: "resultado_invalido",
     });
     for (const tipo of ["nota", "whatsapp", "visita"]) {
-      const d = decidirInteracao({ tipo, texto: "x", resultado: "atendeu", ...PASSO }, ABERTO);
+      const d = decidirInteracao({ tipo, texto: "x", resultado: "atendeu", ...PASSO });
       expect(d, tipo).toMatchObject({ ok: false, codigo: "resultado_invalido" });
     }
   });
 
-  it("lead aberto: sem passo, sem data ou sem os dois é `proximo_passo_obrigatorio`", () => {
-    for (const passo of [
-      {},
+  /**
+   * Pedido do dono em 2026-10-09: *"elimine a obrigatoriedade do próximo
+   * passo [...] nem sempre teremos o próximo passo, isso pode inibir o
+   * comercial de usar o sistema"*. A nota de atendimento vale sozinha, com o
+   * lead aberto ou fechado; a função do banco mantém o passo que o lead tinha.
+   */
+  it("sem próximo passo, o registro vale: nota, ligação, WhatsApp e visita", () => {
+    expect(decidirInteracao({ tipo: "nota", texto: "Cliente pediu um tempo." })).toEqual({
+      ok: true,
+      args: { p_tipo: "nota", p_resultado: null, p_texto: "Cliente pediu um tempo.", p_passo: null, p_vence_em: null },
+    });
+    for (const corpo of [
+      { tipo: "ligacao", resultado: "nao_atendeu" },
+      { tipo: "whatsapp", texto: "Mandei as fotos" },
+      { tipo: "visita", texto: "Veio ver o carro", proximo_passo: "   ", proximo_passo_vence_em: "" },
+      { tipo: "nota", texto: "x", proximo_passo: null, proximo_passo_vence_em: null },
+    ]) {
+      const d = decidirInteracao(corpo);
+      expect(d.ok, JSON.stringify(corpo)).toBe(true);
+      if (d.ok) expect(d.args, JSON.stringify(corpo)).toMatchObject({ p_passo: null, p_vence_em: null });
+      if (d.ok) expect(d.args, JSON.stringify(corpo)).not.toHaveProperty("p_concluir_passo");
+    }
+  });
+
+  it("se vier passo, vem inteiro: só o texto ou só a data é `proximo_passo_incompleto`", () => {
+    for (const meio of [
       { proximo_passo: "Ligar" },
       { proximo_passo_vence_em: sp("2026-10-04", "10:00") },
       { proximo_passo: "   ", proximo_passo_vence_em: sp("2026-10-04", "10:00") },
       { proximo_passo: "Ligar", proximo_passo_vence_em: "" },
       { proximo_passo: "Ligar", proximo_passo_vence_em: null },
     ]) {
-      const d = decidirInteracao({ tipo: "nota", texto: "x", ...passo }, ABERTO);
-      expect(d, JSON.stringify(passo)).toMatchObject({ ok: false, status: 400, codigo: "proximo_passo_obrigatorio" });
-    }
-  });
-
-  it("lead fechado dispensa o passo; mas, se vier, vem inteiro", () => {
-    expect(decidirInteracao({ tipo: "nota", texto: "x" }, FECHADO)).toEqual({
-      ok: true,
-      args: { p_tipo: "nota", p_resultado: null, p_texto: "x", p_passo: null, p_vence_em: null },
-    });
-    expect(decidirInteracao({ tipo: "nota", texto: "x", ...PASSO }, FECHADO).ok).toBe(true);
-    for (const meio of [{ proximo_passo: "Ligar" }, { proximo_passo_vence_em: sp("2026-10-04", "10:00") }]) {
-      expect(decidirInteracao({ tipo: "nota", texto: "x", ...meio }, FECHADO)).toMatchObject({
+      expect(decidirInteracao({ tipo: "nota", texto: "x", ...meio }), JSON.stringify(meio)).toMatchObject({
         ok: false,
+        status: 400,
         codigo: "proximo_passo_incompleto",
       });
     }
   });
 
+  /**
+   * O CONCLUIR sem passo novo. Sem o sinal, a função manteria no lead o passo
+   * que acabou de ser feito (20261009120000). O sinal só viaja quando é
+   * `true` e não há passo novo: com passo novo, ele já substitui o feito, e
+   * a chamada de seis argumentos segue valendo antes da migração.
+   */
+  it("CONCLUIR sem passo novo pede para limpar o passo; com passo novo, ou sem o sinal, não", () => {
+    const concluido = decidirInteracao({ tipo: "nota", texto: "Feito: Ligar.", concluir_passo: true });
+    expect(concluido.ok && concluido.args.p_concluir_passo).toBe(true);
+    const comNovo = decidirInteracao({ tipo: "nota", texto: "Feito: Ligar.", concluir_passo: true, ...PASSO });
+    expect(comNovo.ok && comNovo.args).not.toHaveProperty("p_concluir_passo");
+    for (const sinal of [false, "true", 1, null, undefined]) {
+      const d = decidirInteracao({ tipo: "nota", texto: "x", concluir_passo: sinal });
+      expect(d.ok && d.args, String(sinal)).not.toHaveProperty("p_concluir_passo");
+    }
+    // O sinal não salva meio passo.
+    expect(decidirInteracao({ tipo: "nota", texto: "x", concluir_passo: true, proximo_passo: "Ligar" })).toMatchObject({
+      ok: false,
+      codigo: "proximo_passo_incompleto",
+    });
+  });
+
   it("a data precisa de fuso: sem ele o servidor leria em UTC e gravaria três horas errado", () => {
     for (const data of ["2026-10-04T10:00", "2026-10-04 10:00:00", "04/10/2026 10:00", "amanhã", 1759583000000, "2026-13-40T10:00:00Z"]) {
-      const d = decidirInteracao({ tipo: "nota", texto: "x", proximo_passo: "Ligar", proximo_passo_vence_em: data }, ABERTO);
+      const d = decidirInteracao({ tipo: "nota", texto: "x", proximo_passo: "Ligar", proximo_passo_vence_em: data });
       expect(d, String(data)).toMatchObject({ ok: false, codigo: "data_invalida" });
     }
     for (const data of ["2026-10-04T13:00:00Z", "2026-10-04T13:00:00.000Z", "2026-10-04T10:00-03:00", "2026-10-04T10:00:00-0300"]) {
-      const d = decidirInteracao({ tipo: "nota", texto: "x", proximo_passo: "Ligar", proximo_passo_vence_em: data }, ABERTO);
+      const d = decidirInteracao({ tipo: "nota", texto: "x", proximo_passo: "Ligar", proximo_passo_vence_em: data });
       expect(d.ok && d.args.p_vence_em, data).toBe("2026-10-04T13:00:00.000Z");
     }
   });
@@ -204,10 +236,8 @@ describe("decidirInteracao — o que a função do banco aceita", () => {
       { tipo: "ligacao", resultado: "atendeu", proximo_passo_vence_em: sp("2026-10-04", "10:00") },
     ];
     for (const corpo of corpos) {
-      for (const lead of [ABERTO, FECHADO]) {
-        const d = decidirInteracao(corpo, lead);
-        if (d.ok) expect(d.args.p_passo === null, JSON.stringify(corpo)).toBe(d.args.p_vence_em === null);
-      }
+      const d = decidirInteracao(corpo);
+      if (d.ok) expect(d.args.p_passo === null, JSON.stringify(corpo)).toBe(d.args.p_vence_em === null);
     }
   });
 
@@ -254,10 +284,7 @@ describe("sugestoesDeProximoPasso — as duas de cada etapa, no relógio da loja
   it("toda sugestão passa por decidirInteracao como está", () => {
     for (const etapa of ETAPAS_COM_SUGESTAO) {
       for (const s of sugestoesDeProximoPasso(etapa, AGORA)) {
-        const d = decidirInteracao(
-          { tipo: "nota", texto: "x", proximo_passo: s.texto, proximo_passo_vence_em: s.vence_em },
-          { aberto: true },
-        );
+        const d = decidirInteracao({ tipo: "nota", texto: "x", proximo_passo: s.texto, proximo_passo_vence_em: s.vence_em });
         expect(d.ok, `${etapa}: ${s.texto}`).toBe(true);
       }
     }
@@ -948,7 +975,7 @@ describe("o relógio da loja, para a tela montar a data", () => {
 
   it("o que a tela monta passa pela validação da rota", () => {
     const vence = instanteNoFusoDaLoja(diaNaLoja(AGORA, 1), "10:00");
-    const d = decidirInteracao({ tipo: "nota", texto: "x", proximo_passo: "Ligar", proximo_passo_vence_em: vence }, { aberto: true });
+    const d = decidirInteracao({ tipo: "nota", texto: "x", proximo_passo: "Ligar", proximo_passo_vence_em: vence });
     expect(d.ok && d.args.p_vence_em).toBe("2026-10-04T13:00:00.000Z");
     expect(rotuloDoPasso(vence, AGORA, "lista")).toBe("Amanhã 10:00");
   });

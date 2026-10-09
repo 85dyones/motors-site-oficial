@@ -9,7 +9,7 @@
 ## Overview
 Upgrade da gestão do lead individual no funil da Motors Store. Hoje cada lead tem **uma** anotação (`leads.observacoes`), sem tipo, sem autor, sem data e sem próximo passo, e o card carrega todos os controles. O redesign:
 - enxuga o card para o que o vendedor decide olhando o quadro;
-- cria um **detalhe do lead** com vários registros, próximo passo obrigatório e dados do negócio;
+- cria um **detalhe do lead** com vários registros, próximo passo (opcional desde 2026-10-09) e dados do negócio;
 - dá ao vendedor uma **fila do dia** ("Minha fila" + "Lista do dia");
 - une as três buscas numa só e cria o botão **Chegou na loja**.
 
@@ -83,7 +83,7 @@ Grid (os blocos se reposicionam por `grid-template-areas`):
   - Ligação: "Opcional: o que ficou combinado?"
   - WhatsApp: "Resumo da conversa no WhatsApp…"
   - Visita: "Veio à loja? Viu qual carro? Fez test drive?"
-- Caixa "PRÓXIMO PASSO · OBRIGATÓRIO" (fundo `neutral-100`, borda fina). Enquanto vazia, mostra duas **sugestões por etapa** (botões tracejados "+ texto · amanhã 10:00"):
+- Caixa "PRÓXIMO PASSO · OPCIONAL" (era "OBRIGATÓRIO" até 2026-10-09; fundo `neutral-100`, borda fina). Enquanto vazia, mostra duas **sugestões por etapa** (botões tracejados "+ texto · amanhã 10:00"):
   - Novo: Primeiro contato pelo WhatsApp · hoje +15 min | Ligar para qualificar · hoje +1 h
   - Em contato: Enviar proposta · amanhã 10:00 | Convidar para visita · amanhã 10:00
   - Proposta: Cobrar retorno da proposta · amanhã 10:00 | Enviar simulação de financiamento · hoje 17:00
@@ -110,7 +110,7 @@ Grid (os blocos se reposicionam por `grid-template-areas`):
 - Recomendação: mostrar só os campos preenchidos e agrupar o resto atrás de "+ adicionar dado".
 
 ## Interactions & Behavior
-- **Registrar**: prepende no histórico, atualiza a última interação e o próximo passo do card e **reinicia o relógio** (o nível de estagnação volta a ok e o aviso some). O próximo passo é obrigatório enquanto o lead está aberto; fechar como Ganho, Perdido ou Descartado dispensa.
+- **Registrar**: prepende no histórico, atualiza a última interação e o próximo passo do card e **reinicia o relógio** (o nível de estagnação volta a ok e o aviso some). O próximo passo é opcional (decisão do dono em 2026-10-09: nem todo atendimento termina com um passo combinado, e exigir um afastava o comercial do sistema). Sem passo, o lead mantém o que tinha; o CONCLUIR sem passo novo tira o passo feito do card. Se vier passo, vem com texto e data.
 - **Chegou na loja**: interação `visita` com o autor "Balcão", move para a etapa de visita, define o próximo passo "Atender na loja · agora" e grava no histórico o evento de sistema "Movido para Visita agendada · {responsável} avisado no WhatsApp", avisando o responsável de fato.
 - **Busca**: nome (contém), telefone (dígitos contidos) ou referência (8 caracteres, via `normalizarRef`). Buscando, o escopo é ignorado.
 - **Escopo padrão**: Minha fila para o papel comercial; Equipe para Admin e Gestor.

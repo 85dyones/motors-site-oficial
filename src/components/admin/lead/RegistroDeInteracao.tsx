@@ -29,12 +29,13 @@ const DIAS_RAPIDOS = [
 ] as const;
 
 /**
- * Bloco c do detalhe: registrar uma interação e, com ela, o próximo passo.
+ * Bloco c do detalhe: registrar uma interação e, se houver, o próximo passo.
  *
- * Enquanto o lead está aberto, todo registro define o próximo passo. O botão
- * REGISTRAR e a dica ao lado saem de `estadoDoRegistro`, que valida com
- * `decidirInteracao`: a mesma função da rota. O botão só habilita para o que
- * o servidor aceita.
+ * O próximo passo é opcional (2026-10-09): nem todo atendimento termina com um
+ * passo combinado, e exigir um impedia o comercial de anotar o que aconteceu.
+ * Sem passo, o lead mantém o que já tinha. O botão REGISTRAR e a dica ao lado
+ * saem de `estadoDoRegistro`, que valida com `decidirInteracao`: a mesma
+ * função da rota. O botão só habilita para o que o servidor aceita.
  *
  * O formulário mora em quem monta o detalhe, porque outros blocos o começam:
  * CONCLUIR, Remarcar, LIGAR e o link da conversa.
@@ -52,7 +53,7 @@ export default function RegistroDeInteracao({
 }: {
   form: FormDoRegistro;
   aoMudar: (form: FormDoRegistro) => void;
-  /** Lead fechado dispensa o próximo passo. */
+  /** Lead fechado não recebe sugestões de próximo passo. */
   aberto: boolean;
   /** A etapa em que o lead está AGORA: é dela que saem as duas sugestões. */
   etapa: string;
@@ -62,11 +63,11 @@ export default function RegistroDeInteracao({
   className?: string;
   aoRegistrar: () => void;
 }) {
-  const estado = estadoDoRegistro(form, { aberto }, agora);
+  const estado = estadoDoRegistro(form, agora);
   const passoVazio = form.passo.trim() === "";
   // As sugestões saem da etapa e do relógio DESTA pintura, e não da leitura do
   // lead: quem moveu de etapa, ou deixou a gaveta aberta de manhã, veria as de
-  // antes ("hoje 16:00" às 17h). Lead fechado não pede próximo passo.
+  // antes ("hoje 16:00" às 17h). Lead fechado não recebe sugestão.
   const sugestoes = aberto ? sugestoesDeProximoPasso(etapa, agora) : [];
 
   return (
@@ -120,7 +121,7 @@ export default function RegistroDeInteracao({
       </label>
 
       <fieldset className="m-0 flex min-w-0 flex-col gap-2.5 border border-mt-regua-fina bg-mt-bg p-3">
-        <legend className="mt-rotulo px-1">Próximo passo · {aberto ? "obrigatório" : "opcional"}</legend>
+        <legend className="mt-rotulo px-1">Próximo passo · opcional</legend>
 
         {passoVazio && sugestoes.length > 0 && (
           <div className="flex flex-wrap gap-2">

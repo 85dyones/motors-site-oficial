@@ -133,13 +133,25 @@ Corpo:
   "tipo": "nota|ligacao|whatsapp|visita",
   "resultado": "atendeu|nao_atendeu|caixa_postal",   // só em ligação; opcional
   "texto": "string",                                 // opcional em ligação com resultado
-  "proximo_passo": "string",
-  "proximo_passo_vence_em": "2026-10-04T10:00:00-03:00"   // ISO COM fuso (ou Z)
+  "proximo_passo": "string",                         // opcional; se vier, vem com a data
+  "proximo_passo_vence_em": "2026-10-04T10:00:00-03:00",  // ISO COM fuso (ou Z)
+  "concluir_passo": true                             // opcional; só o CONCLUIR manda
 }
 ```
 
 Valida com `decidirInteracao` e grava por `registrar_interacao_do_lead`
 (registro e próximo passo numa transação; o relógio da estagnação reinicia).
+
+**O próximo passo é opcional** (decisão do dono em 2026-10-09: *"nem sempre
+teremos o próximo passo, isso pode inibir o comercial de usar o sistema"*).
+Sem passo, o registro grava e o lead **mantém o passo que já tinha**, menos no
+CONCLUIR: com `concluir_passo: true` e sem passo novo, a função limpa o passo
+do lead (`p_concluir_passo`, migração `20261009120000`), para o card não seguir
+mostrando um passo já feito. Com passo novo, ele substitui o antigo e
+`concluir_passo` não muda nada. A rota só manda `p_concluir_passo` à função
+quando ele vale, então a nota comum continua gravando mesmo antes da migração;
+o CONCLUIR sem passo novo recebe o 503 de migração pendente até ela ser
+aplicada.
 Resposta `200`:
 
 ```jsonc
@@ -160,8 +172,7 @@ Resposta `200`:
 
 | Status | `codigo` | Quando |
 |---|---|---|
-| 400 | `proximo_passo_obrigatorio` | Lead aberto sem texto ou sem data do próximo passo |
-| 400 | `proximo_passo_incompleto` | Lead fechado com só o texto ou só a data |
+| 400 | `proximo_passo_incompleto` | Só o texto ou só a data do próximo passo |
 | 400 | `interacao_vazia` | Sem texto (e não é ligação com resultado) |
 | 400 | `tipo_invalido` | Tipo fora da lista, ou corpo ilegível |
 | 400 | `resultado_invalido` | Resultado fora da lista, ou em registro que não é ligação |
@@ -169,7 +180,8 @@ Resposta `200`:
 | 400 | (sem código) | A função recusou por regra do banco |
 | 503 | (sem código) | A função não existe no banco (migração pendente) |
 
-Lead fechado (ganho, perdido, descartado) dispensa o próximo passo.
+Até 2026-10-09, lead aberto sem próximo passo era 400 com
+`proximo_passo_obrigatorio`. O código saiu.
 
 ### 2.3 `POST /api/leads/[id]/chegou`: "Chegou na loja"
 

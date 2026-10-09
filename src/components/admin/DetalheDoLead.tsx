@@ -581,7 +581,7 @@ export default function DetalheDoLead({
 
   const registrar = async () => {
     if (!lead || registrando) return;
-    const estado = estadoDoRegistro(form, { aberto: leadEstaAberto(lead) }, Date.now());
+    const estado = estadoDoRegistro(form, Date.now());
     if (!estado.pode) return;
     setRegistrando(true);
     setErro("");

@@ -201,7 +201,6 @@ export type CodigoDaInteracao =
   | "tipo_invalido"
   | "resultado_invalido"
   | "interacao_vazia"
-  | "proximo_passo_obrigatorio"
   | "proximo_passo_incompleto"
   | "data_invalida";
 
@@ -212,6 +211,12 @@ export interface ArgsDaInteracao {
   p_texto: string | null;
   p_passo: string | null;
   p_vence_em: string | null;
+  /**
+   * Só presente, e só `true`, no CONCLUIR sem passo novo: a função limpa o
+   * passo do lead (20261009120000). Ausente nos outros casos de propósito, para
+   * a chamada de seis argumentos continuar valendo antes daquela migração.
+   */
+  p_concluir_passo?: true;
 }
 
 export type DecisaoDeInteracao =
@@ -225,6 +230,8 @@ export interface CorpoDaInteracao {
   texto?: unknown;
   proximo_passo?: unknown;
   proximo_passo_vence_em?: unknown;
+  /** `true` quando o registro conclui o passo atual (o botão CONCLUIR). */
+  concluir_passo?: unknown;
 }
 
 /** ISO com fuso explícito (`Z` ou `-03:00`). Sem fuso, o servidor leria em UTC. */
@@ -244,11 +251,15 @@ const ISO_COM_FUSO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2
  *     (`..._diz_alguma_coisa`);
  *  4. próximo passo com texto E data, juntos (a função recusa meio passo).
  *
- * E a regra que só mora aqui e na rota (comentário de `leads.proximo_passo`):
- * enquanto o lead está aberto, todo registro define o próximo passo. Lead
- * fechado dispensa, mas, se vier, vem inteiro.
+ * O próximo passo é OPCIONAL, com o lead aberto ou fechado (decisão do dono em
+ * 2026-10-09). Até então, enquanto o lead estava aberto, todo registro tinha de
+ * definir o próximo passo, e o comercial não conseguia anotar um atendimento
+ * sem ter um passo combinado: *"nem sempre teremos o próximo passo, isso pode
+ * inibir o comercial de usar o sistema"*. Sem passo, a função grava o registro,
+ * reinicia o relógio da estagnação e mantém o passo que o lead já tinha —
+ * menos no CONCLUIR (`concluir_passo: true`), em que o passo feito sai do lead.
  */
-export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined, lead: { aberto: boolean }): DecisaoDeInteracao {
+export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined): DecisaoDeInteracao {
   const recusa = (codigo: CodigoDaInteracao, erro: string): DecisaoDeInteracao => ({
     ok: false,
     status: 400,
@@ -282,12 +293,6 @@ export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined, lea
   const passo = texto(c.proximo_passo);
   const semData =
     c.proximo_passo_vence_em === undefined || c.proximo_passo_vence_em === null || c.proximo_passo_vence_em === "";
-  if (lead.aberto && (!passo || semData)) {
-    return recusa(
-      "proximo_passo_obrigatorio",
-      "Falta o próximo passo: escreva o que fazer e quando. Enquanto o lead está aberto, todo registro define o próximo passo.",
-    );
-  }
   if (Boolean(passo) === semData) {
     return recusa("proximo_passo_incompleto", "O próximo passo precisa de texto e de data, juntos.");
   }
@@ -313,6 +318,8 @@ export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined, lea
       p_texto: oQueHouve || null,
       p_passo: passo || null,
       p_vence_em: venceEm,
+      // Com passo novo, ele já substitui o concluído: o sinal não muda nada.
+      ...(c.concluir_passo === true && !passo ? { p_concluir_passo: true as const } : {}),
     },
   };
 }

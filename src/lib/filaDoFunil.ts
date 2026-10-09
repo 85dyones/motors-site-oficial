@@ -358,6 +358,11 @@ export interface FormDoRegistro {
   dia: string;
   /** `HH:MM`, no relógio da loja. */
   hora: string;
+  /**
+   * O registro começou pelo CONCLUIR. Sem passo novo, o passo feito sai do
+   * lead; sem esta marca, a nota sem passo mantém o passo que o lead tinha.
+   */
+  concluindo: boolean;
 }
 
 export const FORM_DO_REGISTRO_VAZIO: FormDoRegistro = {
@@ -367,6 +372,7 @@ export const FORM_DO_REGISTRO_VAZIO: FormDoRegistro = {
   passo: "",
   dia: "",
   hora: "",
+  concluindo: false,
 };
 
 /** A hora que o campo assume quando se escolhe o dia antes dela. */
@@ -413,9 +419,12 @@ export function comSugestao(form: FormDoRegistro, sugestao: { texto: string; ven
   return { ...form, passo: sugestao.texto, dia: quando?.dia ?? "", hora: quando?.hora ?? "" };
 }
 
-/** CONCLUIR: o registro abre com "Feito: {passo}. " e o próximo passo vazio. */
+/**
+ * CONCLUIR: o registro abre com "Feito: {passo}. " e o próximo passo vazio.
+ * Registrado assim, sem passo novo, o passo feito sai do lead.
+ */
 export function formAoConcluir(passo: string): FormDoRegistro {
-  return { ...FORM_DO_REGISTRO_VAZIO, texto: `Feito: ${passo.trim()}. ` };
+  return { ...FORM_DO_REGISTRO_VAZIO, texto: `Feito: ${passo.trim()}. `, concluindo: true };
 }
 
 /** Remarcar: "Remarcado: " e o mesmo passo, para trocar só a data. */
@@ -432,6 +441,7 @@ export function corpoDoRegistro(form: FormDoRegistro): CorpoDaInteracao {
     texto: form.texto.trim(),
     proximo_passo: form.passo.trim(),
     ...(venceEm ? { proximo_passo_vence_em: venceEm } : {}),
+    ...(form.concluindo ? { concluir_passo: true } : {}),
   };
 }
 
@@ -447,17 +457,20 @@ export interface EstadoDoRegistro {
  * O botão REGISTRAR e a dica ao lado dele.
  *
  * Quem decide é `decidirInteracao`, a mesma função da rota: o botão só
- * habilita para o que o servidor aceita. A dica sai do código da recusa.
+ * habilita para o que o servidor aceita. A dica sai do código da recusa. O
+ * próximo passo é opcional (2026-10-09): só o passo pela metade segura o botão.
  */
-export function estadoDoRegistro(form: FormDoRegistro, lead: { aberto: boolean }, agora: number): EstadoDoRegistro {
+export function estadoDoRegistro(form: FormDoRegistro, agora: number): EstadoDoRegistro {
   const corpo = corpoDoRegistro(form);
-  const decisao = decidirInteracao(corpo, lead);
+  const decisao = decidirInteracao(corpo);
 
   if (decisao.ok) {
     const { p_passo: passo, p_vence_em: vence } = decisao.args;
     const dica = passo
       ? `O card passa a mostrar “${passo}” · ${rotuloDoPasso(vence, agora, "lista") ?? ""}.`
-      : "Pronto para registrar.";
+      : decisao.args.p_concluir_passo
+        ? "Pronto para registrar. O passo concluído sai do card."
+        : "Pronto para registrar.";
     return { pode: true, dica, corpo };
   }
 
@@ -466,13 +479,10 @@ export function estadoDoRegistro(form: FormDoRegistro, lead: { aberto: boolean }
     case "interacao_vazia":
       dica = form.tipo === "ligacao" ? "Marque se atendeu." : "Escreva o que aconteceu.";
       break;
-    case "proximo_passo_obrigatorio":
     case "proximo_passo_incompleto":
       dica = form.passo.trim()
-        ? "Falta o dia e a hora do próximo passo."
-        : lead.aberto
-          ? "Falta o próximo passo: toque numa sugestão ou escreva."
-          : "Falta escrever o próximo passo, ou tire a data.";
+        ? "Falta o dia e a hora do próximo passo, ou apague o passo."
+        : "Falta escrever o próximo passo, ou tire a data.";
       break;
     case "data_invalida":
       dica = "Confira o dia e a hora do próximo passo.";
