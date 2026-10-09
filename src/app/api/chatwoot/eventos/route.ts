@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 import { tokenConfere } from "../../../../lib/comparacaoConstante";
+import { diagnosticarToken } from "../../../../lib/diagnosticoDoToken";
 import {
   interpretarEventoDoChatwoot,
   variantesDoTelefone,
@@ -179,13 +180,24 @@ async function autorizar(request: Request, url: URL): Promise<NextResponse | nul
   // O que entra: de onde veio e QUAL FORMA de credencial apareceu. O que nunca
   // entra: o valor recebido, nem parte dele. Log de token é token vazado — e
   // este viaja em URL, que já é o elo mais fraco por natureza.
+  //
+  // Desde 2026-10-09 entra também a PISTA de por que não conferiu (rótulo e
+  // tamanhos, ver `diagnosticoDoToken.ts`): o dono trocou o token três vezes
+  // naquele dia sem saber se os valores eram outros ou o mesmo estragado.
   const veioQuery = url.searchParams.has("token");
+  // Só rótulo e tamanhos saem daqui — `diagnostico-do-token.test.ts` e o teste
+  // da rota conferem que nenhum dos dois valores aparece.
+  const pista = diagnosticarToken(
+    veioQuery ? url.searchParams.get("token") : cabecalho?.replace(/^Bearer\s+/i, "") ?? null,
+    segredo,
+  );
   console.warn(
     "[Chatwoot] 401 —",
     JSON.stringify({
       agente: request.headers.get("User-Agent")?.slice(0, 120) ?? "(sem user-agent)",
       veio_cabecalho: Boolean(cabecalho),
       veio_query: veioQuery,
+      ...pista,
     }),
   );
 
