@@ -928,8 +928,13 @@ p {
    reduzido, o rodapé que já estava na tela, e cada elemento quando a sua
    animação termina. Por isso as animações só declaram de onde partem.
 
+   O quadro final é o logo de antes, com o cobre chapado da marca (#B29172).
+   O bronze escovado da v3 é um degradê cujas paradas partem das cores do
+   design e assentam no cobre durante o Hold.
+
    `data-logo`: "acende" toca, "armado" espera no quadro zero (o rodapé fora
-   da tela), "parado" não tem animação nenhuma. */
+   da tela), "parado" não tem animação nenhuma. É também onde a abertura
+   termina: no fim dela o componente passa para "parado". */
 .mt-logo {
   overflow: visible;
 }
@@ -1035,7 +1040,16 @@ p {
     animation: mt-logo-chega 0.9s cubic-bezier(0.33, 1, 0.68, 1) var(--mt-logo-atraso) both;
   }
 
-  /* Hold: o brilho cruza o MOTORS. */
+  /* Hold: o bronze assenta no cobre da marca e o brilho cruza o MOTORS. */
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-bronze-escuro {
+    animation: mt-logo-bronze-escuro 1.5s cubic-bezier(0.65, 0, 0.35, 1) 6.2s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-bronze-claro {
+    animation: mt-logo-bronze-claro 1.5s cubic-bezier(0.65, 0, 0.35, 1) 6.2s both;
+  }
+  :where(.mt-logo:not([data-logo="parado"])) .mt-logo-bronze-medio {
+    animation: mt-logo-bronze-medio 1.5s cubic-bezier(0.65, 0, 0.35, 1) 6.2s both;
+  }
   :where(.mt-logo:not([data-logo="parado"])) .mt-logo-reluz {
     animation:
       mt-logo-reluz 1.2s cubic-bezier(0.65, 0, 0.35, 1) 6.5s both,
@@ -1169,6 +1183,23 @@ p {
   }
   to {
     transform: translateX(2000px);
+  }
+}
+/* As paradas do degradê da v3 (`pm-metal`): escuro nas pontas, claro a 38%,
+   médio a 62%. Terminam no `stop-color` do atributo, o cobre da marca. */
+@keyframes mt-logo-bronze-escuro {
+  from {
+    stop-color: #7e5f43;
+  }
+}
+@keyframes mt-logo-bronze-claro {
+  from {
+    stop-color: #e6cca8;
+  }
+}
+@keyframes mt-logo-bronze-medio {
+  from {
+    stop-color: #b39171;
   }
 }
 /* Duração zero, como a garantia da foto (`mt-surge-garantia`): com 1 ms e

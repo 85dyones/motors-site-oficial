@@ -37,9 +37,12 @@ import {
  *   40 px de altura são 0,15 px e não aparecem. Aqui são 14 (≈0,75 px no
  *   cabeçalho, ≈1,2 px no rodapé) e o brilho espalha 12 em vez de 5.
  *
- * Depois da abertura o logo é a marca parada, com as cores do tema escuro da
- * v3: asas, STORE e réguas no bronze escovado, MOTORS em #ECE9E5. Passar o
- * mouse repete o reflexo das asas e o brilho da palavra.
+ * Depois da abertura o logo é exatamente o de antes, com as cores de
+ * `motors-store-*-negativo.svg`: asas, STORE e réguas no cobre da marca
+ * (#B29172), MOTORS em branco. Durante a abertura o cobre é o bronze
+ * escovado da v3, um degradê, que assenta no cobre chapado no Hold, enquanto
+ * o brilho cruza o MOTORS. Passar o mouse repete o reflexo das asas e o
+ * brilho da palavra.
  *
  * Três garantias:
  *
@@ -55,12 +58,16 @@ import {
 
 type Estado = "acende" | "armado" | "parado";
 
-// Tema escuro da v3 (`THEMES.Dark` em `logo-premium.jsx`). O cabeçalho e o
-// rodapé são sempre escuros, em qualquer paleta do painel.
-const TINTA = "#ECE9E5";
+// A tinta e o cobre são os do SVG negativo da marca: o quadro final tem de ser
+// o logo de antes. O design pintava o MOTORS em #ECE9E5, e a diferença não
+// aparece durante a abertura. O bronze escovado da v3 sai do CSS, nas cores de
+// partida das paradas do degradê (`mt-logo-bronze-*`).
+const TINTA = "#FFFFFF";
+const COBRE = "#B29172";
+// Luz e halo do tema escuro da v3 (`THEMES.Dark` em `logo-premium.jsx`). O
+// cabeçalho e o rodapé são sempre escuros, em qualquer paleta do painel.
 const LUZ = "#FFF3E2";
 const HALO = "#E9C9A0";
-const BRONZE = ["#7E5F43", "#E6CCA8", "#B39171", "#7E5F43"] as const;
 
 const ESPESSURA_DA_LUZ = 14;
 const CENTRO = LARGURA / 2;
@@ -136,14 +143,19 @@ export default function LogoAnimado({
       }}
       onAnimationEnd={(e) => {
         if (e.animationName === "mt-logo-reflexo-palavra") setReflexo(false);
+        // Fim da abertura (8,2 s): o logo vira o parado, o mesmo SVG sem
+        // animação. Os valores finais já eram os do parado; a troca só tira
+        // o desenho do caminho das animações, que no Chromium serrilha as
+        // bordas um pouco diferente, e o fim fica idêntico ao logo de antes.
+        if (e.animationName === "mt-logo-libera") setEstado("parado");
       }}
     >
       <defs>
         <linearGradient id={`${id}-bronze`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1500" y2="760">
-          <stop offset="0" stopColor={BRONZE[0]} />
-          <stop offset="0.38" stopColor={BRONZE[1]} />
-          <stop offset="0.62" stopColor={BRONZE[2]} />
-          <stop offset="1" stopColor={BRONZE[3]} />
+          <stop className="mt-logo-bronze-escuro" offset="0" stopColor={COBRE} />
+          <stop className="mt-logo-bronze-claro" offset="0.38" stopColor={COBRE} />
+          <stop className="mt-logo-bronze-medio" offset="0.62" stopColor={COBRE} />
+          <stop className="mt-logo-bronze-escuro" offset="1" stopColor={COBRE} />
         </linearGradient>
         <linearGradient id={`${id}-reflexo`} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="#fff" stopOpacity="0" />
