@@ -100,15 +100,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // O texto é opcional: sem ele, o registro diz só que o cliente chegou.
     const corpo = (await request.json().catch(() => null)) as { texto?: unknown } | null;
     const agora = new Date().toISOString();
-    const decisao = decidirInteracao(
-      {
-        tipo: "visita",
-        texto: typeof corpo?.texto === "string" && corpo.texto.trim() ? corpo.texto : TEXTO_DE_QUEM_CHEGOU,
-        proximo_passo: PASSO_DE_QUEM_CHEGOU,
-        proximo_passo_vence_em: agora,
-      },
-      { aberto: true },
-    );
+    const decisao = decidirInteracao({
+      tipo: "visita",
+      texto: typeof corpo?.texto === "string" && corpo.texto.trim() ? corpo.texto : TEXTO_DE_QUEM_CHEGOU,
+      proximo_passo: PASSO_DE_QUEM_CHEGOU,
+      proximo_passo_vence_em: agora,
+    });
     if (!decisao.ok) {
       return NextResponse.json({ error: decisao.erro, codigo: decisao.codigo }, { status: decisao.status });
     }

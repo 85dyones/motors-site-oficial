@@ -53,6 +53,8 @@ import {
  */
 const AGORA = Date.parse("2026-10-03T17:00:00.000Z");
 const iso = (deslocamentoEmHoras: number) => new Date(AGORA + deslocamentoEmHoras * 3_600_000).toISOString();
+/** O `proximo_passo_definido_em` como o PostgREST devolve: com microssegundos. */
+const CARIMBO_DO_PASSO = "2026-10-03T14:00:00.123456+00:00";
 
 describe("o escopo e a vista padrão, por papel", () => {
   it("o Comercial puro abre na Lista do dia e não tem escopo para alternar", () => {
@@ -280,7 +282,9 @@ describe("o registro começado, que não pode se perder", () => {
     for (const campos of [{ texto: "a" }, { passo: "Ligar" }, { dia: "2026-10-04" }, { hora: "10:00" }, { resultado: "atendeu" as const }]) {
       expect(registroEmAndamento({ ...FORM_DO_REGISTRO_VAZIO, ...campos }), JSON.stringify(campos)).toBe(true);
     }
-    expect(registroEmAndamento(formAoConcluir("Ligar"))).toBe(true);
+    expect(registroEmAndamento(formAoConcluir("Ligar", CARIMBO_DO_PASSO))).toBe(true);
+    // O CONCLUIR continua começado mesmo com o "Feito: ..." apagado: ele ainda tira o passo do lead.
+    expect(registroEmAndamento({ ...FORM_DO_REGISTRO_VAZIO, passoConcluido: CARIMBO_DO_PASSO })).toBe(true);
   });
 
   it("a pergunta e o aviso do lead que saiu são frases simples", () => {
@@ -308,42 +312,46 @@ describe("a Lista do dia vazia e a data dos fechados", () => {
 
 describe("o registro de interação: o botão REGISTRAR e a dica", () => {
   const form = (campos: Partial<FormDoRegistro>): FormDoRegistro => ({ ...FORM_DO_REGISTRO_VAZIO, ...campos });
-  const aberto = { aberto: true };
   const AMANHA = diaNaLoja(AGORA, 1);
 
   it("vazio: desabilitado, pede o que aconteceu", () => {
-    expect(estadoDoRegistro(form({}), aberto, AGORA)).toMatchObject({ pode: false, dica: "Escreva o que aconteceu." });
+    expect(estadoDoRegistro(form({}), AGORA)).toMatchObject({ pode: false, dica: "Escreva o que aconteceu." });
   });
 
   it("ligação sem resultado nem texto: pede para marcar se atendeu", () => {
-    expect(estadoDoRegistro(form({ tipo: "ligacao" }), aberto, AGORA)).toMatchObject({
+    expect(estadoDoRegistro(form({ tipo: "ligacao" }), AGORA)).toMatchObject({
       pode: false,
       dica: "Marque se atendeu.",
     });
   });
 
-  it("com o que aconteceu e sem próximo passo: desabilitado, pede o passo", () => {
-    expect(estadoDoRegistro(form({ texto: "Combinamos a visita." }), aberto, AGORA)).toMatchObject({
-      pode: false,
-      dica: "Falta o próximo passo: toque numa sugestão ou escreva.",
+  /**
+   * O pedido do dono em 2026-10-09: o comercial não conseguia anotar um
+   * atendimento sem ter um próximo passo combinado, e isso afastava a equipe
+   * do sistema. O passo é opcional: a nota de atendimento registra sozinha.
+   */
+  it("com o que aconteceu e sem próximo passo: habilita, porque o passo é opcional", () => {
+    const estado = estadoDoRegistro(form({ texto: "Cliente pediu um tempo para pensar." }), AGORA);
+    expect(estado).toMatchObject({ pode: true, dica: "Pronto para registrar." });
+    expect(estado.corpo).not.toHaveProperty("proximo_passo_vence_em");
+    expect(estado.corpo).not.toHaveProperty("passo_concluido");
+    // Ligação com resultado dispensa o texto, e também registra sem passo.
+    expect(estadoDoRegistro(form({ tipo: "ligacao", resultado: "nao_atendeu" }), AGORA)).toMatchObject({
+      pode: true,
+      dica: "Pronto para registrar.",
     });
-    // Ligação com resultado dispensa o texto, e cai na mesma falta.
-    expect(estadoDoRegistro(form({ tipo: "ligacao", resultado: "nao_atendeu" }), aberto, AGORA).dica).toBe(
-      "Falta o próximo passo: toque numa sugestão ou escreva.",
-    );
   });
 
-  it("passo escrito sem dia e hora: desabilitado, pede a data", () => {
-    const estado = estadoDoRegistro(form({ texto: "Falei com ela.", passo: "Enviar proposta" }), aberto, AGORA);
-    expect(estado).toMatchObject({ pode: false, dica: "Falta o dia e a hora do próximo passo." });
+  it("passo escrito sem dia e hora: desabilitado, pede a data ou que apague o passo", () => {
+    const estado = estadoDoRegistro(form({ texto: "Falei com ela.", passo: "Enviar proposta" }), AGORA);
+    expect(estado).toMatchObject({ pode: false, dica: "Falta o dia e a hora do próximo passo, ou apague o passo." });
     // Só o dia, sem hora, também não vale.
-    expect(estadoDoRegistro(form({ texto: "x", passo: "Enviar proposta", dia: AMANHA }), aberto, AGORA).pode).toBe(false);
+    expect(estadoDoRegistro(form({ texto: "x", passo: "Enviar proposta", dia: AMANHA }), AGORA).pode).toBe(false);
   });
 
   it("completo: habilita, e a dica diz o que o card passa a mostrar", () => {
     const estado = estadoDoRegistro(
       form({ texto: "Falei com ela.", passo: "Enviar proposta", dia: AMANHA, hora: "10:00" }),
-      aberto,
       AGORA,
     );
     expect(estado.pode).toBe(true);
@@ -362,26 +370,23 @@ describe("o registro de interação: o botão REGISTRAR e a dica", () => {
       form({ texto: "ok", passo: "Fechar pedido", dia: AMANHA, hora: "10:00" }),
       form({ texto: "ok", passo: "Fechar pedido", dia: "2026-02-31", hora: "10:00" }),
       form({ tipo: "visita", texto: "Veio e fez test drive", passo: "Enviar proposta", dia: AMANHA, hora: "25:00" }),
+      form({ texto: "Feito: Ligar. ", passoConcluido: CARIMBO_DO_PASSO }),
+      form({ texto: "Feito: Ligar. ", passoConcluido: CARIMBO_DO_PASSO, passo: "Enviar proposta", dia: AMANHA, hora: "10:00" }),
+      form({ texto: "Feito: Ligar. ", passoConcluido: CARIMBO_DO_PASSO, passo: "Enviar proposta" }),
+      form({ texto: "Feito: Ligar. ", passoConcluido: "ontem" }),
     ];
-    for (const lead of [{ aberto: true }, { aberto: false }]) {
-      for (const caso of casos) {
-        const estado = estadoDoRegistro(caso, lead, AGORA);
-        expect(estado.pode, JSON.stringify({ caso, lead })).toBe(decidirInteracao(estado.corpo, lead).ok);
-      }
+    for (const caso of casos) {
+      const estado = estadoDoRegistro(caso, AGORA);
+      expect(estado.pode, JSON.stringify(caso)).toBe(decidirInteracao(estado.corpo).ok);
     }
   });
 
-  it("lead fechado dispensa o próximo passo, mas não aceita meio passo", () => {
-    const fechado = { aberto: false };
-    expect(estadoDoRegistro(form({ texto: "Cliente voltou a escrever." }), fechado, AGORA)).toMatchObject({
-      pode: true,
-      dica: "Pronto para registrar.",
-    });
-    expect(estadoDoRegistro(form({ texto: "x", passo: "Ligar" }), fechado, AGORA)).toMatchObject({
+  it("meio passo continua recusado, com a dica de cada metade", () => {
+    expect(estadoDoRegistro(form({ texto: "x", passo: "Ligar" }), AGORA)).toMatchObject({
       pode: false,
-      dica: "Falta o dia e a hora do próximo passo.",
+      dica: "Falta o dia e a hora do próximo passo, ou apague o passo.",
     });
-    expect(estadoDoRegistro(form({ texto: "x", dia: AMANHA, hora: "10:00" }), fechado, AGORA)).toMatchObject({
+    expect(estadoDoRegistro(form({ texto: "x", dia: AMANHA, hora: "10:00" }), AGORA)).toMatchObject({
       pode: false,
       dica: "Falta escrever o próximo passo, ou tire a data.",
     });
@@ -412,18 +417,47 @@ describe("o registro de interação: o botão REGISTRAR e a dica", () => {
   });
 
   it("CONCLUIR abre com 'Feito: ...' e o passo vazio; Remarcar, com o mesmo passo e sem data", () => {
-    expect(formAoConcluir("Cobrar retorno da proposta")).toEqual({
+    expect(formAoConcluir("Cobrar retorno da proposta", CARIMBO_DO_PASSO)).toEqual({
       ...FORM_DO_REGISTRO_VAZIO,
       texto: "Feito: Cobrar retorno da proposta. ",
+      passoConcluido: CARIMBO_DO_PASSO,
     });
+    // Passo sem carimbo (nenhum em produção em 09/10): conclui como nota comum.
+    expect(formAoConcluir("Ligar", null).passoConcluido).toBeNull();
     expect(formAoRemarcar("Cobrar retorno da proposta")).toEqual({
       ...FORM_DO_REGISTRO_VAZIO,
       texto: "Remarcado: ",
       passo: "Cobrar retorno da proposta",
     });
-    // Nenhum dos dois habilita o botão sozinho: falta o passo, ou a data.
-    expect(estadoDoRegistro(formAoConcluir("Ligar"), aberto, AGORA).pode).toBe(false);
-    expect(estadoDoRegistro(formAoRemarcar("Ligar"), aberto, AGORA).pode).toBe(false);
+    // Remarcar não habilita sozinho: falta a data nova.
+    expect(estadoDoRegistro(formAoRemarcar("Ligar"), AGORA).pode).toBe(false);
+  });
+
+  /**
+   * O CONCLUIR com o passo opcional (2026-10-09). Sem passo novo, o registro
+   * tem de TIRAR o passo feito do lead; a nota comum sem passo, não. Sem esta
+   * distinção, o card seguiria mostrando — e a Lista do dia cobrando como
+   * atrasado — um passo que acabou de ser feito.
+   */
+  it("CONCLUIR sem passo novo habilita e manda o carimbo do passo feito; com passo novo, o novo basta", () => {
+    const concluido = estadoDoRegistro(formAoConcluir("Ligar", CARIMBO_DO_PASSO), AGORA);
+    expect(concluido).toMatchObject({ pode: true, dica: "Pronto para registrar. O passo concluído sai do card." });
+    expect(concluido.corpo.passo_concluido).toBe(CARIMBO_DO_PASSO);
+    const sem = decidirInteracao(concluido.corpo);
+    // Os microssegundos chegam inteiros: o banco compara o carimbo exato.
+    expect(sem.ok && sem.args.p_passo_concluido).toBe(CARIMBO_DO_PASSO);
+
+    const comNovo = estadoDoRegistro(
+      { ...formAoConcluir("Ligar", CARIMBO_DO_PASSO), passo: "Enviar proposta", dia: AMANHA, hora: "10:00" },
+      AGORA,
+    );
+    expect(comNovo.pode).toBe(true);
+    const com = decidirInteracao(comNovo.corpo);
+    expect(com.ok && com.args).not.toHaveProperty("p_passo_concluido");
+
+    // A nota comum sem passo não manda limpar nada: o lead mantém o passo.
+    const nota = decidirInteracao(estadoDoRegistro(form({ texto: "Mandei as fotos." }), AGORA).corpo);
+    expect(nota.ok && nota.args).not.toHaveProperty("p_passo_concluido");
   });
 
   it("os placeholders são os do desenho, sem travessão", () => {

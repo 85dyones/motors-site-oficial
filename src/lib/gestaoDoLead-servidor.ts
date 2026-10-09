@@ -33,6 +33,8 @@ import { itemDaInteracao, ultimaInteracaoPorLead, type InteracaoDoLead, type Ite
 export type ClienteDaSessao = Awaited<ReturnType<typeof createServerSupabaseClient>>;
 
 export const MIGRACAO_DA_GESTAO = "20260923150000_gestao_do_lead.sql";
+/** A que deu `p_passo_concluido` à função: só o CONCLUIR sem passo novo a usa. */
+export const MIGRACAO_DO_PASSO_CONCLUIDO = "20261009120000_concluir_passo_sem_proximo.sql";
 
 interface SessaoAceita {
   supabase: ClienteDaSessao;
@@ -176,9 +178,13 @@ export async function lerLeadNoEscopo(
  * o banco sabe: o lead apagado entre a guarda e a chamada, a função ainda não
  * criada, a sessão que deixou de ser da equipe.
  */
-export function respostaDoErroDaFuncao(erro: { code?: string; message: string }): NextResponse {
+export function respostaDoErroDaFuncao(
+  erro: { code?: string; message: string },
+  /** Qual migração falta quando a função não casa: a do CONCLUIR, se foi ele. */
+  migracao: string = MIGRACAO_DA_GESTAO,
+): NextResponse {
   if (erro.code === "PGRST202" || ehTabelaOuColunaAusente(erro)) {
-    return NextResponse.json({ error: mensagemDeMigracaoPendente(MIGRACAO_DA_GESTAO) }, { status: 503 });
+    return NextResponse.json({ error: mensagemDeMigracaoPendente(migracao) }, { status: 503 });
   }
   if (erro.code === "P0002") return naoEncontrado();
   if (erro.code === "42501") return NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 });

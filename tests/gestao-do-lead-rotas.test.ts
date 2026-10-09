@@ -835,18 +835,37 @@ describe("POST /api/leads/[id]/interacoes", () => {
     });
   });
 
-  it("lead aberto sem próximo passo: 400 com `proximo_passo_obrigatorio`, e a função não é chamada", async () => {
+  /**
+   * O próximo passo é opcional (pedido do dono em 2026-10-09): a nota de
+   * atendimento sem passo grava, e a função mantém o passo que o lead tinha.
+   */
+  it("lead aberto sem próximo passo: grava a nota, sem passo e sem pedir para limpar o do lead", async () => {
+    const { status, d } = await registrar(DA_ANA, { tipo: "nota", texto: "Cliente pediu um tempo para pensar" });
+    expect(status).toBe(200);
+    expect(d.ok).toBe(true);
+    expect(rpcs).toHaveLength(1);
+    expect(rpcs[0].args).toMatchObject({ p_lead: DA_ANA, p_tipo: "nota", p_passo: null, p_vence_em: null });
+    expect(rpcs[0].args).not.toHaveProperty("p_passo_concluido");
+  });
+
+  it("meio passo: 400 com `proximo_passo_incompleto`, e a função não é chamada", async () => {
     for (const corpo of [
-      { tipo: "nota", texto: "Liguei" },
       { tipo: "nota", texto: "Liguei", proximo_passo: "Ligar de novo" },
       { tipo: "nota", texto: "Liguei", proximo_passo_vence_em: PASSO.proximo_passo_vence_em },
     ]) {
       const { status, d } = await registrar(DA_ANA, corpo);
       expect(status, JSON.stringify(corpo)).toBe(400);
-      expect(d.codigo, JSON.stringify(corpo)).toBe("proximo_passo_obrigatorio");
+      expect(d.codigo, JSON.stringify(corpo)).toBe("proximo_passo_incompleto");
       expect(d.error).toMatch(/próximo passo/);
     }
     expect(rpcs).toEqual([]);
+  });
+
+  it("CONCLUIR sem passo novo manda o carimbo do passo feito, exato, para ele sair do lead", async () => {
+    const carimbo = "2026-10-03T14:00:00.123456+00:00";
+    const { status } = await registrar(DA_ANA, { tipo: "nota", texto: "Feito: Ligar.", passo_concluido: carimbo });
+    expect(status).toBe(200);
+    expect(rpcs[0].args).toMatchObject({ p_passo: null, p_vence_em: null, p_passo_concluido: carimbo });
   });
 
   it("lead fechado dispensa o próximo passo", async () => {

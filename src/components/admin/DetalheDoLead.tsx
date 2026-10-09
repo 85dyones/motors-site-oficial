@@ -581,7 +581,7 @@ export default function DetalheDoLead({
 
   const registrar = async () => {
     if (!lead || registrando) return;
-    const estado = estadoDoRegistro(form, { aberto: leadEstaAberto(lead) }, Date.now());
+    const estado = estadoDoRegistro(form, Date.now());
     if (!estado.pode) return;
     setRegistrando(true);
     setErro("");
@@ -778,7 +778,7 @@ export default function DetalheDoLead({
               aberto={aberto}
               agora={agora}
               className={area("p")}
-              aoConcluir={(passo) => comecarRegistro(formAoConcluir(passo))}
+              aoConcluir={(passo) => comecarRegistro(formAoConcluir(passo, lead.proximo_passo_definido_em))}
               aoRemarcar={(passo) => comecarRegistro(formAoRemarcar(passo))}
             />
             {!(naPagina && emColunas) && blocoDosCarros}

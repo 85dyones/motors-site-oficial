@@ -201,7 +201,6 @@ export type CodigoDaInteracao =
   | "tipo_invalido"
   | "resultado_invalido"
   | "interacao_vazia"
-  | "proximo_passo_obrigatorio"
   | "proximo_passo_incompleto"
   | "data_invalida";
 
@@ -212,6 +211,13 @@ export interface ArgsDaInteracao {
   p_texto: string | null;
   p_passo: string | null;
   p_vence_em: string | null;
+  /**
+   * Só no CONCLUIR sem passo novo: o `proximo_passo_definido_em` do passo
+   * concluído, como a tela o leu. A função limpa o passo do lead se ele ainda
+   * for esse (20261009120000). Ausente nos outros casos de propósito, para a
+   * chamada de seis argumentos continuar valendo antes daquela migração.
+   */
+  p_passo_concluido?: string;
 }
 
 export type DecisaoDeInteracao =
@@ -225,6 +231,11 @@ export interface CorpoDaInteracao {
   texto?: unknown;
   proximo_passo?: unknown;
   proximo_passo_vence_em?: unknown;
+  /**
+   * O botão CONCLUIR: o `proximo_passo_definido_em` do passo concluído, em ISO
+   * com fuso, como a leitura do lead o trouxe.
+   */
+  passo_concluido?: unknown;
 }
 
 /** ISO com fuso explícito (`Z` ou `-03:00`). Sem fuso, o servidor leria em UTC. */
@@ -244,11 +255,16 @@ const ISO_COM_FUSO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2
  *     (`..._diz_alguma_coisa`);
  *  4. próximo passo com texto E data, juntos (a função recusa meio passo).
  *
- * E a regra que só mora aqui e na rota (comentário de `leads.proximo_passo`):
- * enquanto o lead está aberto, todo registro define o próximo passo. Lead
- * fechado dispensa, mas, se vier, vem inteiro.
+ * O próximo passo é OPCIONAL, com o lead aberto ou fechado (decisão do dono em
+ * 2026-10-09). Até então, enquanto o lead estava aberto, todo registro tinha de
+ * definir o próximo passo, e o comercial não conseguia anotar um atendimento
+ * sem ter um passo combinado: *"nem sempre teremos o próximo passo, isso pode
+ * inibir o comercial de usar o sistema"*. Sem passo, a função grava o registro,
+ * reinicia o relógio da estagnação e mantém o passo que o lead já tinha —
+ * menos no CONCLUIR (`passo_concluido`), em que o passo feito sai do lead se
+ * ainda for o que está nele.
  */
-export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined, lead: { aberto: boolean }): DecisaoDeInteracao {
+export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined): DecisaoDeInteracao {
   const recusa = (codigo: CodigoDaInteracao, erro: string): DecisaoDeInteracao => ({
     ok: false,
     status: 400,
@@ -282,12 +298,6 @@ export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined, lea
   const passo = texto(c.proximo_passo);
   const semData =
     c.proximo_passo_vence_em === undefined || c.proximo_passo_vence_em === null || c.proximo_passo_vence_em === "";
-  if (lead.aberto && (!passo || semData)) {
-    return recusa(
-      "proximo_passo_obrigatorio",
-      "Falta o próximo passo: escreva o que fazer e quando. Enquanto o lead está aberto, todo registro define o próximo passo.",
-    );
-  }
   if (Boolean(passo) === semData) {
     return recusa("proximo_passo_incompleto", "O próximo passo precisa de texto e de data, juntos.");
   }
@@ -305,6 +315,22 @@ export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined, lea
     venceEm = new Date(ms).toISOString();
   }
 
+  // O CONCLUIR sem passo novo. Com passo novo, ele já substitui o concluído e
+  // o carimbo não muda nada. O carimbo segue como veio, sem passar por `Date`:
+  // o banco o compara com microssegundos, e o `Date` guarda só milissegundos.
+  let passoConcluido: string | null = null;
+  const carimbo = c.passo_concluido;
+  if (!passo && carimbo !== undefined && carimbo !== null && carimbo !== "") {
+    const lido = typeof carimbo === "string" ? carimbo.trim() : "";
+    if (!ISO_COM_FUSO.test(lido) || !Number.isFinite(new Date(lido).getTime())) {
+      return recusa(
+        "data_invalida",
+        "Não deu para saber qual passo foi concluído. Abra o lead de novo e conclua outra vez.",
+      );
+    }
+    passoConcluido = lido;
+  }
+
   return {
     ok: true,
     args: {
@@ -313,6 +339,7 @@ export function decidirInteracao(corpo: CorpoDaInteracao | null | undefined, lea
       p_texto: oQueHouve || null,
       p_passo: passo || null,
       p_vence_em: venceEm,
+      ...(passoConcluido ? { p_passo_concluido: passoConcluido } : {}),
     },
   };
 }

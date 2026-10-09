@@ -133,13 +133,31 @@ Corpo:
   "tipo": "nota|ligacao|whatsapp|visita",
   "resultado": "atendeu|nao_atendeu|caixa_postal",   // só em ligação; opcional
   "texto": "string",                                 // opcional em ligação com resultado
-  "proximo_passo": "string",
-  "proximo_passo_vence_em": "2026-10-04T10:00:00-03:00"   // ISO COM fuso (ou Z)
+  "proximo_passo": "string",                         // opcional; se vier, vem com a data
+  "proximo_passo_vence_em": "2026-10-04T10:00:00-03:00",  // ISO COM fuso (ou Z)
+  "passo_concluido": "2026-10-03T14:00:00.123456+00:00"  // opcional; só o CONCLUIR manda
 }
 ```
 
 Valida com `decidirInteracao` e grava por `registrar_interacao_do_lead`
 (registro e próximo passo numa transação; o relógio da estagnação reinicia).
+
+**O próximo passo é opcional** (decisão do dono em 2026-10-09: *"nem sempre
+teremos o próximo passo, isso pode inibir o comercial de usar o sistema"*).
+Sem passo, o registro grava e o lead **mantém o passo que já tinha**, menos no
+CONCLUIR. Ele manda `passo_concluido`, o `proximo_passo_definido_em` do passo
+concluído como a leitura do lead o trouxe, e sem passo novo a função limpa o
+passo do lead **se ainda for aquele** (`p_passo_concluido`, migração
+`20261009120000`). Se o passo mudou entre o CONCLUIR e o REGISTRAR (o "Chegou
+na loja", um colega remarcando), o carimbo não bate e o passo novo fica. Com
+passo novo no registro, ele substitui o antigo e o carimbo nem viaja.
+
+O carimbo vai como veio, sem passar por `Date`: o banco compara
+microssegundos. Carimbo ilegível é `400 data_invalida`. A rota só manda
+`p_passo_concluido` à função no CONCLUIR sem passo novo, então a nota comum
+grava mesmo antes da migração; o CONCLUIR sem passo novo recebe o 503 que cita
+a `20261009120000` até ela ser aplicada.
+
 Resposta `200`:
 
 ```jsonc
@@ -160,16 +178,16 @@ Resposta `200`:
 
 | Status | `codigo` | Quando |
 |---|---|---|
-| 400 | `proximo_passo_obrigatorio` | Lead aberto sem texto ou sem data do próximo passo |
-| 400 | `proximo_passo_incompleto` | Lead fechado com só o texto ou só a data |
+| 400 | `proximo_passo_incompleto` | Só o texto ou só a data do próximo passo |
 | 400 | `interacao_vazia` | Sem texto (e não é ligação com resultado) |
 | 400 | `tipo_invalido` | Tipo fora da lista, ou corpo ilegível |
 | 400 | `resultado_invalido` | Resultado fora da lista, ou em registro que não é ligação |
-| 400 | `data_invalida` | Data sem fuso ou ilegível |
+| 400 | `data_invalida` | Data do passo, ou carimbo do passo concluído, sem fuso ou ilegível |
 | 400 | (sem código) | A função recusou por regra do banco |
 | 503 | (sem código) | A função não existe no banco (migração pendente) |
 
-Lead fechado (ganho, perdido, descartado) dispensa o próximo passo.
+Até 2026-10-09, lead aberto sem próximo passo era 400 com
+`proximo_passo_obrigatorio`. O código saiu.
 
 ### 2.3 `POST /api/leads/[id]/chegou`: "Chegou na loja"
 

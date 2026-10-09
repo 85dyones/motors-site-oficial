@@ -443,6 +443,66 @@ buraco que esta rota veio tapar. O que deu errado sai no corpo (`acao`,
   válido e inútil ao mesmo tempo, o espelho do defeito de 2026-08-31.
   Corrigido pela migração `20260915120000_contato_pelo_chatwoot.sql`.
 
+#### Trocar o token derruba a entrada, se for só de um lado (2026-10-08)
+
+O token vive em **dois lugares**: na Vercel (`CHATWOOT_WEBHOOK_TOKEN`) e na
+URL do webhook no Chatwoot (`?token=`). Trocar um sem o outro fecha a porta.
+
+Foi o que aconteceu em 2026-09-23. A variável foi editada na Vercel às 12:13
+UTC e o site, republicado no mesmo commit oito segundos depois; a URL no
+Chatwoot ficou com o valor antigo. A última entrega aceita foi às 00:59 UTC
+de 23/09; da das 12:40 em diante, todas levaram 401 (log da Vercel:
+`[Chatwoot] 401 — {"agente":"rest-client/2.1.0 … ruby/3.4.4p34",
+"veio_query":true}`). Por quinze dias:
+
+- nenhum `contato` pelo Chatwoot no rastro (24 só em 22/09; zero desde
+  então), então resposta de consultor não reiniciou relógio nenhum;
+- nenhum lead do canal `WhatsApp` criado, e 74 conversas novas ficaram em
+  `atendimentos` sem `lead_id`. Quem continuou gravando `atendimentos` foi o
+  workflow do n8n, e não esta rota, por isso a tabela parecia viva;
+- 1.583 transferências e 1.662 avisos automáticos em 40 leads, de 30–50
+  transferências por dia para 150–220;
+- a atribuição pelo Chatwoot (2026-10-03) e a volta da resolução da conversa
+  (2026-10-06) nunca rodaram em produção: os eventos delas também batiam
+  no 401.
+
+O parser não tinha mudado, e não era ele: a entrega morria na porta, antes
+de o corpo ser lido. O defeito de verdade foi o 401 ficar só no log. Desde
+então, **401 de quem trouxe credencial** (`?token=` não vazio, ou
+`Authorization: Bearer`) é parada de negócio:
+`registrarFalha("parada", "chatwoot-entrada-recusada")` vai ao WhatsApp pelo
+`alertaDeFalha`. A carência é de 30 minutos por assunto **e por instância**
+da função, em memória: com várias instâncias, ou logo depois de um deploy,
+pode sair mais de um aviso. Recusa sem credencial (inclusive `?token=` vazio
+e `Authorization: Basic`) é varredura e fica só no log. O alerta nunca leva o
+token nem o `User-Agent` de quem bateu.
+
+A falta da variável (503) avisa por `chatwoot-entrada-sem-token` com
+qualquer requisição, com ou sem credencial: sem ela ninguém entra, então
+quem bater está mostrando uma porta que de fato está fechada.
+
+⚠️ O que isso não barra: um estranho que mande `?token=qualquer-coisa` faz o
+alerta sair, no ritmo da carência. Separar isso de um defeito real pediria
+um sinal que ele não fabrica, como quanto tempo faz desde a última entrega
+aceita, e a rota não guarda isso hoje.
+
+**Para trocar o token sem derrubar a entrada:**
+
+1. Gerar o valor novo.
+2. No Chatwoot (Configurações → Integrações → Webhooks), editar a URL do
+   webhook do site com `?token=<novo>`. Daqui até o passo 4, as entregas
+   levam 401, e o alerta avisa.
+3. Na Vercel, trocar `CHATWOOT_WEBHOOK_TOKEN` pelo mesmo valor e
+   **republicar**: variável nova só vale no deploy seguinte.
+4. Conferir no log da Vercel uma linha `[Chatwoot] {"evento":…}` depois do
+   deploy, e no banco um `contato` novo pelo Chatwoot:
+   `select max(criado_em) from leads_eventos where tipo = 'contato' and
+   detalhe->>'via_servico' = 'true';`
+
+Fazer 2 e 3 em seguida deixa a janela em poucos minutos. Para nenhuma
+entrega cair, aceitar os dois tokens durante a troca pediria código, e
+não houve pedido para isso.
+
 ---
 
 ## Fora do repositório — o que não se conserta aqui
