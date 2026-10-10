@@ -13,6 +13,8 @@ import {
 import { maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
 import { urlDoLead } from "../../../../lib/filaDoFunil";
 import { urlDoSite } from "../../../../lib/site";
+import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
+import { atribuirConversasDaFila, conversasAbertasPorLead } from "../../../../lib/donoDaConversa";
 
 export const dynamic = "force-dynamic";
 
@@ -117,15 +119,19 @@ export async function POST(request: Request) {
   // transferido, e o novo dono precisa saber. Sem a conversa, o link cai no
   // painel.
   const conversaPorLead = new Map<string, number>();
+  // As abertas de cada lead, para o Chatwoot acompanhar a troca de dono (ver
+  // o fim da rota). Saem da mesma leitura.
+  let abertasPorLead = new Map<string, number[]>();
   const aEntregar = linhas.filter((l) => !l.suprimido_por).map((l) => l.lead_id);
   if (aEntregar.length > 0) {
     const { data: atendimentos, error: erroAtendimentos } = await supabase
       .from("atendimentos")
-      .select("lead_id, chatwoot_conversation_id, iniciado_em, created_at")
+      .select("lead_id, chatwoot_conversation_id, status_conversa, iniciado_em, created_at")
       .in("lead_id", aEntregar);
     if (erroAtendimentos) {
       console.warn("[Funil] Sem a conversa do Chatwoot nos avisos:", erroAtendimentos.message);
     } else {
+      abertasPorLead = conversasAbertasPorLead(atendimentos ?? []);
       for (const a of maisRecentePrimeiro(atendimentos ?? [])) {
         const conversa = Number(a.chatwoot_conversation_id);
         if (a.lead_id && !conversaPorLead.has(a.lead_id) && conversa > 0) {
@@ -222,6 +228,30 @@ export async function POST(request: Request) {
     }
   }
 
+  // O dono novo também no Chatwoot (2026-10-10, pedido do dono: *"as conversas
+  // sobre responsabilidade do Rodrigo não aparecem pra ele"* — *"o painel
+  // precisa atribuir"*). O rodízio trocava o dono do lead e a conversa ficava
+  // atribuída a quem estava; o vendedor recebia o aviso e não achava o
+  // cliente em "Minhas" (`lib/donoDaConversa`).
+  //
+  // Só no modo reservado, o único que troca o dono, e só para o que foi
+  // entregue: lead suprimido não mudou de mão. Depois da fila pronta e com
+  // prazo, porque o aviso é o que não pode faltar. O que não entrou no
+  // Chatwoot sai na resposta, para a execução do n8n mostrar.
+  let noChatwoot: { atribuidas: number; falhas: string[] } | null = null;
+  if (reservar) {
+    noChatwoot = await atribuirConversasDaFila(
+      linhas
+        .filter((l) => !l.suprimido_por && avisoComCopiaAoGestor(l))
+        .map((l) => ({ leadId: l.lead_id, responsavel: l.novo_responsavel })),
+      abertasPorLead,
+      configDoChatwoot(),
+    );
+    if (noChatwoot.falhas.length > 0) {
+      console.warn("[Funil] Conversa do Chatwoot sem o dono novo:", noChatwoot.falhas.join(" | "));
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     reservado: reservar,
@@ -229,5 +259,8 @@ export async function POST(request: Request) {
     fila,
     suprimidos,
     ...(semDestinatario.length > 0 ? { sem_destinatario: semDestinatario } : {}),
+    ...(noChatwoot && (noChatwoot.atribuidas > 0 || noChatwoot.falhas.length > 0)
+      ? { conversas_no_chatwoot: noChatwoot }
+      : {}),
   });
 }

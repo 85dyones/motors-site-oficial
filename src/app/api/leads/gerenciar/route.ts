@@ -28,6 +28,7 @@ import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
 import { veiculosDepoisDoDesfecho } from "../../../../lib/veiculosDeInteresse-servidor";
 import { resolverConversasDoLead } from "../../../../lib/conversaDoDesfecho";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
+import { AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO, atribuirConversasDoLead } from "../../../../lib/donoDaConversa";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
 import {
   contarPassagensCreditadas,
@@ -687,7 +688,23 @@ export async function PATCH(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    if (!Array.isArray(gravados) || gravados.length === 0) desfechoGravado = null;
+    const alcancouOLead = Array.isArray(gravados) && gravados.length > 0;
+    if (!alcancouOLead) desfechoGravado = null;
+
+    // ------------------------------------------------------------------------
+    // O dono novo também no Chatwoot (2026-10-10)
+    // ------------------------------------------------------------------------
+    // *"As conversas sobre responsabilidade do Rodrigo não aparecem pra ele"*
+    // — *"o painel precisa atribuir"*. Trocado o dono aqui, as conversas
+    // abertas do lead passam para o agente do Chatwoot com o mesmo nome
+    // (`lib/donoDaConversa`). Começa já e corre junto com o desfecho; o
+    // resultado entra nos avisos da resposta mais abaixo. Como o resto do
+    // Chatwoot nesta rota: depois do `update`, e falhar não desfaz a troca.
+    const novoDono =
+      alcancouOLead && typeof atualizacao.responsavel === "string" ? atualizacao.responsavel : null;
+    const atribuicao = novoDono
+      ? atribuirConversasDoLead(supabase, String(id), novoDono, configDoChatwoot())
+      : null;
 
     // ------------------------------------------------------------------------
     // Os veículos de interesse depois do desfecho (2026-10-05)
@@ -737,6 +754,15 @@ export async function PATCH(request: NextRequest) {
       // aberta, não ficam só no log do servidor.
       const avisos = [depois.aviso, conversa.aviso].filter(Boolean).join(" ");
       if (avisos) doDesfecho.aviso = avisos;
+    }
+    if (atribuicao) {
+      const dono = await atribuicao;
+      if (!dono.ok) {
+        console.warn("[Leads] Conversa do Chatwoot sem o dono novo — lead", id, dono.motivo);
+        doDesfecho.aviso = [doDesfecho.aviso, `${AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO}: ${dono.motivo}.`]
+          .filter(Boolean)
+          .join(" ");
+      }
     }
     /** Os avisos do desfecho, se houver, junto com o aviso próprio de cada resposta. */
     const comAviso = (aviso: string) => [doDesfecho.aviso, aviso].filter(Boolean).join(" ");

@@ -77,7 +77,16 @@ async function chamar(
       motivo: nome === "TimeoutError" ? "o Chatwoot não respondeu a tempo" : "sem conexão com o Chatwoot",
     };
   }
-  if (!resposta.ok) return { ok: false, motivo: `o Chatwoot respondeu ${resposta.status}` };
+  if (!resposta.ok) {
+    // O token recusado diz que é o token, como em `chamarChatwoot`: a frase
+    // chega à tela do painel (`donoDaConversa`), e quem a lê precisa saber o
+    // que trocar.
+    const doToken = resposta.status === 401 || resposta.status === 403;
+    return {
+      ok: false,
+      motivo: `o Chatwoot respondeu ${resposta.status}${doToken ? ": recusou o token (CHATWOOT_API_TOKEN)" : ""}`,
+    };
+  }
   try {
     return { ok: true, valor: await resposta.json() };
   } catch {
