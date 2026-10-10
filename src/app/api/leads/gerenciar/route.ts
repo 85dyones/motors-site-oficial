@@ -48,6 +48,9 @@ import {
 } from "../../../../lib/funil";
 
 export const dynamic = "force-dynamic";
+// A troca de dono atribui as conversas no Chatwoot depois da resposta, e o
+// Chatwoot pode levar dezenas de segundos (ver `lib/donoDaConversa`).
+export const maxDuration = 60;
 
 /**
  * Leitura e gestão da fila de leads (telas A1 e A8).
@@ -697,9 +700,12 @@ export async function PATCH(request: NextRequest) {
     // *"As conversas sobre responsabilidade do Rodrigo não aparecem pra ele"*
     // — *"o painel precisa atribuir"*. Trocado o dono aqui, as conversas
     // abertas do lead passam para o agente do Chatwoot com o mesmo nome
-    // (`lib/donoDaConversa`). Começa já e corre junto com o desfecho; o
-    // resultado entra nos avisos da resposta mais abaixo. Como o resto do
-    // Chatwoot nesta rota: depois do `update`, e falhar não desfaz a troca.
+    // (`lib/donoDaConversa`). A leitura (conversas e agentes) começa já e
+    // corre junto com o desfecho; o que ela recusa — vendedor que não é
+    // agente, token recusado — entra nos avisos da resposta mais abaixo. A
+    // atribuição em si corre depois da resposta, porque o Chatwoot demora;
+    // o resultado fica no log. Como o resto do Chatwoot nesta rota: depois do
+    // `update`, e falhar não desfaz a troca.
     const novoDono =
       alcancouOLead && typeof atualizacao.responsavel === "string" ? atualizacao.responsavel : null;
     const atribuicao = novoDono

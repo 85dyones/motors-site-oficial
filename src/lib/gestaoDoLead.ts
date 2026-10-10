@@ -769,6 +769,9 @@ function fraseDoEvento(e: EventoDoLead, contexto: ContextoDoHistorico): string {
         const antes = de && de !== para ? ` (estava com ${de})` : "";
         return `Aviso de transferência gerado${quem}${antes}${parado ? `: ${parado} sem atendimento${onde}` : ""}.`;
       }
+      if (aviso === "lead_novo") {
+        return `Aviso de lead novo enviado ao administrador${onde ? `: sem responsável${onde}` : ""}.`;
+      }
       if (aviso === "atribuicao") {
         return `Aviso de atribuição gerado${para ? ` para ${para}` : ""}${parado ? `: ${parado} sem responsável${onde}` : ""}.`;
       }
