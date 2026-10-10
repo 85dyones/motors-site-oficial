@@ -1449,6 +1449,14 @@ p {
      e o atalho volta o `play-state` para `running`. */
   animation-play-state: paused !important;
 }
+/* O instante em que o bloco saiu inteiro da tela (`AoAparecer`): sem
+   animação nenhuma dentro, para o navegador descartá-las e recriá-las no
+   quadro zero quando o bloco volta a "armado". Fora da tela, ninguém vê. */
+[data-aparece="zerando"] *,
+[data-aparece="zerando"] *::before,
+[data-aparece="zerando"] *::after {
+  animation-name: none !important;
+}
 
 /* O selo "LAUDO TÉCNICO APROVADO" assenta como um carimbo: chega maior e
    girado, assenta com um tranco e deixa um anel de tinta que some. Parado,

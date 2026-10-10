@@ -145,28 +145,29 @@ describe("AoAparecer: pronto no servidor, armado fora da tela, toca ao aparecer"
     expect(el.getAttribute("data-aparece")).toBe("rodando");
   });
 
-  it("rearmar volta as animações CSS de dentro ao zero e para; tocar as solta. Rolagem e transição ficam de fora", async () => {
+  it("rearmar passa um instante por \"zerando\" (sem animação nenhuma) antes de \"armado\": as animações nascem de novo no zero", async () => {
+    // Medido no preview (10/10): pela API de animações, as que já tinham
+    // terminado sem preencher o fim (a letra da digitação, o hodômetro que
+    // chega) nem apareciam na lista, e não voltavam. Tirar e devolver as
+    // animações pelo CSS recria todas, qualquer que seja o preenchimento.
     simular();
     const el = await montar();
-    const registro: string[] = [];
-    const animacao = (nome: string, extra: object) => ({
-      ...extra,
-      pause: () => registro.push(`${nome}:pause`),
-      play: () => registro.push(`${nome}:play`),
-      set currentTime(t: number) {
-        registro.push(`${nome}:zero=${t}`);
-      },
+    await act(async () => avisar([{ intersectionRatio: 0.3 }]));
+    const valores: (string | null)[] = [];
+    const observador = new MutationObserver((mudancas) => {
+      for (const m of mudancas) valores.push((m.target as HTMLElement).getAttribute("data-aparece"));
     });
-    (el as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [
-      animacao("entrada", { animationName: "mt-cinetico-sobe", timeline: document.timeline }),
-      animacao("rolagem", { animationName: "mt-acende-palavra", timeline: {} }),
-      animacao("transicao", { transitionProperty: "transform", timeline: document.timeline }),
-    ];
+    observador.observe(el, { attributes: true, attributeFilter: ["data-aparece"] });
     await act(async () => avisar([{ intersectionRatio: 0 }]));
-    expect(registro).toEqual(["entrada:pause", "entrada:zero=0"]);
-    registro.length = 0;
-    await act(async () => avisar([{ intersectionRatio: 0.6 }]));
-    expect(registro).toEqual(["entrada:play"]);
+    await Promise.resolve();
+    observador.disconnect();
+    expect(valores).toEqual(["zerando", "armado"]);
+  });
+
+  it("\"zerando\" tira toda animação de dentro, pseudo-elementos inclusive", () => {
+    expect(onda2).toMatch(
+      /\[data-aparece="zerando"\] \*,\s*\[data-aparece="zerando"\] \*::before,\s*\[data-aparece="zerando"\] \*::after \{\s*animation-name: none !important;/,
+    );
   });
 
   it("para de observar só quando sai da página", async () => {

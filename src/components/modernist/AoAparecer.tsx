@@ -23,10 +23,16 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
  *   entre "saiu inteiro" e "voltou metade" evita que um bloco na beirada da
  *   tela fique tocando sem parar.
  *
- * Quem volta ao zero e toca de novo são as animações CSS de dentro do bloco,
- * pela API de animações do navegador (`getAnimations`): sem remontar nada,
- * sem refazer a página. As ligadas à rolagem (`animation-timeline`) ficam de
- * fora — essas já andam com a rolagem — e as transições também.
+ * Como as animações voltam ao zero: ao sair, o bloco passa um instante por
+ * `data-aparece="zerando"`, em que o CSS tira as animações de dentro
+ * (`animation-name: none`); o navegador as descarta, e no mesmo quadro o
+ * bloco volta a `"armado"`, que as recria paradas no quadro zero. Sem
+ * remontar nada e sem a API de animações: pela API, as animações que já
+ * tinham terminado sem preencher o fim (a letra da digitação, o hodômetro
+ * que chega) nem apareciam na lista, e não voltavam (medido no preview,
+ * 10/10). E trocar o preenchimento delas para `both` não serve: no
+ * hodômetro, a animação preenchida engole a transição da troca de valor.
+ * As transições não são afetadas.
  *
  * Também vale para o que nasce escondido, como o corpo de um acordeão
  * fechado: escondido não cruza a tela, então espera armado até abrir.
@@ -51,12 +57,25 @@ export default function AoAparecer({
 }) {
   const ref = useRef<HTMLElement>(null);
   const [estado, setEstado] = useState<"armado" | "rodando" | undefined>(undefined);
+  // O estado também numa ref, para o observador decidir sem refazer a
+  // inscrição a cada troca.
+  const atual = useRef<typeof estado>(undefined);
 
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
+    // Saiu inteiro (ou nasceu fora da tela): "zerando" por um instante, no
+    // próprio DOM — o CSS tira as animações de dentro, e a leitura de
+    // `offsetWidth` obriga o navegador a descartá-las já —, e então
+    // "armado", que o React grava e que as recria paradas no quadro zero.
+    const armar = () => {
+      el.setAttribute("data-aparece", "zerando");
+      void el.offsetWidth;
+      atual.current = "armado";
+      setEstado("armado");
+    };
     let primeira = true;
     const observador = new IntersectionObserver(
       ([entrada]) => {
@@ -65,36 +84,20 @@ export default function AoAparecer({
           primeira = false;
           // Na tela desde a carga: fica como está até sair.
           if (razao > 0) return;
-          setEstado("armado");
+          armar();
           return;
         }
-        if (razao === 0) setEstado((atual) => (atual === "armado" ? atual : "armado"));
-        else if (razao >= limiar) setEstado((atual) => (atual === "armado" ? "rodando" : atual));
+        if (razao === 0 && atual.current !== "armado") armar();
+        else if (razao >= limiar && atual.current === "armado") {
+          atual.current = "rodando";
+          setEstado("rodando");
+        }
       },
       { threshold: [0, limiar] },
     );
     observador.observe(el);
     return () => observador.disconnect();
   }, [limiar]);
-
-  // Armado: as animações de dentro voltam ao quadro zero e param. Rodando:
-  // tocam do começo. Na primeira vez que arma, as animações presas a
-  // `[data-aparece]` nascem agora, e o `pause` as segura no zero também.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !estado || typeof el.getAnimations !== "function") return;
-    const daEntrada = el
-      .getAnimations({ subtree: true })
-      .filter((a) => "animationName" in a && a.timeline === document.timeline);
-    for (const animacao of daEntrada) {
-      if (estado === "armado") {
-        animacao.pause();
-        animacao.currentTime = 0;
-      } else {
-        animacao.play();
-      }
-    }
-  }, [estado]);
 
   if (como === "span") {
     return (
