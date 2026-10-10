@@ -103,23 +103,78 @@ describe("AoAparecer: pronto no servidor, armado fora da tela, toca ao aparecer"
 
   it("o servidor manda o bloco sem estado: o desenho final", () => {
     expect(renderToStaticMarkup(createElement(AoAparecer, null, "x"))).toBe("<div>x</div>");
+    // Dentro de um título, `span` (div em h1 não é HTML válido).
+    expect(renderToStaticMarkup(createElement(AoAparecer, { como: "span" }, "x"))).toBe("<span>x</span>");
   });
 
-  it("fora da tela, arma; quando metade aparece, toca e para de observar", async () => {
+  it("fora da tela, arma; quando metade aparece, toca", async () => {
     simular();
     const el = await montar();
     await act(async () => avisar([{ intersectionRatio: 0 }]));
     expect(el.getAttribute("data-aparece")).toBe("armado");
     await act(async () => avisar([{ intersectionRatio: 0.6 }]));
     expect(el.getAttribute("data-aparece")).toBe("rodando");
-    expect(desligou).toBe(true);
   });
 
-  it("já na tela quando a página carrega, fica parado", async () => {
+  it("saiu inteiro da tela e voltou: rearma e toca de novo, quantas vezes for (pedido do dono, 10/10)", async () => {
+    simular();
+    const el = await montar();
+    await act(async () => avisar([{ intersectionRatio: 0 }]));
+    await act(async () => avisar([{ intersectionRatio: 0.6 }]));
+    // Meio fora não rearma: só sair INTEIRO. A folga evita tocar sem parar
+    // na beirada da tela.
+    await act(async () => avisar([{ intersectionRatio: 0.2 }]));
+    expect(el.getAttribute("data-aparece")).toBe("rodando");
+    for (let volta = 0; volta < 2; volta++) {
+      await act(async () => avisar([{ intersectionRatio: 0 }]));
+      expect(el.getAttribute("data-aparece")).toBe("armado");
+      await act(async () => avisar([{ intersectionRatio: 0.6 }]));
+      expect(el.getAttribute("data-aparece")).toBe("rodando");
+    }
+    expect(desligou).toBe(false);
+  });
+
+  it("já na tela quando a página carrega, fica como está; ao sair e voltar, toca", async () => {
     simular();
     const el = await montar();
     await act(async () => avisar([{ intersectionRatio: 0.3 }]));
     expect(el.hasAttribute("data-aparece")).toBe(false);
+    await act(async () => avisar([{ intersectionRatio: 0 }]));
+    expect(el.getAttribute("data-aparece")).toBe("armado");
+    await act(async () => avisar([{ intersectionRatio: 0.6 }]));
+    expect(el.getAttribute("data-aparece")).toBe("rodando");
+  });
+
+  it("rearmar volta as animações CSS de dentro ao zero e para; tocar as solta. Rolagem e transição ficam de fora", async () => {
+    simular();
+    const el = await montar();
+    const registro: string[] = [];
+    const animacao = (nome: string, extra: object) => ({
+      ...extra,
+      pause: () => registro.push(`${nome}:pause`),
+      play: () => registro.push(`${nome}:play`),
+      set currentTime(t: number) {
+        registro.push(`${nome}:zero=${t}`);
+      },
+    });
+    (el as unknown as { getAnimations: () => unknown[] }).getAnimations = () => [
+      animacao("entrada", { animationName: "mt-cinetico-sobe", timeline: document.timeline }),
+      animacao("rolagem", { animationName: "mt-acende-palavra", timeline: {} }),
+      animacao("transicao", { transitionProperty: "transform", timeline: document.timeline }),
+    ];
+    await act(async () => avisar([{ intersectionRatio: 0 }]));
+    expect(registro).toEqual(["entrada:pause", "entrada:zero=0"]);
+    registro.length = 0;
+    await act(async () => avisar([{ intersectionRatio: 0.6 }]));
+    expect(registro).toEqual(["entrada:play"]);
+  });
+
+  it("para de observar só quando sai da página", async () => {
+    simular();
+    await montar();
+    expect(desligou).toBe(false);
+    await act(async () => root!.unmount());
+    root = undefined;
     expect(desligou).toBe(true);
   });
 

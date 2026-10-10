@@ -11,6 +11,7 @@ import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
 import TextoCinetico from "./modernist/TextoCinetico";
 import TextoQueRola from "./modernist/TextoQueRola";
 import Hodometro from "./modernist/Hodometro";
+import AoAparecer from "./modernist/AoAparecer";
 import { linkWhatsApp, mascararTelefone, telefoneDoLead } from "../lib/whatsapp";
 import {
   consultarValor,
@@ -1047,7 +1048,7 @@ export default function AutoAvaliacao() {
         {/* As palavras acendem uma a uma (`TextoCinetico`, "carga"): é o
             maior texto da página e conta para o LCP já no primeiro quadro. */}
         <h1 className="mt-titulo m-0 mt-3 text-[38px] lg:text-[64px] lg:leading-[.95]">
-          <TextoCinetico texto={tituloDaTela} modo="carga" />
+          <TextoCinetico texto={tituloDaTela} modo="carga" destaque="Express" />
         </h1>
         {/* Até 24/09/2026 esta linha dizia "Dados oficiais da Tabela FIPE
             cruzados com o giro real do nosso estoque" — e nenhum código cruza
@@ -1489,7 +1490,11 @@ export default function AutoAvaliacao() {
                 PROPOSTA A CAMINHO
               </Rotulo>
               <h2 className="mt-titulo m-0 mt-4 text-[30px] lg:text-[44px]">
-                <TextoCinetico texto={`Obrigado, ${step3.nome.split(" ")[0]}.`} modo="gesto" />
+                <TextoCinetico
+                  texto={`Obrigado, ${step3.nome.split(" ")[0]}.`}
+                  modo="gesto"
+                  destaque={step3.nome.split(" ")[0]}
+                />
               </h2>
               <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-neutral-800">
                 Nossos avaliadores receberam o seu{" "}
@@ -1566,7 +1571,7 @@ export default function AutoAvaliacao() {
           PONTO DE PARTIDA
         </Rotulo>
         <h2 className="mt-titulo m-0 mt-3 text-[28px] text-mt-inverso lg:text-[32px]">
-          <TextoCinetico texto="Referência FIPE" modo="carga" />
+          <TextoCinetico texto="Referência FIPE" modo="carga" destaque="FIPE" />
         </h2>
 
         <div className="mt-6 border-t-2 border-mt-inverso-regua pt-5">
@@ -1579,7 +1584,11 @@ export default function AutoAvaliacao() {
               {/* A FIPE chega rodando como o hodômetro, do zero até o valor, as
                   unidades primeiro; trocar a versão roda só o que mudou. */}
               <div className="mt-2.5 text-[38px] font-extrabold leading-none tracking-[-.04em] lg:text-[44px]">
-                <Hodometro texto={fipeValor} chega="montagem" />
+                {/* No celular a FIPE chega fora da tela, embaixo do formulário:
+                    roda quando aparece, e de novo cada vez que volta. */}
+                <AoAparecer como="span">
+                  <Hodometro texto={fipeValor} chega="montagem" />
+                </AoAparecer>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-2.5">
                 {fipeCodigo && (

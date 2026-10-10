@@ -349,14 +349,12 @@ export default async function Home() {
           <div className="mb-3.5 text-[11px] font-semibold tracking-[.18em] text-mt-cobre-marca">
             02 — CONSULTORIA
           </div>
-          {/* Onda cinética: o título assenta palavra por palavra quando a
-              seção entra na tela, e os passos chegam em cascata, com o
-              número rodando como o hodômetro. */}
-          <AoAparecer>
-            <h2 className="mt-titulo m-0 text-[34px] lg:text-[54px] lg:leading-[.95]">
-              <TextoCinetico texto={"Garagem\nProfiler"} modo="aparece" />
-            </h2>
-          </AoAparecer>
+          {/* Onda cinética: o título é digitado quando a seção entra na tela
+              (e de novo cada vez que ela sai e volta), e os passos chegam em
+              cascata, com o número rodando como o hodômetro. */}
+          <h2 className="mt-titulo m-0 text-[34px] lg:text-[54px] lg:leading-[.95]">
+            <TextoCinetico texto={"Garagem\nProfiler"} modo="aparece" efeito="digita" />
+          </h2>
           <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-400 lg:mt-6 lg:text-base">
             Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e nossos
             consultores enviam apenas o que faz sentido — direto no WhatsApp.
@@ -397,11 +395,9 @@ export default async function Home() {
           <Rotulo accent className="text-[11px] tracking-[.18em]">
             03 — VENDA OU TROCA
           </Rotulo>
-          <AoAparecer>
-            <h2 className="mt-titulo m-0 mt-3.5 text-[28px] lg:text-[40px]">
-              <TextoCinetico texto="Avaliação Express" modo="aparece" />
-            </h2>
-          </AoAparecer>
+          <h2 className="mt-titulo m-0 mt-3.5 text-[28px] lg:text-[40px]">
+            <TextoCinetico texto="Avaliação Express" modo="aparece" destaque="Express" />
+          </h2>
           <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
             Proposta com base na Tabela FIPE e no giro do nosso estoque — um
             consultor retorna no WhatsApp.

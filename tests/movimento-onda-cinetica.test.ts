@@ -93,39 +93,44 @@ describe("Onda cinética · o título cinético", () => {
     // A máscara (clip-path) só vale para "gesto" e "aparece".
     const liberado = todos(onda, "@media (prefers-reduced-motion: no-preference)");
     expect(liberado).not.toMatch(/\[data-cinetico="carga"\] \.mt-cinetico-mascara/);
-    expect(liberado).toMatch(
-      /\[data-cinetico="gesto"\] \.mt-cinetico-mascara,\s*\[data-cinetico="aparece"\] \.mt-cinetico-mascara \{\s*clip-path/,
-    );
+    expect(liberado).toMatch(/\[data-efeito="sobe"\] \.mt-cinetico-mascara \{\s*clip-path/);
+    // A caixa (`inline-block`) só existe no efeito "sobe", que nunca é o da carga.
+    for (const regra of onda.matchAll(/([^{}]+)\{\s*display: inline-block;/g)) {
+      expect(regra[1]).not.toMatch(/data-efeito="acende"|data-cinetico="carga"/);
+    }
   });
 
   it("abaixo da dobra, só toca dentro de um AoAparecer", () => {
     const liberado = todos(onda, "@media (prefers-reduced-motion: no-preference)");
-    const usos = [...liberado.matchAll(/(\S*)\s\[data-cinetico="aparece"\] \.mt-cinetico-palavra/g)];
+    const usos = [...liberado.matchAll(/(\S*)\s\[data-cinetico="aparece"\]/g)];
     expect(usos.length).toBeGreaterThan(0);
     for (const [, antes] of usos) expect(antes).toBe("[data-aparece]");
   });
 
-  it("o título que abre cada funil acende na carga; o que vem depois de um toque sobe da linha", () => {
+  it("cada frase tem o seu tipo: acende e marca na carga, digita nas perguntas, sobe e marca no resultado", () => {
     const carMatch = lerCodigo("src/components/CarMatch.tsx");
-    expect(carMatch).toContain('<TextoCinetico texto="Cinco perguntas até o carro certo." modo="carga" />');
-    expect(carMatch).toContain('<TextoCinetico texto={titulo} modo="gesto" />');
+    expect(carMatch).toContain(
+      '<TextoCinetico texto="Cinco perguntas até o carro certo." modo="carga" destaque="carro certo" />',
+    );
+    // As perguntas são digitadas, como quem conversa com o consultor.
+    expect(carMatch).toContain('<TextoCinetico texto={titulo} modo="gesto" efeito="digita" />');
+    expect(carMatch).toContain(
+      '<TextoCinetico texto="Qual a faixa de investimento para a próxima garagem?" modo="gesto" efeito="digita" />',
+    );
     const avaliacao = lerCodigo("src/components/AutoAvaliacao.tsx");
-    expect(avaliacao).toContain('<TextoCinetico texto={tituloDaTela} modo="carga" />');
-    expect(avaliacao).toMatch(/texto=\{`Obrigado, \$\{step3\.nome\.split\(" "\)\[0\]\}\.`\} modo="gesto"/);
+    expect(avaliacao).toContain('<TextoCinetico texto={tituloDaTela} modo="carga" destaque="Express" />');
+    expect(avaliacao).toMatch(/texto=\{`Obrigado, \$\{step3\.nome\.split\(" "\)\[0\]\}\.`\}\s*modo="gesto"\s*destaque=/);
     const resultado = lerCodigo("src/components/ResultadoDoProfiler.tsx");
-    expect(resultado).toMatch(/<TextoCinetico[\s\S]{0,200}modo="gesto"/);
+    expect(resultado).toMatch(/<TextoCinetico[\s\S]{0,200}modo="gesto"\s*destaque=\{semNaFaixa \? undefined : EXTENSO/);
+    const home = lerCodigo("src/app/page.tsx");
+    expect(home).toContain('<TextoCinetico texto={"Garagem\\nProfiler"} modo="aparece" efeito="digita" />');
+    expect(home).toContain('<TextoCinetico texto="Avaliação Express" modo="aparece" destaque="Express" />');
   });
 
-  it("todo título 'aparece' mora dentro de um AoAparecer", () => {
-    for (const arquivo of ["src/app/page.tsx", "src/app/avaliacao/page.tsx"]) {
-      const fonte = lerCodigo(arquivo);
-      const usos = [...fonte.matchAll(/modo="aparece"/g)];
-      expect(usos.length).toBeGreaterThan(0);
-      for (const uso of usos) {
-        const antes = fonte.slice(0, uso.index);
-        expect(antes.lastIndexOf("<AoAparecer")).toBeGreaterThan(antes.lastIndexOf("</AoAparecer>"));
-      }
-    }
+  it("todo título cinético mora no seu próprio AoAparecer: toca de novo quando sai e volta", () => {
+    const html = renderToStaticMarkup(createElement(TextoCinetico, { texto: "Depois da avaliação", modo: "aparece" }));
+    // No servidor o AoAparecer é um `span` sem estado, em volta do título.
+    expect(html).toMatch(/^<span><span class="mt-cinetico" data-cinetico="aparece" data-efeito="sobe"/);
   });
 });
 
@@ -172,6 +177,64 @@ describe("Onda cinética · as letras que rolam no mouse", () => {
   });
 });
 
+describe("Onda cinética · a digitação e o destaque", () => {
+  it("digita: cada letra é um `span`, contadas através das palavras; o texto continua o mesmo", () => {
+    const html = renderToStaticMarkup(
+      createElement(TextoCinetico, { texto: "Quem vai andar?", modo: "gesto", efeito: "digita" }),
+    );
+    expect(textoDe(html)).toBe("Quem vai andar?");
+    expect(html).toContain('data-efeito="digita"');
+    const ordens = [...html.matchAll(/--mt-tecla:(\d+)/g)].map((m) => Number(m[1]));
+    expect(ordens).toEqual(Array.from({ length: "Quemvaiandar?".length }, (_, i) => i));
+    // O cursor pisca no fim: só a última letra é a última.
+    expect([...html.matchAll(/mt-tecla-ultima/g)]).toHaveLength(1);
+    expect(html).toMatch(/<span class="mt-tecla mt-tecla-ultima" style="--mt-tecla:12">\?<\/span>/);
+    // Na digitação a palavra não vira caixa: as letras são texto em linha.
+    expect(html).not.toContain("mt-cinetico-mascara");
+  });
+
+  it("na carga o efeito é sempre acender, mesmo que peçam digitar", () => {
+    const html = renderToStaticMarkup(
+      createElement(TextoCinetico, { texto: "Avaliação Express", modo: "carga", efeito: "digita" }),
+    );
+    expect(html).toContain('data-efeito="acende"');
+    expect(html).not.toContain("mt-tecla");
+  });
+
+  it("destaque: só as palavras marcadas, sem ligar para caixa e pontuação, cada uma com a sua ordem", () => {
+    const html = renderToStaticMarkup(
+      createElement(TextoCinetico, { texto: "Cinco perguntas até o carro certo.", modo: "carga", destaque: "carro certo" }),
+    );
+    expect(textoDe(html)).toBe("Cinco perguntas até o carro certo.");
+    const marcadas = [...html.matchAll(/<span class="mt-destaque" style="--mt-destaque:(\d+)">(.*?)<\/span><\/span>/g)];
+    expect(marcadas.map((m) => [m[1], textoDe(m[2])])).toEqual([
+      ["0", "carro"],
+      ["1", "certo."],
+    ]);
+    expect(html).toContain('style="--mt-cinetico-total:6"');
+  });
+
+  it("o traço é fundo, não camada: nada de position nem z-index, e cresce pela largura do fundo", () => {
+    // Medido: um pseudo-elemento com z-index atrás da palavra a tirava da
+    // conta do LCP do título (70.335 de 80.460 px²). O fundo, não.
+    const traco = bloco(onda, "\n.mt-destaque {");
+    expect(traco).toMatch(/background-size: 100% 0\.3em;/);
+    expect(traco).not.toMatch(/(^|[\s;])position:|z-index/);
+    expect(onda).not.toMatch(/\.mt-destaque::(before|after)/);
+    expect(bloco(onda, "@keyframes mt-destaque")).toMatch(/from \{\s*background-size: 0% 0\.3em;/);
+  });
+
+  it("digitação, cursor e traço só se movem com movimento liberado; o traço parado já vem riscado", () => {
+    const liberado = todos(onda, "@media (prefers-reduced-motion: no-preference)");
+    expect(liberado).toMatch(/\[data-efeito="digita"\] \.mt-tecla \{\s*animation: mt-tecla/);
+    expect(liberado).toMatch(/\.mt-tecla::after \{[^}]*content: "";[^}]*animation: mt-cursor /);
+    expect(liberado).toMatch(/\.mt-tecla-ultima::after \{\s*animation: mt-cursor-pisca/);
+    expect(liberado).toMatch(/\.mt-destaque \{\s*animation: mt-destaque/);
+    const fora = semBlocos(onda, "@media (prefers-reduced-motion: no-preference)");
+    expect(fora).not.toMatch(/\.mt-tecla::after|animation: mt-(tecla|cursor|destaque)/);
+  });
+});
+
 describe("Onda cinética · os dados que rodam", () => {
   it("o hodômetro que chega marca o modo; sem `chega`, nasce parado como sempre", () => {
     expect(renderToStaticMarkup(createElement(Hodometro, { texto: "R$ 85.432,00", chega: "montagem" }))).toContain(
@@ -189,10 +252,12 @@ describe("Onda cinética · os dados que rodam", () => {
     expect(bloco(onda, "@keyframes mt-hodometro-chega")).toMatch(/from \{\s*transform: translateY\(0\);/);
   });
 
-  it("a FIPE, os números do Profiler e os passos da home rodam", () => {
-    expect(lerCodigo("src/components/AutoAvaliacao.tsx")).toContain('<Hodometro texto={fipeValor} chega="montagem" />');
+  it("a FIPE, os números do Profiler e os passos da home rodam, e de novo quando saem e voltam", () => {
+    expect(lerCodigo("src/components/AutoAvaliacao.tsx")).toMatch(
+      /<AoAparecer como="span">\s*<Hodometro texto=\{fipeValor\} chega="montagem" \/>\s*<\/AoAparecer>/,
+    );
     const carMatch = lerCodigo("src/components/CarMatch.tsx");
-    expect(carMatch).toContain('<Hodometro texto={item.valor} chega="montagem" />');
+    expect(carMatch).toMatch(/<AoAparecer como="span">\s*<Hodometro texto=\{item\.valor\} chega="montagem" \/>/);
     expect(carMatch).toContain("SOBRAM <Hodometro texto={String(restantes.length)} />");
     expect(carMatch).toContain("<Hodometro texto={doisDigitos(posicao + 1)} />");
     expect([...lerCodigo("src/app/page.tsx").matchAll(/<Hodometro texto=\{passo\.n\} chega="aparece" \/>/g)]).toHaveLength(2);
@@ -227,7 +292,10 @@ describe("Onda cinética · as regras", () => {
     for (const [, nome] of onda.matchAll(/@keyframes ([a-z-]+)/g)) {
       const corpo = bloco(onda, `@keyframes ${nome}`);
       const propriedades = [...corpo.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
-      const permitidas = nome === "mt-cinetico-acende" ? ["color"] : ["opacity", "transform"];
+      // A cor no título da carga e o fundo do destaque são as duas exceções
+      // medidas (LCP); o resto é transform e opacidade.
+      const permitidas =
+        nome === "mt-cinetico-acende" ? ["color"] : nome === "mt-destaque" ? ["background-size"] : ["opacity", "transform"];
       for (const p of propriedades) expect(permitidas).toContain(p);
     }
   });
