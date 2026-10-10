@@ -1745,15 +1745,30 @@ p {
    palavra assenta na régua, o número roda como o hodômetro, a letra gira uma
    casa. */
 
-/* O título cinético (`TextoCinetico`). As palavras viram caixas para poder
-   andar; a linha de base e as quebras são as do texto corrido. */
-.mt-cinetico-mascara,
-.mt-cinetico-palavra {
+/* O título cinético (`TextoCinetico`). Depois de um toque, ou abaixo da
+   dobra, as palavras viram caixas para poder andar; a linha de base e as
+   quebras são as do texto corrido.
+
+   Na carga, NÃO. Medido no preview em 10/10: com as palavras em caixas e
+   acendendo pela opacidade, o elemento do LCP do /carro-perfeito e do
+   /avaliacao deixava de ser o h1 e passava a ser o parágrafo de baixo — o
+   título sumia da métrica. Isolado no Chromium, o h1 de 66px media 80.460
+   px² parado e 35.370 com QUALQUER animação de opacidade nas palavras (até
+   de 1 para 1) ou com elas em caixa: cada palavra animada vira uma camada,
+   e o navegador só conta parte do título. Animando a cor, a área volta
+   inteira. Por isso, na carga, a palavra fica texto corrido e acende pela
+   cor — a única exceção da regra 2, e só neste título, que repinta umas
+   seis palavras por um segundo. */
+[data-cinetico="gesto"] .mt-cinetico-mascara,
+[data-cinetico="gesto"] .mt-cinetico-palavra,
+[data-cinetico="aparece"] .mt-cinetico-mascara,
+[data-cinetico="aparece"] .mt-cinetico-palavra {
   display: inline-block;
 }
 @media (prefers-reduced-motion: no-preference) {
-  /* Na carga, a palavra nasce pintada e acende subindo um fio: o título é o
-     candidato a LCP e precisa contar no primeiro quadro. */
+  /* Na carga, a palavra nasce pintada (com 20% da cor, nunca invisível) e
+     acende: o título é o candidato a LCP e conta inteiro no primeiro
+     quadro. */
   [data-cinetico="carga"] .mt-cinetico-palavra {
     animation: mt-cinetico-acende 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.08s + var(--mt-palavra) * 70ms) both;
   }
@@ -1771,8 +1786,7 @@ p {
 }
 @keyframes mt-cinetico-acende {
   from {
-    opacity: 0.2;
-    transform: translateY(0.14em);
+    color: color-mix(in srgb, currentColor 20%, transparent);
   }
 }
 @keyframes mt-cinetico-sobe {

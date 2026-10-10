@@ -9,9 +9,12 @@ import { Fragment, type CSSProperties } from "react";
  *
  * - `"carga"` — o título que já está na tela quando a página abre, quase
  *   sempre o maior texto dela e, por isso, o candidato a LCP. As palavras
- *   nascem pintadas (opacidade 0,2, nunca zero) e acendem subindo um fio:
- *   o navegador conta o título no primeiro quadro, e o LCP não espera a
- *   animação (regra 1). Nada de máscara aqui.
+ *   nascem pintadas (20% da cor, nunca invisíveis) e acendem uma a uma: o
+ *   navegador conta o título inteiro no primeiro quadro, e o LCP não espera
+ *   a animação (regra 1). Aqui a palavra continua texto corrido e acende
+ *   pela cor, sem caixa, máscara nem opacidade: com qualquer um dos três, o
+ *   Chrome passava a contar só parte do título, e o parágrafo de baixo
+ *   virava o LCP (medido no preview, 10/10; ver `modernist.css`).
  * - `"gesto"` — o título que só existe depois de um toque: a pergunta
  *   seguinte, o resultado, o "obrigado". Cada palavra sobe de baixo de uma
  *   linha, como tipo sendo assentado na régua. Depois do primeiro toque o

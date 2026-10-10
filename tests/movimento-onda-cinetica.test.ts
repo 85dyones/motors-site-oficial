@@ -78,10 +78,18 @@ describe("Onda cinética · o título cinético", () => {
     expect([...html.matchAll(/--mt-palavra:(\d+)/g)].map((m) => Number(m[1]))).toEqual([0, 1]);
   });
 
-  it("na carga a palavra nasce pintada: nem opacidade zero, nem máscara", () => {
+  it("na carga a palavra nasce pintada e continua texto corrido: acende pela cor, sem caixa, máscara nem opacidade", () => {
+    // Medido: com as palavras em caixa (`inline-block`) ou com QUALQUER
+    // animação de opacidade nelas, o Chrome conta só parte do h1 (35.370 de
+    // 80.460 px²) e o parágrafo de baixo vira o LCP. Pela cor, o título conta
+    // inteiro.
     const acende = bloco(onda, "@keyframes mt-cinetico-acende");
-    const opacidade = Number(/opacity:\s*([\d.]+)/.exec(acende)![1]);
-    expect(opacidade).toBeGreaterThan(0);
+    expect(acende).toMatch(/from \{\s*color: color-mix\(in srgb, currentColor 20%, transparent\);\s*\}/);
+    expect(acende).not.toMatch(/opacity|transform/);
+    for (const regra of onda.matchAll(/([^{}]+)\{\s*display: inline-block;/g)) {
+      expect(regra[1]).not.toContain('[data-cinetico="carga"]');
+      if (regra[1].includes("mt-cinetico")) expect(regra[1]).not.toMatch(/(^|,)\s*\.mt-cinetico-(mascara|palavra)\s*(,|$)/);
+    }
     // A máscara (clip-path) só vale para "gesto" e "aparece".
     const liberado = todos(onda, "@media (prefers-reduced-motion: no-preference)");
     expect(liberado).not.toMatch(/\[data-cinetico="carga"\] \.mt-cinetico-mascara/);
@@ -215,11 +223,12 @@ describe("Onda cinética · as regras", () => {
     expect(fora).not.toMatch(/transition: transform 0\.42s/);
   });
 
-  it("os quadros-chave só mexem em transform e opacidade", () => {
+  it("os quadros-chave só mexem em transform e opacidade (a cor, só no título da carga)", () => {
     for (const [, nome] of onda.matchAll(/@keyframes ([a-z-]+)/g)) {
       const corpo = bloco(onda, `@keyframes ${nome}`);
       const propriedades = [...corpo.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
-      for (const p of propriedades) expect(["opacity", "transform"]).toContain(p);
+      const permitidas = nome === "mt-cinetico-acende" ? ["color"] : ["opacity", "transform"];
+      for (const p of propriedades) expect(permitidas).toContain(p);
     }
   });
 
