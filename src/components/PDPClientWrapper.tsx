@@ -32,6 +32,7 @@ import TrocaOuTestDrive from "./ficha/TrocaOuTestDrive";
 import CompartilharFicha from "./ficha/CompartilharFicha";
 import GaleriaEmTelaCheia from "./ficha/GaleriaEmTelaCheia";
 import FotoDaFicha from "./ficha/FotoDaFicha";
+import { FotoQueChega, fotoEmViagem } from "./modernist/FotoQueViaja";
 
 const LeadCaptureModal = dynamic(() => import("./LeadCaptureModal"), { ssr: false });
 const CalculadoraFinanciamento = dynamic(() => import("./CalculadoraFinanciamento"), { ssr: false });
@@ -166,6 +167,13 @@ export default function PDPClientWrapper({
   const displayImages = veiculo.whatsapp_images && veiculo.whatsapp_images.length > 0
     ? veiculo.whatsapp_images
     : veiculo.web_full_images;
+
+  // A foto do card que trouxe a pessoa até aqui, já no cache do navegador
+  // (`FotoQueViaja`). Vai por baixo da primeira foto da galeria enquanto a
+  // dela não chega, para a viagem pousar numa foto e não num retângulo
+  // escuro. Lida uma vez: depois de montada, a ficha não olha mais para ela.
+  // No servidor, e em quem chegou por outro caminho, é `undefined`.
+  const [fotoDoCard] = useState(() => fotoEmViagem(veiculo.id));
 
   // A trava de rolagem e o teclado da tela cheia moram em
   // `ficha/GaleriaEmTelaCheia`, que só existe montada enquanto está aberta.
@@ -832,23 +840,47 @@ export default function PDPClientWrapper({
                 className="peer flex w-full h-full overflow-x-auto mt-galeria-trilho snap-x snap-mandatory scrollbar-none gap-0 focus-visible:outline-none"
                 style={{ scrollBehavior: "smooth" }}
               >
-                {displayImages.map((imgUrl, index) => (
-                  <div
-                    key={index}
-                    onClick={() => abrirGaleria(index)}
- className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
-                  >
-                    <FotoDaFicha
-                      src={imgUrl}
-                      alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ${index + 1}`}
-                      fill
-                      priority={index === 0}
-                      fetchPriority={index === 0 ? "high" : "auto"}
- className={`object-cover w-full h-full border-none p-0 m-0 ${indisponivel ? "filter grayscale-[30%] opacity-75" : ""}`}
-                      sizes="(max-width: 1024px) 100vw, 900px"
-                    />
-                  </div>
-                ))}
+                {displayImages.map((imgUrl, index) => {
+                  const slide = (
+                    <div
+                      key={index}
+                      onClick={() => abrirGaleria(index)}
+                      className="w-full h-full snap-center snap-always flex-shrink-0 relative border-none p-0 m-0 cursor-pointer"
+                    >
+                      {/* A ponte da viagem (ver `fotoDoCard`): mesma foto, mesmo
+                          enquadramento, só menor. Fica de fora no carro
+                          indisponível, cuja foto é translúcida e a deixaria
+                          aparecer por trás. */}
+                      {index === 0 && fotoDoCard && !indisponivel && (
+                        // eslint-disable-next-line @next/next/no-img-element -- é o arquivo que o card já baixou, pelo endereço exato; o `next/image` pediria outro.
+                        <img
+                          src={fotoDoCard}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      )}
+                      <FotoDaFicha
+                        src={imgUrl}
+                        alt={`${veiculo.marca} ${veiculo.modelo} - Imagem ${index + 1}`}
+                        fill
+                        priority={index === 0}
+                        fetchPriority={index === 0 ? "high" : "auto"}
+                        className={`object-cover w-full h-full border-none p-0 m-0 ${indisponivel ? "filter grayscale-[30%] opacity-75" : ""}`}
+                        sizes="(max-width: 1024px) 100vw, 900px"
+                      />
+                    </div>
+                  );
+                  // A primeira foto é o destino da foto do card que foi
+                  // tocado (`FotoQueViaja`, Piloto do plano de movimento).
+                  return index === 0 ? (
+                    <FotoQueChega key={index} idDoVeiculo={veiculo.id}>
+                      {slide}
+                    </FotoQueChega>
+                  ) : (
+                    slide
+                  );
+                })}
               </div>
               <div
                 aria-hidden="true"

@@ -94,7 +94,10 @@ export default function Header() {
   const whatsappHref = linkWhatsApp(companySettings);
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-mt-inverso-fundo text-mt-inverso">
+    // `mt-cabecalho-do-site`: quando a foto do card viaja até a ficha ou a
+    // vitrine se reorganiza, a barra fica parada e por cima (modernist.css,
+    // seção "Piloto").
+    <header className="mt-cabecalho-do-site sticky top-0 z-50 w-full bg-mt-inverso-fundo text-mt-inverso">
       {/* ─── Desktop ─── */}
       <div className="mx-auto hidden h-[68px] max-w-[1600px] items-center gap-5 px-10 lg:flex desktop:gap-9">
         <Link href="/" className="mt-foco mr-auto flex shrink-0 items-center gap-2.5">

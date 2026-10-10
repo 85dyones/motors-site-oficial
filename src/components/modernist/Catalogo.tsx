@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { QuickTag, StockOverrides, Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
@@ -40,6 +40,7 @@ import CampoDeOpcionais from "./CampoDeOpcionais";
 import FaixaComCaixas, { PontaDaFaixa } from "./FaixaComCaixas";
 import { CardVeiculo, formatarKm, formatarPreco } from "./primitivos";
 import Hodometro from "./Hodometro";
+import { marcarTransicao, Transicao, transicaoPermitida } from "./Transicao";
 
 /**
  * Catálogo — tela 02 do design doc.
@@ -57,6 +58,19 @@ import Hodometro from "./Hodometro";
  */
 
 const PAGINA = 9;
+
+/**
+ * O tipo da transição em que a vitrine se reorganiza (`marcarTransicao`).
+ * As classes de cada card só acendem com ele: a navegação para a ficha
+ * também desmonta os cards, e lá eles não podem sair esmaecendo por cima da
+ * página nova.
+ */
+const TIPO_DA_VITRINE = "mt-vitrine";
+const CARD_NA_VITRINE = {
+  enter: { [TIPO_DA_VITRINE]: "mt-card-entra", default: "none" },
+  exit: { [TIPO_DA_VITRINE]: "mt-card-sai", default: "none" },
+  update: { [TIPO_DA_VITRINE]: "mt-card-reorganiza", default: "none" },
+};
 
 /**
  * O passo das réguas de preço e de quilometragem.
@@ -577,6 +591,48 @@ export default function Catalogo({
 
   const totalFiltrado = filtrados.length;
   const mostrando = Math.min(visiveis, totalFiltrado);
+
+  /**
+   * Os cards se reorganizam em vez de pular (Piloto do plano de movimento,
+   * item 13, 10/10/2026): marcar um filtro, trocar a ordem ou carregar mais
+   * leva cada card que fica até o lugar novo, apaga o que sai e sobe o que
+   * entra.
+   *
+   * A mudança acontece em dois tempos. O painel (caixa marcada, contagens,
+   * chips, o número no topo e o nome da região) muda na hora, como sempre: é
+   * o que responde ao clique, e o `flushSync` de
+   * `limparTudoComFocoNosResultados` continua achando a contagem nova no
+   * instante do foco. Só a GRADE vem depois, numa transição do React
+   * (`startTransition`), que é o que o `<ViewTransition>` de cada card sabe
+   * animar. O clique fica até mais leve que antes: desenhar os cards saiu dele.
+   *
+   * Sem animação a grade troca como sempre trocou, de uma vez, e sem passar
+   * por transição nenhuma:
+   * - digitando na busca — cada letra embaralharia a vitrine;
+   * - com a folha de filtros aberta no celular — a animação passa por cima de
+   *   tudo, e os cards voariam sobre a folha;
+   * - sem view transitions no navegador, ou com menos movimento pedido.
+   */
+  const cardsDoFiltro = useMemo(() => filtrados.slice(0, visiveis), [filtrados, visiveis]);
+  const [cardsNaTela, setCardsNaTela] = useState(cardsDoFiltro);
+  const digitando = useRef(false);
+  useEffect(() => {
+    if (cardsNaTela === cardsDoFiltro) return;
+    const reorganiza = !digitando.current && !filtroAberto && transicaoPermitida();
+    digitando.current = false;
+    if (!reorganiza) {
+      // Atualização comum, e não transição sem tipo: qualquer transição do
+      // React que monta um card chama `document.startViewTransition`, e o
+      // navegador fotografaria a página inteira à toa (medido no preview em
+      // 10/10). Assim a grade troca no mesmo quadro do clique, como antes.
+      setCardsNaTela(cardsDoFiltro);
+      return;
+    }
+    startTransition(() => {
+      marcarTransicao(TIPO_DA_VITRINE);
+      setCardsNaTela(cardsDoFiltro);
+    });
+  }, [cardsDoFiltro, cardsNaTela, filtroAberto]);
   const filtro = painelDeFiltro(filtroAberto);
 
   /**
@@ -719,6 +775,8 @@ export default function Catalogo({
             onChange={(e) => {
               setBusca(e.target.value);
               setVisiveis(PAGINA);
+              // A grade segue a letra sem animar (ver `cardsNaTela`).
+              digitando.current = true;
             }}
             // O placeholder ensina a digitar VALOR, não nome de campo. A
             // primeira versão dizia "modelo, marca, câmbio, cor" e piorava o
@@ -1095,7 +1153,9 @@ export default function Catalogo({
             </div>
           )}
 
-          {totalFiltrado === 0 ? (
+          {/* `cardsNaTela`, e não `totalFiltrado`: a vitrine vazia também
+              chega pela transição, e os últimos cards saem esmaecendo. */}
+          {cardsNaTela.length === 0 ? (
             <div className="border-t-2 border-mt-regua py-16 text-center">
               <p className="m-0 text-[17px] font-extrabold">
                 {mensagemDeVitrineVazia(
@@ -1119,19 +1179,20 @@ export default function Catalogo({
           ) : (
             <>
               <div className="grid grid-cols-1 gap-x-7 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-y-11">
-                {filtrados.slice(0, visiveis).map((v, i) => (
-                  <CardVeiculo
-                    key={v.id}
-                    veiculo={v}
-                    href={getVeiculoPdpUrl(v)}
-                    etiqueta={v.status_tag || undefined}
-                    contagemFotos={
-                      v.web_full_images?.length
-                        ? `${v.web_full_images.length} fotos`
-                        : undefined
-                    }
-                    prioridade={i < 3}
-                  />
+                {cardsNaTela.map((v, i) => (
+                  <Transicao key={v.id} {...CARD_NA_VITRINE} default="none">
+                    <CardVeiculo
+                      veiculo={v}
+                      href={getVeiculoPdpUrl(v)}
+                      etiqueta={v.status_tag || undefined}
+                      contagemFotos={
+                        v.web_full_images?.length
+                          ? `${v.web_full_images.length} fotos`
+                          : undefined
+                      }
+                      prioridade={i < 3}
+                    />
+                  </Transicao>
                 ))}
               </div>
 

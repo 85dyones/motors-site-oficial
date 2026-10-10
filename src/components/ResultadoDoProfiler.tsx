@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { getVeiculoPdpUrl } from "../lib/supabase";
 import { precoDoCarro } from "../lib/fichaDoMotor";
@@ -16,6 +17,8 @@ import { avisoDeCredito, textoDaParcela, textoSemEstimativa } from "../lib/texto
 import { PARAMETROS_DE_FABRICA } from "../lib/finance-calculator";
 import type { Veiculo } from "../types";
 import { CardVeiculo, Rotulo, Seta } from "./modernist/primitivos";
+import TextoCinetico from "./modernist/TextoCinetico";
+import TextoQueRola from "./modernist/TextoQueRola";
 
 /**
  * O resultado do Garagem Profiler: "Três do Pátio".
@@ -122,8 +125,13 @@ export default function ResultadoDoProfiler({
         <Rotulo accent className="text-[11px] tracking-[.18em] text-mt-cobre-marca">
           TRÊS DO PÁTIO
         </Rotulo>
+        {/* O resultado chega depois de um toque: o título assenta palavra
+            por palavra, e os três carros entram em seguida, em cascata. */}
         <h2 className="mt-titulo m-0 mt-2.5 text-3xl text-mt-inverso lg:text-[46px]">
-          {semNaFaixa ? "Não temos exatamente isso hoje." : `${EXTENSO[cartoes.length]} do pátio para você`}
+          <TextoCinetico
+            texto={semNaFaixa ? "Não temos exatamente isso hoje." : `${EXTENSO[cartoes.length]} do pátio para você`}
+            modo="gesto"
+          />
         </h2>
         <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-inverso-suave">
           {semNaFaixa ? "Nenhum carro passa" : naFaixa === 1 ? "1 carro passa" : `${naFaixa} carros passam`} em
@@ -156,11 +164,15 @@ export default function ResultadoDoProfiler({
 
       {cartoes.length > 0 && (
         <ol className="m-0 mt-8 grid list-none gap-x-7 gap-y-10 p-0 sm:grid-cols-2 lg:grid-cols-3">
-          {cartoes.map((cartao) => {
+          {cartoes.map((cartao, ordem) => {
             const v = cartao.veiculo;
             const escolhido = escolhidos.includes(v.id);
             return (
-              <li key={v.id} className="flex flex-col">
+              <li
+                key={v.id}
+                className="mt-resultado-entra flex flex-col"
+                style={{ "--mt-ordem": ordem } as CSSProperties}
+              >
                 <span className="mb-2.5 text-[11px] font-extrabold tracking-[.14em] text-mt-accent">
                   {cartao.rotuloDoLugar}
                 </span>
@@ -177,9 +189,15 @@ export default function ResultadoDoProfiler({
                       ATENDE {cartao.atende} DE {cartao.pedidos.length} DO QUE VOCÊ PEDIU
                     </span>
                     <ul className="m-0 mt-1.5 list-none space-y-1 p-0">
-                      {cartao.pedidos.map((p) => (
+                      {/* As marcas do que o carro atende entram uma a uma
+                          depois do card: o dado se lê enquanto aparece. */}
+                      {cartao.pedidos.map((p, marca) => (
                         <li key={p.rotulo} className="flex gap-2 text-[13px] leading-snug">
-                          <span aria-hidden="true" className={`w-3 shrink-0 font-extrabold ${MARCA[p.estado].classe}`}>
+                          <span
+                            aria-hidden="true"
+                            className={`mt-pedido-marca w-3 shrink-0 font-extrabold ${MARCA[p.estado].classe}`}
+                            style={{ "--mt-marca": marca } as CSSProperties}
+                          >
                             {MARCA[p.estado].simbolo}
                           </span>
                           <span className={p.estado === "atende" ? "text-mt-inverso" : "text-mt-inverso-suave"}>
@@ -205,13 +223,13 @@ export default function ResultadoDoProfiler({
                   type="button"
                   onClick={() => onAlternar(v.id)}
                   aria-pressed={escolhido}
-                  className={`mt-foco mt-5 border-2 px-4 py-3 text-left text-[12px] font-extrabold tracking-[.08em] transition-colors lg:mt-auto ${
+                  className={`mt-foco mt-rola-alvo mt-5 border-2 px-4 py-3 text-left text-[12px] font-extrabold tracking-[.08em] transition-colors lg:mt-auto ${
                     escolhido
                       ? "border-mt-accent bg-[color-mix(in_srgb,var(--mt-accent)_14%,transparent)] text-mt-inverso"
                       : "border-mt-inverso-regua text-mt-inverso hover:border-mt-inverso-suave"
                   }`}
                 >
-                  {escolhido ? "✓ VOU QUERER VER ESTE" : "QUERO VER ESTE"}
+                  <TextoQueRola texto={escolhido ? "✓ VOU QUERER VER ESTE" : "QUERO VER ESTE"} />
                 </button>
               </li>
             );
@@ -246,10 +264,10 @@ export default function ResultadoDoProfiler({
                 key={s.filtro}
                 type="button"
                 onClick={() => onAfrouxar(s.filtro)}
-                className="mt-foco flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-2 border-mt-inverso-regua px-4 py-3 text-left transition-colors hover:border-mt-accent"
+                className="mt-foco mt-rola-alvo flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-2 border-mt-inverso-regua px-4 py-3 text-left transition-colors hover:border-mt-accent"
               >
                 <span className="text-[13px] font-extrabold tracking-[.04em]">
-                  {s.rotulo} · +{s.entram} {s.entram === 1 ? "carro" : "carros"} na sua faixa
+                  <TextoQueRola texto={`${s.rotulo} · +${s.entram} ${s.entram === 1 ? "carro" : "carros"} na sua faixa`} />
                 </span>
                 {s.melhor && (
                   <span className="text-[12px] text-mt-inverso-suave">
@@ -298,8 +316,8 @@ export default function ResultadoDoProfiler({
           <p className="m-0 text-[13px] leading-relaxed text-mt-inverso-suave">
             O pátio muda toda semana. Deixe o seu pedido com o consultor e ele avisa quando chegar um carro assim.
           </p>
-          <button type="button" onClick={onAvisar} className="mt-btn mt-foco mt-4 border-2 border-mt-accent text-mt-inverso">
-            ME AVISE QUANDO CHEGAR
+          <button type="button" onClick={onAvisar} className="mt-btn mt-foco mt-rola-alvo mt-4 border-2 border-mt-accent text-mt-inverso">
+            <TextoQueRola texto="ME AVISE QUANDO CHEGAR" />
           </button>
         </div>
       )}
@@ -315,9 +333,9 @@ export default function ResultadoDoProfiler({
             href="/avaliacao"
             target="_blank"
             rel="noopener"
-            className="mt-btn mt-foco mt-3 inline-flex border-2 border-mt-accent text-mt-inverso no-underline"
+            className="mt-btn mt-foco mt-rola-alvo mt-3 inline-flex border-2 border-mt-accent text-mt-inverso no-underline"
           >
-            AVALIAR MEU CARRO
+            <TextoQueRola texto="AVALIAR MEU CARRO" />
             <Seta size={15} />
           </Link>
         </div>
@@ -496,16 +514,16 @@ function Acoes({
 
   return (
     <div data-barra-inferior className="sticky bottom-0 z-10 -mx-[18px] mt-10 flex flex-wrap gap-0.5 bg-mt-inverso-fundo px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 lg:static lg:mx-0 lg:mt-12 lg:px-0 lg:pb-0 lg:pt-0">
-      <button type="button" onClick={onFalar} className="mt-btn mt-btn-primario mt-foco">
-        {rotulo}
+      <button type="button" onClick={onFalar} className="mt-btn mt-btn-primario mt-foco mt-rola-alvo">
+        <TextoQueRola texto={rotulo} />
         <Seta size={15} />
       </button>
       <button
         type="button"
         onClick={onRefazer}
-        className="mt-btn mt-foco border-2 border-mt-inverso-regua text-mt-neutral-300"
+        className="mt-btn mt-foco mt-rola-alvo border-2 border-mt-inverso-regua text-mt-neutral-300"
       >
-        REFAZER CURADORIA
+        <TextoQueRola texto="REFAZER CURADORIA" />
       </button>
     </div>
   );

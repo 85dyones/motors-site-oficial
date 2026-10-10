@@ -18,6 +18,7 @@ import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
 import FotoPropriaDoCard from "./FotoPropriaDoCard";
 import FotoOtimizadaDoCard from "./FotoOtimizadaDoCard";
 import SinalDeAbertura from "./SinalDeAbertura";
+import { FotoQueViaja, LinkDoCard } from "./FotoQueViaja";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
 import FaixaEmPreparacao from "./FaixaEmPreparacao";
 
@@ -317,8 +318,12 @@ export function CardVeiculo({
     // mínima do card passaria a ser a versão inteira. Nas grades de coluna
     // `auto` (ficha, Profiler, repasse) uma versão longa alargaria a grade no
     // celular em vez de cortar com reticências. Apontado pelo qa-guardian.
-    <Link
+    //
+    // `LinkDoCard` é o `Link` do Next com a viagem da foto até a ficha
+    // (Piloto do plano de movimento, `FotoQueViaja.tsx`).
+    <LinkDoCard
       href={href}
+      idDoVeiculo={veiculo.id}
       className={`group mt-card mt-foco flex min-w-0 flex-col no-underline ${inverso ? "text-mt-inverso" : ""}`}
     >
       {/* `overflow-hidden` por causa do zoom leve da foto no mouse
@@ -378,29 +383,31 @@ export function CardVeiculo({
              (1280px, ~90 KB), sem transformação nenhuma; ver
              `urlDaVersaoGravada`. O item 1 acima continua valendo: nada disso
              passa pelo `/_next/image`. */
-          ehFotoPropria(foto) ? (
-            <FotoPropriaDoCard
-              src={foto}
-              alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
-              fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              priority={prioridade}
-              fetchPriority={prioridade ? "high" : "auto"}
-              loading={prioridade ? "eager" : "lazy"}
-              className="mt-card-foto object-cover"
-            />
-          ) : (
-            <FotoOtimizadaDoCard
-              src={foto}
-              alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
-              fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              priority={prioridade}
-              fetchPriority={prioridade ? "high" : "auto"}
-              loading={prioridade ? "eager" : "lazy"}
-              className="mt-card-foto object-cover"
-            />
-          )
+          <FotoQueViaja idDoVeiculo={veiculo.id}>
+            {ehFotoPropria(foto) ? (
+              <FotoPropriaDoCard
+                src={foto}
+                alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                priority={prioridade}
+                fetchPriority={prioridade ? "high" : "auto"}
+                loading={prioridade ? "eager" : "lazy"}
+                className="mt-card-foto object-cover"
+              />
+            ) : (
+              <FotoOtimizadaDoCard
+                src={foto}
+                alt={`${veiculo.marca} ${veiculo.modelo} ${veiculo.versao}`}
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                priority={prioridade}
+                fetchPriority={prioridade ? "high" : "auto"}
+                loading={prioridade ? "eager" : "lazy"}
+                className="mt-card-foto object-cover"
+              />
+            )}
+          </FotoQueViaja>
         ) : null}
         {/* O canto de cima é do SELO de perícia, sempre o mesmo canto
             (tarefa 3.4, "ficha de perícia"): grafite com o ponto no cobre do
@@ -539,7 +546,7 @@ export function CardVeiculo({
           </span>
         </div>
       </div>
-    </Link>
+    </LinkDoCard>
   );
 }
 

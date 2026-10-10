@@ -1657,3 +1657,253 @@ p {
     transform: translateX(-16px);
   }
 }
+
+/* — movimento com função, Piloto (10/10/2026) —
+   As duas mudanças de lugar do site, com a View Transitions do navegador
+   chamada pelo React (`Transicao`, `FotoQueViaja`). As cinco regras valem
+   com um adendo à 2: a caixa que viaja é um pseudo-elemento do navegador,
+   fora do layout da página, e é ele que muda de tamanho — a página em si
+   não se mexe, e o CLS não conta nada disso. Sem suporte, ou com menos
+   movimento, o React nem chama a transição: a troca é a de sempre. */
+
+/* A cabeça do site fica por cima de tudo que viaja. Na transição o navegador
+   desenha numa camada própria o que tem nome, e um card meio escondido sob a
+   barra fixa passaria por cima dela. Com nome, a barra entra nessa camada
+   também, depois dos cards, e fica parada. */
+.mt-cabecalho-do-site {
+  view-transition-name: mt-cabecalho;
+}
+::view-transition-group(mt-cabecalho) {
+  z-index: 1;
+  animation: none;
+}
+::view-transition-old(mt-cabecalho) {
+  display: none;
+}
+::view-transition-new(mt-cabecalho) {
+  animation: none;
+}
+
+/* A foto do card até a galeria da ficha. O card é 4:3 e a galeria 16:9: as
+   duas imagens cobrem a caixa enquanto ela muda de forma, em vez de esticar.
+   O `overflow: clip` corta o que o `cover` deixa sobrando: o navegador não
+   corta sozinho as imagens da transição, e a sobra aparecia como um
+   fantasma 77 px acima e abaixo da caixa (medido no preview em 10/10). */
+::view-transition-image-pair(.mt-foto-viaja),
+::view-transition-old(.mt-foto-viaja),
+::view-transition-new(.mt-foto-viaja) {
+  overflow: clip;
+}
+::view-transition-old(.mt-foto-viaja),
+::view-transition-new(.mt-foto-viaja) {
+  height: 100%;
+  object-fit: cover;
+}
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(.mt-foto-viaja) {
+    animation-duration: 0.42s;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  /* A vitrine do /estoque: quem fica desliza até o lugar novo, quem sai
+     apaga depressa e quem entra sobe 12 px depois que a saída abriu espaço. */
+  ::view-transition-group(.mt-card-reorganiza) {
+    animation-duration: 0.34s;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  ::view-transition-old(.mt-card-sai) {
+    animation: mt-card-sai 0.16s ease-in both;
+  }
+  ::view-transition-new(.mt-card-entra) {
+    animation: mt-card-entra 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+@keyframes mt-card-sai {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes mt-card-entra {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* — movimento com função, Onda cinética (10/10/2026) —
+   Títulos que se movem, números que rodam e rótulos que giram no mouse, nos
+   dois funis (Garagem Profiler e Avaliação Express) e nas seções da home que
+   levam a eles. As cinco regras de sempre, e o vocabulário é o do site: a
+   palavra assenta na régua, o número roda como o hodômetro, a letra gira uma
+   casa. */
+
+/* O título cinético (`TextoCinetico`). Depois de um toque, ou abaixo da
+   dobra, as palavras viram caixas para poder andar; a linha de base e as
+   quebras são as do texto corrido.
+
+   Na carga, NÃO. Medido no preview em 10/10: com as palavras em caixas e
+   acendendo pela opacidade, o elemento do LCP do /carro-perfeito e do
+   /avaliacao deixava de ser o h1 e passava a ser o parágrafo de baixo — o
+   título sumia da métrica. Isolado no Chromium, o h1 de 66px media 80.460
+   px² parado e 35.370 com QUALQUER animação de opacidade nas palavras (até
+   de 1 para 1) ou com elas em caixa: cada palavra animada vira uma camada,
+   e o navegador só conta parte do título. Animando a cor, a área volta
+   inteira. Por isso, na carga, a palavra fica texto corrido e acende pela
+   cor — a única exceção da regra 2, e só neste título, que repinta umas
+   seis palavras por um segundo. */
+[data-cinetico="gesto"] .mt-cinetico-mascara,
+[data-cinetico="gesto"] .mt-cinetico-palavra,
+[data-cinetico="aparece"] .mt-cinetico-mascara,
+[data-cinetico="aparece"] .mt-cinetico-palavra {
+  display: inline-block;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Na carga, a palavra nasce pintada (com 20% da cor, nunca invisível) e
+     acende: o título é o candidato a LCP e conta inteiro no primeiro
+     quadro. */
+  [data-cinetico="carga"] .mt-cinetico-palavra {
+    animation: mt-cinetico-acende 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.08s + var(--mt-palavra) * 70ms) both;
+  }
+  /* Depois de um toque (ou abaixo da dobra), a palavra sobe de trás da
+     linha. A máscara tem folga em cima e embaixo para acento e para a perna
+     do "g" e do "ç": o `mt-display` tem altura de linha 0,92. */
+  [data-cinetico="gesto"] .mt-cinetico-mascara,
+  [data-cinetico="aparece"] .mt-cinetico-mascara {
+    clip-path: inset(-0.25em -0.12em -0.3em -0.12em);
+  }
+  [data-cinetico="gesto"] .mt-cinetico-palavra,
+  [data-aparece] [data-cinetico="aparece"] .mt-cinetico-palavra {
+    animation: mt-cinetico-sobe 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--mt-palavra) * 60ms) both;
+  }
+}
+@keyframes mt-cinetico-acende {
+  from {
+    color: color-mix(in srgb, currentColor 20%, transparent);
+  }
+}
+@keyframes mt-cinetico-sobe {
+  from {
+    transform: translateY(1.5em);
+  }
+}
+
+/* As letras que rolam (`TextoQueRola`). Parado, é o rótulo de sempre: cada
+   letra é conteúdo de CSS, e o espaço entre as palavras é um espaço de
+   verdade. Com mouse, cada letra vira uma casa de hodômetro: a de cima sai
+   pelo alto e a de baixo, a mesma, entra, da esquerda para a direita. */
+.mt-rola-palavra {
+  display: inline-block;
+  white-space: nowrap;
+}
+.mt-rola-palavra:not(:last-child)::after {
+  content: " ";
+  white-space: pre;
+}
+.mt-rola-letra {
+  position: relative;
+  display: inline-block;
+}
+.mt-rola-letra::before {
+  content: attr(data-l);
+  display: inline-block;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mt-rola-letra {
+    clip-path: inset(-0.12em -0.12em);
+  }
+  .mt-rola-letra::after {
+    content: attr(data-l);
+    position: absolute;
+    top: calc(100% + 0.3em);
+    left: 0;
+  }
+  .mt-rola-letra::before,
+  .mt-rola-letra::after {
+    transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) min(calc(var(--mt-letra) * 14ms), 0.24s);
+  }
+  .mt-rola-alvo:hover .mt-rola-letra::before,
+  .mt-rola-alvo:hover .mt-rola-letra::after,
+  .mt-rola-alvo:focus-visible .mt-rola-letra::before,
+  .mt-rola-alvo:focus-visible .mt-rola-letra::after {
+    transform: translateY(calc(-100% - 0.3em));
+  }
+}
+
+/* O hodômetro que chega (`Hodometro` com `chega`): cada fita sai do zero e
+   roda até o dígito, as unidades primeiro. `backwards` e não `both`: quando
+   a animação termina, quem manda é a transição de sempre, e a troca de valor
+   continua rodando. */
+@supports (height: 1lh) {
+  @media (prefers-reduced-motion: no-preference) {
+    .mt-hodometro[data-chega="montagem"] .mt-hodometro-fita,
+    [data-aparece] .mt-hodometro[data-chega="aparece"] .mt-hodometro-fita {
+      animation: mt-hodometro-chega 1s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.12s + var(--mt-hodometro-ordem) * 90ms) backwards;
+    }
+  }
+}
+@keyframes mt-hodometro-chega {
+  from {
+    transform: translateY(0);
+  }
+}
+
+/* As barras de dado (a composição do estoque no Garagem Profiler): andam com
+   `scaleX`, e não com `width`, e crescem do zero quando o bloco aparece. */
+.mt-barra-dado {
+  transform-origin: left center;
+  transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* O que entra em cascata: os passos das seções da home quando aparecem, os
+   três carros do resultado e, em cada um, as marcas do que ele atende. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-aparece] .mt-barra-dado {
+    animation: mt-barra-cresce 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.15s + var(--mt-ordem) * 80ms) backwards;
+  }
+  [data-aparece] .mt-passo-chega {
+    animation: mt-passo-chega 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.1s + var(--mt-ordem) * 90ms) both;
+  }
+  .mt-resultado-entra {
+    animation: mt-resultado-entra 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.1s + var(--mt-ordem) * 110ms) both;
+  }
+  .mt-pedido-marca {
+    animation: mt-pedido-marca 0.4s cubic-bezier(0.2, 1.4, 0.4, 1)
+      calc(0.5s + var(--mt-ordem) * 110ms + var(--mt-marca) * 70ms) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-barra-dado {
+    transition: none;
+  }
+}
+@keyframes mt-barra-cresce {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes mt-passo-chega {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+@keyframes mt-resultado-entra {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+@keyframes mt-pedido-marca {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}

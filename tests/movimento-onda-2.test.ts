@@ -24,7 +24,11 @@ import { ler, lerCodigo } from "./fonte";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const css = ler("src/app/modernist.css");
-const onda2 = css.slice(css.indexOf("/* — movimento com função, Onda 2"));
+// Só a seção da Onda 2: o Piloto e a onda cinética vêm depois, com testes próprios.
+const onda2 = css.slice(
+  css.indexOf("/* — movimento com função, Onda 2"),
+  css.indexOf("/* — movimento com função, Piloto"),
+);
 
 /** O conteúdo entre as chaves do primeiro bloco que começa em `abertura`. */
 function bloco(texto: string, abertura: string): string {
