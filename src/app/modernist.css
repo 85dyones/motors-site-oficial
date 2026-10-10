@@ -1435,3 +1435,225 @@ p {
     transition: none;
   }
 }
+
+/* — movimento com função, Onda 2 (10/10/2026) —
+   As mesmas cinco regras da Onda 1, nos pontos em que o visitante decide: o
+   laudo, o "3 em 10", a frase de fechamento, a galeria, a nota no Google e os
+   funis. O que fica abaixo da dobra toca uma vez, quando aparece
+   (`AoAparecer`): sem `data-aparece` o bloco está no estado final, "armado"
+   espera no quadro zero fora da tela, e qualquer valor toca. */
+[data-aparece="armado"] *,
+[data-aparece="armado"] *::before,
+[data-aparece="armado"] *::after {
+  /* `!important` porque cada movimento abaixo declara o `animation` inteiro,
+     e o atalho volta o `play-state` para `running`. */
+  animation-play-state: paused !important;
+}
+
+/* O selo "LAUDO TÉCNICO APROVADO" assenta como um carimbo: chega maior e
+   girado, assenta com um tranco e deixa um anel de tinta que some. Parado,
+   é o selo de sempre, reto. */
+.mt-carimbo {
+  position: relative;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-aparece] .mt-carimbo {
+    animation: mt-carimba 0.42s cubic-bezier(0.2, 1.4, 0.4, 1) 0.1s both;
+  }
+  [data-aparece] .mt-carimbo::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border: 2px solid var(--mt-inverso-fundo);
+    opacity: 0;
+    pointer-events: none;
+    animation: mt-carimbo-tinta 0.6s ease-out 0.32s both;
+  }
+}
+@keyframes mt-carimba {
+  from {
+    opacity: 0;
+    transform: scale(1.6) rotate(-6deg);
+  }
+  70% {
+    opacity: 1;
+  }
+}
+@keyframes mt-carimbo-tinta {
+  from {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+/* "3 em 10" (`TresEmDez`): dez casas, sete riscadas e três em cobre. Ao
+   aparecer, as sete se riscam uma a uma e as três enchem depois. O cobre é
+   uma camada por cima da casa que só muda de opacidade. */
+.mt-tres-em-dez {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  max-width: 176px;
+}
+.mt-tres-em-dez > span {
+  position: relative;
+  aspect-ratio: 1 / 1.3;
+  border: 1px solid var(--mt-regua);
+  overflow: hidden;
+}
+.mt-tres-em-dez-sai {
+  opacity: 0.4;
+}
+.mt-tres-em-dez-sai::after {
+  content: "";
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  top: 50%;
+  height: 1px;
+  background: var(--mt-ink);
+  transform: rotate(-52deg);
+}
+.mt-tres-em-dez > .mt-tres-em-dez-fica {
+  border-color: var(--mt-cobre-marca);
+}
+.mt-tres-em-dez-fica::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--mt-cobre-marca);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-aparece] .mt-tres-em-dez-sai {
+    animation: mt-casa-apaga 0.35s ease-out calc(0.2s + var(--mt-casa) * 90ms) both;
+  }
+  [data-aparece] .mt-tres-em-dez-sai::after {
+    animation: mt-casa-risca 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.2s + var(--mt-casa) * 90ms) both;
+  }
+  [data-aparece] .mt-tres-em-dez-fica::before {
+    animation: mt-casa-acende 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.95s + var(--mt-casa) * 120ms) both;
+  }
+}
+@keyframes mt-casa-apaga {
+  from {
+    opacity: 1;
+  }
+}
+@keyframes mt-casa-risca {
+  from {
+    transform: rotate(-52deg) scaleX(0);
+  }
+}
+@keyframes mt-casa-acende {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A frase da faixa vermelha (`TextoQueAcende`) acende palavra por palavra
+   enquanto sobe na tela, no ritmo de quem lê: cada palavra começa a acender
+   um pouco depois da anterior. `inline-block` dá a cada palavra a caixa que a
+   linha do tempo da rolagem mede; a quebra de linha continua nos espaços. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .mt-acende-palavra {
+      display: inline-block;
+      animation: mt-acende-palavra linear both;
+      animation-timeline: view();
+      animation-range: cover calc(8% + var(--mt-palavra) * 1.2%) cover calc(30% + var(--mt-palavra) * 1.2%);
+    }
+  }
+}
+@keyframes mt-acende-palavra {
+  from {
+    opacity: 0.3;
+  }
+}
+
+/* A régua de posição da galeria da ficha: uma marca cobre do tamanho de uma
+   foto em N corre na base da foto junto com o arrasto. Quem a move é a
+   rolagem do carrossel. Vale também com movimento reduzido: é a posição do
+   próprio gesto da pessoa, como uma barra de rolagem, e parada mentiria. */
+.mt-galeria-posicao {
+  display: none;
+}
+@supports (animation-timeline: scroll()) and (timeline-scope: none) {
+  .mt-galeria-moldura {
+    timeline-scope: --mt-galeria;
+  }
+  .mt-galeria-trilho {
+    scroll-timeline: --mt-galeria x;
+  }
+  .mt-galeria-posicao {
+    display: block;
+    background: rgba(243, 242, 242, 0.24);
+  }
+  .mt-galeria-posicao-marca {
+    width: calc(100% / var(--mt-galeria-fotos));
+    background: var(--mt-cobre-marca);
+    animation: mt-galeria-posicao linear both;
+    animation-timeline: --mt-galeria;
+  }
+}
+@keyframes mt-galeria-posicao {
+  to {
+    transform: translateX(calc((var(--mt-galeria-fotos) - 1) * 100%));
+  }
+}
+
+/* As estrelas da nota no Google acendem uma a uma quando o cabeçalho da
+   reputação aparece. A nota em número fica parada. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-aparece] .mt-estrelas-acendem > svg {
+    animation: mt-estrela-acende 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.1s + var(--mt-estrela) * 90ms) both;
+  }
+}
+@keyframes mt-estrela-acende {
+  from {
+    opacity: 0.15;
+    transform: scale(0.6);
+  }
+}
+
+/* Os funis. A régua do passo ativo (avaliação) e a régua de progresso (carro
+   perfeito) deslizam em vez de saltar. O painel do passo novo entra 16 px de
+   lado em 0,28 s: pela direita ao avançar, pela esquerda ao voltar. Só depois
+   de um clique, e sem `fill-mode`: terminada a entrada, nada fica aplicado no
+   painel. A troca de passo não espera a animação, então o INP não muda. */
+.mt-passo-regua {
+  transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.mt-passo-progresso {
+  transform-origin: left center;
+  transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mt-passo-entra {
+    animation: mt-passo-entra 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .mt-passo-entra[data-entrada="tras"] {
+    animation-name: mt-passo-volta;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-passo-regua,
+  .mt-passo-progresso {
+    transition: none;
+  }
+}
+@keyframes mt-passo-entra {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@keyframes mt-passo-volta {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}

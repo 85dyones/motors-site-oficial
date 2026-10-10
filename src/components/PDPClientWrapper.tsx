@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, type CSSProperties } from "react";
 import type { QrDaFicha } from "../lib/qrDaFicha";
 import FichaImpressa from "./modernist/FichaImpressa";
 import Link from "next/link";
@@ -815,7 +815,7 @@ export default function PDPClientWrapper({
           
           {/* Gallery block */}
           <section className="w-full flex flex-col gap-3 max-sm:gap-1.5 print:hidden">
-            <div className="relative w-full aspect-video landscape:max-h-[75vh] bg-mt-inverso-fundo group border-none p-0 m-0 overflow-hidden">
+            <div className="mt-galeria-moldura relative w-full aspect-video landscape:max-h-[75vh] bg-mt-inverso-fundo group border-none p-0 m-0 overflow-hidden">
               {/* Horizontal scroll snap container */}
               <div
                 ref={carouselRef}
@@ -829,7 +829,7 @@ export default function PDPClientWrapper({
                 tabIndex={0}
                 role="region"
                 aria-label={`Fotos do ${veiculo.marca} ${modeloExibido}`}
-                className="peer flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-none gap-0 focus-visible:outline-none"
+                className="peer flex w-full h-full overflow-x-auto mt-galeria-trilho snap-x snap-mandatory scrollbar-none gap-0 focus-visible:outline-none"
                 style={{ scrollBehavior: "smooth" }}
               >
                 {displayImages.map((imgUrl, index) => (
@@ -854,6 +854,21 @@ export default function PDPClientWrapper({
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-20 hidden border-2 border-mt-accent peer-focus-visible:block"
               />
+
+              {/* Régua de posição (Onda 2 do plano de movimento): uma marca
+                  cobre corre na base da foto junto com o arrasto, do tamanho
+                  de uma foto em N. Quem a move é a rolagem do próprio
+                  carrossel (`.mt-galeria-*`, modernist.css), sem script. Sem
+                  suporte, ela não aparece e o "01 / 28" continua contando. */}
+              {displayImages.length > 1 && (
+                <div
+                  aria-hidden="true"
+                  className="mt-galeria-posicao pointer-events-none absolute inset-x-0 bottom-0 z-[31] h-0.5"
+                  style={{ "--mt-galeria-fotos": displayImages.length } as CSSProperties}
+                >
+                  <span className="mt-galeria-posicao-marca block h-full" />
+                </div>
+              )}
 
               {/* Setas de navegação. No mobile a galeria tem ~210px de altura
                   e 48px de seta cobriam o carro; 36px porque ali a seta é

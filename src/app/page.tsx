@@ -2,6 +2,8 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { areasVisiveis, normalizarAreas } from "../lib/areasDoSite";
 import HeroHome from "../components/modernist/HeroHome";
+import TresEmDez from "../components/modernist/TresEmDez";
+import TextoQueAcende from "../components/modernist/TextoQueAcende";
 import ContagemDeEstoque from "../components/ContagemDeEstoque";
 import BuscaRegua from "../components/modernist/BuscaRegua";
 import BotaoWhatsApp from "../components/modernist/BotaoWhatsApp";
@@ -400,6 +402,9 @@ export default async function Home() {
               <div className="mt-1 text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
                 VIRAM ESTOQUE
               </div>
+              {/* As dez casas: sete se riscam e três acendem quando o bloco
+                  aparece (Onda 2 do plano de movimento). */}
+              <TresEmDez className="mt-3" />
             </div>
             <div className="flex-1 pl-4 pt-3.5">
               <div className="text-[26px] font-extrabold">FIPE</div>
@@ -474,8 +479,9 @@ export default async function Home() {
     /* ─── Faixa de contato ─── */
     contato: (
       <section className="mt-faixa-cheia bg-mt-accent px-[18px] py-14 text-mt-inverso lg:px-10 lg:py-[76px]">
+        {/* A frase acende palavra por palavra enquanto sobe na tela. */}
         <h2 className="mt-display m-0 max-w-[1000px] text-[34px] lg:text-[88px]">
-          Estoque selecionado a dedo para quem não aceita qualquer escolha.
+          <TextoQueAcende texto="Estoque selecionado a dedo para quem não aceita qualquer escolha." />
         </h2>
         <div className="mt-8 flex flex-wrap gap-0.5 lg:mt-11">
           <Link href="/estoque" className="mt-btn mt-btn-tinta mt-foco">

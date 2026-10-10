@@ -351,6 +351,10 @@ function OpcaoEstado({
 export default function AutoAvaliacao() {
   const { companySettings, webhooks } = useTheme();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  // De onde o painel do passo entra (Onda 2 do plano de movimento): pela
+  // direita ao avançar, pela esquerda ao voltar, e de lugar nenhum na carga —
+  // o passo 01 é o conteúdo da página e não entra animado.
+  const [entrada, setEntrada] = useState<"frente" | "tras" | null>(null);
   const [agUid, setAgUid] = useState("ag_ref_nao_localizado");
   const [loading, setLoading] = useState(false);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -682,18 +686,24 @@ export default function AutoAvaliacao() {
   const handleNextStep = () => {
     if (step === 1) {
       if (!isStep1Valid) return;
+      setEntrada("frente");
       setStep(2);
     } else if (step === 2) {
       if (!step2.estadoMecanico || !step2.estadoConservacao) return;
+      setEntrada("frente");
       setStep(3);
     }
   };
 
   const handlePrevStep = () => {
     if (step > 1 && step <= 3) {
+      setEntrada("tras");
       setStep((prev) => (prev - 1) as 1 | 2 | 3);
     }
   };
+
+  /** A classe do painel do passo: só anima depois de um clique. */
+  const painelDoPasso = entrada ? "mt-passo-entra" : undefined;
 
   // Submit Lead & Dispatch Telemetry Event
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1042,8 +1052,11 @@ export default function AutoAvaliacao() {
         </p>
 
         {/* Trilho de passos */}
+        {/* Grade de três colunas iguais, e não `flex`: a régua vermelha do
+            passo ativo mede um terço e desliza um terço por passo, então as
+            colunas precisam ter exatamente a mesma largura. */}
         {step < 4 && (
-          <div className="mt-9 flex border-t-2 border-mt-regua lg:mt-10">
+          <div className="relative mt-9 grid grid-cols-3 border-t-2 border-mt-regua lg:mt-10">
             {PASSOS.map((passo, i) => {
               const numero = i + 1;
               const ativo = numero === step;
@@ -1052,7 +1065,11 @@ export default function AutoAvaliacao() {
                 <button
                   key={passo.numero}
                   type="button"
-                  onClick={() => concluido && setStep(numero as 1 | 2 | 3)}
+                  onClick={() => {
+                    if (!concluido) return;
+                    setEntrada("tras");
+                    setStep(numero as 1 | 2 | 3);
+                  }}
                   disabled={!concluido}
                   aria-current={ativo ? "step" : undefined}
                   className={`mt-foco flex-1 border-r border-mt-regua-fina py-4 pl-4 pr-4 text-left first:pl-0 last:border-r-0 last:pr-0 ${
@@ -1076,6 +1093,13 @@ export default function AutoAvaliacao() {
                 </button>
               );
             })}
+            {/* A régua do passo ativo, sobre a borda de cima: desliza até o
+                próximo em vez de saltar (`.mt-passo-regua`, modernist.css). */}
+            <span
+              aria-hidden="true"
+              className="mt-passo-regua pointer-events-none absolute -top-0.5 left-0 h-0.5 w-1/3 bg-mt-accent"
+              style={{ transform: `translateX(${(step - 1) * 100}%)` }}
+            />
           </div>
         )}
 
@@ -1091,7 +1115,7 @@ export default function AutoAvaliacao() {
 
           {/* ─── 01 · Seu veículo ─── */}
           {step === 1 && (
-            <div>
+            <div className={painelDoPasso} data-entrada={entrada ?? undefined}>
               <Rotulo className="text-[10px] tracking-[.16em]">TIPO DE VEÍCULO</Rotulo>
               <div className="mt-3 flex w-full border-2 border-mt-ink md:w-max">
                 {TIPOS_VEICULO.map((tipo, i) => (
@@ -1238,7 +1262,7 @@ export default function AutoAvaliacao() {
 
           {/* ─── 02 · Estado e conservação ─── */}
           {step === 2 && (
-            <div>
+            <div className={painelDoPasso} data-entrada={entrada ?? undefined}>
               <Rotulo className="text-[10px] tracking-[.16em]">ESTADO MECÂNICO</Rotulo>
               <div className="mt-3 grid gap-0.5 sm:grid-cols-2">
                 {ESTADO_MECANICO.map((opt) => (
@@ -1354,7 +1378,7 @@ export default function AutoAvaliacao() {
 
           {/* ─── 03 · Contato e proposta ─── */}
           {step === 3 && (
-            <div>
+            <div className={painelDoPasso} data-entrada={entrada ?? undefined}>
               <div className="border-t-2 border-mt-regua">
                 <div className="flex justify-between gap-4 border-b border-mt-regua-fina py-3 text-[13px]">
                   <span className="text-mt-neutral-600">Veículo</span>

@@ -310,10 +310,13 @@ function ReguaProgresso({ posicao, total, rotulo }: { posicao: number; total: nu
           {rotulo}
         </span>
       </div>
+      {/* A régua anda com `scaleX`, e não com `width`: a mesma régua, mas a
+          transição fica na placa de vídeo (`.mt-passo-progresso`,
+          modernist.css, Onda 2 do plano de movimento). */}
       <div className="mt-3 h-0.5 bg-mt-inverso-regua-fina lg:mt-3.5">
         <div
-          className="h-0.5 bg-mt-accent transition-[width] duration-300"
-          style={{ width: `${percentual}%` }}
+          className="mt-passo-progresso h-0.5 bg-mt-accent"
+          style={{ transform: `scaleX(${percentual / 100})` }}
         />
       </div>
     </div>
@@ -1296,8 +1299,11 @@ export default function CarMatch({
             />
 
             {/* 01 — Orçamento */}
+            {/* Cada pergunta entra 16 px pela direita (`.mt-passo-entra`). Só
+                existem depois do clique em MONTAR MEU PERFIL: nada aqui entra
+                animado na carga da página. */}
             {gameState === "q1" && (
-              <div className="flex flex-1 flex-col">
+              <div className="mt-passo-entra flex flex-1 flex-col">
                 <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
                   Qual a faixa de investimento para a próxima garagem?
                 </h2>
@@ -1868,7 +1874,7 @@ function BlocoPergunta({
   }[];
 }) {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="mt-passo-entra flex flex-1 flex-col">
       {notas.map((nota) => (
         <p key={nota} className="m-0 mt-7 max-w-[640px] border-l-2 border-mt-cobre-marca pl-3 text-[13px] leading-relaxed text-mt-inverso">
           {nota}
