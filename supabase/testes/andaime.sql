@@ -313,6 +313,23 @@ grant select, insert, update, delete on public.leads to authenticated, service_r
 
 
 -- ---------------------------------------------------------------------------
+-- Recorte de `atendimentos`: só o que a fila do funil lê
+-- ---------------------------------------------------------------------------
+-- Entra pela `20261010140000_transferencia_espera_o_prazo_do_novo_dono.sql`,
+-- que reescreve `montar_fila_do_funil` com o lateral do atendimento mais
+-- recente do lead (desde a 20260916150000). Só as colunas que esse lateral
+-- lê; o resto da tabela (Chatwoot, etiquetas, SLA) não muda a régua.
+create table public.atendimentos (
+  id                uuid primary key default gen_random_uuid(),
+  lead_id           uuid references public.leads (id) on delete cascade,
+  iniciado_em       timestamptz,
+  humano_assumiu_em timestamptz,
+  com_assistente    boolean,
+  created_at        timestamptz not null default now()
+);
+
+
+-- ---------------------------------------------------------------------------
 -- Recorte do núcleo F0: só `parametros_avaliacao`, na forma que a f0f deixa
 -- ---------------------------------------------------------------------------
 -- Entra pela migração `20260924220000_curva_km_por_ano.sql`, que acrescenta

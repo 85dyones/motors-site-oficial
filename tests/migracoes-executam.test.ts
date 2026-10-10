@@ -224,6 +224,13 @@ const CADEIA = [
   // banco de verdade. Vem depois da 20260925130000, que deu `org_id` à tabela
   // que a função grava, e da RLS por escopo, que a função atravessa.
   "20261009120000_concluir_passo_sem_proximo.sql",
+  // A transferência espera o prazo do novo dono (2026-10-10): o rodízio
+  // jogava o mesmo lead de um vendedor para o outro de hora em hora. Entra na
+  // cadeia porque reescreve `montar_fila_do_funil` inteira, e o aceite prova a
+  // trava contra o gatilho de `leads` de verdade — recém-transferido não
+  // transfere, dono com o prazo inteiro transfere, `responsavel_desde` nulo
+  // transfere como antes. Pediu ao andaime o recorte de `atendimentos`.
+  "20261010140000_transferencia_espera_o_prazo_do_novo_dono.sql",
 ];
 
 /**
