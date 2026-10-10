@@ -104,7 +104,7 @@ describe("AoAparecer: pronto no servidor, armado fora da tela, toca ao aparecer"
   it("o servidor manda o bloco sem estado: o desenho final", () => {
     expect(renderToStaticMarkup(createElement(AoAparecer, null, "x"))).toBe("<div>x</div>");
     // Dentro de um título, `span` (div em h1 não é HTML válido).
-    expect(renderToStaticMarkup(createElement(AoAparecer, { como: "span" }, "x"))).toBe("<span>x</span>");
+    expect(renderToStaticMarkup(createElement(AoAparecer, { como: "span" } as Parameters<typeof AoAparecer>[0], "x"))).toBe("<span>x</span>");
   });
 
   it("fora da tela, arma; quando metade aparece, toca", async () => {
