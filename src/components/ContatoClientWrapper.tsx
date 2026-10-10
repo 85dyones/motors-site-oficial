@@ -308,12 +308,19 @@ export default function ContatoClientWrapper() {
               o formulário, vira chamado de suporte. O desafio resolve em
               menos de um segundo na maioria das visitas, então esta linha
               quase nunca aparece — e quando aparece, diz o que está
-              acontecendo em vez de deixar o visitante clicando. */}
-          {!turnstileToken && status !== "sending" && (
-            <p className="mt-2 text-[11px] text-mt-neutral-600">
-              Verificação de segurança em andamento…
-            </p>
-          )}
+              acontecendo em vez de deixar o visitante clicando.
+
+              Some de vista com `invisible` em vez de desmontar: desmontada,
+              a linha levava junto os 24 px dela quando o token chegava, e o
+              rodapé subia — um deslocamento de layout justamente na visita
+              comum, aquela em que o desafio passa sozinho. */}
+          <p
+            className={`mt-2 text-[11px] text-mt-neutral-600 ${
+              !turnstileToken && status !== "sending" ? "" : "invisible"
+            }`}
+          >
+            Verificação de segurança em andamento…
+          </p>
         </form>
       )}
     </div>

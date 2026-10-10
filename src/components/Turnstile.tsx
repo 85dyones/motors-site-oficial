@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 
 export interface TurnstileHandle {
   /**
@@ -34,6 +34,7 @@ interface TurnstileProps {
 export default function Turnstile({ onSuccess, onError, onExpire, action, ref }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const [inteiroNaTela, setInteiroNaTela] = useState(false);
 
   // Os callbacks moram em refs para que o efeito de baixo NÃO dependa da
   // identidade deles.
@@ -206,5 +207,64 @@ export default function Turnstile({ onSuccess, onError, onExpire, action, ref }:
     };
   }, []);
 
-  return <div ref={containerRef} />;
+  // Só com o contêiner inteiro à vista ele vira o bloco de contenção do iframe
+  // (ver o `contain` logo abaixo). Fora da tela, o iframe fica onde a
+  // Cloudflare o põe.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observador = new IntersectionObserver(
+      // Várias entradas no mesmo lote: a última é o estado de agora.
+      (entradas) => setInteiroNaTela(entradas[entradas.length - 1].intersectionRatio >= 1),
+      { threshold: [0, 1] }
+    );
+    observador.observe(el);
+    return () => observador.disconnect();
+  }, []);
+
+  // O lugar do widget fica reservado desde o primeiro paint.
+  //
+  // Com `interaction-only` o contêiner nasce com 0 px e só cresce quando a
+  // Cloudflare decide pedir o clique — segundos depois do load, quando o
+  // formulário já está na tela. O botão de enviar e tudo abaixo dele desciam
+  // de uma vez: em /contato, medido em produção em 09/10/2026 (Chromium
+  // headless, em que o desafio sempre pede clique), CLS 0,088 no desktop e
+  // 0,124 no celular, aos ~4 s.
+  //
+  // 65 px é a altura do widget no tamanho `normal`, o padrão, que é o que
+  // `render` acima usa (300×65). O `leading-[0]` não é enfeite: o iframe vem
+  // `display: inline` dentro do shadow root, então se apoia na linha de base
+  // do texto herdado e ganha o espaço da descendente embaixo — medido, 72 px
+  // com o 16/24 de /contato, e outro número em cada formulário com outra
+  // fonte. Altura de linha zero tira esse espaço e deixa o widget em 65 px
+  // exatos em qualquer consumidor.
+  //
+  // Reservar a altura não bastou: sobrou CLS 0,006 no desktop e 0,046 no
+  // celular, do próprio iframe. Enquanto o desafio roda escondido, a Cloudflare
+  // o deixa `position: fixed` em 1×1 no canto (0,0) da JANELA, com opacidade
+  // 0,01; quando pede o clique, ele volta para o fluxo, dentro do contêiner — e
+  // esse salto do canto da tela até o formulário conta como deslocamento.
+  // `contain: layout` faz do contêiner o bloco de contenção dos descendentes
+  // `fixed`, então o iframe escondido já espera no canto do próprio contêiner
+  // e só cresce no lugar.
+  //
+  // Mas só com o contêiner inteiro à vista. O canto da janela é escolha da
+  // Cloudflare: lá o iframe escondido está sempre na tela, e iframe de outra
+  // origem fora da tela pode ter a renderização estrangulada pelo navegador —
+  // o que, num desafio que roda sem ninguém ver, travaria o token em silêncio.
+  // Com o contêiner inteiro à vista, levá-lo para dentro dele não o tira da
+  // tela. A troca em si move um iframe de 1×1 quase transparente, que não pesa
+  // no CLS. A tentativa mais simples, ligar a contenção no
+  // `before-interactive-callback`, não serve: medido, ele dispara ~10 ms antes
+  // de o iframe mudar de lugar, no mesmo quadro.
+  //
+  // O preço é uma faixa de 65 px vazia nas visitas em que o desafio passa
+  // sozinho. A alternativa — reservar só depois que o widget aparece — é o
+  // próprio deslocamento que isto evita.
+  return (
+    <div
+      ref={containerRef}
+      className={`min-h-[65px] leading-[0] ${inteiroNaTela ? "[contain:layout]" : ""}`}
+    />
+  );
 }
