@@ -175,18 +175,34 @@ describe("seção nova entra na vizinhança do catálogo, não no fim", () => {
   it("entra logo depois da vizinha que a precede no catálogo", () => {
     const { ordem } = normalizarAreas({ ordem: ORDEM_DE_PRODUCAO, ocultas: [] });
 
-    // No catálogo, `faixas_de_preco` vem logo após `estoque_selecionado`.
-    expect(ordem[ordem.indexOf("estoque_selecionado") + 1]).toBe("faixas_de_preco");
+    // No catálogo, `faixas_de_preco` vem logo após `destaques_rapidos`.
+    expect(ordem[ordem.indexOf("destaques_rapidos") + 1]).toBe("faixas_de_preco");
   });
 
-  it("a faixa do repasse entra logo depois das faixas de preço, sem passo no painel", () => {
+  it("a faixa do repasse entra logo depois do estoque selecionado, sem passo no painel", () => {
     // PR 4 do repasse (spec 2026-09-24 §10). A ordem salva não conhece
     // `repasse` nem `faixas_de_preco`; as duas entram na vizinhança do catálogo.
     const { ordem } = normalizarAreas({ ordem: ORDEM_DE_PRODUCAO, ocultas: [] });
 
     expect(ordem.indexOf("repasse"), "a faixa do repasse não entrou na ordem").toBeGreaterThanOrEqual(0);
-    expect(ordem[ordem.indexOf("faixas_de_preco") + 1]).toBe("repasse");
+    expect(ordem[ordem.indexOf("estoque_selecionado") + 1]).toBe("repasse");
     expect(ordem.indexOf("repasse")).toBeLessThan(ordem.indexOf("contato"));
+  });
+
+  it("na home de produção: escolha pelo orçamento, estoque selecionado, repasse (pedido do dono, 10/10)", () => {
+    // Até 10/10/2026 a grade da semana vinha ACIMA das faixas de preço. O dono
+    // pediu o estoque selecionado abaixo de "Escolha pelo orçamento" e acima do
+    // repasse. Com a ordem salva de produção, quem decide é o catálogo.
+    const { ordem } = normalizarAreas({ ordem: ORDEM_DE_PRODUCAO, ocultas: [] });
+    const i = (id: string) => ordem.indexOf(id);
+
+    expect(ordem.slice(i("faixas_de_preco"), i("repasse") + 1)).toEqual([
+      "faixas_de_preco",
+      "estoque_selecionado",
+      "repasse",
+    ]);
+    expect(i("destaques_rapidos")).toBeLessThan(i("faixas_de_preco"));
+    expect(i("repasse")).toBeLessThan(i("consultoria"));
   });
 
   it("vale para qualquer seção nova, não só esta", () => {

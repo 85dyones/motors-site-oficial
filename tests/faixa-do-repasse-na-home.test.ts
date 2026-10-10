@@ -178,7 +178,7 @@ describe("a faixa do repasse na home", () => {
     expect(await faixas()).toHaveLength(0);
   });
 
-  it("com a ordem salva em produção, a área entra sozinha, logo depois das faixas de preço", async () => {
+  it("com a ordem salva em produção, a área entra sozinha, logo depois do estoque selecionado", async () => {
     // Nenhum passo no painel: `normalizarAreas` põe o id novo ao lado da
     // vizinha que o precede no catálogo (decisão 3 do plano do PR 4).
     estado.areasHome = { ordem: ORDEM_DE_PRODUCAO, ocultas: [] };
@@ -186,7 +186,10 @@ describe("a faixa do repasse na home", () => {
 
     const ordem = await ordemDasAreas();
     expect(ordem).toContain("faixas_de_preco");
-    expect(ordem.indexOf("repasse")).toBe(ordem.indexOf("faixas_de_preco") + 1);
+    // Desde 10/10/2026 a ordem é faixas de preço → estoque selecionado →
+    // repasse (pedido do dono; ver `lib/areasDoSite.ts`).
+    expect(ordem.indexOf("repasse")).toBe(ordem.indexOf("estoque_selecionado") + 1);
+    expect(ordem.indexOf("faixas_de_preco")).toBeLessThan(ordem.indexOf("estoque_selecionado"));
     expect(ordem.indexOf("repasse")).toBeLessThan(ordem.indexOf("contato"));
     expect(await faixas()).toHaveLength(1);
   });
