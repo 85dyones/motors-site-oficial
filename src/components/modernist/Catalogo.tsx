@@ -39,6 +39,7 @@ import {
 import CampoDeOpcionais from "./CampoDeOpcionais";
 import FaixaComCaixas, { PontaDaFaixa } from "./FaixaComCaixas";
 import { CardVeiculo, formatarKm, formatarPreco } from "./primitivos";
+import Hodometro from "./Hodometro";
 
 /**
  * Catálogo — tela 02 do design doc.
@@ -650,7 +651,9 @@ export default function Catalogo({
       <div className="border-b-2 border-mt-regua px-[18px] pb-5 pt-6 lg:px-10 lg:pb-5 lg:pt-7">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="flex items-baseline gap-2">
-            <span className="mt-titulo text-[26px] lg:text-[32px]">{totalFiltrado}</span>
+            {/* Gira como hodômetro quando o filtro muda a contagem: a pessoa vê,
+                sem ler, que a seleção encolheu ou cresceu. */}
+            <Hodometro texto={String(totalFiltrado)} className="mt-titulo text-[26px] lg:text-[32px]" />
             <span className="text-[11px] font-semibold tracking-[.14em] text-mt-neutral-600">
               {totalFiltrado === 1 ? "VEÍCULO NA SELEÇÃO" : "VEÍCULOS NA SELEÇÃO"}
             </span>

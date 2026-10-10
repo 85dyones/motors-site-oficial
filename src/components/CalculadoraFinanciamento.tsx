@@ -10,6 +10,7 @@ import {
   type SimulationResult,
 } from "../lib/finance-calculator";
 import { avisoDeCredito, textoDaParcela, textoSemEstimativa } from "../lib/textoDaParcela";
+import Hodometro from "./modernist/Hodometro";
 
 export interface SimulacaoData {
   valor_veiculo: number;
@@ -306,7 +307,11 @@ Consegue verificar se aprova nessas condições?`;
                 data-numero="parcela"
                 className="text-[28px] font-extrabold leading-none tabular-nums tracking-[-.04em] text-mt-ink lg:text-[34px]"
               >
-                R$ {result.parcela_mensal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {/* Gira como hodômetro a cada prazo ou degrau de entrada: o
+                    número que rola mostra que a conta foi refeita. */}
+                <Hodometro
+                  texto={`R$ ${result.parcela_mensal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                />
               </div>
               <div className="mt-2.5 text-[12px] leading-relaxed text-mt-neutral-700">
                 {/* A taxa de juros e o CET são números diferentes: o rótulo

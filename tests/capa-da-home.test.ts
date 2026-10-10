@@ -99,7 +99,7 @@ describe("3.6 · o texto da capa", () => {
   });
 });
 
-describe("3.7 · o único movimento: a régua se desenha e os números contam", () => {
+describe("3.7 · a capa: a régua se desenha e os números contam", () => {
   it("a régua da capa se desenha; os números saem do servidor já com o valor final, uma vez", async () => {
     const html = await capa();
     expect(html).toContain("mt-regua-desenha");
