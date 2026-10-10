@@ -15,9 +15,16 @@ import { maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
 import { urlDoLead } from "../../../../lib/filaDoFunil";
 import { urlDoSite } from "../../../../lib/site";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
-import { atribuirConversasDaFila, conversasAbertasPorLead } from "../../../../lib/donoDaConversa";
+import {
+  atribuirConversasDaFila,
+  conversasAbertasPorLead,
+  depoisDaResposta,
+} from "../../../../lib/donoDaConversa";
 
 export const dynamic = "force-dynamic";
+// A atribuição das conversas no Chatwoot corre depois da resposta e pode
+// levar dezenas de segundos (ver `lib/donoDaConversa`).
+export const maxDuration = 60;
 
 /**
  * A fila de alertas do funil — o que o n8n consome para cutucar o vendedor.
@@ -296,21 +303,25 @@ export async function POST(request: Request) {
   // cliente em "Minhas" (`lib/donoDaConversa`).
   //
   // Só no modo reservado, o único que troca o dono, e só para o que foi
-  // entregue: lead suprimido não mudou de mão. Depois da fila pronta e com
-  // prazo, porque o aviso é o que não pode faltar. O que não entrou no
-  // Chatwoot sai na resposta, para a execução do n8n mostrar.
-  let noChatwoot: { atribuidas: number; falhas: string[] } | null = null;
-  if (reservar) {
-    noChatwoot = await atribuirConversasDaFila(
-      linhas
+  // entregue: lead suprimido não mudou de mão. DEPOIS da resposta: o Chatwoot
+  // leva uns 15 s para responder a uma atribuição (medido em 10/10), e a fila
+  // do n8n não espera por isso. A resposta diz quantas conversas ficaram
+  // agendadas; o resultado de cada uma fica no log.
+  const trocas = reservar
+    ? linhas
         .filter((l) => !l.suprimido_por && avisoComCopiaAoGestor(l))
-        .map((l) => ({ leadId: l.lead_id, responsavel: l.novo_responsavel })),
-      abertasPorLead,
-      configDoChatwoot(),
-    );
-    if (noChatwoot.falhas.length > 0) {
-      console.warn("[Funil] Conversa do Chatwoot sem o dono novo:", noChatwoot.falhas.join(" | "));
-    }
+        .map((l) => ({ leadId: l.lead_id, responsavel: l.novo_responsavel }))
+    : [];
+  const agendadas = trocas.reduce((n, t) => n + (abertasPorLead.get(t.leadId)?.length ?? 0), 0);
+  if (agendadas > 0) {
+    const cfg = configDoChatwoot();
+    depoisDaResposta(async () => {
+      const r = await atribuirConversasDaFila(trocas, abertasPorLead, cfg);
+      if (r.falhas.length > 0) {
+        console.warn("[Funil] Conversa do Chatwoot sem o dono novo:", r.falhas.join(" | "));
+      }
+      console.info(`[Funil] Conversas do Chatwoot com o dono novo: ${r.atribuidas} de ${agendadas}.`);
+    });
   }
 
   return NextResponse.json({
@@ -320,8 +331,6 @@ export async function POST(request: Request) {
     fila,
     suprimidos,
     ...(semDestinatario.length > 0 ? { sem_destinatario: semDestinatario } : {}),
-    ...(noChatwoot && (noChatwoot.atribuidas > 0 || noChatwoot.falhas.length > 0)
-      ? { conversas_no_chatwoot: noChatwoot }
-      : {}),
+    ...(agendadas > 0 ? { conversas_no_chatwoot: { agendadas } } : {}),
   });
 }
