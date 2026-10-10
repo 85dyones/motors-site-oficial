@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import Link from "next/link";
 import { getEstoque, Veiculo } from "../lib/supabase";
 import { disponiveisDe, precoVigente } from "../lib/regrasEstoque";
@@ -60,6 +60,10 @@ import LeadCaptureModal from "./LeadCaptureModal";
 import ResultadoDoProfiler from "./ResultadoDoProfiler";
 import { useTheme } from "../app/ThemeContext";
 import { Rotulo, Seta } from "./modernist/primitivos";
+import TextoCinetico from "./modernist/TextoCinetico";
+import TextoQueRola from "./modernist/TextoQueRola";
+import Hodometro from "./modernist/Hodometro";
+import AoAparecer from "./modernist/AoAparecer";
 import { linkWhatsApp, telefoneDoLead } from "../lib/whatsapp";
 import { ACOES } from "../lib/turnstile";
 
@@ -258,7 +262,7 @@ function OpcaoQuiz({
       onClick={onClick}
       aria-pressed={selecionada}
       disabled={desabilitada}
-      className={`mt-foco flex w-full items-start gap-4 border-2 p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:gap-[18px] lg:px-6 lg:py-[22px] ${
+      className={`mt-foco mt-rola-alvo flex w-full items-start gap-4 border-2 p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40 lg:gap-[18px] lg:px-6 lg:py-[22px] ${
         selecionada
           ? "border-mt-accent bg-[color-mix(in_srgb,var(--mt-accent)_14%,transparent)]"
           : "border-mt-inverso-regua-fina hover:border-mt-inverso-regua"
@@ -268,8 +272,9 @@ function OpcaoQuiz({
         {letra}
       </span>
       <span className="min-w-0 flex-1">
+        {/* O título gira letra a letra no mouse (`TextoQueRola`). */}
         <span className="block text-[17px] font-extrabold leading-tight tracking-[-.02em] lg:text-[21px]">
-          {titulo}
+          <TextoQueRola texto={titulo} />
         </span>
         {desc && (
           <span className="mt-1.5 block text-xs leading-snug text-mt-inverso-suave lg:text-[13px]">
@@ -283,7 +288,7 @@ function OpcaoQuiz({
             zerada ? "text-mt-inverso-suave" : "text-mt-inverso"
           }`}
         >
-          {contagem}
+          <TextoQueRola texto={contagem} />
         </span>
       )}
     </button>
@@ -304,7 +309,8 @@ function ReguaProgresso({ posicao, total, rotulo }: { posicao: number; total: nu
     <div className="mt-9 lg:mt-13">
       <div className="flex items-baseline gap-3 lg:gap-3.5">
         <span className="text-xs font-extrabold tracking-[.12em] text-mt-accent lg:text-[13px]">
-          {doisDigitos(posicao + 1)} / {doisDigitos(total)}
+          {/* O número do passo roda como o hodômetro ao avançar. */}
+          <Hodometro texto={doisDigitos(posicao + 1)} /> / {doisDigitos(total)}
         </span>
         <span className="text-[11px] tracking-[.08em] text-mt-inverso-suave lg:text-xs">
           {rotulo}
@@ -1249,8 +1255,11 @@ export default function CarMatch({
               <Rotulo accent className="text-[11px] tracking-[.18em] text-mt-cobre-marca">
                 CONSULTORIA
               </Rotulo>
+              {/* As palavras acendem uma a uma (`TextoCinetico`, "carga"): é o
+                  maior texto da página e conta para o LCP já no primeiro
+                  quadro. */}
               <h1 className="mt-display m-0 mt-5 text-[38px] text-mt-inverso lg:text-[66px]">
-                Cinco perguntas até o carro certo.
+                <TextoCinetico texto="Cinco perguntas até o carro certo." modo="carga" />
               </h1>
               <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-inverso-suave lg:text-base">
                 Cada opção mostra, antes do toque, quantos carros do pátio sobram
@@ -1266,8 +1275,11 @@ export default function CarMatch({
                 { valor: carrosDoPatio.length > 0 ? String(carrosDoPatio.length) : "—", rotulo: "CARROS NO PÁTIO" },
               ].map((item) => (
                 <div key={item.rotulo} className="flex-1">
+                  {/* Os números rodam do zero até o valor quando a página abre
+                      (`Hodometro`, "chega"); o do pátio, quando o estoque
+                      responde. */}
                   <div className="text-[28px] font-extrabold leading-none lg:text-[34px]">
-                    {item.valor}
+                    <Hodometro texto={item.valor} chega="montagem" />
                   </div>
                   <div className="mt-1 text-[11px] font-semibold tracking-[.14em] text-mt-inverso-suave">
                     {item.rotulo}
@@ -1280,9 +1292,9 @@ export default function CarMatch({
               <button
                 type="button"
                 onClick={() => setGameState("q1")}
-                className="mt-btn mt-btn-primario mt-foco"
+                className="mt-btn mt-btn-primario mt-foco mt-rola-alvo"
               >
-                MONTAR MEU PERFIL
+                <TextoQueRola texto="MONTAR MEU PERFIL" />
                 <Seta size={15} />
               </button>
             </div>
@@ -1305,7 +1317,7 @@ export default function CarMatch({
             {gameState === "q1" && (
               <div className="mt-passo-entra flex flex-1 flex-col">
                 <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
-                  Qual a faixa de investimento para a próxima garagem?
+                  <TextoCinetico texto="Qual a faixa de investimento para a próxima garagem?" modo="gesto" />
                 </h2>
 
                 {/* Modo de responder: faixa pronta, valor exato, parcela ou texto
@@ -1323,7 +1335,7 @@ export default function CarMatch({
                       type="button"
                       onClick={() => setBudgetTab(aba.id)}
                       aria-pressed={budgetTab === aba.id}
-                      className={`mt-foco px-3.5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors sm:px-5 lg:px-7 lg:text-[13px] ${
+                      className={`mt-foco mt-rola-alvo px-3.5 py-3 text-[11px] font-extrabold tracking-[.08em] transition-colors sm:px-5 lg:px-7 lg:text-[13px] ${
                         i % 2 === 1 ? "border-l-2 border-mt-inverso-regua" : ""
                       } ${i >= 2 ? "border-t-2 border-mt-inverso-regua sm:border-t-0" : ""} ${
                         i === 2 ? "sm:border-l-2" : ""
@@ -1333,7 +1345,7 @@ export default function CarMatch({
                           : "text-mt-inverso-suave hover:text-mt-inverso"
                       }`}
                     >
-                      {aba.rotulo}
+                      <TextoQueRola texto={aba.rotulo} />
                     </button>
                   ))}
                 </div>
@@ -1378,9 +1390,9 @@ export default function CarMatch({
                     <button
                       type="button"
                       onClick={confirmCustomBudget}
-                      className="mt-btn mt-btn-primario mt-foco mt-7"
+                      className="mt-btn mt-btn-primario mt-foco mt-rola-alvo mt-7"
                     >
-                      CONFIRMAR
+                      <TextoQueRola texto="CONFIRMAR" />
                       <Seta size={15} />
                     </button>
                   </div>
@@ -1495,8 +1507,8 @@ export default function CarMatch({
                         financiam carros de {parametros.anoMaisAntigo} em diante: um mais antigo só entra se a
                         sua entrada pagar ele inteiro. {avisoDeCredito(parametros.bancosParceiros)}
                       </p>
-                      <button type="button" onClick={confirmarPorMes} className="mt-btn mt-btn-primario mt-foco mt-6">
-                        CONFIRMAR
+                      <button type="button" onClick={confirmarPorMes} className="mt-btn mt-btn-primario mt-foco mt-rola-alvo mt-6">
+                        <TextoQueRola texto="CONFIRMAR" />
                         <Seta size={15} />
                       </button>
                     </div>
@@ -1520,9 +1532,9 @@ export default function CarMatch({
                       type="button"
                       onClick={confirmAiCuratorQuery}
                       disabled={!aiQuery.trim()}
-                      className="mt-btn mt-btn-primario mt-foco mt-6"
+                      className="mt-btn mt-btn-primario mt-foco mt-rola-alvo mt-6"
                     >
-                      MONTAR PERFIL
+                      <TextoQueRola texto="MONTAR PERFIL" />
                       <Seta size={15} />
                     </button>
                   </div>
@@ -1663,24 +1675,24 @@ export default function CarMatch({
                   type="button"
                   onClick={confirmarJeitos}
                   disabled={(answers.jeitos ?? []).length === 0}
-                  className="mt-btn mt-btn-primario mt-foco disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mt-btn mt-btn-primario mt-foco mt-rola-alvo disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  CONTINUAR
+                  <TextoQueRola texto="CONTINUAR" />
                   <Seta size={15} />
                 </button>
               )}
               {gameState === "q5" && (
-                <button type="button" onClick={() => verResultado()} className="mt-btn mt-btn-primario mt-foco">
-                  VER RESULTADO
+                <button type="button" onClick={() => verResultado()} className="mt-btn mt-btn-primario mt-foco mt-rola-alvo">
+                  <TextoQueRola texto="VER RESULTADO" />
                   <Seta size={15} />
                 </button>
               )}
               <button
                 type="button"
                 onClick={voltarPergunta}
-                className="mt-btn mt-foco border-2 border-mt-inverso-regua text-mt-neutral-300"
+                className="mt-btn mt-foco mt-rola-alvo border-2 border-mt-inverso-regua text-mt-neutral-300"
               >
-                VOLTAR
+                <TextoQueRola texto="VOLTAR" />
               </button>
               {perguntasQueFaltam > 0 && (
                 <span className="text-xs text-mt-inverso-suave">
@@ -1695,7 +1707,7 @@ export default function CarMatch({
             {!semContagem && orcamentoRespondido && (
               <div className="sticky bottom-0 z-10 -mx-[18px] mt-6 border-t-2 border-mt-inverso-regua bg-mt-inverso-fundo px-[18px] pb-[max(12px,env(safe-area-inset-bottom))] pt-3 lg:hidden">
                 <span className="text-[11px] font-extrabold tracking-[.12em]">
-                  SOBRAM {restantes.length} DE {carrosDoPatio.length}
+                  SOBRAM <Hodometro texto={String(restantes.length)} /> DE {carrosDoPatio.length}
                 </span>
               </div>
             )}
@@ -1712,9 +1724,14 @@ export default function CarMatch({
               aria-live="polite"
               className="mt-display m-0 mt-5 max-w-[720px] text-[26px] text-mt-inverso lg:text-[44px]"
             >
-              {carrosDoPatio.length > 0
-                ? `Cruzando suas respostas com os ${carrosDoPatio.length} carros do pátio`
-                : "Cruzando suas respostas com o pátio"}
+              <TextoCinetico
+                texto={
+                  carrosDoPatio.length > 0
+                    ? `Cruzando suas respostas com os ${carrosDoPatio.length} carros do pátio`
+                    : "Cruzando suas respostas com o pátio"
+                }
+                modo="gesto"
+              />
             </p>
           </div>
         )}
@@ -1755,7 +1772,7 @@ export default function CarMatch({
             SEU PERFIL, AO VIVO
           </Rotulo>
           <h2 className="mt-titulo m-0 mt-3 text-[28px] lg:text-4xl">
-            Curadoria em formação
+            <TextoCinetico texto="Curadoria em formação" modo="carga" />
           </h2>
 
           <div className="mt-6 border-t-2 border-mt-regua lg:mt-7">
@@ -1788,26 +1805,34 @@ export default function CarMatch({
                   ? "O QUE SOBRA COM SUAS RESPOSTAS"
                   : "COMPOSIÇÃO DO ESTOQUE"}
               </Rotulo>
-              <div className="mt-3.5 flex flex-col gap-3.5">
-                {composicaoEstoque.map((linha) => (
+              {/* As barras crescem do zero quando o bloco entra na tela (no
+                  celular ele fica lá embaixo) e andam com `scaleX` quando a
+                  composição muda; os percentuais rodam como o hodômetro. */}
+              <AoAparecer className="mt-3.5 flex flex-col gap-3.5" limiar={0.3}>
+                {composicaoEstoque.map((linha, ordem) => (
                   <div key={linha.tipo}>
                     <div className="mb-1.5 flex items-baseline justify-between gap-3">
                       <span className="text-sm font-extrabold tracking-[-.01em]">
                         {linha.tipo}
                       </span>
                       <span className="text-[13px] font-extrabold text-mt-accent">
-                        {linha.percentual}%
+                        <Hodometro texto={`${linha.percentual}%`} />
                       </span>
                     </div>
                     <div className="h-1.5 bg-mt-neutral-300">
                       <div
-                        className="h-1.5 bg-mt-accent transition-[width] duration-300"
-                        style={{ width: `${linha.percentual}%` }}
+                        className="mt-barra-dado h-1.5 bg-mt-accent"
+                        style={
+                          {
+                            transform: `scaleX(${linha.percentual / 100})`,
+                            "--mt-ordem": ordem,
+                          } as CSSProperties
+                        }
                       />
                     </div>
                   </div>
                 ))}
-              </div>
+              </AoAparecer>
               <p className="m-0 mt-3 text-[11px] leading-relaxed text-mt-neutral-600">
                 Participação por carroceria entre os veículos disponíveis — não é
                 nota de compatibilidade.
@@ -1824,9 +1849,13 @@ export default function CarMatch({
               <div className="mt-3.5 flex items-center gap-2.5">
                 <span className="mt-pulso h-2 w-2 shrink-0 bg-mt-accent" aria-hidden="true" />
                 <span className="text-[11px] tracking-[.1em] text-mt-neutral-600">
-                  {orcamentoRespondido
-                    ? `SOBRAM ${restantes.length} DE ${carrosDoPatio.length}`
-                    : `${carrosDoPatio.length} CARROS NO PÁTIO`}
+                  {orcamentoRespondido ? (
+                    <>
+                      SOBRAM <Hodometro texto={String(restantes.length)} /> DE {carrosDoPatio.length}
+                    </>
+                  ) : (
+                    `${carrosDoPatio.length} CARROS NO PÁTIO`
+                  )}
                 </span>
               </div>
             )}
@@ -1880,8 +1909,9 @@ function BlocoPergunta({
           {nota}
         </p>
       ))}
+      {/* Cada pergunta nova assenta palavra por palavra (`TextoCinetico`). */}
       <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
-        {titulo}
+        <TextoCinetico texto={titulo} modo="gesto" />
       </h2>
       {subtitulo && (
         <p className="m-0 mt-3 max-w-[640px] text-[13px] leading-relaxed text-mt-inverso-suave">{subtitulo}</p>

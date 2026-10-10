@@ -27,14 +27,26 @@ import type { CSSProperties } from "react";
  * Não tem estado nem efeito: é só marcação. Por isso roda no servidor também,
  * e a transição sai de graça do CSS quando o React troca o `--mt-hodometro-
  * digito` de uma fita que já existe.
+ *
+ * `chega` (Onda cinética, 10/10/2026) é a exceção à "não é entrada animada",
+ * para o número que é o dado da tela e não o maior texto dela: a FIPE da
+ * avaliação, os números de abertura do Garagem Profiler, os passos das seções
+ * da home. Cada fita sai do zero e roda até o dígito, as unidades primeiro.
+ * `"montagem"` roda quando o número aparece no documento; `"aparece"`, dentro
+ * de um `AoAparecer`, quando o bloco entra na tela. O texto real está no
+ * documento desde o primeiro quadro, para o leitor de tela e a busca, e com
+ * menos movimento a fita já nasce no dígito.
  */
 export default function Hodometro({
   texto,
   className,
+  chega,
 }: {
   /** O número já formatado ("44", "R$ 5.835,58"). */
   texto: string;
   className?: string;
+  /** Roda do zero ao valor quando aparece, em vez de nascer parado. */
+  chega?: "montagem" | "aparece";
 }) {
   const caracteres = [...texto];
   const ehDigito = (c: string) => /\d/.test(c);
@@ -47,7 +59,7 @@ export default function Hodometro({
   }));
 
   return (
-    <span className={className ? `mt-hodometro ${className}` : "mt-hodometro"}>
+    <span className={className ? `mt-hodometro ${className}` : "mt-hodometro"} data-chega={chega}>
       <span className="mt-hodometro-valor">{texto}</span>
       <span className="mt-hodometro-rolo" aria-hidden="true">
         {casas.map(({ caractere, daDireita, ordem }) =>

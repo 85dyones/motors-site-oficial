@@ -37,7 +37,12 @@ vi.mock("next/link", () => ({
 }));
 
 const css = ler("src/app/modernist.css");
-const secao = css.slice(css.indexOf("/* — movimento com função"));
+// Só a seção da Onda 1: as ondas seguintes moram depois dela, com testes
+// próprios (a onda cinética também tem um bloco de mouse).
+const secao = css.slice(
+  css.indexOf("/* — movimento com função"),
+  css.indexOf("/* — movimento com função, Onda 2"),
+);
 
 /** O conteúdo entre as chaves do primeiro bloco que começa em `abertura`. */
 function bloco(texto: string, abertura: string): string {

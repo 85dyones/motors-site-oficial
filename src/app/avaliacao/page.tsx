@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AutoAvaliacao from "../../components/AutoAvaliacao";
+import AoAparecer from "../../components/modernist/AoAparecer";
+import TextoCinetico from "../../components/modernist/TextoCinetico";
+import TextoQueRola from "../../components/modernist/TextoQueRola";
 import GuiasRelacionados from "../../components/modernist/GuiasRelacionados";
 import { GUIAS_DA_PAGINA } from "../../lib/guiasNoSite";
 import { getCachedSettings } from "../../lib/settings";
@@ -159,16 +162,22 @@ export default async function AvaliacaoPage() {
       />
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-11">
-        <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">Depois da avaliação</h2>
+        {/* Onda cinética: o título assenta quando a seção entra na tela, e o
+            rótulo de cada destino gira letra a letra no mouse. */}
+        <AoAparecer>
+          <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
+            <TextoCinetico texto="Depois da avaliação" modo="aparece" />
+          </h2>
+        </AoAparecer>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {DEPOIS_DA_AVALIACAO.map((destino) => (
             <Link
               key={destino.href}
               href={destino.href}
-              className="mt-foco group flex flex-col gap-2 border border-mt-regua p-4 no-underline hover:border-mt-accent"
+              className="mt-foco mt-rola-alvo group flex flex-col gap-2 border border-mt-regua p-4 no-underline hover:border-mt-accent"
             >
               <span className="text-[12px] font-extrabold uppercase tracking-[.06em] text-mt-ink">
-                {destino.rotulo}
+                <TextoQueRola texto={destino.rotulo} />
               </span>
               <span className="text-[12px] leading-relaxed text-mt-neutral-800">
                 {destino.apoio}

@@ -347,7 +347,10 @@ describe("Piloto · item 13, a vitrine do /estoque se reorganiza", () => {
 
 describe("Piloto · o CSS", () => {
   const css = ler("src/app/modernist.css");
-  const piloto = css.slice(css.indexOf("/* — movimento com função, Piloto"));
+  const piloto = css.slice(
+    css.indexOf("/* — movimento com função, Piloto"),
+    css.indexOf("/* — movimento com função, Onda cinética"),
+  );
 
   /** O conteúdo entre as chaves do primeiro bloco que começa em `abertura`. */
   function bloco(texto: string, abertura: string): string {

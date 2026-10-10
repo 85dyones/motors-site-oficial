@@ -8,6 +8,9 @@ import { ACOES } from "../lib/turnstile";
 import SaidaDoCaptcha from "./SaidaDoCaptcha";
 import { useTheme } from "../app/ThemeContext";
 import { IconeWhatsApp, Rotulo, Seta } from "./modernist/primitivos";
+import TextoCinetico from "./modernist/TextoCinetico";
+import TextoQueRola from "./modernist/TextoQueRola";
+import Hodometro from "./modernist/Hodometro";
 import { linkWhatsApp, mascararTelefone, telefoneDoLead } from "../lib/whatsapp";
 import {
   consultarValor,
@@ -336,13 +339,16 @@ function OpcaoEstado({
       type="button"
       onClick={onClick}
       aria-pressed={selecionada}
-      className={`mt-foco flex flex-col items-start border-2 p-3.5 text-left transition-colors ${
+      className={`mt-foco mt-rola-alvo flex flex-col items-start border-2 p-3.5 text-left transition-colors ${
         selecionada
           ? "border-mt-accent bg-mt-accent-100"
           : "border-mt-regua-fina hover:border-mt-regua"
       }`}
     >
-      <span className="text-[13px] font-extrabold leading-tight">{label}</span>
+      {/* O rótulo gira letra a letra no mouse (`TextoQueRola`). */}
+      <span className="text-[13px] font-extrabold leading-tight">
+        <TextoQueRola texto={label} />
+      </span>
       <span className="mt-1 text-[11px] leading-snug text-mt-neutral-600">{desc}</span>
     </button>
   );
@@ -1038,8 +1044,10 @@ export default function AutoAvaliacao() {
         <Rotulo accent className="text-[11px] tracking-[.18em]">
           VENDA OU TROCA
         </Rotulo>
+        {/* As palavras acendem uma a uma (`TextoCinetico`, "carga"): é o
+            maior texto da página e conta para o LCP já no primeiro quadro. */}
         <h1 className="mt-titulo m-0 mt-3 text-[38px] lg:text-[64px] lg:leading-[.95]">
-          {tituloDaTela}
+          <TextoCinetico texto={tituloDaTela} modo="carga" />
         </h1>
         {/* Até 24/09/2026 esta linha dizia "Dados oficiais da Tabela FIPE
             cruzados com o giro real do nosso estoque" — e nenhum código cruza
@@ -1124,7 +1132,7 @@ export default function AutoAvaliacao() {
                     type="button"
                     onClick={() => handleVehicleTypeChange(tipo.id)}
                     aria-pressed={vehicleType === tipo.id}
-                    className={`mt-foco flex-1 px-4 py-3 text-[12px] font-extrabold tracking-[.08em] transition-colors md:flex-none md:px-7 md:text-[13px] ${
+                    className={`mt-foco mt-rola-alvo flex-1 px-4 py-3 text-[12px] font-extrabold tracking-[.08em] transition-colors md:flex-none md:px-7 md:text-[13px] ${
                       i > 0 ? "border-l-2 border-mt-ink" : ""
                     } ${
                       vehicleType === tipo.id
@@ -1132,7 +1140,7 @@ export default function AutoAvaliacao() {
                         : "text-mt-ink hover:bg-mt-surface"
                     }`}
                   >
-                    {tipo.rotulo}
+                    <TextoQueRola texto={tipo.rotulo} />
                   </button>
                 ))}
               </div>
@@ -1252,9 +1260,9 @@ export default function AutoAvaliacao() {
                 type="button"
                 disabled={!isStep1Valid}
                 onClick={handleNextStep}
-                className="mt-btn mt-btn-primario mt-foco mt-9"
+                className="mt-btn mt-btn-primario mt-foco mt-rola-alvo mt-9"
               >
-                AVANÇAR PARA ESTADO DO VEÍCULO
+                <TextoQueRola texto="AVANÇAR PARA ESTADO DO VEÍCULO" />
                 <Seta />
               </button>
             </div>
@@ -1359,17 +1367,17 @@ export default function AutoAvaliacao() {
                 <button
                   type="button"
                   onClick={handlePrevStep}
-                  className="mt-btn mt-btn-contorno mt-foco"
+                  className="mt-btn mt-btn-contorno mt-foco mt-rola-alvo"
                 >
-                  VOLTAR
+                  <TextoQueRola texto="VOLTAR" />
                 </button>
                 <button
                   type="button"
                   disabled={!isStep2Valid}
                   onClick={handleNextStep}
-                  className="mt-btn mt-btn-primario mt-foco"
+                  className="mt-btn mt-btn-primario mt-foco mt-rola-alvo"
                 >
-                  AVANÇAR PARA CONTATO
+                  <TextoQueRola texto="AVANÇAR PARA CONTATO" />
                   <Seta />
                 </button>
               </div>
@@ -1458,16 +1466,16 @@ export default function AutoAvaliacao() {
                 <button
                   type="button"
                   onClick={handlePrevStep}
-                  className="mt-btn mt-btn-contorno mt-foco"
+                  className="mt-btn mt-btn-contorno mt-foco mt-rola-alvo"
                 >
-                  VOLTAR
+                  <TextoQueRola texto="VOLTAR" />
                 </button>
                 <button
                   type="submit"
                   disabled={!isStep3Valid || loading || !turnstileToken}
-                  className="mt-btn mt-btn-primario mt-foco"
+                  className="mt-btn mt-btn-primario mt-foco mt-rola-alvo"
                 >
-                  {loading ? "CALCULANDO…" : "SOLICITAR PROPOSTA"}
+                  <TextoQueRola texto={loading ? "CALCULANDO…" : "SOLICITAR PROPOSTA"} />
                   {!loading && <Seta />}
                 </button>
               </div>
@@ -1481,7 +1489,7 @@ export default function AutoAvaliacao() {
                 PROPOSTA A CAMINHO
               </Rotulo>
               <h2 className="mt-titulo m-0 mt-4 text-[30px] lg:text-[44px]">
-                Obrigado, {step3.nome.split(" ")[0]}.
+                <TextoCinetico texto={`Obrigado, ${step3.nome.split(" ")[0]}.`} modo="gesto" />
               </h2>
               <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-neutral-800">
                 Nossos avaliadores receberam o seu{" "}
@@ -1497,17 +1505,17 @@ export default function AutoAvaliacao() {
                 <button
                   type="button"
                   onClick={handleWhatsappAvaliacaoClick}
-                  className="mt-btn mt-btn-primario mt-foco"
+                  className="mt-btn mt-btn-primario mt-foco mt-rola-alvo"
                 >
                   <IconeWhatsApp />
-                  ABRIR CONVERSA NO WHATSAPP
+                  <TextoQueRola texto="ABRIR CONVERSA NO WHATSAPP" />
                 </button>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="mt-btn mt-btn-contorno mt-foco"
+                  className="mt-btn mt-btn-contorno mt-foco mt-rola-alvo"
                 >
-                  NOVA AVALIAÇÃO
+                  <TextoQueRola texto="NOVA AVALIAÇÃO" />
                 </button>
               </div>
             </div>
@@ -1558,7 +1566,7 @@ export default function AutoAvaliacao() {
           PONTO DE PARTIDA
         </Rotulo>
         <h2 className="mt-titulo m-0 mt-3 text-[28px] text-mt-inverso lg:text-[32px]">
-          Referência FIPE
+          <TextoCinetico texto="Referência FIPE" modo="carga" />
         </h2>
 
         <div className="mt-6 border-t-2 border-mt-inverso-regua pt-5">
@@ -1568,8 +1576,10 @@ export default function AutoAvaliacao() {
                 {nomeDoVeiculo}
                 {step1.ano ? ` · ${step1.ano}` : ""}
               </div>
+              {/* A FIPE chega rodando como o hodômetro, do zero até o valor, as
+                  unidades primeiro; trocar a versão roda só o que mudou. */}
               <div className="mt-2.5 text-[38px] font-extrabold leading-none tracking-[-.04em] lg:text-[44px]">
-                {fipeValor}
+                <Hodometro texto={fipeValor} chega="montagem" />
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-2.5">
                 {fipeCodigo && (

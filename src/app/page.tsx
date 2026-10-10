@@ -1,9 +1,13 @@
-import { Fragment } from "react";
+import { Fragment, type CSSProperties } from "react";
 import Link from "next/link";
 import { areasVisiveis, normalizarAreas } from "../lib/areasDoSite";
 import HeroHome from "../components/modernist/HeroHome";
 import TresEmDez from "../components/modernist/TresEmDez";
 import TextoQueAcende from "../components/modernist/TextoQueAcende";
+import TextoCinetico from "../components/modernist/TextoCinetico";
+import TextoQueRola from "../components/modernist/TextoQueRola";
+import Hodometro from "../components/modernist/Hodometro";
+import AoAparecer from "../components/modernist/AoAparecer";
 import ContagemDeEstoque from "../components/ContagemDeEstoque";
 import BuscaRegua from "../components/modernist/BuscaRegua";
 import BotaoWhatsApp from "../components/modernist/BotaoWhatsApp";
@@ -345,29 +349,33 @@ export default async function Home() {
           <div className="mb-3.5 text-[11px] font-semibold tracking-[.18em] text-mt-cobre-marca">
             02 — CONSULTORIA
           </div>
-          <h2 className="mt-titulo m-0 text-[34px] lg:text-[54px] lg:leading-[.95]">
-            Garagem
-            <br />
-            Profiler
-          </h2>
+          {/* Onda cinética: o título assenta palavra por palavra quando a
+              seção entra na tela, e os passos chegam em cascata, com o
+              número rodando como o hodômetro. */}
+          <AoAparecer>
+            <h2 className="mt-titulo m-0 text-[34px] lg:text-[54px] lg:leading-[.95]">
+              <TextoCinetico texto={"Garagem\nProfiler"} modo="aparece" />
+            </h2>
+          </AoAparecer>
           <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-400 lg:mt-6 lg:text-base">
             Cinco perguntas, trinta segundos. Traçamos seu perfil de uso e nossos
             consultores enviam apenas o que faz sentido — direto no WhatsApp.
           </p>
-          <Link href="/carro-perfeito" className="mt-btn mt-btn-primario mt-foco mt-6 lg:mt-8">
-            MONTAR MEU PERFIL
+          <Link href="/carro-perfeito" className="mt-btn mt-btn-primario mt-foco mt-rola-alvo mt-6 lg:mt-8">
+            <TextoQueRola texto="MONTAR MEU PERFIL" />
             <Seta />
           </Link>
         </div>
 
-        <div className="flex flex-col border-t-2 border-mt-inverso-regua lg:flex-1">
-          {PASSOS_PROFILER.map((passo) => (
+        <AoAparecer className="flex flex-col border-t-2 border-mt-inverso-regua lg:flex-1" limiar={0.3}>
+          {PASSOS_PROFILER.map((passo, ordem) => (
             <div
               key={passo.n}
-              className="flex gap-5 border-b border-mt-inverso-regua-fina py-5"
+              className="mt-passo-chega flex gap-5 border-b border-mt-inverso-regua-fina py-5"
+              style={{ "--mt-ordem": ordem } as CSSProperties}
             >
               <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-cobre-marca">
-                {passo.n}
+                <Hodometro texto={passo.n} chega="aparece" />
               </span>
               <div>
                 <div className="text-[17px] font-extrabold tracking-[-.01em]">
@@ -377,7 +385,7 @@ export default async function Home() {
               </div>
             </div>
           ))}
-        </div>
+        </AoAparecer>
       </section>
 
     ),
@@ -389,9 +397,11 @@ export default async function Home() {
           <Rotulo accent className="text-[11px] tracking-[.18em]">
             03 — VENDA OU TROCA
           </Rotulo>
-          <h2 className="mt-titulo m-0 mt-3.5 text-[28px] lg:text-[40px]">
-            Avaliação Express
-          </h2>
+          <AoAparecer>
+            <h2 className="mt-titulo m-0 mt-3.5 text-[28px] lg:text-[40px]">
+              <TextoCinetico texto="Avaliação Express" modo="aparece" />
+            </h2>
+          </AoAparecer>
           <p className="m-0 mt-4 max-w-[420px] text-[13px] leading-relaxed text-mt-neutral-800 lg:text-[15px]">
             Proposta com base na Tabela FIPE e no giro do nosso estoque — um
             consultor retorna no WhatsApp.
@@ -413,25 +423,31 @@ export default async function Home() {
               </div>
             </div>
           </div>
-          <Link href="/avaliacao" className="mt-btn mt-btn-contorno mt-foco mt-8">
-            AVALIAR MEU CARRO
+          <Link href="/avaliacao" className="mt-btn mt-btn-contorno mt-foco mt-rola-alvo mt-8">
+            <TextoQueRola texto="AVALIAR MEU CARRO" />
           </Link>
         </div>
 
         {/* A mesma régua de passos do Garagem Profiler, no tema claro. */}
-        <ol className="m-0 flex list-none flex-col border-t-2 border-mt-regua p-0 lg:flex-1">
-          {PASSOS_DA_AVALIACAO.map((passo) => (
-            <li key={passo.n} className="flex gap-5 border-b border-mt-regua-fina py-5">
-              <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-cobre">
-                {passo.n}
-              </span>
-              <div>
-                <div className="text-[17px] font-extrabold tracking-[-.01em]">{passo.t}</div>
-                <div className="mt-1.5 text-[13px] text-mt-neutral-700">{passo.d}</div>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <AoAparecer className="lg:flex-1" limiar={0.3}>
+          <ol className="m-0 flex list-none flex-col border-t-2 border-mt-regua p-0">
+            {PASSOS_DA_AVALIACAO.map((passo, ordem) => (
+              <li
+                key={passo.n}
+                className="mt-passo-chega flex gap-5 border-b border-mt-regua-fina py-5"
+                style={{ "--mt-ordem": ordem } as CSSProperties}
+              >
+                <span className="w-6 shrink-0 text-xs font-extrabold tracking-[.1em] text-mt-cobre">
+                  <Hodometro texto={passo.n} chega="aparece" />
+                </span>
+                <div>
+                  <div className="text-[17px] font-extrabold tracking-[-.01em]">{passo.t}</div>
+                  <div className="mt-1.5 text-[13px] text-mt-neutral-700">{passo.d}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </AoAparecer>
       </section>
 
     ),

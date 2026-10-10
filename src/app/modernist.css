@@ -1737,3 +1737,159 @@ p {
     transform: translateY(12px);
   }
 }
+
+/* — movimento com função, Onda cinética (10/10/2026) —
+   Títulos que se movem, números que rodam e rótulos que giram no mouse, nos
+   dois funis (Garagem Profiler e Avaliação Express) e nas seções da home que
+   levam a eles. As cinco regras de sempre, e o vocabulário é o do site: a
+   palavra assenta na régua, o número roda como o hodômetro, a letra gira uma
+   casa. */
+
+/* O título cinético (`TextoCinetico`). As palavras viram caixas para poder
+   andar; a linha de base e as quebras são as do texto corrido. */
+.mt-cinetico-mascara,
+.mt-cinetico-palavra {
+  display: inline-block;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Na carga, a palavra nasce pintada e acende subindo um fio: o título é o
+     candidato a LCP e precisa contar no primeiro quadro. */
+  [data-cinetico="carga"] .mt-cinetico-palavra {
+    animation: mt-cinetico-acende 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.08s + var(--mt-palavra) * 70ms) both;
+  }
+  /* Depois de um toque (ou abaixo da dobra), a palavra sobe de trás da
+     linha. A máscara tem folga em cima e embaixo para acento e para a perna
+     do "g" e do "ç": o `mt-display` tem altura de linha 0,92. */
+  [data-cinetico="gesto"] .mt-cinetico-mascara,
+  [data-cinetico="aparece"] .mt-cinetico-mascara {
+    clip-path: inset(-0.25em -0.12em -0.3em -0.12em);
+  }
+  [data-cinetico="gesto"] .mt-cinetico-palavra,
+  [data-aparece] [data-cinetico="aparece"] .mt-cinetico-palavra {
+    animation: mt-cinetico-sobe 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--mt-palavra) * 60ms) both;
+  }
+}
+@keyframes mt-cinetico-acende {
+  from {
+    opacity: 0.2;
+    transform: translateY(0.14em);
+  }
+}
+@keyframes mt-cinetico-sobe {
+  from {
+    transform: translateY(1.5em);
+  }
+}
+
+/* As letras que rolam (`TextoQueRola`). Parado, é o rótulo de sempre: cada
+   letra é conteúdo de CSS, e o espaço entre as palavras é um espaço de
+   verdade. Com mouse, cada letra vira uma casa de hodômetro: a de cima sai
+   pelo alto e a de baixo, a mesma, entra, da esquerda para a direita. */
+.mt-rola-palavra {
+  display: inline-block;
+  white-space: nowrap;
+}
+.mt-rola-palavra:not(:last-child)::after {
+  content: " ";
+  white-space: pre;
+}
+.mt-rola-letra {
+  position: relative;
+  display: inline-block;
+}
+.mt-rola-letra::before {
+  content: attr(data-l);
+  display: inline-block;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mt-rola-letra {
+    clip-path: inset(-0.12em -0.12em);
+  }
+  .mt-rola-letra::after {
+    content: attr(data-l);
+    position: absolute;
+    top: calc(100% + 0.3em);
+    left: 0;
+  }
+  .mt-rola-letra::before,
+  .mt-rola-letra::after {
+    transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) min(calc(var(--mt-letra) * 14ms), 0.24s);
+  }
+  .mt-rola-alvo:hover .mt-rola-letra::before,
+  .mt-rola-alvo:hover .mt-rola-letra::after,
+  .mt-rola-alvo:focus-visible .mt-rola-letra::before,
+  .mt-rola-alvo:focus-visible .mt-rola-letra::after {
+    transform: translateY(calc(-100% - 0.3em));
+  }
+}
+
+/* O hodômetro que chega (`Hodometro` com `chega`): cada fita sai do zero e
+   roda até o dígito, as unidades primeiro. `backwards` e não `both`: quando
+   a animação termina, quem manda é a transição de sempre, e a troca de valor
+   continua rodando. */
+@supports (height: 1lh) {
+  @media (prefers-reduced-motion: no-preference) {
+    .mt-hodometro[data-chega="montagem"] .mt-hodometro-fita,
+    [data-aparece] .mt-hodometro[data-chega="aparece"] .mt-hodometro-fita {
+      animation: mt-hodometro-chega 1s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.12s + var(--mt-hodometro-ordem) * 90ms) backwards;
+    }
+  }
+}
+@keyframes mt-hodometro-chega {
+  from {
+    transform: translateY(0);
+  }
+}
+
+/* As barras de dado (a composição do estoque no Garagem Profiler): andam com
+   `scaleX`, e não com `width`, e crescem do zero quando o bloco aparece. */
+.mt-barra-dado {
+  transform-origin: left center;
+  transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* O que entra em cascata: os passos das seções da home quando aparecem, os
+   três carros do resultado e, em cada um, as marcas do que ele atende. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-aparece] .mt-barra-dado {
+    animation: mt-barra-cresce 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.15s + var(--mt-ordem) * 80ms) backwards;
+  }
+  [data-aparece] .mt-passo-chega {
+    animation: mt-passo-chega 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.1s + var(--mt-ordem) * 90ms) both;
+  }
+  .mt-resultado-entra {
+    animation: mt-resultado-entra 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.1s + var(--mt-ordem) * 110ms) both;
+  }
+  .mt-pedido-marca {
+    animation: mt-pedido-marca 0.4s cubic-bezier(0.2, 1.4, 0.4, 1)
+      calc(0.5s + var(--mt-ordem) * 110ms + var(--mt-marca) * 70ms) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt-barra-dado {
+    transition: none;
+  }
+}
+@keyframes mt-barra-cresce {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes mt-passo-chega {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+@keyframes mt-resultado-entra {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+@keyframes mt-pedido-marca {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
