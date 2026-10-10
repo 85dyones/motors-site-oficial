@@ -1657,3 +1657,75 @@ p {
     transform: translateX(-16px);
   }
 }
+
+/* — movimento com função, Piloto (10/10/2026) —
+   As duas mudanças de lugar do site, com a View Transitions do navegador
+   chamada pelo React (`Transicao`, `FotoQueViaja`). As cinco regras valem
+   com um adendo à 2: a caixa que viaja é um pseudo-elemento do navegador,
+   fora do layout da página, e é ele que muda de tamanho — a página em si
+   não se mexe, e o CLS não conta nada disso. Sem suporte, ou com menos
+   movimento, o React nem chama a transição: a troca é a de sempre. */
+
+/* A cabeça do site fica por cima de tudo que viaja. Na transição o navegador
+   desenha numa camada própria o que tem nome, e um card meio escondido sob a
+   barra fixa passaria por cima dela. Com nome, a barra entra nessa camada
+   também, depois dos cards, e fica parada. */
+.mt-cabecalho-do-site {
+  view-transition-name: mt-cabecalho;
+}
+::view-transition-group(mt-cabecalho) {
+  z-index: 1;
+  animation: none;
+}
+::view-transition-old(mt-cabecalho) {
+  display: none;
+}
+::view-transition-new(mt-cabecalho) {
+  animation: none;
+}
+
+/* A foto do card até a galeria da ficha. O card é 4:3 e a galeria 16:9: as
+   duas imagens cobrem a caixa enquanto ela muda de forma, em vez de esticar. */
+::view-transition-old(.mt-foto-viaja),
+::view-transition-new(.mt-foto-viaja) {
+  height: 100%;
+  object-fit: cover;
+}
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(.mt-foto-viaja) {
+    animation-duration: 0.42s;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  /* A vitrine do /estoque: quem fica desliza até o lugar novo, quem sai
+     apaga depressa e quem entra sobe 12 px depois que a saída abriu espaço. */
+  ::view-transition-group(.mt-card-reorganiza) {
+    animation-duration: 0.34s;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  ::view-transition-old(.mt-card-sai) {
+    animation: mt-card-sai 0.16s ease-in both;
+  }
+  ::view-transition-new(.mt-card-entra) {
+    animation: mt-card-entra 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+@keyframes mt-card-sai {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes mt-card-entra {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
