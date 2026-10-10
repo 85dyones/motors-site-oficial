@@ -1685,7 +1685,15 @@ p {
 }
 
 /* A foto do card até a galeria da ficha. O card é 4:3 e a galeria 16:9: as
-   duas imagens cobrem a caixa enquanto ela muda de forma, em vez de esticar. */
+   duas imagens cobrem a caixa enquanto ela muda de forma, em vez de esticar.
+   O `overflow: clip` corta o que o `cover` deixa sobrando: o navegador não
+   corta sozinho as imagens da transição, e a sobra aparecia como um
+   fantasma 77 px acima e abaixo da caixa (medido no preview em 10/10). */
+::view-transition-image-pair(.mt-foto-viaja),
+::view-transition-old(.mt-foto-viaja),
+::view-transition-new(.mt-foto-viaja) {
+  overflow: clip;
+}
 ::view-transition-old(.mt-foto-viaja),
 ::view-transition-new(.mt-foto-viaja) {
   height: 100%;

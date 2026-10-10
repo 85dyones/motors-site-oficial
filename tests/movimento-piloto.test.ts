@@ -331,7 +331,17 @@ describe("Piloto · item 13, a vitrine do /estoque se reorganiza", () => {
     expect(catalogo).toContain("aria-label={rotuloDosResultados(totalFiltrado)}");
     expect(catalogo).toContain('<Hodometro texto={String(totalFiltrado)}');
     expect(catalogo).toMatch(/\{cardsNaTela\.map\(\(v, i\) => \(\s*<Transicao key=\{v\.id\}/);
-    expect(catalogo).toMatch(/startTransition\(\(\) => \{\s*if \(reorganiza\) marcarTransicao\(TIPO_DA_VITRINE\);/);
+    expect(catalogo).toMatch(/startTransition\(\(\) => \{\s*marcarTransicao\(TIPO_DA_VITRINE\);\s*setCardsNaTela\(cardsDoFiltro\);/);
+  });
+
+  it("sem animação, nem transição: o React não fotografa a página à toa", () => {
+    // Qualquer transição do React que monta um `<ViewTransition>` chama
+    // `document.startViewTransition`, com ou sem classe. Medido no preview em
+    // 10/10: digitando, com a folha aberta ou com menos movimento, a página
+    // inteira era capturada para nada. Sem o tipo, a grade troca por
+    // atualização comum, antes de chegar ao `startTransition`.
+    const catalogo = lerCodigo("src/components/modernist/Catalogo.tsx");
+    expect(catalogo).toMatch(/if \(!reorganiza\) \{\s*setCardsNaTela\(cardsDoFiltro\);\s*return;\s*\}\s*startTransition/);
   });
 });
 
@@ -383,6 +393,14 @@ describe("Piloto · o CSS", () => {
       expect(propriedades.length).toBeGreaterThan(0);
       for (const p of propriedades) expect(["opacity", "transform"]).toContain(p);
     }
+  });
+
+  it("na viagem, as duas fotos cobrem a caixa e a sobra é cortada", () => {
+    // Sem o corte, a foto 4:3 do card vazava acima e abaixo da caixa 16:9.
+    expect(bloco(piloto, "::view-transition-image-pair(.mt-foto-viaja),")).toContain("overflow: clip;");
+    expect(piloto).toMatch(
+      /::view-transition-old\(\.mt-foto-viaja\),\s*::view-transition-new\(\.mt-foto-viaja\)\s*\{\s*height: 100%;\s*object-fit: cover;/,
+    );
   });
 
   it("a cabeça do site tem nome e fica parada por cima", () => {

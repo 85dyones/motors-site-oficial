@@ -606,7 +606,8 @@ export default function Catalogo({
    * (`startTransition`), que é o que o `<ViewTransition>` de cada card sabe
    * animar. O clique fica até mais leve que antes: desenhar os cards saiu dele.
    *
-   * Sem o tipo `mt-vitrine` a grade troca como sempre trocou, de uma vez:
+   * Sem animação a grade troca como sempre trocou, de uma vez, e sem passar
+   * por transição nenhuma:
    * - digitando na busca — cada letra embaralharia a vitrine;
    * - com a folha de filtros aberta no celular — a animação passa por cima de
    *   tudo, e os cards voariam sobre a folha;
@@ -619,8 +620,16 @@ export default function Catalogo({
     if (cardsNaTela === cardsDoFiltro) return;
     const reorganiza = !digitando.current && !filtroAberto && transicaoPermitida();
     digitando.current = false;
+    if (!reorganiza) {
+      // Atualização comum, e não transição sem tipo: qualquer transição do
+      // React que monta um card chama `document.startViewTransition`, e o
+      // navegador fotografaria a página inteira à toa (medido no preview em
+      // 10/10). Assim a grade troca no mesmo quadro do clique, como antes.
+      setCardsNaTela(cardsDoFiltro);
+      return;
+    }
     startTransition(() => {
-      if (reorganiza) marcarTransicao(TIPO_DA_VITRINE);
+      marcarTransicao(TIPO_DA_VITRINE);
       setCardsNaTela(cardsDoFiltro);
     });
   }, [cardsDoFiltro, cardsNaTela, filtroAberto]);
