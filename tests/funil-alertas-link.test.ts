@@ -16,20 +16,39 @@ type Linha = Record<string, unknown>;
 
 let fila: Linha[];
 let atendimentos: Linha[];
+let perfis: Linha[];
 let falhaNosAtendimentos: boolean;
+let falhaNosPerfis: boolean;
+let leituras: string[];
+
+/** Consulta encadeável do PostgREST, só com o que a rota usa. */
+function consulta(tabela: string) {
+  const filtros: Array<(l: Linha) => boolean> = [];
+  const executar = async () => {
+    leituras.push(tabela);
+    if (tabela === "atendimentos" && falhaNosAtendimentos) return { data: null, error: { message: "fora do ar" } };
+    if (tabela === "profiles" && falhaNosPerfis) return { data: null, error: { message: "perfis fora do ar" } };
+    const linhas = tabela === "atendimentos" ? atendimentos : tabela === "profiles" ? perfis : null;
+    if (!linhas) throw new Error(`tabela inesperada: ${tabela}`);
+    return { data: linhas.filter((l) => filtros.every((f) => f(l))), error: null };
+  };
+  const q = {
+    select: () => q,
+    in: (coluna: string, valores: unknown[]) => (filtros.push((l) => valores.includes(String(l[coluna]))), q),
+    eq: (coluna: string, valor: unknown) => (filtros.push((l) => l[coluna] === valor), q),
+    contains: (coluna: string, valores: unknown[]) => (
+      filtros.push((l) => valores.every((v) => (l[coluna] as unknown[] | undefined)?.includes(v))),
+      q
+    ),
+    then: (ok: (v: unknown) => unknown, erro?: (e: unknown) => unknown) => executar().then(ok, erro),
+  };
+  return q;
+}
 
 vi.mock("../src/lib/supabase-server", () => ({
   createAdminSupabaseClient: () => ({
     rpc: async () => ({ data: fila, error: null }),
-    from: (tabela: string) => ({
-      select: () => ({
-        in: async (coluna: string, valores: string[]) => {
-          if (tabela !== "atendimentos") throw new Error(`tabela inesperada: ${tabela}`);
-          if (falhaNosAtendimentos) return { data: null, error: { message: "fora do ar" } };
-          return { data: atendimentos.filter((a) => valores.includes(String(a[coluna]))), error: null };
-        },
-      }),
-    }),
+    from: (tabela: string) => consulta(tabela),
   }),
 }));
 vi.mock("../src/lib/autorizacaoDoFunil", () => ({ autorizarFunil: async () => ({ erro: null }) }));
@@ -59,7 +78,15 @@ function linhaDaFila(extra: Linha = {}): Linha {
   };
 }
 
-async function pedirAFila(): Promise<Array<{ lead_id: string; mensagem: string }>> {
+type ItemDaFila = {
+  lead_id: string;
+  aviso: string;
+  para: "vendedor" | "gestor";
+  destinatario: { nome: string; whatsapp: string };
+  mensagem: string;
+};
+
+async function pedirAFila(): Promise<ItemDaFila[]> {
   const r = await rota.POST(
     new Request("https://motorsstore.com.br/api/funil/alertas", {
       method: "POST",
@@ -67,14 +94,17 @@ async function pedirAFila(): Promise<Array<{ lead_id: string; mensagem: string }
       headers: { "content-type": "application/json" },
     }),
   );
-  const corpo = (await r.json()) as { fila: Array<{ lead_id: string; mensagem: string }> };
+  const corpo = (await r.json()) as { fila: ItemDaFila[] };
   return corpo.fila;
 }
 
 beforeEach(() => {
   fila = [linhaDaFila()];
   atendimentos = [];
+  perfis = [];
   falhaNosAtendimentos = false;
+  falhaNosPerfis = false;
+  leituras = [];
   vi.stubEnv("NEXT_PUBLIC_CHATWOOT_URL", "https://app.chat.v2o5.com.br");
   vi.stubEnv("NEXT_PUBLIC_CHATWOOT_CONTA_ID", "3");
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -162,5 +192,98 @@ describe("o link do aviso ao vendedor", () => {
     const avisos = await pedirAFila();
 
     expect(avisos).toEqual([]);
+  });
+});
+
+/**
+ * A cópia do gestor (2026-10-10): *"configure o gestor para receber cada lead
+ * que entrar ou for transferido, com o status de sistema"*.
+ */
+describe("o gestor recebe cada lead que entra ou é transferido", () => {
+  const GESTOR = {
+    full_name: "Dyones Oliveira",
+    telefone_e164: "+5541999990009",
+    is_active: true,
+    papeis: ["admin", "comercial", "gestor"],
+  };
+
+  beforeEach(() => {
+    perfis = [
+      GESTOR,
+      { full_name: "Rodrigo Naumowicz", telefone_e164: "+5541999990001", is_active: true, papeis: ["comercial"] },
+      { full_name: "Ex-gestor", telefone_e164: "+5541999990008", is_active: false, papeis: ["gestor"] },
+    ];
+    atendimentos = [{ lead_id: "lead-jorge", chatwoot_conversation_id: 436, iniciado_em: "2026-10-05T12:00:00Z" }];
+  });
+
+  it("na transferência, além do vendedor, o gestor recebe o status no sistema", async () => {
+    const avisos = await pedirAFila();
+
+    expect(avisos.map((a) => a.para)).toEqual(["vendedor", "gestor"]);
+    const copia = avisos[1];
+    expect(copia.destinatario).toEqual({ nome: "Dyones Oliveira", whatsapp: "5541999990009" });
+    expect(copia.mensagem).toContain("Lead transferido de Rodrigo Naumowicz para Davi Perez.");
+    expect(copia.mensagem).toContain("Luiz Cavassin, Jorge — Hyundai Tucson 2.0 16V Flex Aut");
+    expect(copia.mensagem).toContain("Status no sistema:");
+    expect(copia.mensagem).toContain("• Etapa: Em contato");
+    expect(copia.mensagem).toContain("• Responsável: Davi Perez");
+    expect(copia.mensagem).toContain("• Antes: Rodrigo Naumowicz");
+    expect(copia.mensagem).toContain("• Parado há 4,2 dias");
+    expect(copia.mensagem).toContain("Conversa: https://app.chat.v2o5.com.br/app/accounts/3/conversations/436");
+    expect(copia.mensagem).not.toContain("wa.me");
+  });
+
+  it("no lead novo distribuído pelo rodízio, também", async () => {
+    fila = [linhaDaFila({ aviso: "atribuicao", responsavel: null, responsavel_whatsapp: null, etapa: "Novo", minutos_parado: 20 })];
+
+    const avisos = await pedirAFila();
+    const copia = avisos.find((a) => a.para === "gestor");
+
+    expect(copia?.mensagem).toContain("Lead novo distribuído para Davi Perez.");
+    expect(copia?.mensagem).toContain("• Sem atendimento há 20 min");
+    expect(copia?.mensagem).not.toContain("• Antes:");
+  });
+
+  it("a cobrança de lead parado é do vendedor: o gestor não recebe cópia", async () => {
+    fila = [linhaDaFila({ aviso: "estagnacao" })];
+
+    const avisos = await pedirAFila();
+
+    expect(avisos.map((a) => a.para)).toEqual(["vendedor"]);
+  });
+
+  it("quando o gestor é o próprio destinatário, não recebe duas vezes", async () => {
+    fila = [linhaDaFila({ novo_responsavel: "Dyones Oliveira", novo_whatsapp: "+5541999990009" })];
+
+    const avisos = await pedirAFila();
+
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0].para).toBe("vendedor");
+  });
+
+  it("o vendedor sem número não cala o gestor: o lead já mudou de dono", async () => {
+    fila = [linhaDaFila({ novo_whatsapp: null })];
+
+    const avisos = await pedirAFila();
+
+    expect(avisos.map((a) => a.para)).toEqual(["gestor"]);
+  });
+
+  it("linha suprimida não gera cópia, e sem cópia a fazer o cadastro nem é lido", async () => {
+    fila = [linhaDaFila({ suprimido_por: "fora_do_horario" }), linhaDaFila({ lead_id: "lead-2", aviso: "estagnacao" })];
+
+    const avisos = await pedirAFila();
+
+    expect(avisos.map((a) => a.para)).toEqual(["vendedor"]);
+    expect(leituras).not.toContain("profiles");
+  });
+
+  it("se a leitura do gestor falhar, o aviso do vendedor sai mesmo assim", async () => {
+    falhaNosPerfis = true;
+
+    const avisos = await pedirAFila();
+
+    expect(avisos.map((a) => a.para)).toEqual(["vendedor"]);
+    expect(console.warn).toHaveBeenCalledWith("[Funil] Sem o gestor para a cópia dos avisos:", "perfis fora do ar");
   });
 });

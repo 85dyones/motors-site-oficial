@@ -1119,25 +1119,27 @@ export interface LinhaDaFilaDoFunil {
  * escreveu) recebe o link do lead no painel, onde o vendedor vê tudo e decide
  * por onde abordar. Diferente do botão do card, o aviso não cai no `wa.me`.
  */
-export function mensagemDeAlerta(
-  linha: LinhaDaFilaDoFunil,
-  opcoes: {
-    loja?: string | null;
-    /** Id da conversa mais recente do lead no Chatwoot, quando existe. */
-    conversaChatwoot?: number | string | null;
-    /** Endereço absoluto do lead no painel, para quando não há conversa. */
-    linkDoLead?: string | null;
-  } = {},
-): string {
-  const carro = linha.interesse?.trim() ? ` — ${linha.interesse.trim()}` : "";
-  const parado = formatarPrazo(linha.minutos_parado);
+export interface OpcoesDoAviso {
+  loja?: string | null;
+  /** Id da conversa mais recente do lead no Chatwoot, quando existe. */
+  conversaChatwoot?: number | string | null;
+  /** Endereço absoluto do lead no painel, para quando não há conversa. */
+  linkDoLead?: string | null;
+}
+
+/** O link do fim do aviso: a conversa no Chatwoot, ou o lead no painel. */
+function rodapeDoAviso(opcoes: OpcoesDoAviso, rotuloDoChatwoot = "Falar agora"): string {
   const noChatwoot = linkDaConversa(opcoes.conversaChatwoot);
   const noPainel = opcoes.linkDoLead?.trim() ?? "";
-  const rodape = noChatwoot
-    ? `\n\nFalar agora: ${noChatwoot}`
-    : noPainel
-      ? `\n\nAbrir no painel: ${noPainel}`
-      : "";
+  if (noChatwoot) return `\n\n${rotuloDoChatwoot}: ${noChatwoot}`;
+  if (noPainel) return `\n\nAbrir no painel: ${noPainel}`;
+  return "";
+}
+
+export function mensagemDeAlerta(linha: LinhaDaFilaDoFunil, opcoes: OpcoesDoAviso = {}): string {
+  const carro = linha.interesse?.trim() ? ` — ${linha.interesse.trim()}` : "";
+  const parado = formatarPrazo(linha.minutos_parado);
+  const rodape = rodapeDoAviso(opcoes);
   const loja = opcoes.loja?.trim() ? `[${opcoes.loja.trim()}] ` : "";
 
   if (linha.aviso === "atribuicao") {
@@ -1163,6 +1165,50 @@ export function mensagemDeAlerta(
     `Dê um retorno ou mova o card — se ficar parado, ele passa para outro ` +
     `vendedor.${rodape}`
   );
+}
+
+/** Os avisos de que o gestor recebe cópia: os que mudam o dono do lead. */
+export function avisoComCopiaAoGestor(linha: Pick<LinhaDaFilaDoFunil, "aviso">): boolean {
+  return linha.aviso === "atribuicao" || linha.aviso === "transferencia";
+}
+
+/**
+ * A cópia do gestor: o mesmo lead, escrito para quem acompanha a carteira.
+ *
+ * Pedido do dono em 2026-10-10: *"configure o gestor para receber cada lead
+ * que entrar ou for transferido, com o status de sistema"*. O vendedor recebe
+ * uma ordem ("assuma hoje"); o gestor recebe o registro — quem estava, quem
+ * ficou, em que etapa, há quanto tempo parado — e o mesmo link, para conferir
+ * sem abrir o painel.
+ *
+ * "Entrar", no funil, é a atribuição: o lead que chega sem dono e passa o
+ * prazo da etapa ganha o primeiro vendedor pelo rodízio. Lead a que alguém dá
+ * dono à mão antes disso não passa pela fila, e quem deu o dono já sabe.
+ */
+export function mensagemParaGestor(linha: LinhaDaFilaDoFunil, opcoes: OpcoesDoAviso = {}): string {
+  const carro = linha.interesse?.trim() ? ` — ${linha.interesse.trim()}` : "";
+  const parado = formatarPrazo(linha.minutos_parado);
+  const loja = opcoes.loja?.trim() ? `[${opcoes.loja.trim()}] ` : "";
+  const novo = linha.novo_responsavel?.trim() || "sem vendedor";
+  const antes = linha.responsavel?.trim() || "";
+
+  const titulo =
+    linha.aviso === "transferencia"
+      ? `Lead transferido${antes ? ` de ${antes}` : ""} para ${novo}.`
+      : `Lead novo distribuído para ${novo}.`;
+
+  const status = [
+    "Status no sistema:",
+    `• Etapa: ${linha.etapa}`,
+    `• Responsável: ${novo}`,
+    ...(linha.aviso === "transferencia" && antes ? [`• Antes: ${antes}`] : []),
+    linha.aviso === "transferencia"
+      ? `• Parado há ${parado}`
+      : `• Sem atendimento há ${parado}`,
+    ...(linha.canal?.trim() ? [`• Canal: ${linha.canal.trim()}`] : []),
+  ].join("\n");
+
+  return `${loja}${titulo}\n\n${linha.nome}${carro}\n\n${status}${rodapeDoAviso(opcoes, "Conversa")}`;
 }
 
 /** Para quem esta linha da fila deve ser entregue. */
