@@ -1259,7 +1259,7 @@ export default function CarMatch({
                   maior texto da página e conta para o LCP já no primeiro
                   quadro. */}
               <h1 className="mt-display m-0 mt-5 text-[38px] text-mt-inverso lg:text-[66px]">
-                <TextoCinetico texto="Cinco perguntas até o carro certo." modo="carga" />
+                <TextoCinetico texto="Cinco perguntas até o carro certo." modo="carga" destaque="carro certo" />
               </h1>
               <p className="m-0 mt-5 max-w-[520px] text-sm leading-relaxed text-mt-inverso-suave lg:text-base">
                 Cada opção mostra, antes do toque, quantos carros do pátio sobram
@@ -1279,7 +1279,10 @@ export default function CarMatch({
                       (`Hodometro`, "chega"); o do pátio, quando o estoque
                       responde. */}
                   <div className="text-[28px] font-extrabold leading-none lg:text-[34px]">
-                    <Hodometro texto={item.valor} chega="montagem" />
+                    {/* Roda de novo quando o bloco sai da tela e volta. */}
+                    <AoAparecer como="span">
+                      <Hodometro texto={item.valor} chega="montagem" />
+                    </AoAparecer>
                   </div>
                   <div className="mt-1 text-[11px] font-semibold tracking-[.14em] text-mt-inverso-suave">
                     {item.rotulo}
@@ -1317,7 +1320,7 @@ export default function CarMatch({
             {gameState === "q1" && (
               <div className="mt-passo-entra flex flex-1 flex-col">
                 <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
-                  <TextoCinetico texto="Qual a faixa de investimento para a próxima garagem?" modo="gesto" />
+                  <TextoCinetico texto="Qual a faixa de investimento para a próxima garagem?" modo="gesto" efeito="digita" />
                 </h2>
 
                 {/* Modo de responder: faixa pronta, valor exato, parcela ou texto
@@ -1731,6 +1734,7 @@ export default function CarMatch({
                     : "Cruzando suas respostas com o pátio"
                 }
                 modo="gesto"
+                efeito="digita"
               />
             </p>
           </div>
@@ -1772,7 +1776,7 @@ export default function CarMatch({
             SEU PERFIL, AO VIVO
           </Rotulo>
           <h2 className="mt-titulo m-0 mt-3 text-[28px] lg:text-4xl">
-            <TextoCinetico texto="Curadoria em formação" modo="carga" />
+            <TextoCinetico texto="Curadoria em formação" modo="carga" destaque="formação" />
           </h2>
 
           <div className="mt-6 border-t-2 border-mt-regua lg:mt-7">
@@ -1911,7 +1915,7 @@ function BlocoPergunta({
       ))}
       {/* Cada pergunta nova assenta palavra por palavra (`TextoCinetico`). */}
       <h2 className="mt-display m-0 mt-9 max-w-[640px] text-[30px] text-mt-inverso lg:mt-11 lg:text-[52px]">
-        <TextoCinetico texto={titulo} modo="gesto" />
+        <TextoCinetico texto={titulo} modo="gesto" efeito="digita" />
       </h2>
       {subtitulo && (
         <p className="m-0 mt-3 max-w-[640px] text-[13px] leading-relaxed text-mt-inverso-suave">{subtitulo}</p>

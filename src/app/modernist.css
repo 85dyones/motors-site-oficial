@@ -1449,6 +1449,14 @@ p {
      e o atalho volta o `play-state` para `running`. */
   animation-play-state: paused !important;
 }
+/* O instante em que o bloco saiu inteiro da tela (`AoAparecer`): sem
+   animação nenhuma dentro, para o navegador descartá-las e recriá-las no
+   quadro zero quando o bloco volta a "armado". Fora da tela, ninguém vê. */
+[data-aparece="zerando"] *,
+[data-aparece="zerando"] *::before,
+[data-aparece="zerando"] *::after {
+  animation-name: none !important;
+}
 
 /* O selo "LAUDO TÉCNICO APROVADO" assenta como um carimbo: chega maior e
    girado, assenta com um tranco e deixa um anel de tinta que some. Parado,
@@ -1759,10 +1767,8 @@ p {
    inteira. Por isso, na carga, a palavra fica texto corrido e acende pela
    cor — a única exceção da regra 2, e só neste título, que repinta umas
    seis palavras por um segundo. */
-[data-cinetico="gesto"] .mt-cinetico-mascara,
-[data-cinetico="gesto"] .mt-cinetico-palavra,
-[data-cinetico="aparece"] .mt-cinetico-mascara,
-[data-cinetico="aparece"] .mt-cinetico-palavra {
+[data-efeito="sobe"] .mt-cinetico-mascara,
+[data-efeito="sobe"] .mt-cinetico-palavra {
   display: inline-block;
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -1772,17 +1778,81 @@ p {
   [data-cinetico="carga"] .mt-cinetico-palavra {
     animation: mt-cinetico-acende 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.08s + var(--mt-palavra) * 70ms) both;
   }
-  /* Depois de um toque (ou abaixo da dobra), a palavra sobe de trás da
-     linha. A máscara tem folga em cima e embaixo para acento e para a perna
-     do "g" e do "ç": o `mt-display` tem altura de linha 0,92. */
-  [data-cinetico="gesto"] .mt-cinetico-mascara,
-  [data-cinetico="aparece"] .mt-cinetico-mascara {
+  /* "sobe": depois de um toque (ou abaixo da dobra), a palavra sobe de trás
+     da linha. A máscara tem folga em cima e embaixo para acento e para a
+     perna do "g" e do "ç": o `mt-display` tem altura de linha 0,92. */
+  [data-efeito="sobe"] .mt-cinetico-mascara {
     clip-path: inset(-0.25em -0.12em -0.3em -0.12em);
   }
-  [data-cinetico="gesto"] .mt-cinetico-palavra,
-  [data-aparece] [data-cinetico="aparece"] .mt-cinetico-palavra {
+  [data-cinetico="gesto"][data-efeito="sobe"] .mt-cinetico-palavra,
+  [data-aparece] [data-cinetico="aparece"][data-efeito="sobe"] .mt-cinetico-palavra {
     animation: mt-cinetico-sobe 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) calc(var(--mt-palavra) * 60ms) both;
   }
+  /* "digita": letra por letra, 38 ms cada, com o cursor vermelho na frente.
+     A letra só existe (opacidade) depois da sua vez; o cursor é um traço
+     atrás dela que aparece só durante a vez dela e, na última, pisca duas
+     vezes e some. Animação de duração zero com `backwards`: até a vez da
+     letra vale o quadro de partida, e depois ela é só texto. */
+  [data-cinetico="gesto"][data-efeito="digita"] .mt-tecla,
+  [data-aparece] [data-cinetico="aparece"][data-efeito="digita"] .mt-tecla {
+    animation: mt-tecla 0s linear calc(0.1s + var(--mt-tecla) * 38ms) backwards;
+  }
+  [data-efeito="digita"] .mt-tecla {
+    position: relative;
+  }
+  [data-cinetico="gesto"][data-efeito="digita"] .mt-tecla::after,
+  [data-aparece] [data-cinetico="aparece"][data-efeito="digita"] .mt-tecla::after {
+    content: "";
+    position: absolute;
+    top: 0.08em;
+    right: -0.07em;
+    bottom: 0.02em;
+    width: 0.06em;
+    background: var(--mt-accent);
+    opacity: 0;
+    pointer-events: none;
+    animation: mt-cursor 38ms linear calc(0.1s + var(--mt-tecla) * 38ms);
+  }
+  [data-cinetico="gesto"][data-efeito="digita"] .mt-tecla-ultima::after,
+  [data-aparece] [data-cinetico="aparece"][data-efeito="digita"] .mt-tecla-ultima::after {
+    animation: mt-cursor-pisca 0.9s linear calc(0.1s + var(--mt-tecla) * 38ms) 2;
+  }
+  /* O destaque: o traço cobre se risca por baixo das palavras marcadas
+     depois que o título termina de entrar, uma palavra atrás da outra. */
+  [data-cinetico="carga"] .mt-destaque,
+  [data-cinetico="gesto"] .mt-destaque,
+  [data-aparece] [data-cinetico="aparece"] .mt-destaque {
+    animation: mt-destaque 0.6s cubic-bezier(0.2, 0.7, 0.2, 1)
+      calc(var(--mt-destaque-depois) + var(--mt-destaque) * 90ms) both;
+  }
+}
+/* Quando o traço começa: depois que o título terminou de entrar. */
+[data-efeito="acende"] {
+  --mt-destaque-depois: calc(0.45s + var(--mt-cinetico-total) * 70ms);
+}
+[data-efeito="sobe"] {
+  --mt-destaque-depois: calc(0.4s + var(--mt-cinetico-total) * 60ms);
+}
+[data-efeito="digita"] {
+  --mt-destaque-depois: calc(0.2s + var(--mt-cinetico-total) * 38ms);
+}
+/* O traço em si, parado: é assim que fica, e é o que vê quem pede menos
+   movimento. É o FUNDO do `span` em volta da palavra, na altura da linha de
+   base, e cresce pela largura do fundo (`background-size`) — uma exceção da
+   regra 2, como a cor do título da carga, e pelo mesmo motivo: medido no
+   Chromium, um pseudo-elemento atrás da palavra (`z-index`) a tirava da
+   conta do LCP do título (70.335 de 80.460 px²); o fundo, não. São duas ou
+   três palavras repintadas por 0,6 s. */
+.mt-destaque {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--mt-cobre-marca) 60%, transparent),
+    color-mix(in srgb, var(--mt-cobre-marca) 60%, transparent)
+  );
+  background-repeat: no-repeat;
+  background-position: 0 88%;
+  background-size: 100% 0.3em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 @keyframes mt-cinetico-acende {
   from {
@@ -1792,6 +1862,32 @@ p {
 @keyframes mt-cinetico-sobe {
   from {
     transform: translateY(1.5em);
+  }
+}
+@keyframes mt-tecla {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes mt-cursor {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mt-cursor-pisca {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes mt-destaque {
+  from {
+    background-size: 0% 0.3em;
   }
 }
 

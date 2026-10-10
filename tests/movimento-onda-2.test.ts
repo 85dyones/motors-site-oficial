@@ -103,23 +103,79 @@ describe("AoAparecer: pronto no servidor, armado fora da tela, toca ao aparecer"
 
   it("o servidor manda o bloco sem estado: o desenho final", () => {
     expect(renderToStaticMarkup(createElement(AoAparecer, null, "x"))).toBe("<div>x</div>");
+    // Dentro de um título, `span` (div em h1 não é HTML válido).
+    expect(renderToStaticMarkup(createElement(AoAparecer, { como: "span" } as Parameters<typeof AoAparecer>[0], "x"))).toBe("<span>x</span>");
   });
 
-  it("fora da tela, arma; quando metade aparece, toca e para de observar", async () => {
+  it("fora da tela, arma; quando metade aparece, toca", async () => {
     simular();
     const el = await montar();
     await act(async () => avisar([{ intersectionRatio: 0 }]));
     expect(el.getAttribute("data-aparece")).toBe("armado");
     await act(async () => avisar([{ intersectionRatio: 0.6 }]));
     expect(el.getAttribute("data-aparece")).toBe("rodando");
-    expect(desligou).toBe(true);
   });
 
-  it("já na tela quando a página carrega, fica parado", async () => {
+  it("saiu inteiro da tela e voltou: rearma e toca de novo, quantas vezes for (pedido do dono, 10/10)", async () => {
+    simular();
+    const el = await montar();
+    await act(async () => avisar([{ intersectionRatio: 0 }]));
+    await act(async () => avisar([{ intersectionRatio: 0.6 }]));
+    // Meio fora não rearma: só sair INTEIRO. A folga evita tocar sem parar
+    // na beirada da tela.
+    await act(async () => avisar([{ intersectionRatio: 0.2 }]));
+    expect(el.getAttribute("data-aparece")).toBe("rodando");
+    for (let volta = 0; volta < 2; volta++) {
+      await act(async () => avisar([{ intersectionRatio: 0 }]));
+      expect(el.getAttribute("data-aparece")).toBe("armado");
+      await act(async () => avisar([{ intersectionRatio: 0.6 }]));
+      expect(el.getAttribute("data-aparece")).toBe("rodando");
+    }
+    expect(desligou).toBe(false);
+  });
+
+  it("já na tela quando a página carrega, fica como está; ao sair e voltar, toca", async () => {
     simular();
     const el = await montar();
     await act(async () => avisar([{ intersectionRatio: 0.3 }]));
     expect(el.hasAttribute("data-aparece")).toBe(false);
+    await act(async () => avisar([{ intersectionRatio: 0 }]));
+    expect(el.getAttribute("data-aparece")).toBe("armado");
+    await act(async () => avisar([{ intersectionRatio: 0.6 }]));
+    expect(el.getAttribute("data-aparece")).toBe("rodando");
+  });
+
+  it("rearmar passa um instante por \"zerando\" (sem animação nenhuma) antes de \"armado\": as animações nascem de novo no zero", async () => {
+    // Medido no preview (10/10): pela API de animações, as que já tinham
+    // terminado sem preencher o fim (a letra da digitação, o hodômetro que
+    // chega) nem apareciam na lista, e não voltavam. Tirar e devolver as
+    // animações pelo CSS recria todas, qualquer que seja o preenchimento.
+    simular();
+    const el = await montar();
+    await act(async () => avisar([{ intersectionRatio: 0.3 }]));
+    const valores: (string | null)[] = [];
+    const observador = new MutationObserver((mudancas) => {
+      for (const m of mudancas) valores.push((m.target as HTMLElement).getAttribute("data-aparece"));
+    });
+    observador.observe(el, { attributes: true, attributeFilter: ["data-aparece"] });
+    await act(async () => avisar([{ intersectionRatio: 0 }]));
+    await Promise.resolve();
+    observador.disconnect();
+    expect(valores).toEqual(["zerando", "armado"]);
+  });
+
+  it("\"zerando\" tira toda animação de dentro, pseudo-elementos inclusive", () => {
+    expect(onda2).toMatch(
+      /\[data-aparece="zerando"\] \*,\s*\[data-aparece="zerando"\] \*::before,\s*\[data-aparece="zerando"\] \*::after \{\s*animation-name: none !important;/,
+    );
+  });
+
+  it("para de observar só quando sai da página", async () => {
+    simular();
+    await montar();
+    expect(desligou).toBe(false);
+    await act(async () => root!.unmount());
+    root = undefined;
     expect(desligou).toBe(true);
   });
 

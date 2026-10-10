@@ -77,20 +77,19 @@ export const AREAS_DA_HOME: DefinicaoDeArea[] = [
     tipo: "ESTOQUE",
     editarEm: "/admin/configuracoes?tab=destaques",
   },
-  {
-    id: "estoque_selecionado",
-    nome: "Estoque selecionado",
-    descricao: "Grade com os veículos em destaque da semana.",
-    tipo: "ESTOQUE",
-    editarEm: "/admin/estoque",
-  },
   // As faixas de preço entraram em 2026-09-05. `/estoque/ate-60-mil` e as duas
   // irmãs recebiam link só das carrocerias, de `/financiamento` e de
   // `/garantia` — nunca da home, que é a página de maior autoridade do site.
   // A posição AQUI é a que a seção assume para quem já tem ordem salva:
-  // `normalizarAreas` a insere logo depois de `estoque_selecionado`, a vizinha
-  // que a precede nesta lista. O lugar definitivo continua sendo decisão do
-  // dono, na tela A3.
+  // `normalizarAreas` a insere logo depois da vizinha que a precede nesta
+  // lista. O lugar definitivo continua sendo decisão do dono, na tela A3.
+  //
+  // Até 10/10/2026 a vizinha era `estoque_selecionado`, e a home de produção
+  // mostrava a grade da semana ACIMA das faixas. O dono pediu o contrário:
+  // "Escolha pelo orçamento", depois o estoque selecionado, depois o
+  // repasse. A ordem salva em produção (`site_settings.areas_home`, de
+  // 07/08) não conhece as faixas nem o repasse, então é esta lista que decide
+  // onde os dois entram — e o dono não precisa mexer no painel.
   {
     id: "faixas_de_preco",
     nome: "Por faixa de preço",
@@ -98,10 +97,18 @@ export const AREAS_DA_HOME: DefinicaoDeArea[] = [
     tipo: "ESTOQUE",
     editarEm: null,
   },
+  {
+    id: "estoque_selecionado",
+    nome: "Estoque selecionado",
+    descricao: "Grade com os veículos em destaque da semana.",
+    tipo: "ESTOQUE",
+    editarEm: "/admin/estoque",
+  },
   // A faixa do repasse entrou em 2026-09-25 (spec 2026-09-24 §10, PR 4). Com
   // a ordem salva em produção, `normalizarAreas` a põe logo depois de
-  // `faixas_de_preco`, a vizinha que a precede aqui, sem passo no painel. O
-  // lugar definitivo é do dono, na tela A3. Desde 28/09 não some sozinha:
+  // `estoque_selecionado`, a vizinha que a precede aqui, sem passo no painel
+  // (até 10/10 a vizinha era `faixas_de_preco`; ver acima). O lugar
+  // definitivo é do dono, na tela A3. Desde 28/09 não some sozinha:
   // com qualquer número de carros abertos a todos (até três) ela aparece, e
   // sem nenhum vira só o chamado para o repasse (`lib/portasDoRepasse.ts`).
   {

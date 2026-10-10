@@ -131,6 +131,7 @@ export default function ResultadoDoProfiler({
           <TextoCinetico
             texto={semNaFaixa ? "Não temos exatamente isso hoje." : `${EXTENSO[cartoes.length]} do pátio para você`}
             modo="gesto"
+            destaque={semNaFaixa ? undefined : EXTENSO[cartoes.length]}
           />
         </h2>
         <p className="m-0 mt-3 text-[13px] leading-relaxed text-mt-inverso-suave">

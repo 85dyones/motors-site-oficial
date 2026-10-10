@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AutoAvaliacao from "../../components/AutoAvaliacao";
-import AoAparecer from "../../components/modernist/AoAparecer";
 import TextoCinetico from "../../components/modernist/TextoCinetico";
 import TextoQueRola from "../../components/modernist/TextoQueRola";
 import GuiasRelacionados from "../../components/modernist/GuiasRelacionados";
@@ -162,13 +161,12 @@ export default async function AvaliacaoPage() {
       />
 
       <section className="border-t-2 border-mt-regua px-[18px] py-8 lg:px-11">
-        {/* Onda cinética: o título assenta quando a seção entra na tela, e o
-            rótulo de cada destino gira letra a letra no mouse. */}
-        <AoAparecer>
-          <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
-            <TextoCinetico texto="Depois da avaliação" modo="aparece" />
-          </h2>
-        </AoAparecer>
+        {/* Onda cinética: o título é digitado quando a seção entra na tela
+            (e de novo cada vez que ela sai e volta), e o rótulo de cada
+            destino gira letra a letra no mouse. */}
+        <h2 className="mt-titulo m-0 text-[20px] lg:text-[24px]">
+          <TextoCinetico texto="Depois da avaliação" modo="aparece" efeito="digita" />
+        </h2>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {DEPOIS_DA_AVALIACAO.map((destino) => (
             <Link
