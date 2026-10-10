@@ -1075,7 +1075,13 @@ export function destinoDaConversa(
 // A mensagem que vai para o vendedor
 // ---------------------------------------------------------------------------
 
-export type AvisoDoFunil = "atribuicao" | "estagnacao" | "transferencia";
+/**
+ * `lead_novo` (2026-10-10): o lead sem dono não é mais distribuído pelo
+ * rodízio, e vai ao administrador que distribui (e ao gestor). `atribuicao` é
+ * o aviso que ele substituiu; o banco não o produz mais, e o site continua o
+ * entendendo para a ordem de deploy não importar.
+ */
+export type AvisoDoFunil = "atribuicao" | "estagnacao" | "transferencia" | "lead_novo";
 
 /** Uma linha da fila do funil, como `montar_fila_do_funil` devolve. */
 export interface LinhaDaFilaDoFunil {
@@ -1209,6 +1215,53 @@ export function mensagemParaGestor(linha: LinhaDaFilaDoFunil, opcoes: OpcoesDoAv
   ].join("\n");
 
   return `${loja}${titulo}\n\n${linha.nome}${carro}\n\n${status}${rodapeDoAviso(opcoes, "Conversa")}`;
+}
+
+/** Quem recebe o aviso de lead novo, e com que papel. */
+export type QuemRecebeLeadNovo = "administrador" | "gestor";
+
+/**
+ * O aviso de lead novo (2026-10-10).
+ *
+ * Decisão do dono: *"avise o administrador quando entrar lead novo, Dyones.
+ * ele vai determinar o dono e depois começa a dança"* — e o gestor recebe a
+ * entrada também. O lead chega sem dono e fica sem dono até o administrador
+ * escolher; o banco não distribui mais (`montar_fila_do_funil`, migração
+ * 20261010160000).
+ *
+ * Ao administrador vai uma ordem — defina o responsável — com o link do lead
+ * no painel, que é onde se escolhe o dono. Ao gestor vai o registro, com o
+ * mesmo status. Os dois levam a conversa do Chatwoot quando ela já existe.
+ */
+export function mensagemDeLeadNovo(
+  linha: LinhaDaFilaDoFunil,
+  opcoes: OpcoesDoAviso = {},
+  para: QuemRecebeLeadNovo = "administrador",
+): string {
+  const carro = linha.interesse?.trim() ? ` — ${linha.interesse.trim()}` : "";
+  const loja = opcoes.loja?.trim() ? `[${opcoes.loja.trim()}] ` : "";
+  const titulo =
+    para === "administrador"
+      ? "Lead novo sem responsável. Defina quem atende."
+      : "Lead novo entrou, aguardando o administrador definir o responsável.";
+  const espera = Number.isFinite(linha.minutos_parado) ? formatarPrazo(linha.minutos_parado) : null;
+
+  const status = [
+    "Status no sistema:",
+    `• Etapa: ${linha.etapa}`,
+    "• Responsável: ninguém ainda",
+    ...(espera ? [`• Esperando há ${espera}`] : []),
+    ...(linha.canal?.trim() ? [`• Canal: ${linha.canal.trim()}`] : []),
+  ].join("\n");
+
+  const painel = opcoes.linkDoLead?.trim() ?? "";
+  const conversa = linkDaConversa(opcoes.conversaChatwoot);
+  const links = [
+    ...(painel ? [`${para === "administrador" ? "Definir o responsável" : "Abrir no painel"}: ${painel}`] : []),
+    ...(conversa ? [`Conversa: ${conversa}`] : []),
+  ];
+
+  return `${loja}${titulo}\n\n${linha.nome}${carro}\n\n${status}${links.length ? `\n\n${links.join("\n")}` : ""}`;
 }
 
 /** Para quem esta linha da fila deve ser entregue. */

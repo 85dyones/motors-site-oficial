@@ -695,6 +695,10 @@ describe("montarHistorico", () => {
     expect(
       frase(evento("alerta", { de: null, para: "Bia", automatico: true, detalhe: { aviso: "atribuicao", minutos_parado: 20, etapa: "novo" } })).texto,
     ).toBe("Aviso de atribuição gerado para Bia: 20 min sem responsável em Novo.");
+    // O lead novo (2026-10-10) vai ao administrador, sem dono escolhido.
+    expect(
+      frase(evento("alerta", { de: null, para: null, automatico: true, detalhe: { aviso: "lead_novo", minutos_parado: 7, etapa: "novo" } })).texto,
+    ).toBe("Aviso de lead novo enviado ao administrador: sem responsável em Novo.");
     // A linha mínima que o aceite da migração de etiquetas grava.
     expect(frase(evento("alerta", { automatico: true, detalhe: { aviso: "estagnacao" } })).texto).toBe(
       "Aviso de lead parado gerado.",
