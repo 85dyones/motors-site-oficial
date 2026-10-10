@@ -85,6 +85,8 @@ export interface PerfilDaAtribuicao {
 
 /** Um agente da conta, como `GET /agents` do Chatwoot devolve. */
 export interface AgenteDoChatwoot {
+  /** O id do agente na conta — é o que a atribuição de conversa pede. */
+  id?: unknown;
   name?: unknown;
   available_name?: unknown;
   email?: unknown;
