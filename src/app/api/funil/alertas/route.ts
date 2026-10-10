@@ -3,8 +3,10 @@ import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 import { autorizarFunil } from "../../../../lib/autorizacaoDoFunil";
 import { getCachedSettings } from "../../../../lib/settings";
 import {
+  avisoComCopiaAoGestor,
   destinatarioDoAviso,
   mensagemDeAlerta,
+  mensagemParaGestor,
   numeroDiscavel,
   type LinhaDaFilaDoFunil,
 } from "../../../../lib/funil";
@@ -140,38 +142,84 @@ export async function POST(request: Request) {
   // o que permite ver isso na execução do n8n em vez de nunca.
   const semDestinatario: { lead_id: string; nome: string; aviso: string }[] = [];
 
+  // Quem recebe a cópia de cada lead que muda de dono (2026-10-10, pedido do
+  // dono: "configure o gestor para receber cada lead que entrar ou for
+  // transferido"). Quem é gestor vem do cadastro — papel `gestor`, ativo, com
+  // WhatsApp —, e não de um número escrito no n8n: trocar o gestor é trocar o
+  // papel no painel. Só se lê quando há o que copiar, e a falha da leitura não
+  // segura o aviso do vendedor: sem gestor, sai só o aviso dele.
+  const gestores: { nome: string; whatsapp: string }[] = [];
+  if (linhas.some((l) => !l.suprimido_por && avisoComCopiaAoGestor(l))) {
+    const { data: perfis, error: erroGestores } = await supabase
+      .from("profiles")
+      .select("full_name, telefone_e164")
+      .eq("is_active", true)
+      .contains("papeis", ["gestor"]);
+    if (erroGestores) {
+      console.warn("[Funil] Sem o gestor para a cópia dos avisos:", erroGestores.message);
+    } else {
+      for (const p of (perfis ?? []) as { full_name?: string | null; telefone_e164?: string | null }[]) {
+        const whatsapp = numeroDiscavel(p.telefone_e164);
+        if (whatsapp && !gestores.some((g) => g.whatsapp === whatsapp)) {
+          gestores.push({ nome: p.full_name?.trim() || "Gestor", whatsapp });
+        }
+      }
+    }
+  }
+
   for (const linha of linhas.filter((l) => !l.suprimido_por)) {
     const numero = destinatarioDoAviso(linha);
-    if (!numero) {
+    const opcoes = {
+      loja,
+      conversaChatwoot: conversaPorLead.get(linha.lead_id) ?? null,
+      linkDoLead: urlDoSite(urlDoLead(linha.lead_id)),
+    };
+    const lead = {
+      nome: linha.nome,
+      // Só dígitos, sem "+": é o que a Evolution espera.
+      whatsapp: numeroDiscavel(linha.telefone) || null,
+      interesse: linha.interesse,
+      canal: linha.canal,
+      etapa: linha.etapa,
+      minutos_parado: linha.minutos_parado,
+    };
+
+    if (numero) {
+      fila.push({
+        lead_id: linha.lead_id,
+        aviso: linha.aviso,
+        para: "vendedor",
+        lead,
+        destinatario: {
+          nome: linha.aviso === "estagnacao" ? linha.responsavel : linha.novo_responsavel,
+          whatsapp: numero,
+        },
+        // Em transferência e atribuição, quem estava antes — o texto cita.
+        responsavel_anterior: linha.aviso === "estagnacao" ? null : linha.responsavel,
+        mensagem: mensagemDeAlerta(linha, opcoes),
+      });
+    } else {
       console.error("[Funil] Aviso sem destinatário — lead", linha.lead_id, linha.aviso);
       semDestinatario.push({ lead_id: linha.lead_id, nome: linha.nome, aviso: linha.aviso });
-      continue;
     }
 
-    fila.push({
-      lead_id: linha.lead_id,
-      aviso: linha.aviso,
-      lead: {
-        nome: linha.nome,
-        // Só dígitos, sem "+": é o que a Evolution espera.
-        whatsapp: numeroDiscavel(linha.telefone) || null,
-        interesse: linha.interesse,
-        canal: linha.canal,
-        etapa: linha.etapa,
-        minutos_parado: linha.minutos_parado,
-      },
-      destinatario: {
-        nome: linha.aviso === "estagnacao" ? linha.responsavel : linha.novo_responsavel,
-        whatsapp: numero,
-      },
-      // Em transferência e atribuição, quem estava antes — o texto cita.
-      responsavel_anterior: linha.aviso === "estagnacao" ? null : linha.responsavel,
-      mensagem: mensagemDeAlerta(linha, {
-        loja,
-        conversaChatwoot: conversaPorLead.get(linha.lead_id) ?? null,
-        linkDoLead: urlDoSite(urlDoLead(linha.lead_id)),
-      }),
-    });
+    // A cópia sai mesmo quando o vendedor ficou sem número: no modo reservado
+    // o lead já mudou de dono, e o gestor é quem pode avisar à mão. Quem já é
+    // o destinatário do aviso (o gestor que também vende) não recebe duas.
+    if (avisoComCopiaAoGestor(linha)) {
+      for (const g of gestores) {
+        if (g.whatsapp === numero) continue;
+        fila.push({
+          lead_id: linha.lead_id,
+          aviso: linha.aviso,
+          para: "gestor",
+          lead,
+          destinatario: { nome: g.nome, whatsapp: g.whatsapp },
+          responsavel_anterior: linha.responsavel,
+          mensagem: mensagemParaGestor(linha, opcoes),
+        });
+      }
+    }
   }
 
   return NextResponse.json({

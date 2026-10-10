@@ -340,8 +340,16 @@ async function aplicar(
   // outro lead aberto da mesma pessoa. Sem procurar lead, o passo 4 não roda.
   const atribuiOQueJaEncerrou = vinculoEncerrado && evento.tipo === "conversa" && Boolean(evento.atribuicao);
 
+  // Número da EQUIPE não vira lead (2026-10-10). Os avisos internos — a
+  // transferência para o vendedor, o alerta para o gestor — passam a sair
+  // pelo WhatsApp da loja, o mesmo ligado ao Chatwoot. Sem esta trava, o
+  // vendedor que responde "ok" ao aviso abre conversa no atendimento e vira
+  // lead no kanban; foi assim que o número do dono virou lead em 21/09.
+  const daEquipe =
+    !leadId && evento.telefone ? await ehNumeroDaEquipe(supabase, evento.telefone) : false;
+
   // 2. O lead ------------------------------------------------------------
-  if (!leadId && evento.telefone && !soResolveOQueJaEncerrou && !atribuiOQueJaEncerrou) {
+  if (!leadId && evento.telefone && !soResolveOQueJaEncerrou && !atribuiOQueJaEncerrou && !daEquipe) {
     leadId = await acharLead(supabase, evento.telefone);
 
     // Só o cliente escrevendo, ou o consultor respondendo, justificam criar. Um
@@ -436,6 +444,8 @@ async function aplicar(
         ? "conversa resolvida de um lead já encerrado"
         : atribuiOQueJaEncerrou
           ? "atribuição numa conversa de lead já encerrado"
+        : daEquipe
+          ? "conversa com número da equipe"
         : "conversa sem telefone reconhecível",
   };
 }
@@ -755,6 +765,35 @@ async function acharLead(
     return null;
   }
   return data?.[0]?.id ?? null;
+}
+
+/**
+ * O telefone é de alguém da equipe? Perfil ativo que não é de cliente, nas
+ * duas formas do número (com e sem o 9).
+ *
+ * Falhar a leitura devolve `false`: o comportamento de antes, em que a
+ * conversa segue o caminho de qualquer cliente. Um lead a mais de um vendedor
+ * se descarta no kanban; um cliente perdido não se recupera.
+ */
+async function ehNumeroDaEquipe(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  telefone: string,
+): Promise<boolean> {
+  const formas = variantesDoTelefone(telefone);
+  if (formas.length === 0) return false;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, role")
+    // `telefone_e164` guarda com o "+"; as variantes vêm só em dígitos.
+    .in("telefone_e164", formas.flatMap((f) => [`+${f}`, f]))
+    .eq("is_active", true);
+
+  if (error) {
+    console.warn("[Chatwoot] Não deu para conferir se o número é da equipe:", error.message);
+    return false;
+  }
+  return (data ?? []).some((p: { role?: string | null }) => p.role !== "cliente");
 }
 
 /** O lead que nasce de uma conversa de WhatsApp. */

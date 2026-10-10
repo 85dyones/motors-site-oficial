@@ -422,6 +422,29 @@ describe("com o token atual na URL, a mesma entrega volta a valer", () => {
     expect(rpcs).toEqual([]);
   });
 
+  it("conversa de número da equipe não vira lead — o vendedor respondendo ao aviso", async () => {
+    // 2026-10-10: os avisos internos saem pelo WhatsApp da loja. O vendedor
+    // que responde "ok" abre conversa no Chatwoot; ela não pode ir ao kanban.
+    banco.profiles = [
+      { id: "p-1", role: "comercial", is_active: true, telefone_e164: "+5541988887777" },
+    ];
+    const { corpo } = await entregar(clienteNovoEscrevendo(), { token: TOKEN_ATUAL });
+
+    expect(corpo).toMatchObject({ acao: "atendimento_sem_lead", detalhe: "conversa com número da equipe" });
+    expect(banco.leads.find((l) => l.telefone === "5541988887777")).toBeUndefined();
+  });
+
+  it("perfil de CLIENTE com o mesmo número continua virando lead", async () => {
+    // A área do cliente cria perfil com telefone: ela não é a equipe.
+    banco.profiles = [
+      { id: "p-2", role: "cliente", is_active: true, telefone_e164: "+5541988887777" },
+    ];
+    const { corpo } = await entregar(clienteNovoEscrevendo(), { token: TOKEN_ATUAL });
+
+    expect(corpo).toMatchObject({ acao: "atendimento_vinculado" });
+    expect(banco.leads.find((l) => l.telefone === "5541988887777")).toBeTruthy();
+  });
+
   it("conversa nova do WhatsApp volta a virar lead, com o atendimento vinculado", async () => {
     const { corpo } = await entregar(clienteNovoEscrevendo(), { token: TOKEN_ATUAL });
 
