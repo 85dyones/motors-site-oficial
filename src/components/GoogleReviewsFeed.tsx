@@ -17,6 +17,8 @@
  * caixa de "widget não configurado" em produção, que era o que acontecia.
  */
 
+import type { CSSProperties } from "react";
+import AoAparecer from "./modernist/AoAparecer";
 import {
   formatarNota,
   selecionarParaVitrine,
@@ -25,10 +27,17 @@ import {
   type PainelReputacao,
 } from "../lib/avaliacoesGoogle";
 
-function Estrelas({ nota, rotulo }: { nota: number; rotulo?: string }) {
+/**
+ * `acender`: as estrelas da nota média acendem uma a uma quando o cabeçalho
+ * aparece na tela (Onda 2 do plano de movimento, `.mt-estrelas-acendem`,
+ * modernist.css). Só no cabeçalho; as estrelas de cada avaliação ficam paradas.
+ * O número da nota não gira: contar do zero mostraria "0,0" por um instante,
+ * e contar do zero ao carregar continua sendo só da capa da home.
+ */
+function Estrelas({ nota, rotulo, acender = false }: { nota: number; rotulo?: string; acender?: boolean }) {
   return (
     <div
-      className="inline-flex items-center gap-0.5"
+      className={`inline-flex items-center gap-0.5 ${acender ? "mt-estrelas-acendem" : ""}`}
       role="img"
       aria-label={rotulo ?? `${formatarNota(nota)} de 5 estrelas`}
     >
@@ -38,6 +47,7 @@ function Estrelas({ nota, rotulo }: { nota: number; rotulo?: string }) {
           viewBox="0 0 20 20"
           aria-hidden="true"
           className={`h-3.5 w-3.5 ${posicao <= Math.round(nota) ? "text-mt-cobre" : "text-mt-neutral-300"}`}
+          style={acender ? ({ "--mt-estrela": posicao - 1 } as CSSProperties) : undefined}
           fill="currentColor"
         >
           <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L10 14.9 4.8 17.6l1-5.8L1.5 7.7l5.9-.9L10 1.5z" />
@@ -161,16 +171,17 @@ export default function GoogleReviewsFeed({
           </div>
         </div>
 
-        <div className="pb-2">
+        <AoAparecer className="pb-2">
           <Estrelas
             nota={reputacao.notaMedia}
             rotulo={`Média de ${formatarNota(reputacao.notaMedia)} de 5 estrelas`}
+            acender
           />
           <div className="mt-2 text-xs text-mt-neutral-600">
             {reputacao.totalAvaliacoes}{" "}
             {reputacao.totalAvaliacoes === 1 ? "avaliação" : "avaliações"} de clientes
           </div>
-        </div>
+        </AoAparecer>
 
         {reputacao.urlPerfil && (
           <a

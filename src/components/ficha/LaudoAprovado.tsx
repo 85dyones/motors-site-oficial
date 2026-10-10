@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import AoAparecer from "../modernist/AoAparecer";
 
 /**
  * O corpo da seção do laudo quando ele está publicado e aprovado.
@@ -15,15 +16,22 @@ import type { ReactNode } from "react";
  *
  * `children` é a ponte para o guia do laudo, montada pela PDP (é lá que
  * `tests/links-entre-guias.test.ts` a procura).
+ *
+ * Desde 10/10 o selo assenta como um carimbo quando a seção chega à tela,
+ * uma vez por visita (`AoAparecer` + `.mt-carimbo`, modernist.css): a perícia
+ * é o argumento mais forte da loja, e o carimbo dá peso a ela sem texto a
+ * mais. O HTML do servidor manda o selo pronto, no lugar.
  */
 export default function LaudoAprovado({ laudo, children }: { laudo: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="mt-etiqueta m-0 gap-2 text-[11px]">
-          <span className="h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
-          LAUDO TÉCNICO APROVADO
-        </h3>
+        <AoAparecer>
+          <h3 className="mt-etiqueta mt-carimbo m-0 gap-2 text-[11px]">
+            <span className="h-1.5 w-1.5 bg-mt-cobre-marca" aria-hidden="true" />
+            LAUDO TÉCNICO APROVADO
+          </h3>
+        </AoAparecer>
         <p className="m-0 mt-2 text-sm text-mt-neutral-700">Histórico livre de sinistros e leilão</p>
       </div>
       <blockquote className="m-0 border-l-2 border-mt-cobre pl-4 text-[15px] leading-relaxed text-mt-neutral-800">

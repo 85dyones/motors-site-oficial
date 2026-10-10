@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTheme } from "../app/ThemeContext";
 import { EstatisticasRegua, Rotulo, Seta } from "./modernist/primitivos";
+import TextoQueAcende from "./modernist/TextoQueAcende";
 import { aplicarTotalEstoque } from "../lib/textoInstitucional";
 import { GARANTIA_MESES } from "../lib/paginasInstitucionais";
 
@@ -272,7 +273,8 @@ export default function SobreClientWrapper({
         <section className="mt-14 bg-mt-accent px-[18px] py-12 text-mt-inverso lg:px-10 lg:py-[76px]">
           {aboutSettings.ctaTitle && (
             <h2 className="mt-display m-0 max-w-[1000px] text-[32px] lg:text-[76px]">
-              {aboutSettings.ctaTitle}
+              {/* Acende palavra por palavra enquanto sobe na tela. */}
+              <TextoQueAcende texto={aboutSettings.ctaTitle} />
             </h2>
           )}
           {aboutSettings.ctaDescription && (
