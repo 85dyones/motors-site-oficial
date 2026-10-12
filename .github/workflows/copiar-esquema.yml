@@ -33,6 +33,11 @@
 #
 # Plataforma já copiada: a cópia não roda de novo. Com "igualar_permissoes",
 # só o passo das permissões roda.
+#
+# Histórico no motors-plataforma, 12/10/2026:
+# - execução 38313376641: cópia;
+# - execução 38315004604: permissões. Ficou tudo igual à produção, nas
+#   contagens e nas 776 linhas de permissão.
 name: copiar-esquema
 
 on:
@@ -46,9 +51,6 @@ on:
         description: "Plataforma já copiada: só igualar as permissões dos papéis da API às da produção"
         type: boolean
         default: false
-  push:
-    branches: ["claude/**"]
-    paths: [".github/workflows/copiar-esquema.yml"]
 
 permissions:
   contents: read
@@ -67,7 +69,7 @@ jobs:
       REF_PROD: zwbqmzgnagfeqinqkolp
       REF_PLAT: sgkmzzgkkfemrunshekz
       COPIAR_CONFIGURACAO: ${{ inputs.configuracao }}
-      IGUALAR_PERMISSOES: ${{ github.event_name == 'push' || inputs.igualar_permissoes }}
+      IGUALAR_PERMISSOES: ${{ inputs.igualar_permissoes }}
       PGCONNECT_TIMEOUT: "20"
     steps:
       - name: cada segredo aponta para o seu projeto
