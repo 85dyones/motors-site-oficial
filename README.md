@@ -16,6 +16,10 @@ O produto tem três camadas:
   em rede, recompra futura). Especificado em `docs/MANUAL_MOTORS_CICLO.md`;
   implementação ainda no começo.
 
+Desde 2026-10-12 o mesmo código vira uma **plataforma SaaS multi-loja**, vendida
+por módulos a outras revendas, com a Motors como loja nº 1. As decisões e a ordem
+das fases estão em `motors-handoff/HANDOFF.md` e `motors-handoff/docs/fases/PLANO.md`.
+
 ## Stack
 
 Next.js / React · Supabase (banco + auth, projeto `zwbqmzgnagfeqinqkolp`) ·
@@ -57,6 +61,7 @@ olhe o que mudou na versão antes de aprovar.
 
 | Documento | Assunto |
 |---|---|
+| `motors-handoff/HANDOFF.md` | Documento-mestre: sistema de operação e virada para SaaS multi-loja (decisões SaaS-1 a SaaS-6, 2026-10-12) |
 | `docs/MANUAL_MOTORS_CICLO.md` | A especificação de produto do Ciclo — **fonte de verdade** |
 | `docs/MOTORS_CICLO_IMPLEMENTACAO.md` | O plano de implementação em pacotes |
 | `docs/FUNIL_DE_VENDAS.md` | O funil de leads — a régua de estagnação e transferência, a pesquisa que a embasa e o que ficou de fora |

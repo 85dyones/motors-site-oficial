@@ -4,6 +4,82 @@ Regra da janela: enquanto o RevendaMais existir, ele só recebe lançamento fisc
 comercial. Uma fase só começa com o critério de saída da anterior cumprido. O site público e o
 funil /avaliacao não quebram em NENHUMA fase (qa-guardian verifica em todo PR).
 
+## Ordem a partir de 2026-10-12 (virada para SaaS)
+
+**S0 → S1 → S2 → S3 → F1 → F2 → F3 → F4**, com a trilha comercial correndo em paralelo desde a
+metade da S1. Decisões SaaS-1 a SaaS-6 no topo do `HANDOFF.md`; notas por módulo, riscos e mercado
+no diagnóstico de 12/10 (artefato privado linkado no `HANDOFF.md`).
+
+O que a F0 e a F0.5 entregaram fica como está. O que ficou pendente nelas e é infraestrutura
+(staging, backup PITR testado) passa para a S0; o resto (carga histórica, conferência diária)
+volta antes da F1. As fases F1 a F4 não mudam de conteúdo: começam depois da S3 — ou junto com
+ela, havendo uma segunda pessoa técnica — e tudo o que criarem já nasce multi-loja.
+
+Durações supõem uma pessoa técnica em tempo integral com os agentes; com duas, encurtam perto de 40%.
+
+### S0 — Higiene, segurança e infraestrutura (≈2 semanas)
+Humano (Dyones): assinar o GitHub Pro e tornar o repositório privado; gerar hash novo do feed no
+RevendaMais (o antigo está no histórico do git); preparar o VPS do runner (`docs/RUNNER_DO_CI.md`);
+criar o projeto Supabase em sa-east-1.
+Código: os itens de "Corrigir agora" do diagnóstico — rotas sensíveis com permissão abaixo do
+necessário, aporte de investidor gravado na tabela aposentada (achado 2 de
+`docs/ACHADOS_FINANCEIRO.md`), alertas do Security Advisor, admin concedido por e-mail fixo ·
+staging com banco separado e preview da Vercel apontando para ele · migrações aplicadas pelo CI
+(Supabase CLI) no lugar de `supabase/manutencao/aplicar-migracao.js` · job do CI com Postgres que
+roda os testes de RLS hoje pulados · PITR com restauração testada · docs defasados
+(`AUDITORIA.md`, `docs/ACHADOS_FINANCEIRO.md`, `supabase/README.md`).
+Saída: Security Advisor sem ERROR; preview sem acesso à produção; repositório privado; CI no runner
+próprio com a reserva do GitHub testada.
+
+### S1 — Fundação multi-loja (≈10 semanas)
+Entregas, nesta ordem: `org_membros` + loja no token (Custom Access Token Hook) + `org_atual()` ·
+trocar `org_padrao()` nas policies e funções (67 policies em 12/10) e fazer `is_staff`, `tem_papel`
+e o escopo de leads conhecerem a loja · dono do lead por id de usuário, não por nome · `org_id` nas
+tabelas legadas (46 em 12/10, inclusive `estoque_motors`, `leads`, `site_settings`, `profiles`,
+investidores, mídia e guias), preenchido com a Motors, com unicidades por loja · filtro de loja
+obrigatório nas rotas que usam a chave de serviço e loja na chave do cache · loja pelo domínio
+(`org_dominios` lido no `proxy.ts`, URL do site em tempo de execução, domínio próprio pela API da
+Vercel) · credenciais por loja (`org_integracoes` no Vault) saindo do env e de `site_settings` ·
+fluxos críticos do n8n (relógio do funil, envio de WhatsApp, sync de estoque) para dentro do app ou
+parametrizados por loja · conteúdo da Motors fora do código (layout, páginas geo, schema da loja,
+horário, templates de e-mail do Auth, e-mails de admin, temas) · storage com prefixo de loja ·
+`org_modulos` + função de provisionamento de loja · correções de dado da Motors fora das migrações
+· `src/modules/` com fronteiras, começando por estoque, leads e configuração da loja · Motors
+migrada para o projeto sa-east-1.
+Saída: duas lojas criadas pela função de provisionamento não se enxergam em nenhuma tabela, provado
+no CI; a Motors roda como loja nº 1 no projeto novo, sem regressão no site nem no /avaliacao.
+
+### S2 — Pacote de expansão (≈10 semanas; pilotos a partir da 6ª semana)
+Site e SEO: configuração da loja (endereço, cidade, bairros, horário, autor, garantia) como dado ·
+páginas geo vindas de uma tabela de regiões, com a trava de similaridade de
+`tests/paginas-geo.test.ts` contra página-porta · modelos de hub com variáveis e edição de title e
+meta · editor de guias com rascunho por IA no painel · `llms.txt` por loja · Search Console por loja.
+Leads: entrada por API com chave por loja e Meta Lead Ads · WhatsApp plugável (Cloud API oficial;
+Chatwoot como adaptador) · relógio do funil no app a cada 5 min · fuso, janela de avisos e papéis
+por loja · deduplicação e idempotência · relatório por origem e tempo de primeira resposta ·
+consentimento na captação e prazo de retenção.
+Estoque: conector configurável (XML do RevendaMais, Autoconf, Boom, planilha) · dicionário canônico
+de marca e modelo · prompt do descritivo por loja.
+Onboarding: tema e logo por loja, assistente de configuração, importação dos redirecionamentos do
+site antigo.
+Saída: 2 ou 3 lojas piloto no ar com domínio próprio, leads chegando ao funil e páginas indexando.
+
+### S3 — Mídia e Painel do dono (≈8 semanas)
+Mídia: OAuth Meta e Google por loja · venda devolvida às plataformas (CAPI e conversão offline do
+Google Ads) · atribuição de clique para WhatsApp · `gbraid`/`wbraid` · CAC e ROAS por campanha e por
+carro · catálogo de veículos da Meta · públicos sincronizados · relatório mensal para a loja ·
+Consent Mode v2.
+Dono: fonte única de "venda" (lead ganho, veículo e campanha ligados) · painel com giro, idade do
+estoque, capital parado, margem, conversão por origem e vendedor, comparativo de período · metas ·
+exportação CSV/PDF · agregação no banco, sem o corte em 1.000 linhas.
+Saída: CAC por venda e ROAS por campanha visíveis para a Motors e para os pilotos.
+
+### Trilha comercial (paralela, da metade da S1 ao fim da S2)
+Cobrança recorrente com PIX e boleto ligada a `org_modulos` · medição de consumo por loja (SMS,
+consulta de placa, IA) com teto · termos de uso, contrato de operador de dados (DPA) e registro de
+operações para a LGPD · central de ajuda e página de status · contrato com as lojas piloto · nome e
+site do produto.
+
 ## F0 — Adequação normativa, base e migração (≈2 semanas)
 Humano (Dyones): confirmar adesão RENAVE + escolher integradora e provedor fiscal; pedir exportação
 completa ao suporte do RevendaMais; varredura das telas pendentes (financeiro, integrador,
