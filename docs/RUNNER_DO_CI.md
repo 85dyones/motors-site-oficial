@@ -1,9 +1,10 @@
 # Runner próprio do CI
 
 Decisão SaaS-6 do `motors-handoff/HANDOFF.md` (2026-10-12): o repositório fica privado e o CI
-(`.github/workflows/testes.yml`) roda num runner próprio. **No começo, o VPS KVM 4 da Hostinger;
-depois, o computador de casa do dono.** Quando o runner está desligado, o CI vai sozinho para os
-servidores do GitHub.
+(`.github/workflows/testes.yml`) roda num runner próprio. O plano era começar pelo VPS KVM 4 da
+Hostinger e passar depois para o computador de casa do dono. **Em 12/10 o dono antecipou a etapa 2:
+o CI começa no computador de casa, com Windows e WSL2.** O VPS fica como alternativa. Quando o
+runner está desligado, o CI vai sozinho para os servidores do GitHub.
 
 ## Por quê
 
@@ -186,75 +187,54 @@ carrega mais nada de produção.
 
 ### Windows (WSL2)
 
-1. **WSL com Ubuntu.** No PowerShell como administrador:
+Tudo no computador de casa. O PowerShell é sempre **como administrador**.
+
+1. **WSL com Ubuntu.** No PowerShell:
    ```powershell
    wsl --install -d Ubuntu-24.04
    ```
    Reinicie se pedir. Na primeira abertura o Ubuntu pede um usuário e uma senha: é o seu usuário
-   de administração da distribuição, não o do runner. Se você já usa esse Ubuntu para outra coisa,
-   crie uma distribuição só para o CI (`wsl --export` + `wsl --import`) e use o nome dela no lugar
-   de `Ubuntu-24.04` nos passos abaixo.
-2. **Memória do WSL.** Crie `%UserProfile%\.wslconfig` com o que você quer ceder ao CI:
-   ```ini
-   [wsl2]
-   memory=16GB
-   processors=8
+   de administração da distribuição, não o do runner. Se você já usa um Ubuntu-24.04 para outra
+   coisa, crie uma distribuição só para o CI (`wsl --export` + `wsl --import`) e use o nome dela
+   no lugar de `Ubuntu-24.04` nos passos abaixo.
+2. **Quanto o CI pode usar.** No PowerShell, com até metade da memória do computador (o exemplo
+   cede 16 GB e 8 núcleos). Se o arquivo `.wslconfig` já existir, acrescente `memory` e
+   `processors` à seção `[wsl2]` dele em vez de sobrescrever:
+   ```powershell
+   Set-Content -Encoding ascii "$env:USERPROFILE\.wslconfig" "[wsl2]`nmemory=16GB`nprocessors=8"
    ```
-3. **Isolar dos seus arquivos.** No Ubuntu, crie `/etc/wsl.conf`:
+3. **Instalar e registrar.** No GitHub: repositório → Settings → Actions → Runners → **New
+   self-hosted runner** → Linux, x64. Deixe a página aberta: o token dela vale 1 hora e serve para
+   todas as instâncias. Copie `scripts/instalar-runner-wsl.sh` para o Ubuntu e rode:
    ```bash
-   sudo tee /etc/wsl.conf >/dev/null <<'CONF'
-   [automount]
-   enabled=false
-   [interop]
-   enabled=false
-   appendWindowsPath=false
-   CONF
+   bash instalar-runner-wsl.sh
    ```
-   Assim o CI não enxerga o disco C: nem executa programas do Windows. Depois, no PowerShell:
-   `wsl --shutdown`.
-4. **Pacotes e usuário do runner.** No Ubuntu:
-   ```bash
-   sudo apt-get update && sudo apt-get install -y git curl jq tar
-   sudo adduser --disabled-password --gecos "" runner
-   ```
-5. **Registrar as instâncias.** Gere um token por instância na tela do GitHub (passo 2 da etapa
-   1). Para cada instância `N`:
-   ```bash
-   sudo -iu runner
-   mkdir actions-runner-N && cd actions-runner-N
-   curl -o runner.tar.gz -L <URL>
-   tar xzf runner.tar.gz
-   ./config.sh --url https://github.com/85dyones/motors-site-oficial --token <TOKEN> \
-     --name motors-casa-N --labels motors-ci --work _work --unattended
-   exit
-   ```
-6. **Script que sobe todas as instâncias.**
-   ```bash
-   sudo -iu runner tee /home/runner/iniciar-runners.sh >/dev/null <<'SH'
-   #!/usr/bin/env bash
-   # Sobe todas as instâncias e fica de pé enquanto elas rodam.
-   for d in /home/runner/actions-runner-*; do
-     (cd "$d" && ./run.sh) &
-   done
-   wait
-   SH
-   sudo chmod +x /home/runner/iniciar-runners.sh
-   ```
-7. **Subir quando você entra no Windows.** Agendador de Tarefas → Criar Tarefa:
-   - Geral: nome "Runner do CI"; **Executar somente quando o usuário estiver conectado**.
-   - Disparadores: **Ao fazer logon**, do seu usuário.
-   - Ações: Iniciar um programa → `C:\Windows\System32\wsl.exe`, argumentos
-     `-d Ubuntu-24.04 -u runner -- /home/runner/iniciar-runners.sh`.
-   - Configurações: desmarque **Parar a tarefa se ela for executada por mais de**; em "Se a tarefa
-     falhar, reiniciar a cada" ponha 1 minuto, até 3 vezes.
+   O script pergunta quantas instâncias (uma a cada 4 GB cedidos; com 16 GB, 4) e o token. Depois
+   ele faz o resto:
+   - isola o Ubuntu do disco C: e dos programas do Windows;
+   - instala os pacotes e o cliente do Postgres 17;
+   - cria o usuário `runner`, sem sudo;
+   - registra as instâncias `motors-casa-N` com o rótulo `motors-ci`;
+   - deixa pronto `/home/runner/iniciar-runners.sh`.
 
+   Rodar de novo é seguro.
+4. **Subir quando você entra no Windows.** No PowerShell:
+   ```powershell
+   wsl --shutdown
+   $acao = New-ScheduledTaskAction -Execute "C:\Windows\System32\wsl.exe" -Argument "-d Ubuntu-24.04 -u runner -- /home/runner/iniciar-runners.sh"
+   $gatilho = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+   $ajustes = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+   Register-ScheduledTask -TaskName "Runner do CI" -Action $acao -Trigger $gatilho -Settings $ajustes
+   Start-ScheduledTask -TaskName "Runner do CI"
+   powercfg /change standby-timeout-ac 0
+   ```
    A tarefa abre uma janela de terminal: deixe minimizada, porque fechá-la desliga os runners. O
-   `wsl.exe` aberto é o que mantém o WSL ligado. O gatilho é o logon, e não a inicialização,
-   porque o WSL costuma falhar quando o Windows o sobe antes de alguém entrar na conta. Depois de
-   uma reinicialização (atualização do Windows, por exemplo), o CI vai para o GitHub até você
-   entrar; bloquear a tela não atrapalha.
-8. **Não dormir.** Configurações → Sistema → Energia → Tela e suspensão: **Suspender: nunca**
-   (na tomada). Computador suspenso conta como desligado e o CI vai para o GitHub.
+   gatilho é o logon, e não a inicialização, porque o WSL costuma falhar quando o Windows o sobe
+   antes de alguém entrar na conta. Depois de uma reinicialização (atualização do Windows, por
+   exemplo), os runners só voltam quando você entrar; bloquear a tela não atrapalha. A última linha
+   impede o computador de suspender na tomada: suspenso, ele conta como desligado.
+5. **Conferir.** Em Settings → Actions → Runners, as instâncias `motors-casa-N` aparecem como
+   *Idle*. Depois siga "Ligar a escolha automática".
 
 ### Linux
 
@@ -268,7 +248,11 @@ contêiner de serviço, que o GitHub só oferece em runner Linux: esse job conti
 
 ## Ligar a escolha automática
 
-Depois de a instância aparecer como *Idle* em Settings → Actions → Runners:
+Depois de a instância aparecer como *Idle* em Settings → Actions → Runners.
+
+Enquanto o GitHub não der máquina para a conta, basta a variável `RUNNER_CI` do passo 2: o
+`maquina` falha e os jobs vão direto para o runner. O token do passo 1 serve para quando o GitHub
+voltar a dar máquina. Sem ele, o `maquina` manda tudo para o GitHub e gasta minutos.
 
 1. **Token que deixa o CI ver se o runner está ligado.** github.com → Settings (da sua conta)
    → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token:

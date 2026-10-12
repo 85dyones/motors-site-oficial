@@ -24,7 +24,9 @@ permissions:
 
 jobs:
   gerar:
-    runs-on: ubuntu-latest
+    # No runner próprio quando há um configurado (o cliente do Postgres 17 já
+    # vem do scripts/instalar-runner-wsl.sh); senão, no GitHub.
+    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 15
     env:
       PLAT: ${{ secrets.SUPABASE_DB_URL_PLATAFORMA }}
@@ -41,6 +43,15 @@ jobs:
       - name: cliente do Postgres 17
         shell: bash
         run: |
+          if [ -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+            echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+            echo "Cliente do Postgres 17 já instalado."
+            exit 0
+          fi
+          if ! sudo -n true 2>/dev/null; then
+            echo "::error title=esquema-base::Falta o postgresql-client-17 nesta máquina, e o runner não tem sudo. Rode de novo o scripts/instalar-runner-wsl.sh."
+            exit 1
+          fi
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
             https://www.postgresql.org/media/keys/ACCC4CF8.asc
