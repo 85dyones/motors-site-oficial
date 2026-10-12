@@ -14,8 +14,17 @@
 # `vitest.config.ts` não carrega `.env`; teste que precisa de variável define
 # a própria.
 #
-# O fuso é o do runner (UTC), o mesmo da Vercel: teste que só passa no fuso
-# de Curitiba falha aqui antes de errar em produção.
+# O fuso é UTC, o mesmo da Vercel: teste que só passa no fuso de Curitiba
+# falha aqui antes de errar em produção. O `TZ` abaixo garante isso também no
+# runner próprio, cujo relógio pode estar em outro fuso.
+#
+# Onde roda (decisão SaaS-6, 12/10/2026): com o repositório privado, o runner
+# padrão do GitHub encolhe para 2 vCPU e 7–8 GB e os minutos passam a contar.
+# A variável `RUNNER_CI` (Settings → Secrets and variables → Actions →
+# Variables) escolhe a máquina: vazia, servidores do GitHub; `motors-vps`, o
+# runner próprio no VPS. Repositório público usa SEMPRE o GitHub, mesmo com a
+# variável preenchida: runner próprio em repositório público roda código de
+# PR de fork. Instalação e reserva em `docs/RUNNER_DO_CI.md`.
 #
 # Os jobs ficam neste arquivo, e não em workflows separados, porque a
 # conclusão da EXECUÇÃO é o que o fluxo de merge em lote confere por commit.
@@ -30,6 +39,9 @@ on:
 permissions:
   contents: read
 
+env:
+  TZ: UTC
+
 # Push e pull_request testam árvores diferentes: o push testa o commit do
 # branch, e o pull_request testa `refs/pull/N/merge`, o branch somado à base.
 # Por isso ficam em grupos separados, e cada grupo só cancela a execução
@@ -40,7 +52,7 @@ concurrency:
 
 jobs:
   vitest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -57,7 +69,7 @@ jobs:
   # `tsc` estava fora por 2 erros em `tests/f0-nucleo.test.ts`, corrigidos pelo
   # PR #62 (15/09). Medido em 17/09 sobre o main `9b3baa0`: 0 erros, 13 s.
   tipos:
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -80,7 +92,7 @@ jobs:
   # derrubar o CI de quem corrigiu. A contagem velha fica no arquivo até alguém
   # rodar `npx eslint . --prune-suppressions` e versionar o resultado.
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -102,7 +114,7 @@ jobs:
   # No pull_request, a build é do `refs/pull/N/merge` (o branch somado à base),
   # coisa que a Vercel não builda.
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 20
     env:
       # `vars` se foram cadastradas como variável; `secrets` se foram como
@@ -151,7 +163,7 @@ jobs:
   # No pull_request, o commit conferido é o head do PR: a Vercel não builda o
   # `refs/pull/N/merge`.
   deploy-vercel:
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       statuses: read
