@@ -12,8 +12,9 @@
 # regras de RLS, permissões e comentários), as extensões, os gatilhos em
 # `auth.users`, os buckets e as regras do Storage, e o registro de migrações.
 # Opcional, no disparo manual: as tabelas de configuração, que não têm dado de
-# cliente. NÃO copia: dado de cliente, segredos do Vault e tarefas agendadas
-# (uma delas chama o site de produção) — essas só aparecem listadas no log.
+# cliente. NÃO copia: dado de cliente, segredos do Vault, tarefas agendadas
+# (uma delas chama o site de produção) e webhooks do banco (chamam o n8n de
+# produção) — esses só aparecem listados no log.
 #
 # Repositório público: o log mostra só contagens. Os segredos chegam mascarados.
 #
@@ -103,16 +104,33 @@ jobs:
           : > copia/00_extensoes.sql
           while IFS=$'\t' read -r nome esquema; do
             grep -qx "$nome" copia/ext_plat.txt && continue
-            echo "create schema if not exists $esquema;" >> copia/00_extensoes.sql
+            # Esquema com prefixo pg_ é do sistema e já existe (o pg_cron mora no
+            # pg_catalog); criar dá erro.
+            case "$esquema" in
+              pg_*) ;;
+              *) echo "create schema if not exists $esquema;" >> copia/00_extensoes.sql ;;
+            esac
             echo "create extension if not exists \"$nome\" with schema $esquema;" >> copia/00_extensoes.sql
           done < copia/ext_prod.tsv
 
           # O esquema public inteiro, sem dono (vira postgres na plataforma), com
           # permissões e comentários.
           pg_dump "$PROD" --schema-only --schema=public --no-owner -f copia/10_public.sql
+          # Com --schema=public o pg_dump pede para criar o public, que todo banco
+          # já tem.
+          sed -i 's/^CREATE SCHEMA public;$/CREATE SCHEMA IF NOT EXISTS public;/' copia/10_public.sql
           # Permissão-padrão de supabase_admin só o próprio supabase_admin altera; a
           # plataforma já nasce com as dela.
           sed -i '/^ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin /d' copia/10_public.sql
+          # Webhook do banco (gatilho que chama supabase_functions.http_request):
+          # não existe na plataforma e, se existisse, mandaria evento do staging
+          # para o n8n de produção. Fica de fora; o log mostra só o nome.
+          grep -E '^CREATE TRIGGER .* EXECUTE FUNCTION supabase_functions\.' copia/10_public.sql \
+            | awk '{print "Webhook do banco não copiado: " $3}' || true
+          sed -i -E '/^CREATE TRIGGER .* EXECUTE FUNCTION supabase_functions\./d' copia/10_public.sql
+          if grep -q 'supabase_functions\.' copia/10_public.sql; then
+            echo "::warning title=copiar-esquema::Ainda há referência a supabase_functions no esquema copiado."
+          fi
 
           # A tabela de registro de migrações, com a estrutura da produção, se a
           # plataforma ainda não a tiver.
@@ -199,7 +217,7 @@ jobs:
             union all select 'views materializadas', count(*) from pg_matviews where schemaname = 'public'
             union all select 'funções', count(*) from pg_proc where pronamespace = 'public'::regnamespace
             union all select 'regras de RLS', count(*) from pg_policies where schemaname = 'public'
-            union all select 'gatilhos', count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid where c.relnamespace = 'public'::regnamespace and not t.tgisinternal
+            union all select 'gatilhos (sem webhooks)', count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_proc p on p.oid = t.tgfoid where c.relnamespace = 'public'::regnamespace and not t.tgisinternal and p.pronamespace::regnamespace::text <> 'supabase_functions'
             union all select 'índices', count(*) from pg_indexes where schemaname = 'public'
             union all select 'regras do Storage', count(*) from pg_policies where schemaname = 'storage'
             union all select 'gatilhos em auth.users', count(*) from pg_trigger where tgrelid = 'auth.users'::regclass and not tgisinternal
