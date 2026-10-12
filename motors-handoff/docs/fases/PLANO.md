@@ -19,7 +19,8 @@ Durações supõem uma pessoa técnica em tempo integral com os agentes; com dua
 
 ### S0 — Higiene, segurança e infraestrutura (≈2 semanas)
 Humano (Dyones): assinar o GitHub Pro e tornar o repositório privado; gerar hash novo do feed no
-RevendaMais (o antigo está no histórico do git); preparar o VPS do runner (`docs/RUNNER_DO_CI.md`);
+RevendaMais (o antigo está no histórico do git); preparar o computador de casa como runner
+(`docs/RUNNER_DO_CI.md`);
 criar o projeto Supabase em sa-east-1.
 Código: os itens de "Corrigir agora" do diagnóstico — rotas sensíveis com permissão abaixo do
 necessário, aporte de investidor gravado na tabela aposentada (achado 2 de

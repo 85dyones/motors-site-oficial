@@ -73,7 +73,7 @@ olhe o que mudou na versão antes de aprovar.
 | `docs/MOTOR_DE_GATILHOS.md` | O motor de gatilhos do Ciclo — o n8n chama, o banco decide quem recebe e o site escreve a mensagem |
 | `TRACKING_SPEC.md` | Meta Pixel/CAPI e Google — spec em produção |
 | `docs/GTM_CONFIGURACAO.md` | Variáveis, tags, gatilhos e conversões do GTM, prontos para copiar |
-| `docs/RUNNER_DO_CI.md` | Runner próprio do CI no VPS, a variável `RUNNER_CI` e a reserva nos servidores do GitHub |
+| `docs/RUNNER_DO_CI.md` | Runner próprio do CI no computador de casa e a ida automática para o GitHub quando ele está desligado |
 | `SETUP_MANUAL.md` | Passo a passo de configuração de contas externas |
 
 Migrações do banco são **versionadas** em `supabase/migrations/` — nunca altere

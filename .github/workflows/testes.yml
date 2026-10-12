@@ -20,11 +20,12 @@
 #
 # Onde roda (decisão SaaS-6, 12/10/2026): com o repositório privado, o runner
 # padrão do GitHub encolhe para 2 vCPU e 7–8 GB e os minutos passam a contar.
-# A variável `RUNNER_CI` (Settings → Secrets and variables → Actions →
-# Variables) escolhe a máquina: vazia, servidores do GitHub; `motors-vps`, o
-# runner próprio no VPS. Repositório público usa SEMPRE o GitHub, mesmo com a
-# variável preenchida: runner próprio em repositório público roda código de
-# PR de fork. Instalação e reserva em `docs/RUNNER_DO_CI.md`.
+# Por isso os jobs rodam no computador de casa do dono, e o job `maquina`
+# decide a cada execução: se alguma instância com o rótulo da variável
+# `RUNNER_CI` está ligada, vai para ela; se não, para os servidores do GitHub.
+# Computador desligado não trava PR. Repositório público usa SEMPRE o GitHub:
+# runner próprio em repositório público roda código de PR de fork.
+# Instalação, o segredo `RUNNERS_TOKEN` e a reserva em `docs/RUNNER_DO_CI.md`.
 #
 # Os jobs ficam neste arquivo, e não em workflows separados, porque a
 # conclusão da EXECUÇÃO é o que o fluxo de merge em lote confere por commit.
@@ -51,8 +52,51 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Escolhe a máquina dos outros jobs. Roda sempre no GitHub (custa 1 minuto
+  # por execução no repositório privado) e nunca falha: qualquer dúvida vira
+  # `ubuntu-latest`, com um aviso na execução. Saber se o runner está ligado
+  # exige a permissão Administration (leitura), que o GITHUB_TOKEN não tem; daí
+  # o segredo `RUNNERS_TOKEN`, um token de acesso fino só deste repositório.
+  maquina:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runner: ${{ steps.escolha.outputs.runner }}
+    steps:
+      - id: escolha
+        shell: bash
+        env:
+          ROTULO: ${{ vars.RUNNER_CI }}
+          PRIVADO: ${{ github.event.repository.private }}
+          TOKEN: ${{ secrets.RUNNERS_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          usar() { echo "runner=$1" >> "$GITHUB_OUTPUT"; echo "Máquina: $1 ($2)."; exit 0; }
+          [ "$PRIVADO" = "true" ] || usar ubuntu-latest "repositório público"
+          [ -n "$ROTULO" ] || usar ubuntu-latest "RUNNER_CI vazia"
+          if [ -z "$TOKEN" ]; then
+            echo "::warning title=máquina do CI::Sem o segredo RUNNERS_TOKEN não dá para saber se \"$ROTULO\" está ligado. Usando o GitHub."
+            usar ubuntu-latest "sem RUNNERS_TOKEN"
+          fi
+          ligadas=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/actions/runners?per_page=100" \
+            | jq --arg r "$ROTULO" \
+              '[.runners[] | select(.status == "online") | select(any(.labels[]; .name == $r))] | length') \
+            || ligadas=""
+          if [ -z "$ligadas" ]; then
+            echo "::warning title=máquina do CI::A consulta aos runners falhou (RUNNERS_TOKEN vencido ou sem a permissão Administration?). Usando o GitHub."
+            usar ubuntu-latest "consulta falhou"
+          fi
+          [ "$ligadas" -gt 0 ] && usar "$ROTULO" "$ligadas instância(s) ligada(s)"
+          usar ubuntu-latest "\"$ROTULO\" desligado"
+
   vitest:
-    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
+    needs: maquina
+    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -69,7 +113,11 @@ jobs:
   # `tsc` estava fora por 2 erros em `tests/f0-nucleo.test.ts`, corrigidos pelo
   # PR #62 (15/09). Medido em 17/09 sobre o main `9b3baa0`: 0 erros, 13 s.
   tipos:
-    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
+    needs: maquina
+    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -92,7 +140,11 @@ jobs:
   # derrubar o CI de quem corrigiu. A contagem velha fica no arquivo até alguém
   # rodar `npx eslint . --prune-suppressions` e versionar o resultado.
   lint:
-    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
+    needs: maquina
+    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -114,7 +166,11 @@ jobs:
   # No pull_request, a build é do `refs/pull/N/merge` (o branch somado à base),
   # coisa que a Vercel não builda.
   build:
-    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
+    needs: maquina
+    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 20
     env:
       # `vars` se foram cadastradas como variável; `secrets` se foram como
@@ -163,7 +219,11 @@ jobs:
   # No pull_request, o commit conferido é o head do PR: a Vercel não builda o
   # `refs/pull/N/merge`.
   deploy-vercel:
-    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
+    needs: maquina
+    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       statuses: read
