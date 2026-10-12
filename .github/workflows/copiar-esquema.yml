@@ -1,0 +1,212 @@
+# Copia a ESTRUTURA do banco de produção (motors-oficial, us-east-1) para o
+# projeto da plataforma (motors-plataforma, sa-east-1). Decisão SaaS-5 do
+# `motors-handoff/HANDOFF.md`: o projeto novo nasce como staging da S0.
+#
+# Por que aqui: as sessões do Claude na nuvem só saem por um proxy HTTP e não
+# falam o protocolo do Postgres; o runner do GitHub fala. E as migrações do
+# repositório não montam a produção num banco vazio (várias tabelas nasceram
+# no bootstrap de 03/08 ou fora do repositório; ver `supabase/README.md`), por
+# isso a fonte é o `pg_dump` da produção, não a pasta `supabase/migrations/`.
+#
+# O que copia: o esquema `public` inteiro (tabelas, views, funções, gatilhos,
+# regras de RLS, permissões e comentários), as extensões, os gatilhos em
+# `auth.users`, os buckets e as regras do Storage, e o registro de migrações.
+# Opcional, no disparo manual: as tabelas de configuração, que não têm dado de
+# cliente. NÃO copia: dado de cliente, segredos do Vault e tarefas agendadas
+# (uma delas chama o site de produção) — essas só aparecem listadas no log.
+#
+# Repositório público: o log mostra só contagens. Os segredos chegam mascarados.
+#
+# Segredos (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL_PRODUCAO   conexão "Session pooler" do motors-oficial
+#   SUPABASE_DB_URL_PLATAFORMA conexão "Session pooler" do motors-plataforma
+# Depois da cópia, apague o da produção.
+name: copiar-esquema
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuracao:
+        description: "Copiar também as tabelas de configuração (sem dado de cliente)"
+        type: boolean
+        default: true
+  push:
+    branches: ["claude/**"]
+    paths: [".github/workflows/copiar-esquema.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copiar-esquema
+  cancel-in-progress: false
+
+jobs:
+  copiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PROD: ${{ secrets.SUPABASE_DB_URL_PRODUCAO }}
+      PLAT: ${{ secrets.SUPABASE_DB_URL_PLATAFORMA }}
+      REF_PROD: zwbqmzgnagfeqinqkolp
+      REF_PLAT: sgkmzzgkkfemrunshekz
+      COPIAR_CONFIGURACAO: ${{ github.event_name == 'push' || inputs.configuracao }}
+      PGCONNECT_TIMEOUT: "20"
+    steps:
+      - name: cada segredo aponta para o seu projeto
+        shell: bash
+        run: |
+          falha() { echo "::error title=copiar-esquema::$1"; exit 1; }
+          [ -n "$PROD" ] || falha "Falta o segredo SUPABASE_DB_URL_PRODUCAO."
+          [ -n "$PLAT" ] || falha "Falta o segredo SUPABASE_DB_URL_PLATAFORMA."
+          [ "$PROD" != "$PLAT" ] || falha "Os dois segredos são iguais."
+          [[ "$PROD" == *"$REF_PROD"* ]] || falha "SUPABASE_DB_URL_PRODUCAO não é do projeto $REF_PROD."
+          [[ "$PLAT" == *"$REF_PLAT"* ]] || falha "SUPABASE_DB_URL_PLATAFORMA não é do projeto $REF_PLAT."
+          [[ "$PLAT" != *"$REF_PROD"* ]] || falha "SUPABASE_DB_URL_PLATAFORMA cita a produção."
+          echo "Segredos conferidos: produção $REF_PROD, plataforma $REF_PLAT."
+
+      - name: cliente do Postgres 17
+        shell: bash
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: a plataforma está vazia
+        shell: bash
+        run: |
+          n=$(psql "$PLAT" -X -At -c "select count(*) from pg_tables where schemaname = 'public'")
+          echo "Tabelas em public na plataforma: $n"
+          if [ "$n" != "0" ]; then
+            echo "::error title=copiar-esquema::A plataforma já tem $n tabela(s) em public. Esta cópia só roda num projeto vazio, para nunca sobrescrever trabalho feito lá."
+            exit 1
+          fi
+
+      - name: extensões, esquema public e o que mora fora dele (da produção)
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p copia
+
+          # Extensões que a plataforma ainda não tem, no mesmo esquema da produção.
+          psql "$PLAT" -X -At -c "select extname from pg_extension" | sort > copia/ext_plat.txt
+          psql "$PROD" -X -At -F $'\t' -c "select extname, extnamespace::regnamespace from pg_extension order by 1" > copia/ext_prod.tsv
+          : > copia/00_extensoes.sql
+          while IFS=$'\t' read -r nome esquema; do
+            grep -qx "$nome" copia/ext_plat.txt && continue
+            echo "create schema if not exists $esquema;" >> copia/00_extensoes.sql
+            echo "create extension if not exists \"$nome\" with schema $esquema;" >> copia/00_extensoes.sql
+          done < copia/ext_prod.tsv
+
+          # O esquema public inteiro, sem dono (vira postgres na plataforma), com
+          # permissões e comentários.
+          pg_dump "$PROD" --schema-only --schema=public --no-owner -f copia/10_public.sql
+          # Permissão-padrão de supabase_admin só o próprio supabase_admin altera; a
+          # plataforma já nasce com as dela.
+          sed -i '/^ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin /d' copia/10_public.sql
+
+          # A tabela de registro de migrações, com a estrutura da produção, se a
+          # plataforma ainda não a tiver.
+          if [ "$(psql "$PLAT" -X -At -c "select to_regclass('supabase_migrations.schema_migrations') is null")" = "t" ]; then
+            pg_dump "$PROD" --schema-only --schema=supabase_migrations --no-owner -f copia/05_registro_estrutura.sql
+          else
+            : > copia/05_registro_estrutura.sql
+          fi
+
+          # Gatilhos em auth.users, buckets e regras do Storage, Realtime.
+          # search_path vazio: o SQL gerado sai com nomes completos (public.f(),
+          # auth.uid()), porque o arquivo do pg_dump zera o search_path antes.
+          psql "$PROD" -X -q -At > copia/20_fora_do_public.sql <<'SQL'
+          set search_path = '';
+          select pg_get_triggerdef(oid) || ';'
+            from pg_trigger
+           where tgrelid = 'auth.users'::regclass and not tgisinternal;
+          select format(
+                   'insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values (%L, %L, %L, %s, %s) on conflict (id) do nothing;',
+                   id, name, public,
+                   coalesce(file_size_limit::text, 'null'),
+                   coalesce(quote_literal(allowed_mime_types::text) || '::text[]', 'null'))
+            from storage.buckets;
+          select format('create policy %I on storage.objects as %s for %s to %s%s%s;',
+                   policyname, permissive, cmd,
+                   (select string_agg(quote_ident(r), ', ') from unnest(roles) r),
+                   coalesce(' using (' || qual || ')', ''),
+                   coalesce(' with check (' || with_check || ')', ''))
+            from pg_policies
+           where schemaname = 'storage' and tablename = 'objects';
+          select format('alter publication %I add table %I.%I;', pubname, schemaname, tablename)
+            from pg_publication_tables
+           where schemaname = 'public';
+          SQL
+
+          # O registro de migrações, para o `supabase db push` saber o que já
+          # está aplicado.
+          psql "$PROD" -X -q -At > copia/30_registro.sql <<'SQL'
+          select format('insert into supabase_migrations.schema_migrations (version, name) values (%L, %L) on conflict do nothing;', version, name)
+            from supabase_migrations.schema_migrations;
+          SQL
+
+          for f in copia/*.sql; do echo "$(basename "$f"): $(wc -l < "$f") linhas"; done
+
+      - name: tarefas agendadas da produção (não copiadas)
+        shell: bash
+        run: |
+          psql "$PROD" -X -At -F ' | ' -c "select jobname, schedule, active from cron.job order by jobname" || true
+
+      - name: aplicar na plataforma, numa transação só
+        shell: bash
+        run: |
+          psql "$PLAT" -X -q -v ON_ERROR_STOP=1 --single-transaction \
+            -f copia/00_extensoes.sql \
+            -f copia/05_registro_estrutura.sql \
+            -f copia/10_public.sql \
+            -f copia/20_fora_do_public.sql \
+            -f copia/30_registro.sql
+          echo "Esquema aplicado."
+
+      - name: tabelas de configuração (sem dado de cliente)
+        if: env.COPIAR_CONFIGURACAO == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          tabelas="orgs funil_etapas funil_motivos parametros_avaliacao parametros_financiamento ciclo_parametros regras_contabilizacao regras_comissao plano_contas guias cabecalho_dos_guias textos_de_hub"
+          args=()
+          for t in $tabelas; do args+=(--table="public.$t"); done
+          pg_dump "$PROD" --data-only --no-owner "${args[@]}" -f copia/40_configuracao.sql
+          psql "$PLAT" -X -q -v ON_ERROR_STOP=1 --single-transaction \
+            -c "set session_replication_role = replica;" \
+            -f copia/40_configuracao.sql
+          for t in $tabelas; do
+            echo "$t: $(psql "$PLAT" -X -At -c "select count(*) from public.$t")"
+          done
+
+      - name: conferir produção e plataforma
+        shell: bash
+        run: |
+          consulta="
+            select 'tabelas', count(*) from pg_tables where schemaname = 'public'
+            union all select 'views', count(*) from pg_views where schemaname = 'public'
+            union all select 'views materializadas', count(*) from pg_matviews where schemaname = 'public'
+            union all select 'funções', count(*) from pg_proc where pronamespace = 'public'::regnamespace
+            union all select 'regras de RLS', count(*) from pg_policies where schemaname = 'public'
+            union all select 'gatilhos', count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid where c.relnamespace = 'public'::regnamespace and not t.tgisinternal
+            union all select 'índices', count(*) from pg_indexes where schemaname = 'public'
+            union all select 'regras do Storage', count(*) from pg_policies where schemaname = 'storage'
+            union all select 'gatilhos em auth.users', count(*) from pg_trigger where tgrelid = 'auth.users'::regclass and not tgisinternal
+            union all select 'migrações registradas', count(*) from supabase_migrations.schema_migrations"
+          psql "$PROD" -X -At -F $'\t' -c "$consulta" > prod.tsv
+          psql "$PLAT" -X -At -F $'\t' -c "$consulta" > plat.tsv
+          printf '%-26s %10s %10s\n' "objeto" "produção" "plataforma"
+          paste prod.tsv plat.tsv | while IFS=$'\t' read -r nome a _ b; do
+            marca=""; [ "$a" = "$b" ] || marca="  <- diferente"
+            printf '%-26s %10s %10s%s\n' "$nome" "$a" "$b" "$marca"
+          done
+          if ! diff -q prod.tsv plat.tsv > /dev/null; then
+            echo "::warning title=copiar-esquema::Alguma contagem difere entre produção e plataforma. Veja a tabela acima."
+          fi
