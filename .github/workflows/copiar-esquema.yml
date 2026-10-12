@@ -227,10 +227,10 @@ jobs:
           echo "Esquema aplicado."
 
       # Para anon, authenticated e service_role: as permissões-padrão de public
-      # ficam iguais às da produção, e cada tabela, view, sequência e função de
-      # public perde o que esses papéis não têm na produção. Só revoga, nunca
-      # concede: a plataforma nunca fica mais aberta que a produção. Permissão
-      # por coluna e de PUBLIC vêm do dump e não mudam aqui.
+      # ficam iguais às da produção, cada tabela, view, sequência e função de
+      # public perde o que esses papéis não têm na produção, e as permissões por
+      # coluna da produção são refeitas. Nada é concedido além do que a
+      # produção concede. As permissões de PUBLIC vêm do dump e não mudam aqui.
       - name: permissões iguais às da produção
         if: steps.plataforma.outputs.vazia == 'true' || env.IGUALAR_PERMISSOES == 'true'
         shell: bash
@@ -272,6 +272,20 @@ jobs:
            cross join (values ('anon'), ('authenticated'), ('service_role')) p(papel)
            where f.pronamespace = 'public'::regnamespace
              and not has_function_privilege(p.papel, f.oid, 'EXECUTE');
+          -- Revogar na tabela revoga também por coluna; a produção libera
+          -- algumas colunas sem liberar a tabela (estoque_motors, repasses),
+          -- então essas permissões voltam aqui, iguais às da produção.
+          select format('grant %s (%s) on table %s to %s;',
+                   x.privilege_type,
+                   string_agg(quote_ident(a.attname), ', ' order by a.attnum),
+                   c.oid::regclass, x.grantee::regrole)
+            from pg_attribute a
+            join pg_class c on c.oid = a.attrelid
+           cross join lateral aclexplode(a.attacl) x
+           where c.relnamespace = 'public'::regnamespace
+             and a.attacl is not null
+             and x.grantee in ('anon'::regrole, 'authenticated'::regrole, 'service_role'::regrole)
+           group by c.oid, x.privilege_type, x.grantee;
           SQL
           echo "Comandos gerados: $(grep -c . copia/50_permissoes.sql)"
           psql "$PLAT" -X -q -v ON_ERROR_STOP=1 --single-transaction -f copia/50_permissoes.sql
