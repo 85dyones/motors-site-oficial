@@ -17,7 +17,7 @@
 > | SaaS-3 | Porta de entrada no mercado | **Pacote de expansão sobre o sistema de gestão que a loja já usa** (RevendaMais, Autoconf, Boom…), não substituto dele. Estoque completo (NF-e, RENAVE, portais) vem depois, e só se a estratégia pedir. |
 > | SaaS-4 | Ordem com o plano F0 → F4 | **Fundação multi-loja (S1) antes da F1**: razão, custos e venda nascem multi-loja. Ordem nova em `docs/fases/PLANO.md`. |
 > | SaaS-5 | Onde ficam os dados | **Projeto Supabase novo em sa-east-1 (São Paulo)**, criado junto com o staging da S0; a Motors migra para ele como loja nº 1. |
-> | SaaS-6 | Repositório e CI | **Repositório privado** (GitHub Pro, que mantém a proteção de branch). CI em runner próprio no computador de casa do Dyones; com ele desligado, o CI vai sozinho para os servidores do GitHub — ver `docs/RUNNER_DO_CI.md`. |
+> | SaaS-6 | Repositório e CI | **Repositório privado** (GitHub Pro, que mantém a proteção de branch). CI em runner próprio: no começo o VPS KVM 4 da Hostinger (o mesmo do n8n, do Evolution e do Chatwoot, com teto de memória e CPU e sem acesso aos serviços locais), depois o computador de casa do Dyones. Runner desligado manda o CI sozinho para os servidores do GitHub — ver `docs/RUNNER_DO_CI.md`. |
 >
 > **Sem decisão:** nome público do produto (até lá, "a plataforma"; é a pendência D8 da
 > `AUDITORIA.md`) e quais lojas serão as pilotos.

@@ -20,10 +20,11 @@
 #
 # Onde roda (decisão SaaS-6, 12/10/2026): com o repositório privado, o runner
 # padrão do GitHub encolhe para 2 vCPU e 7–8 GB e os minutos passam a contar.
-# Por isso os jobs rodam no computador de casa do dono, e o job `maquina`
-# decide a cada execução: se alguma instância com o rótulo da variável
-# `RUNNER_CI` está ligada, vai para ela; se não, para os servidores do GitHub.
-# Computador desligado não trava PR. Repositório público usa SEMPRE o GitHub:
+# Por isso os jobs rodam num runner próprio (no começo o VPS da Hostinger,
+# depois o computador de casa do dono), e o job `maquina` decide a cada
+# execução: se alguma instância com o rótulo da variável `RUNNER_CI` está
+# ligada, vai para ela; se não, para os servidores do GitHub. Runner
+# desligado não trava PR. Repositório público usa SEMPRE o GitHub:
 # runner próprio em repositório público roda código de PR de fork.
 # Instalação, o segredo `RUNNERS_TOKEN` e a reserva em `docs/RUNNER_DO_CI.md`.
 #
@@ -108,7 +109,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx vitest run --reporter=default --reporter=github-actions
+      # No runner próprio a suíte divide a máquina com outros serviços: 2
+      # processos de teste no lugar de um por núcleo. Medido em 12/10: 128 s e
+      # ~1 GB de pico, contra ~95 s no runner público de 4 vCPU.
+      - run: npx vitest run --reporter=default --reporter=github-actions ${{ runner.environment == 'self-hosted' && '--minWorkers=1 --maxWorkers=2' || '' }}
 
   # `tsc` estava fora por 2 erros em `tests/f0-nucleo.test.ts`, corrigidos pelo
   # PR #62 (15/09). Medido em 17/09 sobre o main `9b3baa0`: 0 erros, 13 s.
