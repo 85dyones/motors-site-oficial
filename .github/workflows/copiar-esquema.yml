@@ -57,8 +57,12 @@ jobs:
         shell: bash
         run: |
           falha() { echo "::error title=copiar-esquema::$1"; exit 1; }
-          [ -n "$PROD" ] || falha "Falta o segredo SUPABASE_DB_URL_PRODUCAO."
-          [ -n "$PLAT" ] || falha "Falta o segredo SUPABASE_DB_URL_PLATAFORMA."
+          # Lista todos os que faltam de uma vez: segredo criado em Variables, em
+          # Environment secrets ou com outro nome não chega aqui.
+          faltam=""
+          [ -n "$PROD" ] || faltam="$faltam SUPABASE_DB_URL_PRODUCAO"
+          [ -n "$PLAT" ] || faltam="$faltam SUPABASE_DB_URL_PLATAFORMA"
+          [ -z "$faltam" ] || falha "Faltam em Settings → Secrets and variables → Actions → Secrets → Repository secrets:$faltam"
           [ "$PROD" != "$PLAT" ] || falha "Os dois segredos são iguais."
           [[ "$PROD" == *"$REF_PROD"* ]] || falha "SUPABASE_DB_URL_PRODUCAO não é do projeto $REF_PROD."
           [[ "$PLAT" == *"$REF_PLAT"* ]] || falha "SUPABASE_DB_URL_PLATAFORMA não é do projeto $REF_PLAT."
