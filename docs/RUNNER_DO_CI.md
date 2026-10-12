@@ -45,6 +45,7 @@ O primeiro job, `maquina`, roda sempre no GitHub e decide onde rodam os outros c
 | Segredo `RUNNERS_TOKEN` ausente, vencido ou sem permissão | GitHub, com aviso na execução |
 | Nenhuma instância com o rótulo de `RUNNER_CI` ligada | GitHub |
 | Pelo menos uma instância ligada | Runner próprio |
+| O GitHub não dá máquina nem para o `maquina` (minutos acabados ou cobrança travada) e `RUNNER_CI` está preenchida | Runner próprio, direto |
 
 O job `maquina` custa 1 minuto por execução no repositório privado: perto de 1.300 por mês, dentro
 dos 3.000 do Pro. As execuções que caem no GitHub porque o runner estava desligado gastam os ~9
@@ -288,6 +289,11 @@ Depois de a instância aparecer como *Idle* em Settings → Actions → Runners:
   horas. Cancele e rode de novo (*Re-run all jobs*); o `maquina` escolhe outra vez.
 - **Atendimento lento no VPS:** apague o valor de `RUNNER_CI`. O CI volta para o GitHub na próxima
   execução.
+- **Todos os jobs falham em 2 a 3 segundos, sem passo nenhum:** o GitHub não deu máquina. É conta,
+  não código: minutos do mês acabados, limite de gasto em zero ou pagamento recusado. A execução
+  mostra o motivo no topo, e Settings (da conta) → Billing and plans resolve. Enquanto isso, com o
+  runner instalado e `RUNNER_CI` preenchida, os jobs vão direto para ele. Aconteceu em 12/10/2026,
+  logo depois de o repositório ficar privado.
 
 ## Manutenção
 

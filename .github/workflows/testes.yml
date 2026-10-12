@@ -24,7 +24,9 @@
 # depois o computador de casa do dono), e o job `maquina` decide a cada
 # execução: se alguma instância com o rótulo da variável `RUNNER_CI` está
 # ligada, vai para ela; se não, para os servidores do GitHub. Runner
-# desligado não trava PR. Repositório público usa SEMPRE o GitHub:
+# desligado não trava PR. Se o GitHub não dá máquina nem para o `maquina`
+# (minutos acabados ou cobrança travada), os jobs vão direto para o runner
+# próprio. Repositório público usa SEMPRE o GitHub:
 # runner próprio em repositório público roda código de PR de fork.
 # Instalação, o segredo `RUNNERS_TOKEN` e a reserva em `docs/RUNNER_DO_CI.md`.
 #
@@ -94,10 +96,13 @@ jobs:
 
   vitest:
     needs: maquina
-    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
-    # pulado. Job pulado conta como aprovado na proteção de branch.
+    # `!cancelled()`: se a escolha falhar, o job roda mesmo assim, em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch. A escolha só
+    # falha quando o GitHub não dá máquina nem para ela (minutos acabados ou
+    # cobrança travada). Nesse caso o job vai para o runner próprio, se houver
+    # um configurado em repositório privado; senão, tenta o GitHub.
     if: ${{ !cancelled() }}
-    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
+    runs-on: ${{ needs.maquina.outputs.runner || (github.event.repository.private && needs.maquina.result == 'failure' && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -118,10 +123,13 @@ jobs:
   # PR #62 (15/09). Medido em 17/09 sobre o main `9b3baa0`: 0 erros, 13 s.
   tipos:
     needs: maquina
-    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
-    # pulado. Job pulado conta como aprovado na proteção de branch.
+    # `!cancelled()`: se a escolha falhar, o job roda mesmo assim, em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch. A escolha só
+    # falha quando o GitHub não dá máquina nem para ela (minutos acabados ou
+    # cobrança travada). Nesse caso o job vai para o runner próprio, se houver
+    # um configurado em repositório privado; senão, tenta o GitHub.
     if: ${{ !cancelled() }}
-    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
+    runs-on: ${{ needs.maquina.outputs.runner || (github.event.repository.private && needs.maquina.result == 'failure' && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -145,10 +153,13 @@ jobs:
   # rodar `npx eslint . --prune-suppressions` e versionar o resultado.
   lint:
     needs: maquina
-    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
-    # pulado. Job pulado conta como aprovado na proteção de branch.
+    # `!cancelled()`: se a escolha falhar, o job roda mesmo assim, em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch. A escolha só
+    # falha quando o GitHub não dá máquina nem para ela (minutos acabados ou
+    # cobrança travada). Nesse caso o job vai para o runner próprio, se houver
+    # um configurado em repositório privado; senão, tenta o GitHub.
     if: ${{ !cancelled() }}
-    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
+    runs-on: ${{ needs.maquina.outputs.runner || (github.event.repository.private && needs.maquina.result == 'failure' && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -171,10 +182,13 @@ jobs:
   # coisa que a Vercel não builda.
   build:
     needs: maquina
-    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
-    # pulado. Job pulado conta como aprovado na proteção de branch.
+    # `!cancelled()`: se a escolha falhar, o job roda mesmo assim, em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch. A escolha só
+    # falha quando o GitHub não dá máquina nem para ela (minutos acabados ou
+    # cobrança travada). Nesse caso o job vai para o runner próprio, se houver
+    # um configurado em repositório privado; senão, tenta o GitHub.
     if: ${{ !cancelled() }}
-    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
+    runs-on: ${{ needs.maquina.outputs.runner || (github.event.repository.private && needs.maquina.result == 'failure' && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 20
     env:
       # `vars` se foram cadastradas como variável; `secrets` se foram como
@@ -224,10 +238,13 @@ jobs:
   # `refs/pull/N/merge`.
   deploy-vercel:
     needs: maquina
-    # `!cancelled()`: se a escolha falhar, o job roda no GitHub em vez de ser
-    # pulado. Job pulado conta como aprovado na proteção de branch.
+    # `!cancelled()`: se a escolha falhar, o job roda mesmo assim, em vez de ser
+    # pulado. Job pulado conta como aprovado na proteção de branch. A escolha só
+    # falha quando o GitHub não dá máquina nem para ela (minutos acabados ou
+    # cobrança travada). Nesse caso o job vai para o runner próprio, se houver
+    # um configurado em repositório privado; senão, tenta o GitHub.
     if: ${{ !cancelled() }}
-    runs-on: ${{ needs.maquina.outputs.runner || 'ubuntu-latest' }}
+    runs-on: ${{ needs.maquina.outputs.runner || (github.event.repository.private && needs.maquina.result == 'failure' && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       statuses: read

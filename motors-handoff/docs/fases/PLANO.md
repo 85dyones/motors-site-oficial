@@ -21,7 +21,8 @@ Durações supõem uma pessoa técnica em tempo integral com os agentes; com dua
 Humano (Dyones): assinar o GitHub Pro e tornar o repositório privado; gerar hash novo do feed no
 RevendaMais (o antigo está no histórico do git); instalar o runner no VPS KVM 4, com teto e
 bloqueio de rede, e renovar o VPS antes de 30/10 (`docs/RUNNER_DO_CI.md`).
-Feito em 12/10: projeto `motors-plataforma` em sa-east-1, com a estrutura da produção (81 tabelas,
+Feito em 12/10: repositório privado (logo depois, o GitHub parou de dar máquina ao CI; ver
+`docs/RUNNER_DO_CI.md`, "Quando algo der errado"); projeto `motors-plataforma` em sa-east-1, com a estrutura da produção (81 tabelas,
 142 regras de RLS, as mesmas permissões, buckets, regras do Storage, registro de 125 migrações) e as tabelas de
 configuração, sem dado de cliente, sem segredo do Vault, sem tarefa agendada e sem o webhook do
 banco que chama o n8n. Ele herdou os alertas do Security Advisor da produção, que a S0 corrige nos dois.
