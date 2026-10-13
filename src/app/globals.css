@@ -269,6 +269,17 @@ html {
     background: #ffffff !important;
   }
 
+  /* A página `ficha` é pedida no body, e não na folha. O Chromium ignora o
+     `page` de um elemento com `container-type: size` — e a folha precisa dele
+     para medir em `cqw` (ver `FichaImpressa`). Com o nome na folha, ela caía
+     na página padrão, de 1,5 cm de margem: os 210 mm vazavam pela direita
+     (preço e código cortados) e o rodapé descia para uma segunda página.
+     Medido em 13/10 imprimindo a ficha de produção em PDF. No papel só a
+     folha aparece, então o body inteiro é ela. */
+  body:has(#ficha-impressa) {
+    page: ficha;
+  }
+
   /* Vai ao papel só a folha: some tudo que não é ela, não está dentro dela
      e não é caminho até ela. */
   body:has(#ficha-impressa)
@@ -294,7 +305,6 @@ html {
 
   #ficha-impressa {
     display: flex !important;
-    page: ficha;
     width: 210mm;
     height: 297mm;
   }

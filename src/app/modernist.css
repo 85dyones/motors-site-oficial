@@ -847,7 +847,14 @@ p {
    dentro de `[data-relatorio]` (a aba aberta: as outras têm `hidden`), sem
    menu, rodapé, aviso de cookies, formulário nem botões (`.nao-imprimir`).
    `.so-impressao` é o cabeçalho que só existe no papel. No tema escuro o papel
-   continua claro: texto escuro, fundo branco. */
+   continua claro: texto escuro, fundo branco.
+
+   O "esconde tudo" vale SÓ na página que tem o relatório. De 08 a 13/10 ele
+   foi `body *`, solto, e apagou a impressão do site inteiro: a ficha do
+   veículo e a garagem saíam em folha branca. O `:where()` mantém a
+   especificidade do `body *` de antes (0,0,1) — um `:has()` direto somaria a
+   do atributo e passaria por cima do `[data-relatorio] *` logo abaixo,
+   apagando o próprio relatório. Trava em `tests/impressao-por-pagina.test.ts`. */
 .so-impressao {
   display: none;
 }
@@ -856,7 +863,7 @@ p {
     size: A4;
     margin: 12mm;
   }
-  body * {
+  body:where(:has([data-relatorio])) * {
     visibility: hidden;
   }
   [data-relatorio],
