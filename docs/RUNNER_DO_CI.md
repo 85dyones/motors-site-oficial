@@ -276,8 +276,9 @@ voltar a dar máquina. Sem ele, o `maquina` manda tudo para o GitHub e gasta min
 - **Todos os jobs falham em 2 a 3 segundos, sem passo nenhum:** o GitHub não deu máquina. É conta,
   não código: minutos do mês acabados, limite de gasto em zero ou pagamento recusado. A execução
   mostra o motivo no topo, e Settings (da conta) → Billing and plans resolve. Enquanto isso, com o
-  runner instalado e `RUNNER_CI` preenchida, os jobs vão direto para ele. Aconteceu em 12/10/2026,
-  logo depois de o repositório ficar privado.
+  runner instalado e `RUNNER_CI` preenchida, os jobs vão direto para ele. Só o `maquina` fica
+  vermelho, e a execução fica verde mesmo assim. Aconteceu em 12/10/2026, logo depois de o
+  repositório ficar privado.
 
 ## Manutenção
 
