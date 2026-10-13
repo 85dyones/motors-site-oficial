@@ -191,20 +191,36 @@ if ($achou) {
       Falha "Nao consegui passar o $Distro para o WSL 2. Rode 'wsl --set-version $Distro 2' e veja a mensagem."
     }
   }
+  Write-Host "Sistema: $(SaidaWsl @("-d", $Distro, "-e", "bash", "-c", '. /etc/os-release; echo $PRETTY_NAME'))"
   # Ubuntu instalado sem criar o usuario entra como root, e o instalador do runner
-  # nao roda como root: cria o usuario de administracao.
+  # nao roda como root: cria o usuario de administracao. Com useradd e passwd,
+  # que toda imagem tem; imagem minima pode vir sem adduser e sem sudo.
   if ((SaidaWsl @("-d", $Distro, "-e", "id", "-u")) -eq "0") {
     Write-Host "O $Distro esta sem usuario de administracao (entra como root)."
     do {
       $usuarioLinux = Read-Host "Nome do usuario a criar no Ubuntu (minusculas, sem espaco)"
     } until ($usuarioLinux -cmatch '^[a-z][a-z0-9_-]{0,31}$' -and $usuarioLinux -notin @("root", "runner"))
-    if ((NoWsl @("-d", $Distro, "-u", "root", "-e", "id", "-u", $usuarioLinux)) -ne 0) {
-      Write-Host "Defina a senha dele (e a senha do sudo). Nas perguntas de nome e telefone, so Enter."
-      if ((NoWslNaTela @("-d", $Distro, "-u", "root", "-e", "adduser", $usuarioLinux)) -ne 0) {
-        Falha "Nao consegui criar o usuario $usuarioLinux no $Distro."
-      }
+    $criaUsuario = @'
+set -e
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+nome=$1
+if ! command -v sudo >/dev/null || ! command -v useradd >/dev/null; then
+  echo "Instalando o sudo..."
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sudo passwd >/dev/null
+fi
+id -u "$nome" >/dev/null 2>&1 || useradd -m -s /bin/bash "$nome"
+usermod -aG sudo "$nome"
+echo "Defina a senha de $nome (e a que o sudo vai pedir):"
+until passwd "$nome"; do echo "As senhas nao conferem. De novo:"; done
+'@
+    $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(($criaUsuario -replace "`r", "")))
+    if ((NoWsl @("-d", $Distro, "-u", "root", "-e", "bash", "-c", "echo $b64 | base64 -d > /root/criar-usuario.sh")) -ne 0) {
+      Falha "Nao consegui preparar a criacao do usuario no $Distro."
     }
-    NoWsl @("-d", $Distro, "-u", "root", "-e", "usermod", "-aG", "sudo", $usuarioLinux) | Out-Null
+    if ((NoWslNaTela @("-d", $Distro, "-u", "root", "-e", "bash", "/root/criar-usuario.sh", $usuarioLinux)) -ne 0) {
+      Falha "Nao consegui criar o usuario $usuarioLinux no $Distro. Veja a mensagem acima."
+    }
   }
   if (-not (RegistraNoWsl "motors-site-oficial" 2) -or -not (TemRunner $Distro)) {
     Falha "O registro da motors-site-oficial nao terminou. Rode o script de novo (o token vale 1 hora; gere outro se precisar)."

@@ -67,7 +67,9 @@ sudo apt-get update -qq
 sudo apt-get install -y -qq postgresql-client-17 >/dev/null
 
 echo "3/5 Usuário runner, sem sudo e sem senha."
-id runner >/dev/null 2>&1 || sudo adduser --disabled-password --gecos "" runner >/dev/null
+# useradd, e não adduser: imagem mínima do Ubuntu no WSL pode vir sem o adduser.
+# Sem senha: a conta fica travada para login, e só o sudo entra nela.
+id runner >/dev/null 2>&1 || sudo useradd -m -s /bin/bash runner
 
 echo "4/5 Runner mais recente e as bibliotecas de que ele precisa."
 URL=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest \
