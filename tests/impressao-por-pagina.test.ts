@@ -30,7 +30,8 @@ type Regra = { arquivo: string; seletor: string; corpo: string };
 function regrasDeImpressao(arquivo: string): Regra[] {
   const css = lerCodigo(arquivo);
   const regras: Regra[] = [];
-  const abertura = /@media\s+print\s*\{/g;
+  // `only print` e `print and (...)` também abrem bloco de impressão.
+  const abertura = /@media\s+(?:only\s+)?print\b[^{]*\{/g;
   let m: RegExpExecArray | null;
   while ((m = abertura.exec(css))) {
     let i = m.index + m[0].length;
@@ -56,6 +57,21 @@ function regrasDeImpressao(arquivo: string): Regra[] {
 }
 
 const REGRAS = ARQUIVOS.flatMap(regrasDeImpressao);
+
+/** O seletor sem os `:not(...)`, com os parênteses aninhados. */
+function semNegacao(seletor: string): string {
+  let saida = seletor;
+  let i: number;
+  while ((i = saida.indexOf(":not(")) >= 0) {
+    let fim = i + ":not(".length;
+    for (let profundidade = 1; fim < saida.length && profundidade > 0; fim++) {
+      if (saida[fim] === "(") profundidade++;
+      else if (saida[fim] === ")") profundidade--;
+    }
+    saida = saida.slice(0, i) + saida.slice(fim);
+  }
+  return saida;
+}
 const esconde = (corpo: string) => /visibility\s*:\s*hidden|display\s*:\s*none/.test(corpo);
 
 describe("a impressão de uma tela não apaga a das outras", () => {
@@ -71,11 +87,19 @@ describe("a impressão de uma tela não apaga a das outras", () => {
 
   it("nenhum 'esconde tudo' vale para o site inteiro", () => {
     // Um seletor que pega todo descendente (`*`) e o esconde precisa dizer em
-    // que página vale — `:has(...)` da raiz que só aquela tela tem.
+    // que página vale — `:has(...)` da raiz que só aquela tela tem. O `:has`
+    // conta antes do `*`, fora de negação (`body:not(:has(#x)) *` vale para
+    // todas as outras páginas), e com id ou atributo dentro (`:root:has(body)`
+    // vale para qualquer uma).
     const soltas = REGRAS.filter(
       (r) =>
         esconde(r.corpo) &&
-        r.seletor.split(",").some((s) => /(^|[\s>])\*($|[\s:])/.test(s.trim()) && !s.includes(":has(")),
+        r.seletor.split(",").some((s) => {
+          const universal = s.trim().search(/(^|[\s>])\*($|[\s:])/);
+          if (universal < 0) return false;
+          const escopo = semNegacao(s.trim().slice(0, universal + 1));
+          return !/:has\(\s*[#[]/.test(escopo);
+        }),
     );
     expect(soltas.map((r) => `${r.arquivo}: ${r.seletor}`)).toEqual([]);
   });
