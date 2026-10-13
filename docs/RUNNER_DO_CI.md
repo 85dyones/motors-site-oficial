@@ -3,10 +3,10 @@
 Decisão SaaS-6 do `motors-handoff/HANDOFF.md` (2026-10-12): o repositório fica privado e o CI
 (`.github/workflows/testes.yml`) roda num runner próprio. O plano era começar pelo VPS KVM 4 da
 Hostinger e passar depois para o computador de casa do dono. Em 12/10 o dono antecipou a etapa 2,
-com Windows e WSL2. **Em 13/10 decidiu dedicar esse notebook ao CI: ele segue com o Windows e roda
-o CI numa máquina virtual do Hyper-V com Ubuntu Server** (seção "Máquina virtual no Windows"). O
-WSL2, o notebook só com Ubuntu e o VPS ficam como alternativas. Quando o runner está desligado, o CI
-vai sozinho para os servidores do GitHub.
+com Windows e WSL2. **Em 13/10 decidiu dedicar esse notebook ao CI, seguindo com o Windows Home e o
+WSL2**: o notebook entra sozinho na conta e sobe os runners (seção "Windows (WSL2)", passo 5). A VM
+do Hyper-V (só no Windows Pro), o notebook só com Ubuntu e o VPS ficam como alternativas. Quando o
+runner está desligado, o CI vai sozinho para os servidores do GitHub.
 
 ## Por quê
 
@@ -184,18 +184,110 @@ abaixo), confira que ela aparece como *Idle* e remova a instância do VPS (seç�
 as duas ligadas ao mesmo tempo, os jobs vão para a que estiver livre.
 
 Na máquina de casa o CI pode ter mais instâncias. Na VM e no notebook só com Ubuntu, o script sugere
-quantas pela memória (uns 2,5 GB cada, com swap para os picos); no WSL, uma a cada 4 GB cedidos. Nessa
-etapa o Docker pode ser usado, porque a máquina não carrega mais nada de produção.
+quantas pela memória (uns 2,5 GB cada, com swap para os picos). No WSL de um notebook dedicado de
+8 GB, 5 GB e 4 GB de swap levam 3 instâncias. Nessa etapa o Docker pode ser usado, porque a máquina
+não carrega mais nada de produção.
 
-### Máquina virtual no Windows (Hyper-V) — o caminho atual
+### Windows (WSL2) — o caminho atual
 
-O notebook fica só para o CI e segue com o Windows. O CI roda numa máquina virtual (VM) com Ubuntu
-Server, que liga junto com o Windows, sem ninguém entrar na conta; dentro dela os runners são
-serviços. Num notebook de 8 GB, a VM fica com 5 GB e 2 instâncias (1 da Motors, 1 da plataforma),
+Notebook dedicado ao CI, com Windows Home (sem Hyper-V). Tudo nele; o PowerShell é sempre **como
+administrador**.
+
+1. **WSL com Ubuntu.** No PowerShell:
+   ```powershell
+   wsl --install -d Ubuntu-24.04
+   ```
+   Reinicie se pedir. Na primeira abertura o Ubuntu pede um usuário e uma senha: é o seu usuário
+   de administração da distribuição, não o do runner. Se você já usa um Ubuntu-24.04 para outra
+   coisa, crie uma distribuição só para o CI (`wsl --export` + `wsl --import`) e use o nome dela
+   no lugar de `Ubuntu-24.04` nos passos abaixo.
+2. **Quanto o CI pode usar.** No PowerShell, com até metade da memória do computador (o exemplo
+   cede 16 GB e 8 núcleos). Se o arquivo `.wslconfig` já existir, acrescente `memory` e
+   `processors` à seção `[wsl2]` dele em vez de sobrescrever:
+   ```powershell
+   Set-Content -Encoding ascii "$env:USERPROFILE\.wslconfig" "[wsl2]`nmemory=16GB`nprocessors=8"
+   ```
+3. **Instalar e registrar.** No GitHub: repositório → Settings → Actions → Runners → **New
+   self-hosted runner** → Linux, x64. Deixe a página aberta: o token dela vale 1 hora e serve para
+   todas as instâncias. Copie `scripts/instalar-runner-wsl.sh` para o Ubuntu e rode:
+   ```bash
+   bash instalar-runner-wsl.sh
+   ```
+   O script pergunta quantas instâncias e o token. No notebook dedicado de 8 GB são 2 da Motors e
+   1 da plataforma; com 16 GB cedidos ao WSL, 4 no total. Depois ele faz o resto:
+   - isola o Ubuntu do disco C: e dos programas do Windows;
+   - instala os pacotes e o cliente do Postgres 17;
+   - cria o usuário `runner`, sem sudo;
+   - registra as instâncias `motors-casa-N` com o rótulo `motors-ci`;
+   - deixa pronto `/home/runner/iniciar-runners.sh`.
+
+   Rodar de novo é seguro.
+
+   **Outro repositório da conta** (como `motors-plataforma`): runner de conta pessoal é registrado
+   por repositório. Gere o token na tela de runners **daquele** repositório e rode
+   `bash instalar-runner-wsl.sh motors-plataforma`. As instâncias novas (`motors-plataforma-casa-N`)
+   ficam na mesma máquina, sobem com a mesma tarefa e usam o mesmo rótulo `motors-ci`. Lá também é
+   preciso criar a variável `RUNNER_CI`. Reinicie a tarefa "Runner do CI" para elas subirem.
+4. **Subir quando você entra no Windows.** No PowerShell:
+   ```powershell
+   wsl --shutdown
+   $acao = New-ScheduledTaskAction -Execute "C:\Windows\System32\wsl.exe" -Argument "-d Ubuntu-24.04 -u runner -- /home/runner/iniciar-runners.sh"
+   $gatilho = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+   $ajustes = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+   Register-ScheduledTask -TaskName "Runner do CI" -Action $acao -Trigger $gatilho -Settings $ajustes
+   Start-ScheduledTask -TaskName "Runner do CI"
+   powercfg /change standby-timeout-ac 0
+   ```
+   A tarefa abre uma janela de terminal: deixe minimizada, porque fechá-la desliga os runners. O
+   gatilho é o logon, e não a inicialização, porque o WSL costuma falhar quando o Windows o sobe
+   antes de alguém entrar na conta. Depois de uma reinicialização (atualização do Windows, por
+   exemplo), os runners só voltam quando você entrar; bloquear a tela não atrapalha. A última linha
+   impede o computador de suspender na tomada: suspenso, ele conta como desligado. O passo 5 resolve
+   a volta depois de reiniciar.
+5. **Notebook dedicado ao CI.** Com o runner funcionando, baixe `scripts/preparar-windows-runner.ps1`
+   e `scripts/instalar-runner-wsl.sh` ("Download raw file" no GitHub) para a mesma pasta e rode,
+   nela:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\preparar-windows-runner.ps1
+   ```
+   O script faz o seguinte:
+   - dá ao WSL a memória do notebook menos 3 GB, os núcleos menos 1 e 4 GB de swap. Com 8 GB, o
+     WSL fica com 5 GB, para 2 instâncias da Motors e 1 da plataforma;
+   - deixa o Windows sem suspender na tomada, nem com a tampa fechada;
+   - cria a tarefa "Runner do CI", se faltar, e a "Bloquear tela do CI", que bloqueia a tela 20
+     segundos depois de entrar;
+   - liga o login automático pelo Autologon, programa da Microsoft (Sysinternals). O script o baixa
+     e confere a assinatura;
+   - oferece registrar as instâncias da `motors-plataforma`;
+   - reinicia o WSL e os runners (um job em andamento é interrompido).
+
+   No Autologon, digite a senha da conta e clique em Enable; a senha fica guardada cifrada pelo
+   Windows. Com conta Microsoft (a que entra com e-mail), use o e-mail no campo Username e a senha
+   da conta, não o PIN.
+
+   Para registrar a `motors-plataforma`, deixe aberta antes a tela de token **daquele** repositório
+   e responda 1 quando o script perguntar quantas instâncias.
+
+   Depois disso, o notebook liga, entra sozinho na conta, sobe os runners e bloqueia a tela; uma
+   atualização do Windows que reinicia só para o CI por alguns minutos. Quando você mesmo entrar, a
+   tela também bloqueia depois de 20 segundos: é só desbloquear. Para desligar o login automático,
+   abra `C:\ProgramData\Autologon\Autologon64.exe` e clique em Disable. Rodar de novo é seguro.
+
+   Na BIOS, se houver a opção, ligue "Power on AC" / "Restore on AC power loss", para o notebook
+   voltar sozinho depois de uma queda de energia que esgote a bateria.
+6. **Conferir.** Em Settings → Actions → Runners de cada repositório, as instâncias
+   (`motors-casa-N`, `motors-plataforma-casa-N`) aparecem como *Idle*. Depois siga "Ligar a
+   escolha automática".
+
+### Máquina virtual no Hyper-V (Windows Pro)
+
+Alternativa ao WSL2 para quem tem Windows Pro. O CI roda numa máquina virtual (VM) com Ubuntu
+Server, que liga junto com o Windows, sem login automático; dentro dela os runners são serviços,
+cada um com teto de memória. Num notebook de 8 GB, a VM fica com 5 GB e 2 instâncias (1 da Motors, 1 da plataforma),
 cada uma com teto de 3 GB e 4 GB de swap para os picos. O Windows fica com o resto.
 
-Precisa do Windows **Pro** (o Home não tem Hyper-V; nele, siga com o WSL2) e da virtualização ligada
-na BIOS (já está, se o WSL2 funcionava).
+Precisa do Windows **Pro** (no Home, o script para sem mexer em nada e indica o WSL2) e da
+virtualização ligada na BIOS (já está, se o WSL2 funcionava).
 
 1. **Baixar os scripts.** No notebook, abra no GitHub `scripts/criar-vm-runner.ps1` e
    `scripts/instalar-runner-ubuntu.sh` e use "Download raw file" em cada um. Salve os dois na mesma
@@ -274,63 +366,6 @@ O mesmo da VM, sem a camada do Windows: toda a memória fica para os jobs (com 8
    tela de boas-vindas). Depois da primeira execução, `motors-ci.local` também funciona na rede de
    casa.
 5. **BIOS e conferência**: como na VM.
-
-### Windows (WSL2)
-
-Tudo no computador de casa. O PowerShell é sempre **como administrador**.
-
-1. **WSL com Ubuntu.** No PowerShell:
-   ```powershell
-   wsl --install -d Ubuntu-24.04
-   ```
-   Reinicie se pedir. Na primeira abertura o Ubuntu pede um usuário e uma senha: é o seu usuário
-   de administração da distribuição, não o do runner. Se você já usa um Ubuntu-24.04 para outra
-   coisa, crie uma distribuição só para o CI (`wsl --export` + `wsl --import`) e use o nome dela
-   no lugar de `Ubuntu-24.04` nos passos abaixo.
-2. **Quanto o CI pode usar.** No PowerShell, com até metade da memória do computador (o exemplo
-   cede 16 GB e 8 núcleos). Se o arquivo `.wslconfig` já existir, acrescente `memory` e
-   `processors` à seção `[wsl2]` dele em vez de sobrescrever:
-   ```powershell
-   Set-Content -Encoding ascii "$env:USERPROFILE\.wslconfig" "[wsl2]`nmemory=16GB`nprocessors=8"
-   ```
-3. **Instalar e registrar.** No GitHub: repositório → Settings → Actions → Runners → **New
-   self-hosted runner** → Linux, x64. Deixe a página aberta: o token dela vale 1 hora e serve para
-   todas as instâncias. Copie `scripts/instalar-runner-wsl.sh` para o Ubuntu e rode:
-   ```bash
-   bash instalar-runner-wsl.sh
-   ```
-   O script pergunta quantas instâncias (uma a cada 4 GB cedidos; com 16 GB, 4) e o token. Depois
-   ele faz o resto:
-   - isola o Ubuntu do disco C: e dos programas do Windows;
-   - instala os pacotes e o cliente do Postgres 17;
-   - cria o usuário `runner`, sem sudo;
-   - registra as instâncias `motors-casa-N` com o rótulo `motors-ci`;
-   - deixa pronto `/home/runner/iniciar-runners.sh`.
-
-   Rodar de novo é seguro.
-
-   **Outro repositório da conta** (como `motors-plataforma`): runner de conta pessoal é registrado
-   por repositório. Gere o token na tela de runners **daquele** repositório e rode
-   `bash instalar-runner-wsl.sh motors-plataforma`. As instâncias novas (`motors-plataforma-casa-N`)
-   ficam na mesma máquina, sobem com a mesma tarefa e usam o mesmo rótulo `motors-ci`. Lá também é
-   preciso criar a variável `RUNNER_CI`. Reinicie a tarefa "Runner do CI" para elas subirem.
-4. **Subir quando você entra no Windows.** No PowerShell:
-   ```powershell
-   wsl --shutdown
-   $acao = New-ScheduledTaskAction -Execute "C:\Windows\System32\wsl.exe" -Argument "-d Ubuntu-24.04 -u runner -- /home/runner/iniciar-runners.sh"
-   $gatilho = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
-   $ajustes = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-   Register-ScheduledTask -TaskName "Runner do CI" -Action $acao -Trigger $gatilho -Settings $ajustes
-   Start-ScheduledTask -TaskName "Runner do CI"
-   powercfg /change standby-timeout-ac 0
-   ```
-   A tarefa abre uma janela de terminal: deixe minimizada, porque fechá-la desliga os runners. O
-   gatilho é o logon, e não a inicialização, porque o WSL costuma falhar quando o Windows o sobe
-   antes de alguém entrar na conta. Depois de uma reinicialização (atualização do Windows, por
-   exemplo), os runners só voltam quando você entrar; bloquear a tela não atrapalha. A última linha
-   impede o computador de suspender na tomada: suspenso, ele conta como desligado.
-5. **Conferir.** Em Settings → Actions → Runners, as instâncias `motors-casa-N` aparecem como
-   *Idle*. Depois siga "Ligar a escolha automática".
 
 ### Linux
 

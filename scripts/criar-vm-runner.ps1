@@ -38,7 +38,8 @@ Passo "1/6 Hyper-V"
 $hv = $null
 try { $hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All } catch { }
 if (-not $hv) {
-  Falha "Este Windows nao tem Hyper-V (o Windows Home nao tem). Alternativas: atualizar para o Pro ou seguir com o WSL2 (docs/RUNNER_DO_CI.md)."
+  $edicao = (Get-CimInstance Win32_OperatingSystem).Caption
+  Falha "Este Windows ($edicao) nao tem Hyper-V (o Home nao tem). Nada foi alterado. Siga com o WSL2 e o preparar-windows-runner.ps1 (docs/RUNNER_DO_CI.md, 'Windows (WSL2)', passo 5)."
 }
 if ($hv.State -ne "Enabled") {
   Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart | Out-Null

@@ -34,7 +34,7 @@ if [ "$(id -u)" = "0" ]; then
   exit 1
 fi
 
-read -rp "Quantas instâncias (uma a cada 4 GB cedidos ao WSL; com 16 GB, 4): " INSTANCIAS
+read -rp "Quantas instâncias de $REPO (notebook dedicado de 8 GB: 2 da Motors e 1 da plataforma; 16 GB cedidos ao WSL: 4 no total): " INSTANCIAS
 [[ "$INSTANCIAS" =~ ^[1-9][0-9]?$ ]] || { echo "Número inválido." >&2; exit 1; }
 read -rsp "Token da tela New self-hosted runner (não aparece enquanto digita): " TOKEN
 echo
