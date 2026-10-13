@@ -191,7 +191,8 @@ não carrega mais nada de produção.
 ### Windows (WSL2) — o caminho atual
 
 Notebook dedicado ao CI, com Windows Home (sem Hyper-V). Tudo nele; o PowerShell é sempre **como
-administrador**.
+administrador**. O `preparar-windows-runner.ps1` do passo 5 faz também os passos 1 a 4 quando falta
+algo: instala o Ubuntu e o runner e cria a tarefa. Os passos 1 a 4 ficam como o caminho manual.
 
 1. **WSL com Ubuntu.** No PowerShell:
    ```powershell
@@ -244,18 +245,20 @@ administrador**.
    exemplo), os runners só voltam quando você entrar; bloquear a tela não atrapalha. A última linha
    impede o computador de suspender na tomada: suspenso, ele conta como desligado. O passo 5 resolve
    a volta depois de reiniciar.
-5. **Notebook dedicado ao CI.** Com o runner funcionando, baixe `scripts/preparar-windows-runner.ps1`
-   e `scripts/instalar-runner-wsl.sh` ("Download raw file" no GitHub) para a mesma pasta e rode,
-   nela:
+5. **Notebook dedicado ao CI.** Baixe `scripts/preparar-windows-runner.ps1` e
+   `scripts/instalar-runner-wsl.sh` ("Download raw file" no GitHub) para a mesma pasta e rode, nela:
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\preparar-windows-runner.ps1
    ```
    O script faz o seguinte:
+   - acha o runner no WSL, pela tarefa "Runner do CI" ou procurando em cada distribuição. Se não
+     houver, oferece instalar o `Ubuntu-24.04` (se faltar) e registrar 2 instâncias da
+     `motors-site-oficial`. Para isso, deixe aberta antes a tela de token desse repositório;
    - dá ao WSL a memória do notebook menos 3 GB, os núcleos menos 1 e 4 GB de swap. Com 8 GB, o
      WSL fica com 5 GB, para 2 instâncias da Motors e 1 da plataforma;
    - deixa o Windows sem suspender na tomada, nem com a tampa fechada;
-   - cria a tarefa "Runner do CI", se faltar, e a "Bloquear tela do CI", que bloqueia a tela 20
-     segundos depois de entrar;
+   - grava a tarefa "Runner do CI", apontando para a distribuição do runner, e a "Bloquear tela do
+     CI", que bloqueia a tela 20 segundos depois de entrar;
    - liga o login automático pelo Autologon, programa da Microsoft (Sysinternals). O script o baixa
      e confere a assinatura;
    - oferece registrar as instâncias da `motors-plataforma`;

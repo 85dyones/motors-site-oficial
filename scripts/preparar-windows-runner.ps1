@@ -1,21 +1,23 @@
 # Prepara o Windows de um notebook dedicado ao CI, com o runner no WSL2.
-# Ver "Windows (WSL2)", passo 5, em docs/RUNNER_DO_CI.md. Serve ao Windows Home,
-# que nao tem Hyper-V.
+# Ver "Windows (WSL2)" em docs/RUNNER_DO_CI.md. Serve ao Windows Home, que nao
+# tem Hyper-V.
 #
-# Rode no PowerShell COMO ADMINISTRADOR, na pasta onde salvou este arquivo:
+# Rode no PowerShell COMO ADMINISTRADOR, na pasta onde salvou este arquivo e o
+# instalar-runner-wsl.sh:
 #   powershell -ExecutionPolicy Bypass -File .\preparar-windows-runner.ps1
 #
 # O que faz:
-#   - confere o runner no Ubuntu do WSL (passos 1 a 3 do documento);
+#   - acha o Ubuntu do WSL com o runner (pela tarefa "Runner do CI" ou
+#     procurando em cada distribuicao). Sem runner, oferece instalar o Ubuntu e
+#     registrar as instancias da motors-site-oficial;
 #   - da ao WSL a memoria do notebook menos 3 GB, os nucleos menos 1 e 4 GB de
 #     swap;
 #   - deixa o Windows sem suspender na tomada, nem com a tampa fechada;
-#   - cria a tarefa "Runner do CI", se faltar, e outra que bloqueia a tela logo
-#     depois de entrar;
+#   - grava a tarefa "Runner do CI" e outra que bloqueia a tela logo depois de
+#     entrar;
 #   - liga o login automatico com o Autologon da Microsoft (Sysinternals): a
 #     senha e digitada na janela dele e fica guardada cifrada pelo Windows;
-#   - com instalar-runner-wsl.sh na mesma pasta, oferece registrar as instancias
-#     da motors-plataforma;
+#   - oferece registrar as instancias da motors-plataforma;
 #   - reinicia o WSL e os runners.
 # Rodar de novo e seguro.
 #
@@ -32,14 +34,54 @@ $ProgressPreference = "SilentlyContinue"
 function Passo($texto) { Write-Host "`n== $texto" -ForegroundColor Cyan }
 function Falha($texto) { Write-Host "`nERRO: $texto" -ForegroundColor Red; exit 1 }
 function Aviso($texto) { Write-Host "AVISO: $texto" -ForegroundColor Yellow }
-# Roda o wsl.exe sem mostrar a saida e devolve o codigo de saida. Saida de erro
-# de programa externo vira excecao com "Stop" no PowerShell 5.1.
+# Saida de erro de programa externo vira excecao com "Stop" no PowerShell 5.1:
+# as chamadas ao wsl.exe trocam para "Continue" enquanto rodam.
+# Roda o wsl.exe sem mostrar a saida e devolve o codigo de saida.
 function NoWsl([string[]]$argumentos) {
   $antes = $ErrorActionPreference; $ErrorActionPreference = "Continue"
   & wsl.exe @argumentos 2>&1 | Out-Null
   $codigo = $LASTEXITCODE
   $ErrorActionPreference = $antes
   return $codigo
+}
+# Roda o wsl.exe direto no console (perguntas e senhas aparecem e sao
+# respondidas ali) e devolve o codigo de saida. Os argumentos nao podem ter
+# espaco: o Start-Process do PowerShell 5.1 nao os poe entre aspas.
+function NoWslNaTela([string[]]$argumentos) {
+  $p = Start-Process -FilePath "wsl.exe" -ArgumentList $argumentos -NoNewWindow -PassThru
+  $null = $p.Handle  # sem isto o ExitCode pode voltar vazio
+  $p.WaitForExit()
+  return $p.ExitCode
+}
+# Distribuicoes do WSL deste usuario. Conforme a versao, o wsl.exe escreve em
+# UTF-16 ou em UTF-8: ficar so com os caracteres imprimiveis serve aos dois.
+function Distribuicoes {
+  $env:WSL_UTF8 = "1"
+  $antes = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+  $saida = & wsl.exe -l -q 2>&1
+  $codigo = $LASTEXITCODE
+  $ErrorActionPreference = $antes
+  if ($codigo -ne 0) { return @() }
+  return @($saida | ForEach-Object { ("$_" -replace '[^\x21-\x7E]', "") } | Where-Object { $_ })
+}
+function TemRunner($d) {
+  (NoWsl @("-d", $d, "-u", "runner", "-e", "test", "-x", "/home/runner/iniciar-runners.sh")) -eq 0
+}
+# Copia o instalar-runner-wsl.sh para a pasta do usuario no WSL (em base64,
+# sem depender do \\wsl$) e o roda para um repositorio. O token e digitado
+# la, sem aparecer.
+function RegistraNoWsl($repo, $instancias) {
+  $origem = Join-Path $PSScriptRoot "instalar-runner-wsl.sh"
+  if (-not (Test-Path $origem)) {
+    Falha "Falta o instalar-runner-wsl.sh nesta pasta. Baixe-o do GitHub (Download raw file) para a mesma pasta deste script e rode de novo."
+  }
+  $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($origem))
+  if ((NoWsl @("-d", $Distro, "--cd", "~", "-e", "bash", "-c", "echo $b64 | base64 -d > instalar-runner-wsl.sh")) -ne 0) {
+    Falha "Nao consegui copiar o instalar-runner-wsl.sh para o WSL ($Distro)."
+  }
+  Write-Host "Deixe aberta a tela do token: $repo > Settings > Actions > Runners > New self-hosted runner (Linux)."
+  Write-Host "Quando perguntar quantas instancias, responda $instancias. A senha pedida (sudo) e a do seu usuario do Ubuntu."
+  return (NoWslNaTela @("-d", $Distro, "--cd", "~", "-e", "bash", "instalar-runner-wsl.sh", $repo)) -eq 0
 }
 
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
@@ -48,11 +90,45 @@ if (-not $admin) { Falha "Abra o PowerShell como administrador (botao direito > 
 $usuario = "$env:USERDOMAIN\$env:USERNAME"
 $tarefa = "Runner do CI"
 
-Passo "1/6 Runner no WSL ($Distro)"
-if ((NoWsl @("-d", $Distro, "-u", "runner", "-e", "test", "-x", "/home/runner/iniciar-runners.sh")) -ne 0) {
-  Falha "Nao achei o runner no Ubuntu do WSL ($Distro). Siga antes os passos 1 a 3 de 'Windows (WSL2)' em docs/RUNNER_DO_CI.md."
+Passo "1/6 Runner no WSL"
+Write-Host "Usuario do Windows: $usuario"
+$distros = Distribuicoes
+Write-Host ("Distribuicoes do WSL: " + $(if ($distros.Count) { $distros -join ", " } else { "nenhuma" }))
+if (-not $PSBoundParameters.ContainsKey("Distro")) {
+  # A tarefa ja criada diz em que distribuicao o runner foi instalado.
+  $existente = Get-ScheduledTask -TaskName $tarefa -ErrorAction SilentlyContinue
+  if ($existente -and ("$($existente.Actions[0].Arguments)" -match '-d\s+(\S+)') -and ($distros -contains $Matches[1])) {
+    $Distro = $Matches[1]
+  }
 }
-Write-Host "Runner encontrado."
+$achou = ($distros -contains $Distro) -and (TemRunner $Distro)
+if (-not $achou -and -not $PSBoundParameters.ContainsKey("Distro")) {
+  $outra = $distros | Where-Object { $_ -ne $Distro -and $_ -notlike "docker-desktop*" } |
+    Where-Object { TemRunner $_ } | Select-Object -First 1
+  if ($outra) { $Distro = $outra; $achou = $true }
+}
+if ($achou) {
+  Write-Host "Runner encontrado em $Distro."
+} else {
+  Write-Host "Nao achei o runner em nenhuma distribuicao do WSL deste usuario."
+  $resposta = Read-Host "Instalar agora o runner no $Distro (instala o Ubuntu, se faltar)? (s/n)"
+  if ($resposta -notmatch '^[sS]') {
+    Falha "Nada foi alterado. Se o runner esta em outra distribuicao, rode com -Distro <nome>."
+  }
+  if (-not ($distros -contains $Distro)) {
+    Write-Host "Instalando o $Distro. Ele pede um usuario e uma senha novos (os de administracao do Ubuntu, nao os do Windows)."
+    Write-Host "Quando aparecer o prompt do Ubuntu (termina em `$), digite exit e Enter para voltar aqui."
+    NoWslNaTela @("--install", "-d", $Distro) | Out-Null
+    if (-not ((Distribuicoes) -contains $Distro)) {
+      Write-Host "`nSe o Windows pediu para reiniciar, reinicie e rode este script de novo." -ForegroundColor Yellow
+      exit 0
+    }
+  }
+  if (-not (RegistraNoWsl "motors-site-oficial" 2) -or -not (TemRunner $Distro)) {
+    Falha "O registro da motors-site-oficial nao terminou. Rode o script de novo (o token vale 1 hora; gere outro se precisar)."
+  }
+  Write-Host "Runner da motors-site-oficial instalado em $Distro."
+}
 
 Passo "2/6 Memoria e nucleos do WSL"
 # Um notebook de 8 GB mostra ~7,8 GB (a placa de video reserva um pouco).
@@ -105,17 +181,14 @@ powercfg /setactive SCHEME_CURRENT | Out-Null
 Write-Host "Na tomada, o Windows nao suspende nem com a tampa fechada. Deixe o notebook sempre na tomada."
 
 Passo "4/6 Tarefas que sobem os runners e bloqueiam a tela"
-if (Get-ScheduledTask -TaskName $tarefa -ErrorAction SilentlyContinue) {
-  Enable-ScheduledTask -TaskName $tarefa | Out-Null
-  Write-Host "Tarefa '$tarefa' ja existe e esta ligada."
-} else {
-  $acao = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\wsl.exe" -Argument "-d $Distro -u runner -- /home/runner/iniciar-runners.sh"
-  $gatilho = New-ScheduledTaskTrigger -AtLogOn -User $usuario
-  $ajustes = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 `
-    -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-  Register-ScheduledTask -TaskName $tarefa -Action $acao -Trigger $gatilho -Settings $ajustes -User $usuario | Out-Null
-  Write-Host "Tarefa '$tarefa' criada."
-}
+# Gravadas de novo a cada execucao, para apontarem para a distribuicao certa.
+$acao = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\wsl.exe" -Argument "-d $Distro -u runner -- /home/runner/iniciar-runners.sh"
+$gatilho = New-ScheduledTaskTrigger -AtLogOn -User $usuario
+$ajustes = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 `
+  -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Stop-ScheduledTask -TaskName $tarefa -ErrorAction SilentlyContinue
+Register-ScheduledTask -TaskName $tarefa -Action $acao -Trigger $gatilho -Settings $ajustes -User $usuario -Force | Out-Null
+Write-Host "Tarefa '$tarefa': sobe os runners do $Distro quando $usuario entra."
 # Com o login automatico, quem abrir a tampa encontra a tela bloqueada.
 $acao = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\rundll32.exe" -Argument "user32.dll,LockWorkStation"
 $gatilho = New-ScheduledTaskTrigger -AtLogOn -User $usuario
@@ -165,28 +238,15 @@ Vai abrir o Autologon (Microsoft Sysinternals). Nele:
 }
 
 Passo "6/6 Plataforma e reinicio dos runners"
-$plataforma = Join-Path $PSScriptRoot "instalar-runner-wsl.sh"
-$temPlataforma = (NoWsl @("-d", $Distro, "-u", "runner", "-e", "test", "-d", "/home/runner/actions-runner-motors-plataforma-1")) -eq 0
-if ($temPlataforma) {
+if ((NoWsl @("-d", $Distro, "-u", "runner", "-e", "test", "-d", "/home/runner/actions-runner-motors-plataforma-1")) -eq 0) {
   Write-Host "Instancias da motors-plataforma ja registradas."
-} elseif (Test-Path $plataforma) {
-  Write-Host "Para registrar a motors-plataforma, deixe aberta a tela do token: motors-plataforma > Settings > Actions > Runners > New self-hosted runner."
+} else {
   $resposta = Read-Host "Registrar agora as instancias da motors-plataforma? (s/n)"
   if ($resposta -match '^[sS]') {
-    try {
-      Copy-Item -Force $plataforma "\\wsl$\$Distro\tmp\instalar-runner-wsl.sh"
-    } catch {
-      Falha "Nao consegui copiar o instalar-runner-wsl.sh para o WSL: $($_.Exception.Message)"
+    if (-not (RegistraNoWsl "motors-plataforma" 1)) {
+      Aviso "o registro da motors-plataforma nao terminou. Rode o script de novo para tentar outra vez."
     }
-    Write-Host "Quando perguntar quantas instancias, responda 1. A senha pedida e a do seu usuario do Ubuntu."
-    $antes = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-    & wsl.exe -d $Distro -e bash /tmp/instalar-runner-wsl.sh motors-plataforma
-    $codigo = $LASTEXITCODE
-    $ErrorActionPreference = $antes
-    if ($codigo -ne 0) { Aviso "o registro da motors-plataforma falhou. Rode o script de novo para tentar outra vez." }
   }
-} else {
-  Write-Host "Sem instalar-runner-wsl.sh nesta pasta: a motors-plataforma fica para depois."
 }
 Write-Host "Reiniciando o WSL e os runners (job em andamento e interrompido)..."
 Stop-ScheduledTask -TaskName $tarefa -ErrorAction SilentlyContinue
