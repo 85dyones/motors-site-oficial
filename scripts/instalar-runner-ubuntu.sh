@@ -36,9 +36,17 @@ pergunta_repositorio() {
   [[ "$n" =~ ^[0-9]$ ]] || { echo "Número inválido." >&2; exit 1; }
   token=""
   if [ "$n" != "0" ]; then
-    read -rsp "Token de New self-hosted runner de $repo (não aparece enquanto digita): " token
-    echo >&2
-    [[ "$token" =~ ^[A-Za-z0-9]+$ ]] || { echo "Token vazio ou com caractere estranho." >&2; exit 1; }
+    for tentativa in 1 2 3; do
+      read -rsp "Token de New self-hosted runner de $repo (não aparece na tela): " token
+      echo >&2
+      # Colar pode trazer espaço, quebra de linha ou um ^V do Ctrl+V: fica só o resto.
+      token=$(printf '%s' "$token" | tr -d '[:space:][:cntrl:]')
+      [[ "$token" =~ ^[A-Za-z0-9]+$ ]] && break
+      echo "Token vazio ou com caractere estranho (${#token} caracteres). Tente de novo." >&2
+      token=""
+    done
+    [ -n "$token" ] || { echo "Sem token válido para $repo." >&2; exit 1; }
+    echo "Token de $repo recebido (${#token} caracteres)." >&2
   fi
   printf '%s %s %s\n' "$repo" "$n" "$token"
 }

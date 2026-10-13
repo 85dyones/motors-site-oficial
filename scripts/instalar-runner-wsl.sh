@@ -36,9 +36,18 @@ fi
 
 read -rp "Quantas instâncias de $REPO (notebook dedicado de 8 GB: 2 da Motors e 1 da plataforma; 16 GB cedidos ao WSL: 4 no total): " INSTANCIAS
 [[ "$INSTANCIAS" =~ ^[1-9][0-9]?$ ]] || { echo "Número inválido." >&2; exit 1; }
-read -rsp "Token da tela New self-hosted runner (não aparece enquanto digita): " TOKEN
-echo
-[[ "$TOKEN" =~ ^[A-Za-z0-9]+$ ]] || { echo "Token vazio ou com caractere estranho." >&2; exit 1; }
+TOKEN=""
+for TENTATIVA in 1 2 3; do
+  read -rsp "Token da tela New self-hosted runner (cole com o botão direito do mouse; não aparece na tela): " TOKEN
+  echo
+  # Colar pode trazer espaço, quebra de linha ou um ^V do Ctrl+V: fica só o resto.
+  TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:][:cntrl:]')
+  [[ "$TOKEN" =~ ^[A-Za-z0-9]+$ ]] && break
+  echo "Token vazio ou com caractere estranho (${#TOKEN} caracteres). Tente de novo." >&2
+  TOKEN=""
+done
+[ -n "$TOKEN" ] || { echo "Sem token válido." >&2; exit 1; }
+echo "Token recebido (${#TOKEN} caracteres)."
 
 echo "1/5 Isolando dos arquivos e programas do Windows (vale depois do wsl --shutdown)."
 # [user] deixa quem roda este script como usuário padrão da distribuição, mesmo
