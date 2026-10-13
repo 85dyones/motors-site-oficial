@@ -11,13 +11,14 @@
 # repositório por commit de gente, revisado no PR.
 #
 # Segredo: SUPABASE_DB_URL_PLATAFORMA (Settings → Secrets and variables → Actions).
+#
+# Gerou a primeira versão em 12/10/2026 (execução 38318499594, no runner
+# motors-casa-2): 15.114 linhas, 125 migrações registradas, a última
+# 20261010140000. Só roda à mão (Actions → esquema-base → Run workflow).
 name: esquema-base
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["claude/**"]
-    paths: [".github/workflows/esquema-base.yml"]
 
 permissions:
   contents: read

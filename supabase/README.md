@@ -8,6 +8,7 @@ versionadas em `supabase/migrations/`. Nunca altere schema direto pelo painel."*
 
 ```
 supabase/
+├── base/           retrato do schema da produção — monta projeto novo; nunca entra no `db push`
 ├── migrations/     aplicadas em ordem por `supabase db push`
 ├── manutencao/     correção de DADO, pontual — nunca vira migração
 ├── seeds/          dados iniciais
@@ -47,6 +48,45 @@ projeto. Ver o passo 4 do runbook abaixo para o motivo. Está **vazia desde
 que o cutover do rename foi concluído**, e `tests/migracoes.test.ts` tolera a
 ausência do diretório: se ele voltar a existir, é de propósito, e o teste
 volta a exigir que nada seja esquecido lá dentro.
+
+## `base/` — retrato do schema da produção
+
+`base/esquema_da_producao.sql` monta, num projeto Supabase **novo e vazio**, o
+schema da produção inteiro, numa transação só:
+
+```
+psql "$URL" -X -v ON_ERROR_STOP=1 --single-transaction -f supabase/base/esquema_da_producao.sql
+```
+
+O arquivo traz o esquema `public` com permissões e comentários, as extensões,
+o gatilho em `auth.users`, os buckets e as regras do Storage, a tabela do
+Realtime e o registro de migrações. As migrações que vierem depois da última
+registrada no cabeçalho do arquivo seguem pelo `db push`.
+
+**Por que existe.** As migrações de `migrations/` não montam a produção num
+banco vazio: o bootstrap de 03/08 e algumas tabelas nasceram fora delas. Até
+12/10/2026 a única cópia completa do schema era a própria produção.
+
+**Por que não fica em `migrations/`.** O `db push` tentaria aplicar de novo, na
+produção, um schema que ela já tem. Mudança de schema continua nascendo em
+`migrations/`. Este arquivo não se edita à mão.
+
+**De onde vem.** O workflow `esquema-base` gera o arquivo a partir do
+`motors-plataforma`. Em 12/10/2026 esse projeto foi copiado da produção pelo
+`copiar-esquema` e conferido igual a ela nas contagens e nas 776 linhas de
+permissão. Para atualizar o retrato, o `motors-plataforma` precisa estar igual
+à produção; depois é só rodar o workflow e trocar o arquivo num PR.
+
+**Fica de fora:**
+- dado de qualquer tabela;
+- segredos do Vault;
+- as tarefas do `pg_cron`, que o log do `copiar-esquema` lista;
+- o webhook do banco que manda `tracking_events` para o n8n;
+- a função `rls_auto_enable()`, que todo projeto novo do Supabase já tem.
+
+**Não serve para Postgres puro.** O arquivo pressupõe Auth, Storage, Vault,
+`pg_cron` e `pg_net` do Supabase. Para Postgres local, o caminho continua sendo
+o andaime de `testes/`.
 
 ## ⛔ `supabase_schema.sql` na raiz — arquivo histórico, não execute
 
