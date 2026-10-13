@@ -282,11 +282,17 @@ Passo "4/6 Tarefas que sobem os runners e bloqueiam a tela"
 # Gravadas de novo a cada execucao, para apontarem para a distribuicao certa.
 $acao = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\wsl.exe" -Argument "-d $Distro -u runner -- /home/runner/iniciar-runners.sh"
 $gatilho = New-ScheduledTaskTrigger -AtLogOn -User $usuario
+# Se o WSL cai (atualizacao dele, erro), a tarefa termina e o Agendador nao a
+# sobe de novo: o "reiniciar se falhar" so vale para tarefa que nem comecou. A
+# repeticao a cada 5 minutos, sem fim, religa; com a tarefa rodando, ela nao
+# abre outra (IgnoreNew).
+$gatilho.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)).Repetition
 $ajustes = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 `
-  -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+  -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+  -MultipleInstances IgnoreNew
 Stop-ScheduledTask -TaskName $tarefa -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $tarefa -Action $acao -Trigger $gatilho -Settings $ajustes -User $usuario -Force | Out-Null
-Write-Host "Tarefa '$tarefa': sobe os runners do $Distro quando $usuario entra."
+Write-Host "Tarefa '$tarefa': sobe os runners do $Distro quando $usuario entra e os religa em ate 5 minutos se cairem."
 # Com o login automatico, quem abrir a tampa encontra a tela bloqueada.
 $acao = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\rundll32.exe" -Argument "user32.dll,LockWorkStation"
 $gatilho = New-ScheduledTaskTrigger -AtLogOn -User $usuario

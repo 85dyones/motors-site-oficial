@@ -263,8 +263,9 @@ algo: instala o Ubuntu e o runner e cria a tarefa. Os passos 1 a 4 ficam como o 
    - dá ao WSL a memória do notebook menos 3 GB, os núcleos menos 1 e 4 GB de swap. Com 8 GB, o
      WSL fica com 5 GB, para 2 instâncias da Motors e 1 da plataforma;
    - deixa o Windows sem suspender na tomada, nem com a tampa fechada;
-   - grava a tarefa "Runner do CI", apontando para a distribuição do runner, e a "Bloquear tela do
-     CI", que bloqueia a tela 20 segundos depois de entrar;
+   - grava a tarefa "Runner do CI", apontando para a distribuição do runner. Se o WSL cair, ela
+     religa os runners em até 5 minutos. Grava também a "Bloquear tela do CI", que bloqueia a tela
+     20 segundos depois de entrar;
    - liga o login automático pelo Autologon, programa da Microsoft (Sysinternals). O script o baixa
      e confere a assinatura;
    - oferece registrar as instâncias da `motors-plataforma`;
