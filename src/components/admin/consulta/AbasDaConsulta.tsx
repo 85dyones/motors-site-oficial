@@ -116,7 +116,8 @@ export default function AbasDaConsulta({
         <strong>Motors Store · Consulta de veículos · {atual.rotulo}</strong>
         <span>{impressoEm ? `Impresso em ${impressoEm} · ` : ""}uso interno da equipe</span>
       </div>
-      <header className="flex flex-col gap-3">
+      {/* Fora do papel: no lugar dele vai o `.so-impressao`, acima. */}
+      <header className="nao-imprimir flex flex-col gap-3">
         <div className="nao-imprimir flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-col gap-3">
             <span className="mt-rotulo">ESTOQUE</span>

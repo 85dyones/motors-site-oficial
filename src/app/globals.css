@@ -221,10 +221,13 @@ html {
   }
 
   /* Interface que não é conteúdo some em qualquer página. */
-  /* O :not() poupa o cabeçalho e o rodapé da própria folha — sem ele
-     a ficha perde a marca, o código, o endereço e o QR. */
-  header:not(#ficha-impressa header),
-  footer:not(#ficha-impressa footer),
+  /* O cabeçalho e o rodapé que somem são os DO SITE (a moldura de navegação
+     e a barra do admin), pela classe — não todo `<header>` e `<footer>`. Até
+     13/10 a regra pegava a tag, e apagava os da própria página: a garagem
+     imprimia sem o título, sem o "Emitido em" e sem a nota de quem emitiu, e
+     a ficha só escapava por um `:not(#ficha-impressa …)`. */
+  .mt-cabecalho-do-site,
+  .mt-rodape-do-site,
   button,
   .no-print,
   .print-hidden,
@@ -269,6 +272,17 @@ html {
     background: #ffffff !important;
   }
 
+  /* A página `ficha` é pedida no body, e não na folha. O Chromium ignora o
+     `page` de um elemento com `container-type: size` — e a folha precisa dele
+     para medir em `cqw` (ver `FichaImpressa`). Com o nome na folha, ela caía
+     na página padrão, de 1,5 cm de margem: os 210 mm vazavam pela direita
+     (preço e código cortados) e o rodapé descia para uma segunda página.
+     Medido em 13/10 imprimindo a ficha de produção em PDF. No papel só a
+     folha aparece, então o body inteiro é ela. */
+  body:has(#ficha-impressa) {
+    page: ficha;
+  }
+
   /* Vai ao papel só a folha: some tudo que não é ela, não está dentro dela
      e não é caminho até ela. */
   body:has(#ficha-impressa)
@@ -294,7 +308,6 @@ html {
 
   #ficha-impressa {
     display: flex !important;
-    page: ficha;
     width: 210mm;
     height: 297mm;
   }
