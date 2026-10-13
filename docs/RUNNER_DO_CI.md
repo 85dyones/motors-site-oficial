@@ -252,8 +252,11 @@ algo: instala o Ubuntu e o runner e cria a tarefa. Os passos 1 a 4 ficam como o 
    ```
    O script faz o seguinte:
    - acha o runner no WSL, pela tarefa "Runner do CI" ou procurando em cada distribuição. Se não
-     houver, oferece instalar o `Ubuntu-24.04` (se faltar) e registrar 2 instâncias da
-     `motors-site-oficial`. Para isso, deixe aberta antes a tela de token desse repositório;
+     houver, oferece registrar 2 instâncias da `motors-site-oficial`. Para isso, deixe aberta antes a
+     tela de token desse repositório;
+   - usa o Ubuntu que já estiver instalado (o `wsl --install` cria o `Ubuntu`) e só instala o
+     `Ubuntu-24.04` se não houver nenhum. Passa a distribuição para o WSL 2, se estiver no 1, e cria
+     o usuário de administração, se ela entrar como root;
    - num Windows sem WSL, liga os recursos do Windows de que ele precisa e pede para reiniciar
      (rode de novo depois). Também confere se a virtualização está ligada na BIOS e atualiza o
      WSL, porque o que vem com o Windows pode não conhecer o `Ubuntu-24.04`;

@@ -73,6 +73,13 @@ function ListaOnline {
   $ErrorActionPreference = $antes
   return @($saida | ForEach-Object { "$_" -replace '[^\x20-\x7E]', "" })
 }
+# Roda um comando no WSL e devolve a saida, so com caracteres imprimiveis.
+function SaidaWsl([string[]]$argumentos) {
+  $antes = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+  $saida = & wsl.exe @argumentos 2>$null
+  $ErrorActionPreference = $antes
+  return ((@($saida) -join " ") -replace '[^\x20-\x7E]', "").Trim()
+}
 function TemRunner($d) {
   (NoWsl @("-d", $d, "-u", "runner", "-e", "test", "-x", "/home/runner/iniciar-runners.sh")) -eq 0
 }
@@ -84,13 +91,15 @@ function RegistraNoWsl($repo, $instancias) {
   if (-not (Test-Path $origem)) {
     Falha "Falta o instalar-runner-wsl.sh nesta pasta. Baixe-o do GitHub (Download raw file) para a mesma pasta deste script e rode de novo."
   }
+  $quem = @("-d", $Distro)
+  if ($usuarioLinux) { $quem += @("-u", $usuarioLinux) }
   $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($origem))
-  if ((NoWsl @("-d", $Distro, "--cd", "~", "-e", "bash", "-c", "echo $b64 | base64 -d > instalar-runner-wsl.sh")) -ne 0) {
+  if ((NoWsl ($quem + @("--cd", "~", "-e", "bash", "-c", "echo $b64 | base64 -d > instalar-runner-wsl.sh"))) -ne 0) {
     Falha "Nao consegui copiar o instalar-runner-wsl.sh para o WSL ($Distro)."
   }
   Write-Host "Deixe aberta a tela do token: $repo > Settings > Actions > Runners > New self-hosted runner (Linux)."
   Write-Host "Quando perguntar quantas instancias, responda $instancias. A senha pedida (sudo) e a do seu usuario do Ubuntu."
-  return (NoWslNaTela @("-d", $Distro, "--cd", "~", "-e", "bash", "instalar-runner-wsl.sh", $repo)) -eq 0
+  return (NoWslNaTela ($quem + @("--cd", "~", "-e", "bash", "instalar-runner-wsl.sh", $repo))) -eq 0
 }
 
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
@@ -98,6 +107,8 @@ $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 if (-not $admin) { Falha "Abra o PowerShell como administrador (botao direito > Executar como administrador)." }
 $usuario = "$env:USERDOMAIN\$env:USERNAME"
 $tarefa = "Runner do CI"
+# Usuario de administracao do Ubuntu criado por este script (so quando faltava).
+$usuarioLinux = $null
 
 Passo "1/6 Runner no WSL"
 Write-Host "Usuario do Windows: $usuario"
@@ -120,11 +131,22 @@ if ($achou) {
   Write-Host "Runner encontrado em $Distro."
 } else {
   Write-Host "Nao achei o runner em nenhuma distribuicao do WSL deste usuario."
-  $resposta = Read-Host "Instalar agora o runner no $Distro (instala o Ubuntu, se faltar)? (s/n)"
-  if ($resposta -notmatch '^[sS]') {
-    Falha "Nada foi alterado. Se o runner esta em outra distribuicao, rode com -Distro <nome>."
+  # Um Ubuntu ja instalado (o "wsl --install" cria o "Ubuntu") serve: nao instala outro.
+  if (-not $PSBoundParameters.ContainsKey("Distro") -and -not ($distros -contains $Distro)) {
+    $ubuntu = $distros | Where-Object { $_ -like "Ubuntu*" } | Select-Object -First 1
+    if ($ubuntu) { $Distro = $ubuntu }
   }
-  if (-not ($distros -contains $Distro)) {
+  $instalada = $distros -contains $Distro
+  if ($instalada) {
+    Write-Host "Vou usar o $Distro, ja instalado. O runner desliga nele o acesso ao disco C: e aos programas do Windows."
+    $resposta = Read-Host "Instalar o runner no ${Distro}? (s/n)"
+  } else {
+    $resposta = Read-Host "Instalar o $Distro e o runner nele? (s/n)"
+  }
+  if ($resposta -notmatch '^[sS]') {
+    Falha "Nada foi alterado. Para usar outra distribuicao, rode com -Distro <nome>."
+  }
+  if (-not $instalada) {
     # Recursos do Windows que o WSL2 usa. Faltando algum, liga e pede para reiniciar.
     $faltam = @("Microsoft-Windows-Subsystem-Linux", "VirtualMachinePlatform") | Where-Object {
       (Get-WindowsOptionalFeature -Online -FeatureName $_).State -ne "Enabled"
@@ -160,6 +182,29 @@ if ($achou) {
     if (-not ((Distribuicoes) -contains $Distro)) {
       Falha "O Ubuntu nao foi instalado. Se o Windows pediu para reiniciar, reinicie e rode de novo; senao, anote a mensagem de erro acima."
     }
+  }
+  # O runner precisa do WSL 2 (memoria do .wslconfig, systemd).
+  if ((SaidaWsl @("-d", $Distro, "-e", "uname", "-r")) -notmatch "WSL2|microsoft-standard") {
+    Write-Host "O $Distro esta no WSL 1. Convertendo para o WSL 2 (leva alguns minutos)..."
+    NoWslNaTela @("--set-version", $Distro, "2") | Out-Null
+    if ((SaidaWsl @("-d", $Distro, "-e", "uname", "-r")) -notmatch "WSL2|microsoft-standard") {
+      Falha "Nao consegui passar o $Distro para o WSL 2. Rode 'wsl --set-version $Distro 2' e veja a mensagem."
+    }
+  }
+  # Ubuntu instalado sem criar o usuario entra como root, e o instalador do runner
+  # nao roda como root: cria o usuario de administracao.
+  if ((SaidaWsl @("-d", $Distro, "-e", "id", "-u")) -eq "0") {
+    Write-Host "O $Distro esta sem usuario de administracao (entra como root)."
+    do {
+      $usuarioLinux = Read-Host "Nome do usuario a criar no Ubuntu (minusculas, sem espaco)"
+    } until ($usuarioLinux -cmatch '^[a-z][a-z0-9_-]{0,31}$' -and $usuarioLinux -notin @("root", "runner"))
+    if ((NoWsl @("-d", $Distro, "-u", "root", "-e", "id", "-u", $usuarioLinux)) -ne 0) {
+      Write-Host "Defina a senha dele (e a senha do sudo). Nas perguntas de nome e telefone, so Enter."
+      if ((NoWslNaTela @("-d", $Distro, "-u", "root", "-e", "adduser", $usuarioLinux)) -ne 0) {
+        Falha "Nao consegui criar o usuario $usuarioLinux no $Distro."
+      }
+    }
+    NoWsl @("-d", $Distro, "-u", "root", "-e", "usermod", "-aG", "sudo", $usuarioLinux) | Out-Null
   }
   if (-not (RegistraNoWsl "motors-site-oficial" 2) -or -not (TemRunner $Distro)) {
     Falha "O registro da motors-site-oficial nao terminou. Rode o script de novo (o token vale 1 hora; gere outro se precisar)."

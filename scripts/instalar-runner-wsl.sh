@@ -41,7 +41,9 @@ echo
 [[ "$TOKEN" =~ ^[A-Za-z0-9]+$ ]] || { echo "Token vazio ou com caractere estranho." >&2; exit 1; }
 
 echo "1/5 Isolando dos arquivos e programas do Windows (vale depois do wsl --shutdown)."
-sudo tee /etc/wsl.conf >/dev/null <<'CONF'
+# [user] deixa quem roda este script como usuário padrão da distribuição, mesmo
+# que ela tenha sido instalada sem criar um (entrando como root).
+sudo tee /etc/wsl.conf >/dev/null <<CONF
 [boot]
 systemd=true
 [automount]
@@ -49,6 +51,8 @@ enabled=false
 [interop]
 enabled=false
 appendWindowsPath=false
+[user]
+default=$(id -un)
 CONF
 
 echo "2/5 Pacotes e cliente do Postgres 17 (usado pelo workflow esquema-base)."
