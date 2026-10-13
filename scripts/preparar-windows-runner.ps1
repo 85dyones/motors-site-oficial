@@ -64,6 +64,15 @@ function Distribuicoes {
   if ($codigo -ne 0) { return @() }
   return @($saida | ForEach-Object { ("$_" -replace '[^\x21-\x7E]', "") } | Where-Object { $_ })
 }
+# Distribuicoes que o WSL sabe instalar (wsl -l -o), uma por linha, com o nome
+# na frente.
+function ListaOnline {
+  $env:WSL_UTF8 = "1"
+  $antes = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+  $saida = & wsl.exe -l -o 2>&1
+  $ErrorActionPreference = $antes
+  return @($saida | ForEach-Object { "$_" -replace '[^\x20-\x7E]', "" })
+}
 function TemRunner($d) {
   (NoWsl @("-d", $d, "-u", "runner", "-e", "test", "-x", "/home/runner/iniciar-runners.sh")) -eq 0
 }
@@ -116,12 +125,40 @@ if ($achou) {
     Falha "Nada foi alterado. Se o runner esta em outra distribuicao, rode com -Distro <nome>."
   }
   if (-not ($distros -contains $Distro)) {
+    # Recursos do Windows que o WSL2 usa. Faltando algum, liga e pede para reiniciar.
+    $faltam = @("Microsoft-Windows-Subsystem-Linux", "VirtualMachinePlatform") | Where-Object {
+      (Get-WindowsOptionalFeature -Online -FeatureName $_).State -ne "Enabled"
+    }
+    if ($faltam) {
+      foreach ($recurso in $faltam) {
+        Enable-WindowsOptionalFeature -Online -FeatureName $recurso -All -NoRestart | Out-Null
+      }
+      Write-Host "Liguei $($faltam -join ' e '). REINICIE o Windows e rode este script de novo." -ForegroundColor Yellow
+      exit 0
+    }
+    # Com os recursos ligados e sem hipervisor rodando, a virtualizacao esta desligada na BIOS.
+    $hipervisor = (Get-CimInstance Win32_ComputerSystem).HypervisorPresent
+    $vtNaBios = (Get-CimInstance Win32_Processor | Select-Object -First 1).VirtualizationFirmwareEnabled
+    if (-not $hipervisor -and $vtNaBios -eq $false) {
+      Falha "A virtualizacao esta desligada na BIOS, e o WSL2 precisa dela. Ligue 'Intel Virtualization Technology' (ou AMD-V/SVM) na BIOS e rode de novo. Nos Lenovo, a BIOS abre com F1 ou F2 ao ligar, ou pelo botao Novo."
+    }
+    # O WSL que vem com o Windows pode ser antigo e nao conhecer as versoes novas do Ubuntu.
+    Write-Host "Atualizando o WSL..."
+    NoWslNaTela @("--update") | Out-Null
+    $online = ListaOnline
+    if (-not ($online -match "^\s*$([regex]::Escape($Distro))\s") -and ($online -match '^\s*Ubuntu\s')) {
+      Write-Host "O WSL nao oferece $Distro com esse nome; instalo o Ubuntu (a LTS mais recente)."
+      $Distro = "Ubuntu"
+    }
     Write-Host "Instalando o $Distro. Ele pede um usuario e uma senha novos (os de administracao do Ubuntu, nao os do Windows)."
     Write-Host "Quando aparecer o prompt do Ubuntu (termina em `$), digite exit e Enter para voltar aqui."
     NoWslNaTela @("--install", "-d", $Distro) | Out-Null
     if (-not ((Distribuicoes) -contains $Distro)) {
-      Write-Host "`nSe o Windows pediu para reiniciar, reinicie e rode este script de novo." -ForegroundColor Yellow
-      exit 0
+      Write-Host "Tentando de novo, baixando direto do GitHub..."
+      NoWslNaTela @("--install", "-d", $Distro, "--web-download") | Out-Null
+    }
+    if (-not ((Distribuicoes) -contains $Distro)) {
+      Falha "O Ubuntu nao foi instalado. Se o Windows pediu para reiniciar, reinicie e rode de novo; senao, anote a mensagem de erro acima."
     }
   }
   if (-not (RegistraNoWsl "motors-site-oficial" 2) -or -not (TemRunner $Distro)) {

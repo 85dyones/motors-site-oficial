@@ -254,6 +254,9 @@ algo: instala o Ubuntu e o runner e cria a tarefa. Os passos 1 a 4 ficam como o 
    - acha o runner no WSL, pela tarefa "Runner do CI" ou procurando em cada distribuição. Se não
      houver, oferece instalar o `Ubuntu-24.04` (se faltar) e registrar 2 instâncias da
      `motors-site-oficial`. Para isso, deixe aberta antes a tela de token desse repositório;
+   - num Windows sem WSL, liga os recursos do Windows de que ele precisa e pede para reiniciar
+     (rode de novo depois). Também confere se a virtualização está ligada na BIOS e atualiza o
+     WSL, porque o que vem com o Windows pode não conhecer o `Ubuntu-24.04`;
    - dá ao WSL a memória do notebook menos 3 GB, os núcleos menos 1 e 4 GB de swap. Com 8 GB, o
      WSL fica com 5 GB, para 2 instâncias da Motors e 1 da plataforma;
    - deixa o Windows sem suspender na tomada, nem com a tampa fechada;
