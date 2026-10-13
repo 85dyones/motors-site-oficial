@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Prepara um notebook com Ubuntu Server 24.04 dedicado ao CI e registra os
-# runners dos dois repositórios. É a etapa "notebook dedicado" de
-# docs/RUNNER_DO_CI.md.
+# Prepara uma máquina com Ubuntu Server 24.04 dedicada ao CI e registra os
+# runners dos dois repositórios: a VM do Hyper-V criada por criar-vm-runner.ps1
+# ou um notebook só com Ubuntu. Ver "Etapa 2" em docs/RUNNER_DO_CI.md.
 #
 # Rode com o usuário criado na instalação (o que tem sudo), não como root:
 #   bash instalar-runner-ubuntu.sh
-# Para cada repositório, pergunta quantas instâncias e o token da tela
+# Sugere quantas instâncias pela memória da máquina. Para cada repositório,
+# pergunta quantas instâncias (Enter aceita a sugestão) e o token da tela
 # "New self-hosted runner" DAQUELE repositório. O token vale 1 hora e serve
 # para todas as instâncias do repositório. Não fica em arquivo nem no histórico.
 # Zero instâncias pula o repositório.
@@ -17,7 +18,9 @@ set -euo pipefail
 ROTULO=motors-ci
 DONO=85dyones
 # Teto de cada instância. Medido em 12/10/2026: `next build` chega a 2,5 GB e o
-# vitest com 2 processos a 1 GB. Com 8 GB de RAM e 4 GB de swap, 3 instâncias.
+# vitest com 2 processos a 1 GB. A sugestão abaixo conta uns 2,5 GB de RAM por
+# instância, com 4 GB de swap para os picos: 5 GB (a VM de um notebook de 8 GB),
+# 2 instâncias; 8 GB, 3; 12 GB ou mais, 5.
 MEMORIA_ALTA=2600M
 MEMORIA_MAXIMA=3G
 
@@ -40,10 +43,15 @@ pergunta_repositorio() {
   printf '%s %s %s\n' "$repo" "$n" "$token"
 }
 
-echo "Com 8 GB de RAM, 3 instâncias no total: 2 para a Motors e 1 para a plataforma."
+MEMORIA_GB=$(awk '/^MemTotal:/ { printf "%d", $2 / 1048576 + 0.5 }' /proc/meminfo)
+if [ "$MEMORIA_GB" -le 6 ]; then MOTORS=1; PLATAFORMA=1
+elif [ "$MEMORIA_GB" -le 10 ]; then MOTORS=2; PLATAFORMA=1
+else MOTORS=3; PLATAFORMA=2; fi
+echo "Esta máquina tem $MEMORIA_GB GB de RAM: sugestão de $MOTORS instância(s) para a Motors e $PLATAFORMA para a plataforma."
+echo "Enter aceita a sugestão; 0 pula o repositório."
 PEDIDOS=$(
-  pergunta_repositorio motors-site-oficial 2
-  pergunta_repositorio motors-plataforma 1
+  pergunta_repositorio motors-site-oficial "$MOTORS"
+  pergunta_repositorio motors-plataforma "$PLATAFORMA"
 )
 
 echo "1/7 Pacotes e cliente do Postgres 17 (usado pelo workflow esquema-base)."
@@ -57,7 +65,7 @@ echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] h
 sudo apt-get update -qq
 sudo apt-get install -y -qq postgresql-client-17 >/dev/null
 
-echo "2/7 Notebook que não dorme: tampa fechada e inatividade não suspendem."
+echo "2/7 Máquina que não dorme: tampa fechada e inatividade não suspendem."
 sudo install -d /etc/systemd/logind.conf.d
 sudo tee /etc/systemd/logind.conf.d/ci.conf >/dev/null <<'CONF'
 [Login]
@@ -71,7 +79,7 @@ CONF
 sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target >/dev/null 2>&1
 sudo systemctl restart systemd-logind
 
-echo "3/7 Swap de 4 GB para os picos de memória."
+echo "3/7 Swap para os picos de memória (4 GB, se a instalação não criou)."
 if ! swapon --show=NAME --noheadings | grep -q .; then
   sudo fallocate -l 4G /swapfile
   sudo chmod 600 /swapfile
@@ -112,7 +120,7 @@ sudo chmod 700 /usr/local/sbin/ci-firewall.sh
 sudo ufw default deny incoming >/dev/null
 sudo ufw default allow outgoing >/dev/null
 sudo ufw allow OpenSSH >/dev/null
-# mDNS, para o outro notebook achar esta máquina como motors-ci.local.
+# mDNS, para achar esta máquina como motors-ci.local na rede.
 sudo ufw allow 5353/udp >/dev/null
 sudo ufw --force enable >/dev/null
 sudo /usr/local/sbin/ci-firewall.sh

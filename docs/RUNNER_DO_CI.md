@@ -3,9 +3,10 @@
 Decisão SaaS-6 do `motors-handoff/HANDOFF.md` (2026-10-12): o repositório fica privado e o CI
 (`.github/workflows/testes.yml`) roda num runner próprio. O plano era começar pelo VPS KVM 4 da
 Hostinger e passar depois para o computador de casa do dono. Em 12/10 o dono antecipou a etapa 2,
-com Windows e WSL2. **Em 13/10 decidiu dedicar esse notebook ao CI, com Ubuntu Server no lugar do
-Windows** (seção "Notebook dedicado"). O WSL2 e o VPS ficam como alternativas. Quando o runner está
-desligado, o CI vai sozinho para os servidores do GitHub.
+com Windows e WSL2. **Em 13/10 decidiu dedicar esse notebook ao CI: ele segue com o Windows e roda
+o CI numa máquina virtual do Hyper-V com Ubuntu Server** (seção "Máquina virtual no Windows"). O
+WSL2, o notebook só com Ubuntu e o VPS ficam como alternativas. Quando o runner está desligado, o CI
+vai sozinho para os servidores do GitHub.
 
 ## Por quê
 
@@ -178,56 +179,101 @@ usa Podman sem root no usuário `runner`.
 
 ## Etapa 2 — computador de casa
 
-Quando quiser migrar: instale a máquina de casa com o mesmo rótulo `motors-ci` (Windows ou Linux,
+Quando quiser migrar: instale a máquina de casa com o mesmo rótulo `motors-ci` (um dos caminhos
 abaixo), confira que ela aparece como *Idle* e remova a instância do VPS (seção "Manutenção"). Com
 as duas ligadas ao mesmo tempo, os jobs vão para a que estiver livre.
 
-Na máquina de casa o CI pode ter mais instâncias, uma a cada 4 GB que você quiser ceder: com 16 GB,
-4 instâncias; com 20 GB ou mais, 5. Nessa etapa o Docker pode ser usado, porque a máquina não
-carrega mais nada de produção.
+Na máquina de casa o CI pode ter mais instâncias. Na VM e no notebook só com Ubuntu, o script sugere
+quantas pela memória (uns 2,5 GB cada, com swap para os picos); no WSL, uma a cada 4 GB cedidos. Nessa
+etapa o Docker pode ser usado, porque a máquina não carrega mais nada de produção.
 
-### Notebook dedicado (Ubuntu Server) — o caminho atual
+### Máquina virtual no Windows (Hyper-V) — o caminho atual
 
-Notebook só para o CI, sem Windows. Os runners viram serviços que sobem no boot, sem ninguém entrar
-na conta, e toda a memória fica para os jobs. Com 8 GB de RAM: 3 instâncias (2 da Motors, 1 da
-plataforma), cada uma com teto de 3 GB, e 4 GB de swap para os picos.
+O notebook fica só para o CI e segue com o Windows. O CI roda numa máquina virtual (VM) com Ubuntu
+Server, que liga junto com o Windows, sem ninguém entrar na conta; dentro dela os runners são
+serviços. Num notebook de 8 GB, a VM fica com 5 GB e 2 instâncias (1 da Motors, 1 da plataforma),
+cada uma com teto de 3 GB e 4 GB de swap para os picos. O Windows fica com o resto.
 
-1. **Antes de apagar o Windows,** salve o que ainda estiver nele. As instâncias `motors-casa-N` do
-   WSL ficam offline; o passo 4 registra outras com os mesmos nomes, por cima.
-2. **Pendrive de instalação** (8 GB ou mais), feito em outro computador: baixe o Ubuntu Server
-   24.04 LTS (amd64) em ubuntu.com/download/server e grave com o Rufus (Windows) ou o balenaEtcher.
-3. **Instalar.** Ligue o notebook pelo pendrive (tecla de boot: F12, F9, F2 ou Esc, conforme a
-   marca) e siga o instalador:
-   - teclado Portuguese (Brazil); rede pelo cabo, se der (Wi-Fi também funciona);
-   - disco: **usar o disco inteiro**, o padrão;
+Precisa do Windows **Pro** (o Home não tem Hyper-V; nele, siga com o WSL2) e da virtualização ligada
+na BIOS (já está, se o WSL2 funcionava).
+
+1. **Baixar os scripts.** No notebook, abra no GitHub `scripts/criar-vm-runner.ps1` e
+   `scripts/instalar-runner-ubuntu.sh` e use "Download raw file" em cada um. Salve os dois na mesma
+   pasta.
+2. **Criar a VM.** No PowerShell **como administrador**, nessa pasta:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\criar-vm-runner.ps1
+   ```
+   Se o Hyper-V estiver desligado, o script o liga e pede para reiniciar; depois rode de novo. O
+   script faz o seguinte:
+   - desliga a tarefa "Runner do CI" do WSL (as instâncias `motors-casa-N` passam para a VM, com os
+     mesmos nomes);
+   - deixa o Windows sem suspender na tomada, nem com a tampa fechada;
+   - baixa o Ubuntu Server 24.04 mais recente (cerca de 3 GB) e confere o SHA-256 oficial;
+   - cria a VM `motors-ci` em `C:\VMs`, com a memória do notebook menos 3 GB, os núcleos menos 1 e
+     um disco de 80 GB que cresce conforme o uso;
+   - liga a VM à rede "Default Switch": ela sai para a internet pelo Windows e não aparece na rede
+     de casa;
+   - faz a VM ligar com o Windows e desligar com ele;
+   - liga a VM e abre a janela dela.
+
+   Se a VM já existir, o script para sem mexer em nada.
+3. **Instalar o Ubuntu**, na janela da VM:
+   - teclado Portuguese (Brazil);
+   - disco: **usar o disco inteiro e desmarcar "Set up this disk as an LVM group"** (com LVM o
+     instalador usa só metade do disco);
    - nome do servidor `motors-ci`; usuário e senha seus (é o usuário de administração);
-   - **marque "Install OpenSSH server"** e, em "Import SSH identity", escolha GitHub e informe o
-     seu usuário (`85dyones`): o acesso remoto passa a ser pela mesma chave SSH do GitHub;
-   - não marque nenhum pacote extra ("Featured server snaps").
-4. **Configurar.** Entre no notebook com o seu usuário e anote o IP que aparece na tela de boas-vindas
-   (`IPv4 address for ...`). Do outro notebook, com o repositório clonado, copie o script e entre por
-   SSH:
-   ```bash
-   scp scripts/instalar-runner-ubuntu.sh seu-usuario@IP:
+   - **marque "Install OpenSSH server"**, sem importar chave: a VM só é alcançável deste notebook, e
+     a entrada é com a sua senha;
+   - não marque nenhum pacote extra ("Featured server snaps");
+   - no fim, "Reboot Now" (e Enter, se pedir para tirar a mídia).
+4. **Configurar.** Entre na VM, na janela dela, e anote o IP da linha `IPv4 address for eth0`. No
+   PowerShell do notebook (não precisa ser administrador), na pasta dos scripts:
+   ```powershell
+   scp .\instalar-runner-ubuntu.sh seu-usuario@IP:
    ssh seu-usuario@IP
    ```
-   Gere um token em **cada** repositório (Settings → Actions → Runners → New self-hosted runner) e
-   rode `bash instalar-runner-ubuntu.sh`. Depois da primeira execução, o endereço
-   `motors-ci.local` também funciona. O script faz o seguinte:
-   - pede quantas instâncias e o token de cada repositório;
+   Gere um token em **cada** repositório (Settings → Actions → Runners → New self-hosted runner →
+   Linux) e rode `bash instalar-runner-ubuntu.sh`. O script faz o seguinte:
+   - sugere as instâncias pela memória da máquina (Enter aceita) e pede o token de cada
+     repositório;
    - instala os pacotes e o cliente do Postgres 17;
-   - deixa o notebook sem suspender, com a tampa fechada ou parado;
-   - cria 4 GB de swap e liga as atualizações de segurança automáticas, com reinício às 4h30;
+   - deixa a máquina sem suspender;
+   - garante 4 GB de swap e liga as atualizações de segurança automáticas, com reinício às 4h30;
    - cria o usuário `runner` sem sudo e bloqueia o acesso dele à rede de casa e à própria máquina;
-   - libera só o SSH na entrada e, com chave cadastrada, desliga a senha no SSH;
+   - libera só o SSH na entrada;
    - registra cada instância como serviço com teto de memória.
 
    Rodar de novo é seguro.
-5. **BIOS, se tiver a opção:** "Power on AC" / "Restore on AC power loss" ligado, para o notebook
-   voltar sozinho depois de uma queda de energia que esgote a bateria. Deixe-o sempre na tomada.
-6. **Conferir.** As instâncias aparecem como *Idle* em Settings → Actions → Runners de cada
-   repositório. No notebook, `systemctl list-units 'actions.runner.*' --no-pager` lista os serviços.
-   `RUNNER_CI=motors-ci` precisa existir nos dois repositórios.
+5. **Conferir.** As instâncias aparecem como *Idle* em Settings → Actions → Runners de cada
+   repositório. A `motors-casa-N` que a VM não reaproveitou (o WSL tinha mais instâncias) fica
+   *Offline*: remova-a ali mesmo. `RUNNER_CI=motors-ci` precisa existir nos dois repositórios.
+
+**No dia a dia:**
+- O IP da VM muda quando o Windows reinicia. Para entrar de novo, use o Gerenciador do Hyper-V
+  (`motors-ci` → Conectar) e veja o IP novo na tela de entrada.
+- Estado e controle, no PowerShell como administrador: `Get-VM motors-ci`, `Stop-VM motors-ci`,
+  `Start-VM motors-ci`. Dentro da VM: `systemctl list-units 'actions.runner.*' --no-pager`.
+- Mais memória para a VM (com ela desligada): `Set-VMMemory motors-ci -StartupBytes 6GB`. Depois
+  rode o `instalar-runner-ubuntu.sh` de novo para aceitar mais instâncias.
+- BIOS, se tiver a opção: "Power on AC" / "Restore on AC power loss" ligado, para o notebook voltar
+  sozinho depois de uma queda de energia que esgote a bateria. Deixe-o sempre na tomada.
+
+### Notebook só com Ubuntu Server (sem Windows)
+
+O mesmo da VM, sem a camada do Windows: toda a memória fica para os jobs (com 8 GB, 3 instâncias).
+
+1. Salve o que estiver no Windows: a instalação apaga o disco.
+2. **Pendrive de instalação** (8 GB ou mais), feito em outro computador: baixe o Ubuntu Server
+   24.04 LTS (amd64) em ubuntu.com/download/server e grave com o Rufus (Windows) ou o balenaEtcher.
+3. **Instalar.** Ligue o notebook pelo pendrive (tecla de boot: F12, F9, F2 ou Esc, conforme a
+   marca) e siga o passo 3 da VM, com duas diferenças: rede pelo cabo, se der (Wi-Fi também
+   funciona); e, em "Import SSH identity", escolha GitHub e informe `85dyones` se o computador de
+   onde você vai entrar tiver essa chave (com chave cadastrada, o script desliga a senha no SSH).
+4. **Configurar**: como o passo 4 da VM, a partir do outro computador (`scp` e `ssh` com o IP da
+   tela de boas-vindas). Depois da primeira execução, `motors-ci.local` também funciona na rede de
+   casa.
+5. **BIOS e conferência**: como na VM.
 
 ### Windows (WSL2)
 
