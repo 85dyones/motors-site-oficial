@@ -2,9 +2,10 @@
 
 Decisão SaaS-6 do `motors-handoff/HANDOFF.md` (2026-10-12): o repositório fica privado e o CI
 (`.github/workflows/testes.yml`) roda num runner próprio. O plano era começar pelo VPS KVM 4 da
-Hostinger e passar depois para o computador de casa do dono. **Em 12/10 o dono antecipou a etapa 2:
-o CI começa no computador de casa, com Windows e WSL2.** O VPS fica como alternativa. Quando o
-runner está desligado, o CI vai sozinho para os servidores do GitHub.
+Hostinger e passar depois para o computador de casa do dono. Em 12/10 o dono antecipou a etapa 2,
+com Windows e WSL2. **Em 13/10 decidiu dedicar esse notebook ao CI, com Ubuntu Server no lugar do
+Windows** (seção "Notebook dedicado"). O WSL2 e o VPS ficam como alternativas. Quando o runner está
+desligado, o CI vai sozinho para os servidores do GitHub.
 
 ## Por quê
 
@@ -184,6 +185,49 @@ as duas ligadas ao mesmo tempo, os jobs vão para a que estiver livre.
 Na máquina de casa o CI pode ter mais instâncias, uma a cada 4 GB que você quiser ceder: com 16 GB,
 4 instâncias; com 20 GB ou mais, 5. Nessa etapa o Docker pode ser usado, porque a máquina não
 carrega mais nada de produção.
+
+### Notebook dedicado (Ubuntu Server) — o caminho atual
+
+Notebook só para o CI, sem Windows. Os runners viram serviços que sobem no boot, sem ninguém entrar
+na conta, e toda a memória fica para os jobs. Com 8 GB de RAM: 3 instâncias (2 da Motors, 1 da
+plataforma), cada uma com teto de 3 GB, e 4 GB de swap para os picos.
+
+1. **Antes de apagar o Windows,** salve o que ainda estiver nele. As instâncias `motors-casa-N` do
+   WSL ficam offline; o passo 4 registra outras com os mesmos nomes, por cima.
+2. **Pendrive de instalação** (8 GB ou mais), feito em outro computador: baixe o Ubuntu Server
+   24.04 LTS (amd64) em ubuntu.com/download/server e grave com o Rufus (Windows) ou o balenaEtcher.
+3. **Instalar.** Ligue o notebook pelo pendrive (tecla de boot: F12, F9, F2 ou Esc, conforme a
+   marca) e siga o instalador:
+   - teclado Portuguese (Brazil); rede pelo cabo, se der (Wi-Fi também funciona);
+   - disco: **usar o disco inteiro**, o padrão;
+   - nome do servidor `motors-ci`; usuário e senha seus (é o usuário de administração);
+   - **marque "Install OpenSSH server"** e, em "Import SSH identity", escolha GitHub e informe o
+     seu usuário (`85dyones`): o acesso remoto passa a ser pela mesma chave SSH do GitHub;
+   - não marque nenhum pacote extra ("Featured server snaps").
+4. **Configurar.** Entre no notebook com o seu usuário e anote o IP que aparece na tela de boas-vindas
+   (`IPv4 address for ...`). Do outro notebook, com o repositório clonado, copie o script e entre por
+   SSH:
+   ```bash
+   scp scripts/instalar-runner-ubuntu.sh seu-usuario@IP:
+   ssh seu-usuario@IP
+   ```
+   Gere um token em **cada** repositório (Settings → Actions → Runners → New self-hosted runner) e
+   rode `bash instalar-runner-ubuntu.sh`. Depois da primeira execução, o endereço
+   `motors-ci.local` também funciona. O script faz o seguinte:
+   - pede quantas instâncias e o token de cada repositório;
+   - instala os pacotes e o cliente do Postgres 17;
+   - deixa o notebook sem suspender, com a tampa fechada ou parado;
+   - cria 4 GB de swap e liga as atualizações de segurança automáticas, com reinício às 4h30;
+   - cria o usuário `runner` sem sudo e bloqueia o acesso dele à rede de casa e à própria máquina;
+   - libera só o SSH na entrada e, com chave cadastrada, desliga a senha no SSH;
+   - registra cada instância como serviço com teto de memória.
+
+   Rodar de novo é seguro.
+5. **BIOS, se tiver a opção:** "Power on AC" / "Restore on AC power loss" ligado, para o notebook
+   voltar sozinho depois de uma queda de energia que esgote a bateria. Deixe-o sempre na tomada.
+6. **Conferir.** As instâncias aparecem como *Idle* em Settings → Actions → Runners de cada
+   repositório. No notebook, `systemctl list-units 'actions.runner.*' --no-pager` lista os serviços.
+   `RUNNER_CI=motors-ci` precisa existir nos dois repositórios.
 
 ### Windows (WSL2)
 
