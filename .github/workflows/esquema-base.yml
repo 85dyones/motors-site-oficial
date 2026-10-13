@@ -1,0 +1,177 @@
+# Gera `supabase/base/esquema_da_producao.sql`: o retrato do schema da
+# produção, para montar um projeto Supabase novo e vazio com uma transação só.
+# Ver "base/" em `supabase/README.md`.
+#
+# A fonte é o motors-plataforma, não a produção: em 12/10/2026 ele foi copiado
+# da produção pelo `copiar-esquema` e conferido igual a ela nas contagens e nas
+# 776 linhas de permissão, e o segredo da produção foi apagado depois disso.
+# Os passos são os mesmos da cópia, na mesma ordem.
+#
+# O arquivo sai como artefato da execução (o repositório é privado) e entra no
+# repositório por commit de gente, revisado no PR.
+#
+# Segredo: SUPABASE_DB_URL_PLATAFORMA (Settings → Secrets and variables → Actions).
+#
+# Gerou a primeira versão em 12/10/2026 (execução 38318499594, no runner
+# motors-casa-2): 15.114 linhas, 125 migrações registradas, a última
+# 20261010140000. Só roda à mão (Actions → esquema-base → Run workflow).
+name: esquema-base
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gerar:
+    # No runner próprio quando há um configurado (o cliente do Postgres 17 já
+    # vem do scripts/instalar-runner-wsl.sh); senão, no GitHub.
+    runs-on: ${{ (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    env:
+      PLAT: ${{ secrets.SUPABASE_DB_URL_PLATAFORMA }}
+      REF_PLAT: sgkmzzgkkfemrunshekz
+      PGCONNECT_TIMEOUT: "20"
+    steps:
+      - name: o segredo aponta para a plataforma
+        shell: bash
+        run: |
+          [ -n "$PLAT" ] || { echo "::error title=esquema-base::Falta o segredo SUPABASE_DB_URL_PLATAFORMA."; exit 1; }
+          [[ "$PLAT" == *"$REF_PLAT"* ]] || { echo "::error title=esquema-base::SUPABASE_DB_URL_PLATAFORMA não é do projeto $REF_PLAT."; exit 1; }
+          echo "Fonte: $REF_PLAT."
+
+      - name: cliente do Postgres 17
+        shell: bash
+        run: |
+          if [ -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+            echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+            echo "Cliente do Postgres 17 já instalado."
+            exit 0
+          fi
+          if ! sudo -n true 2>/dev/null; then
+            echo "::error title=esquema-base::Falta o postgresql-client-17 nesta máquina, e o runner não tem sudo. Rode de novo o scripts/instalar-runner-wsl.sh."
+            exit 1
+          fi
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: gerar o arquivo
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p base partes
+          # Chave fixa no \restrict do pg_dump 17: sem ela, cada geração muda a
+          # primeira e a última linha do arquivo.
+          CHAVE=esquemabase
+
+          # Extensões: as que um projeto novo não tem nascem; as que tem, ficam.
+          psql "$PLAT" -X -q -At -F $'\t' \
+            -c "select extname, extnamespace::regnamespace from pg_extension where extname <> 'plpgsql' order by 1" \
+            | while IFS=$'\t' read -r nome esquema; do
+                case "$esquema" in pg_*) ;; *) echo "create schema if not exists $esquema;" ;; esac
+                echo "create extension if not exists \"$nome\" with schema $esquema;"
+              done > partes/00_extensoes.sql
+
+          # Registro de migrações (o projeto novo não tem).
+          pg_dump "$PLAT" --schema-only --schema=supabase_migrations --no-owner \
+            --restrict-key="$CHAVE" -f partes/05_registro_estrutura.sql
+
+          # Sem o padrão do Supabase durante a criação: cada objeto fica só com as
+          # permissões que o dump escreve, que são as da produção. O próprio dump
+          # recoloca as permissões-padrão da produção no fim.
+          cat > partes/08_sem_padrao_do_supabase.sql <<'SQL'
+          alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated, service_role;
+          alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated, service_role;
+          alter default privileges for role postgres in schema public revoke all on functions from anon, authenticated, service_role;
+          SQL
+
+          # Esquema public. rls_auto_enable() é do Supabase: todo projeto novo já
+          # nasce com ela, então sai do retrato.
+          pg_dump "$PLAT" --schema-only --schema=public --no-owner -Fc -f partes/public.dump
+          pg_restore -l partes/public.dump | grep -v 'rls_auto_enable' > partes/lista.txt
+          echo "Itens fora do retrato: $(pg_restore -l partes/public.dump | grep -c 'rls_auto_enable')"
+          pg_restore -L partes/lista.txt --no-owner --restrict-key="$CHAVE" \
+            -f partes/10_public.sql partes/public.dump
+          sed -i 's/^CREATE SCHEMA public;$/CREATE SCHEMA IF NOT EXISTS public;/' partes/10_public.sql
+          sed -i '/^ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin /d' partes/10_public.sql
+          if grep -q 'rls_auto_enable\|supabase_functions\.' partes/10_public.sql; then
+            echo "::error title=esquema-base::Sobrou rls_auto_enable ou supabase_functions no esquema."
+            exit 1
+          fi
+
+          # Gatilhos em auth.users, buckets e regras do Storage, Realtime.
+          psql "$PLAT" -X -q -At > partes/20_fora_do_public.sql <<'SQL'
+          set search_path = '';
+          select pg_get_triggerdef(oid) || ';'
+            from pg_trigger
+           where tgrelid = 'auth.users'::regclass and not tgisinternal
+           order by tgname;
+          select format(
+                   'insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values (%L, %L, %L, %s, %s) on conflict (id) do nothing;',
+                   id, name, public,
+                   coalesce(file_size_limit::text, 'null'),
+                   coalesce(quote_literal(allowed_mime_types::text) || '::text[]', 'null'))
+            from storage.buckets
+           order by id;
+          select format('create policy %I on storage.objects as %s for %s to %s%s%s;',
+                   policyname, permissive, cmd,
+                   (select string_agg(quote_ident(r), ', ') from unnest(roles) r),
+                   coalesce(' using (' || qual || ')', ''),
+                   coalesce(' with check (' || with_check || ')', ''))
+            from pg_policies
+           where schemaname = 'storage' and tablename = 'objects'
+           order by policyname;
+          select format('alter publication %I add table %I.%I;', pubname, schemaname, tablename)
+            from pg_publication_tables
+           where schemaname = 'public'
+           order by pubname, tablename;
+          SQL
+
+          # Linhas do registro, para o `supabase db push` saber o que já está
+          # aplicado.
+          psql "$PLAT" -X -q -At > partes/30_registro.sql <<'SQL'
+          select format('insert into supabase_migrations.schema_migrations (version, name) values (%L, %L) on conflict do nothing;', version, name)
+            from supabase_migrations.schema_migrations
+           order by version;
+          SQL
+
+          versoes=$(grep -c . partes/30_registro.sql)
+          ultima=$(psql "$PLAT" -X -q -At -c "select max(version) from supabase_migrations.schema_migrations")
+          {
+            echo "-- ============================================================================"
+            echo "-- Retrato do schema da produção (motors-oficial), $versoes migrações registradas,"
+            echo "-- a última $ultima. Gerado pelo workflow esquema-base a partir do"
+            echo "-- motors-plataforma, conferido igual à produção em 12/10/2026."
+            echo "--"
+            echo "-- NÃO EDITE À MÃO e NÃO mova para migrations/: ver \"base/\" em supabase/README.md."
+            echo "-- Uso: num projeto Supabase NOVO e VAZIO, numa transação só:"
+            echo "--   psql \"\$URL\" -X -v ON_ERROR_STOP=1 --single-transaction -f supabase/base/esquema_da_producao.sql"
+            echo "-- Fica de fora: dado de qualquer tabela, segredos do Vault, tarefas do pg_cron"
+            echo "-- e o webhook do banco que manda tracking_events para o n8n."
+            echo "-- ============================================================================"
+            for f in 00_extensoes 05_registro_estrutura 08_sem_padrao_do_supabase 10_public 20_fora_do_public 30_registro; do
+              echo
+              echo "-- ---------------------------------------------------------------------------"
+              echo "-- $f"
+              echo "-- ---------------------------------------------------------------------------"
+              cat "partes/$f.sql"
+            done
+          } > base/esquema_da_producao.sql
+
+          for f in partes/*.sql; do echo "$(basename "$f"): $(wc -l < "$f") linhas"; done
+          echo "esquema_da_producao.sql: $(wc -l < base/esquema_da_producao.sql) linhas, sha256 $(sha256sum base/esquema_da_producao.sql | cut -c1-16)"
+
+      - name: guardar como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: esquema-base
+          path: base/esquema_da_producao.sql
+          retention-days: 7
+          if-no-files-found: error

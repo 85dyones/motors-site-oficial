@@ -9,3 +9,6 @@ estornos atômicos em função Postgres; regra vem de tabela (regras_comissao, r
 parametros_avaliacao, ciclo_parametros) — se você escreveu um número de negócio em código, está errado.
 Cálculos que precisam se explicar (deságio, teto de compra, margem) retornam o breakdown por
 componente, nunca só o total. Cada entrega inclui teste de integração do fluxo feliz + 1 de bloqueio.
+Multi-loja: a loja vem do usuário (`org_atual()`) ou do domínio, nunca do corpo da requisição;
+consulta com a chave de serviço filtra a loja explicitamente; configuração e credenciais vêm da
+loja (tabela e Vault), não de constante nem de variável de ambiente.

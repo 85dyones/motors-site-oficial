@@ -9,4 +9,5 @@ decisão sai dela. Formulário de entrada muda por modalidade (campos da spec 10
 mostram margem projetada recalculada ao vivo com breakdown; números em tabular-nums; estados de
 carregamento e erro sempre; mobile-first no que o pátio usa. Fotos: o PWA de pátio registra fotos internas (avarias/vistoria);
 as fotos de vitrine entram por upload de sessão profissional no admin desktop — fluxos separados. Não invente endpoint: consuma as
-funções públicas do módulo (backend-core). Screenshot ou descrição de verificação em cada entrega.
+funções públicas do módulo (backend-core). Texto, telefone, cidade e marca da loja vêm da
+configuração da loja, nunca escritos no componente. Screenshot ou descrição de verificação em cada entrega.

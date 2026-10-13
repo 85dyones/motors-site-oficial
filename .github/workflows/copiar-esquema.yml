@@ -1,0 +1,390 @@
+# Copia a ESTRUTURA do banco de produção (motors-oficial, us-east-1) para o
+# projeto da plataforma (motors-plataforma, sa-east-1). Decisão SaaS-5 do
+# `motors-handoff/HANDOFF.md`: o projeto novo nasce como staging da S0.
+#
+# Por que aqui: as sessões do Claude na nuvem só saem por um proxy HTTP e não
+# falam o protocolo do Postgres; o runner do GitHub fala. E as migrações do
+# repositório não montam a produção num banco vazio (várias tabelas nasceram
+# no bootstrap de 03/08 ou fora do repositório; ver `supabase/README.md`), por
+# isso a fonte é o `pg_dump` da produção, não a pasta `supabase/migrations/`.
+#
+# O que copia: o esquema `public` inteiro (tabelas, views, funções, gatilhos,
+# regras de RLS, permissões e comentários), as extensões, os gatilhos em
+# `auth.users`, os buckets e as regras do Storage, e o registro de migrações.
+# Opcional, no disparo manual: as tabelas de configuração, que não têm dado de
+# cliente. NÃO copia: dado de cliente, segredos do Vault, tarefas agendadas
+# (uma delas chama o site de produção) e webhooks do banco (chamam o n8n de
+# produção) — esses só aparecem listados no log.
+#
+# Repositório público: o log mostra só contagens. Os segredos chegam mascarados.
+#
+# Segredos (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL_PRODUCAO   conexão "Session pooler" do motors-oficial
+#   SUPABASE_DB_URL_PLATAFORMA conexão "Session pooler" do motors-plataforma
+# Depois da cópia, apague o da produção.
+#
+# Permissões: projeto novo do Supabase dá tudo a anon, authenticated e
+# service_role em cada objeto criado em public, e o pg_dump escreve as
+# permissões da produção partindo do padrão do Postgres. Sem cuidado, a
+# plataforma fica mais aberta que a produção (aconteceu na execução
+# 38313376641, em 12/10/2026). Por isso a cópia tira esse padrão antes de criar
+# os objetos, iguala as permissões dos papéis da API às da produção no fim e
+# confere objeto por objeto.
+#
+# Plataforma já copiada: a cópia não roda de novo. Com "igualar_permissoes",
+# só o passo das permissões roda.
+#
+# Histórico no motors-plataforma, 12/10/2026:
+# - execução 38313376641: cópia;
+# - execução 38315004604: permissões. Ficou tudo igual à produção, nas
+#   contagens e nas 776 linhas de permissão.
+name: copiar-esquema
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuracao:
+        description: "Copiar também as tabelas de configuração (sem dado de cliente)"
+        type: boolean
+        default: true
+      igualar_permissoes:
+        description: "Plataforma já copiada: só igualar as permissões dos papéis da API às da produção"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copiar-esquema
+  cancel-in-progress: false
+
+jobs:
+  copiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PROD: ${{ secrets.SUPABASE_DB_URL_PRODUCAO }}
+      PLAT: ${{ secrets.SUPABASE_DB_URL_PLATAFORMA }}
+      REF_PROD: zwbqmzgnagfeqinqkolp
+      REF_PLAT: sgkmzzgkkfemrunshekz
+      COPIAR_CONFIGURACAO: ${{ inputs.configuracao }}
+      IGUALAR_PERMISSOES: ${{ inputs.igualar_permissoes }}
+      PGCONNECT_TIMEOUT: "20"
+    steps:
+      - name: cada segredo aponta para o seu projeto
+        shell: bash
+        run: |
+          falha() { echo "::error title=copiar-esquema::$1"; exit 1; }
+          # Lista todos os que faltam de uma vez: segredo criado em Variables, em
+          # Environment secrets ou com outro nome não chega aqui.
+          faltam=""
+          [ -n "$PROD" ] || faltam="$faltam SUPABASE_DB_URL_PRODUCAO"
+          [ -n "$PLAT" ] || faltam="$faltam SUPABASE_DB_URL_PLATAFORMA"
+          [ -z "$faltam" ] || falha "Faltam em Settings → Secrets and variables → Actions → Secrets → Repository secrets:$faltam"
+          [ "$PROD" != "$PLAT" ] || falha "Os dois segredos são iguais."
+          [[ "$PROD" == *"$REF_PROD"* ]] || falha "SUPABASE_DB_URL_PRODUCAO não é do projeto $REF_PROD."
+          [[ "$PLAT" == *"$REF_PLAT"* ]] || falha "SUPABASE_DB_URL_PLATAFORMA não é do projeto $REF_PLAT."
+          [[ "$PLAT" != *"$REF_PROD"* ]] || falha "SUPABASE_DB_URL_PLATAFORMA cita a produção."
+          echo "Segredos conferidos: produção $REF_PROD, plataforma $REF_PLAT."
+
+      - name: cliente do Postgres 17
+        shell: bash
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: a plataforma está vazia?
+        id: plataforma
+        shell: bash
+        run: |
+          n=$(psql "$PLAT" -X -At -c "select count(*) from pg_tables where schemaname = 'public'")
+          echo "Tabelas em public na plataforma: $n"
+          if [ "$n" = "0" ]; then
+            echo "vazia=true" >> "$GITHUB_OUTPUT"
+          elif [ "$IGUALAR_PERMISSOES" = "true" ]; then
+            echo "vazia=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=copiar-esquema::A plataforma já tem $n tabela(s) em public. A cópia não roda, para nunca sobrescrever trabalho feito lá; só as permissões são igualadas às da produção."
+          else
+            echo "::error title=copiar-esquema::A plataforma já tem $n tabela(s) em public. A cópia só roda num projeto vazio, para nunca sobrescrever trabalho feito lá."
+            exit 1
+          fi
+
+      - name: extensões, esquema public e o que mora fora dele (da produção)
+        if: steps.plataforma.outputs.vazia == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p copia
+
+          # Extensões que a plataforma ainda não tem, no mesmo esquema da produção.
+          psql "$PLAT" -X -At -c "select extname from pg_extension" | sort > copia/ext_plat.txt
+          psql "$PROD" -X -At -F $'\t' -c "select extname, extnamespace::regnamespace from pg_extension order by 1" > copia/ext_prod.tsv
+          : > copia/00_extensoes.sql
+          while IFS=$'\t' read -r nome esquema; do
+            grep -qx "$nome" copia/ext_plat.txt && continue
+            # Esquema com prefixo pg_ é do sistema e já existe (o pg_cron mora no
+            # pg_catalog); criar dá erro.
+            case "$esquema" in
+              pg_*) ;;
+              *) echo "create schema if not exists $esquema;" >> copia/00_extensoes.sql ;;
+            esac
+            echo "create extension if not exists \"$nome\" with schema $esquema;" >> copia/00_extensoes.sql
+          done < copia/ext_prod.tsv
+
+          # O esquema public inteiro, sem dono (vira postgres na plataforma), com
+          # permissões e comentários.
+          pg_dump "$PROD" --schema-only --schema=public --no-owner -f copia/10_public.sql
+          # Com --schema=public o pg_dump pede para criar o public, que todo banco
+          # já tem.
+          sed -i 's/^CREATE SCHEMA public;$/CREATE SCHEMA IF NOT EXISTS public;/' copia/10_public.sql
+          # Permissão-padrão de supabase_admin só o próprio supabase_admin altera; a
+          # plataforma já nasce com as dela.
+          sed -i '/^ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin /d' copia/10_public.sql
+          # Webhook do banco (gatilho que chama supabase_functions.http_request):
+          # não existe na plataforma e, se existisse, mandaria evento do staging
+          # para o n8n de produção. Fica de fora; o log mostra só o nome.
+          grep -E '^CREATE TRIGGER .* EXECUTE FUNCTION supabase_functions\.' copia/10_public.sql \
+            | awk '{print "Webhook do banco não copiado: " $3}' || true
+          sed -i -E '/^CREATE TRIGGER .* EXECUTE FUNCTION supabase_functions\./d' copia/10_public.sql
+          if grep -q 'supabase_functions\.' copia/10_public.sql; then
+            echo "::warning title=copiar-esquema::Ainda há referência a supabase_functions no esquema copiado."
+          fi
+
+          # Sem o padrão do Supabase durante a criação, cada objeto fica só com
+          # as permissões que o dump escreve, que são as da produção. O dump
+          # recoloca as permissões-padrão da produção no fim.
+          cat > copia/08_sem_padrao_do_supabase.sql <<'SQL'
+          alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated, service_role;
+          alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated, service_role;
+          alter default privileges for role postgres in schema public revoke all on functions from anon, authenticated, service_role;
+          SQL
+
+          # A tabela de registro de migrações, com a estrutura da produção, se a
+          # plataforma ainda não a tiver.
+          if [ "$(psql "$PLAT" -X -At -c "select to_regclass('supabase_migrations.schema_migrations') is null")" = "t" ]; then
+            pg_dump "$PROD" --schema-only --schema=supabase_migrations --no-owner -f copia/05_registro_estrutura.sql
+          else
+            : > copia/05_registro_estrutura.sql
+          fi
+
+          # Gatilhos em auth.users, buckets e regras do Storage, Realtime.
+          # search_path vazio: o SQL gerado sai com nomes completos (public.f(),
+          # auth.uid()), porque o arquivo do pg_dump zera o search_path antes.
+          psql "$PROD" -X -q -At > copia/20_fora_do_public.sql <<'SQL'
+          set search_path = '';
+          select pg_get_triggerdef(oid) || ';'
+            from pg_trigger
+           where tgrelid = 'auth.users'::regclass and not tgisinternal;
+          select format(
+                   'insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values (%L, %L, %L, %s, %s) on conflict (id) do nothing;',
+                   id, name, public,
+                   coalesce(file_size_limit::text, 'null'),
+                   coalesce(quote_literal(allowed_mime_types::text) || '::text[]', 'null'))
+            from storage.buckets;
+          select format('create policy %I on storage.objects as %s for %s to %s%s%s;',
+                   policyname, permissive, cmd,
+                   (select string_agg(quote_ident(r), ', ') from unnest(roles) r),
+                   coalesce(' using (' || qual || ')', ''),
+                   coalesce(' with check (' || with_check || ')', ''))
+            from pg_policies
+           where schemaname = 'storage' and tablename = 'objects';
+          select format('alter publication %I add table %I.%I;', pubname, schemaname, tablename)
+            from pg_publication_tables
+           where schemaname = 'public';
+          SQL
+
+          # O registro de migrações, para o `supabase db push` saber o que já
+          # está aplicado.
+          psql "$PROD" -X -q -At > copia/30_registro.sql <<'SQL'
+          select format('insert into supabase_migrations.schema_migrations (version, name) values (%L, %L) on conflict do nothing;', version, name)
+            from supabase_migrations.schema_migrations;
+          SQL
+
+          for f in copia/*.sql; do echo "$(basename "$f"): $(wc -l < "$f") linhas"; done
+
+      - name: tarefas agendadas da produção (não copiadas)
+        if: steps.plataforma.outputs.vazia == 'true'
+        shell: bash
+        run: |
+          psql "$PROD" -X -At -F ' | ' -c "select jobname, schedule, active from cron.job order by jobname" || true
+
+      - name: aplicar na plataforma, numa transação só
+        if: steps.plataforma.outputs.vazia == 'true'
+        shell: bash
+        run: |
+          psql "$PLAT" -X -q -v ON_ERROR_STOP=1 --single-transaction \
+            -f copia/00_extensoes.sql \
+            -f copia/05_registro_estrutura.sql \
+            -f copia/08_sem_padrao_do_supabase.sql \
+            -f copia/10_public.sql \
+            -f copia/20_fora_do_public.sql \
+            -f copia/30_registro.sql
+          echo "Esquema aplicado."
+
+      # Para anon, authenticated e service_role: as permissões-padrão de public
+      # ficam iguais às da produção, cada tabela, view, sequência e função de
+      # public perde o que esses papéis não têm na produção, e as permissões por
+      # coluna da produção são refeitas. Nada é concedido além do que a
+      # produção concede. As permissões de PUBLIC vêm do dump e não mudam aqui.
+      - name: permissões iguais às da produção
+        if: steps.plataforma.outputs.vazia == 'true' || env.IGUALAR_PERMISSOES == 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p copia
+          psql "$PROD" -X -q -At -v ON_ERROR_STOP=1 > copia/50_permissoes.sql <<'SQL'
+          set search_path = '';
+          select format('alter default privileges for role postgres in schema public revoke all on %s from anon, authenticated, service_role;', t)
+            from unnest(array['tables', 'sequences', 'functions']) t;
+          select format('alter default privileges for role postgres in schema public grant %s on %s to %s;',
+                   string_agg(a.privilege_type, ', ' order by a.privilege_type),
+                   case d.defaclobjtype when 'r' then 'tables' when 'S' then 'sequences' else 'functions' end,
+                   a.grantee::regrole)
+            from pg_default_acl d, aclexplode(d.defaclacl) a
+           where d.defaclrole = 'postgres'::regrole
+             and d.defaclnamespace = 'public'::regnamespace
+             and d.defaclobjtype in ('r', 'S', 'f')
+             and a.grantee in ('anon'::regrole, 'authenticated'::regrole, 'service_role'::regrole)
+           group by d.defaclobjtype, a.grantee;
+          with papeis(papel) as (values ('anon'), ('authenticated'), ('service_role')),
+          rel as (
+            select c.oid, c.oid::regclass::text as nome, c.relkind = 'S' as seq
+              from pg_class c
+             where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+          )
+          select format('revoke %s on %s %s from %s;',
+                   string_agg(pr.priv, ', ' order by pr.priv),
+                   case when r.seq then 'sequence' else 'table' end, r.nome, p.papel)
+            from rel r
+           cross join papeis p
+           cross join lateral unnest(case when r.seq then array['USAGE', 'SELECT', 'UPDATE']
+                                          else array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'] end) pr(priv)
+           where not case when r.seq then has_sequence_privilege(p.papel, r.oid, pr.priv)
+                          else has_table_privilege(p.papel, r.oid, pr.priv) end
+           group by r.nome, r.seq, p.papel;
+          select format('revoke execute on function %s from %s;', f.oid::regprocedure, p.papel)
+            from pg_proc f
+           cross join (values ('anon'), ('authenticated'), ('service_role')) p(papel)
+           where f.pronamespace = 'public'::regnamespace
+             and not has_function_privilege(p.papel, f.oid, 'EXECUTE');
+          -- Revogar na tabela revoga também por coluna; a produção libera
+          -- algumas colunas sem liberar a tabela (estoque_motors, repasses),
+          -- então essas permissões voltam aqui, iguais às da produção.
+          select format('grant %s (%s) on table %s to %s;',
+                   x.privilege_type,
+                   string_agg(quote_ident(a.attname), ', ' order by a.attnum),
+                   c.oid::regclass, x.grantee::regrole)
+            from pg_attribute a
+            join pg_class c on c.oid = a.attrelid
+           cross join lateral aclexplode(a.attacl) x
+           where c.relnamespace = 'public'::regnamespace
+             and a.attacl is not null
+             and x.grantee in ('anon'::regrole, 'authenticated'::regrole, 'service_role'::regrole)
+           group by c.oid, x.privilege_type, x.grantee;
+          SQL
+          echo "Comandos gerados: $(grep -c . copia/50_permissoes.sql)"
+          psql "$PLAT" -X -q -v ON_ERROR_STOP=1 --single-transaction -f copia/50_permissoes.sql
+          echo "Permissões de anon, authenticated e service_role igualadas às da produção."
+
+      - name: tabelas de configuração (sem dado de cliente)
+        if: steps.plataforma.outputs.vazia == 'true' && env.COPIAR_CONFIGURACAO == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          tabelas="orgs funil_etapas funil_motivos parametros_avaliacao parametros_financiamento ciclo_parametros regras_contabilizacao regras_comissao plano_contas guias cabecalho_dos_guias textos_de_hub"
+          args=()
+          for t in $tabelas; do args+=(--table="public.$t"); done
+          pg_dump "$PROD" --data-only --no-owner "${args[@]}" -f copia/40_configuracao.sql
+          psql "$PLAT" -X -q -v ON_ERROR_STOP=1 --single-transaction \
+            -c "set session_replication_role = replica;" \
+            -f copia/40_configuracao.sql
+          for t in $tabelas; do
+            echo "$t: $(psql "$PLAT" -X -At -c "select count(*) from public.$t")"
+          done
+
+      - name: conferir produção e plataforma
+        shell: bash
+        run: |
+          consulta="
+            select 'tabelas', count(*) from pg_tables where schemaname = 'public'
+            union all select 'views', count(*) from pg_views where schemaname = 'public'
+            union all select 'views materializadas', count(*) from pg_matviews where schemaname = 'public'
+            union all select 'funções (sem a do Supabase)', count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname <> 'rls_auto_enable'
+            union all select 'regras de RLS', count(*) from pg_policies where schemaname = 'public'
+            union all select 'gatilhos (sem webhooks)', count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_proc p on p.oid = t.tgfoid where c.relnamespace = 'public'::regnamespace and not t.tgisinternal and p.pronamespace::regnamespace::text <> 'supabase_functions'
+            union all select 'índices', count(*) from pg_indexes where schemaname = 'public'
+            union all select 'regras do Storage', count(*) from pg_policies where schemaname = 'storage'
+            union all select 'gatilhos em auth.users', count(*) from pg_trigger where tgrelid = 'auth.users'::regclass and not tgisinternal
+            union all select 'migrações registradas', count(*) from supabase_migrations.schema_migrations"
+          psql "$PROD" -X -At -F $'\t' -c "$consulta" > prod.tsv
+          psql "$PLAT" -X -At -F $'\t' -c "$consulta" > plat.tsv
+          printf '%-26s %10s %10s\n' "objeto" "produção" "plataforma"
+          paste prod.tsv plat.tsv | while IFS=$'\t' read -r nome a _ b; do
+            marca=""; [ "$a" = "$b" ] || marca="  <- diferente"
+            printf '%-26s %10s %10s%s\n' "$nome" "$a" "$b" "$marca"
+          done
+          if ! diff -q prod.tsv plat.tsv > /dev/null; then
+            echo "::warning title=copiar-esquema::Alguma contagem difere entre produção e plataforma. Veja a tabela acima."
+          fi
+
+          # Permissões, objeto por objeto: o que cada papel da API (e o do Auth,
+          # que roda o gancho do token) pode fazer em cada tabela, view,
+          # sequência e função de public, mais as permissões por coluna e as
+          # permissões-padrão de public. Uma linha por objeto e papel.
+          cat > permissoes.sql <<'SQL'
+          set search_path = '';
+          with papeis(papel) as (values ('anon'), ('authenticated'), ('service_role'), ('supabase_auth_admin')),
+          rel as (
+            select c.oid, c.oid::regclass::text as nome, c.relkind = 'S' as seq
+              from pg_class c
+             where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+          )
+          select r.nome || ' ' || p.papel || ' ' ||
+                 coalesce(string_agg(pr.priv, ',' order by pr.priv)
+                            filter (where case when r.seq then has_sequence_privilege(p.papel, r.oid, pr.priv)
+                                               else has_table_privilege(p.papel, r.oid, pr.priv) end), '-')
+            from rel r
+           cross join papeis p
+           cross join lateral unnest(case when r.seq then array['USAGE', 'SELECT', 'UPDATE']
+                                          else array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'] end) pr(priv)
+           group by r.nome, p.papel
+          union all
+          select f.oid::regprocedure::text || ' ' || p.papel || ' ' ||
+                 case when has_function_privilege(p.papel, f.oid, 'EXECUTE') then 'EXECUTE' else '-' end
+            from pg_proc f
+           cross join papeis p
+           where f.pronamespace = 'public'::regnamespace and f.proname <> 'rls_auto_enable'
+          union all
+          select a.attrelid::regclass::text || '.' || quote_ident(a.attname) || ' ' ||
+                 (select string_agg(x.grantee::regrole::text || '=' || x.privilege_type, ',' order by x.grantee::regrole::text, x.privilege_type)
+                    from aclexplode(a.attacl) x)
+            from pg_attribute a
+            join pg_class c on c.oid = a.attrelid
+           where c.relnamespace = 'public'::regnamespace and a.attacl is not null
+          union all
+          select 'padrão de public ' || d.defaclobjtype::text || ' ' ||
+                 (select string_agg(x.grantee::regrole::text || '=' || x.privilege_type, ',' order by x.grantee::regrole::text, x.privilege_type)
+                    from aclexplode(d.defaclacl) x)
+            from pg_default_acl d
+           where d.defaclrole = 'postgres'::regrole and d.defaclnamespace = 'public'::regnamespace
+          order by 1;
+          SQL
+          psql "$PROD" -X -q -At -v ON_ERROR_STOP=1 -f permissoes.sql > perm_prod.txt
+          psql "$PLAT" -X -q -At -v ON_ERROR_STOP=1 -f permissoes.sql > perm_plat.txt
+          echo "Permissões conferidas: $(wc -l < perm_prod.txt) linhas na produção, $(wc -l < perm_plat.txt) na plataforma."
+          if diff perm_prod.txt perm_plat.txt > perm_diff.txt; then
+            echo "Permissões: iguais às da produção."
+          else
+            echo "Permissões: $(grep -c '^[<>]' perm_diff.txt) linha(s) diferentes (< produção, > plataforma):"
+            grep '^[<>]' perm_diff.txt | head -n 80
+            echo "::error title=copiar-esquema::As permissões da plataforma diferem das da produção. Veja a lista acima."
+            exit 1
+          fi
