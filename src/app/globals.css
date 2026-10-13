@@ -221,10 +221,13 @@ html {
   }
 
   /* Interface que não é conteúdo some em qualquer página. */
-  /* O :not() poupa o cabeçalho e o rodapé da própria folha — sem ele
-     a ficha perde a marca, o código, o endereço e o QR. */
-  header:not(#ficha-impressa header),
-  footer:not(#ficha-impressa footer),
+  /* O cabeçalho e o rodapé que somem são os DO SITE (a moldura de navegação
+     e a barra do admin), pela classe — não todo `<header>` e `<footer>`. Até
+     13/10 a regra pegava a tag, e apagava os da própria página: a garagem
+     imprimia sem o título, sem o "Emitido em" e sem a nota de quem emitiu, e
+     a ficha só escapava por um `:not(#ficha-impressa …)`. */
+  .mt-cabecalho-do-site,
+  .mt-rodape-do-site,
   button,
   .no-print,
   .print-hidden,

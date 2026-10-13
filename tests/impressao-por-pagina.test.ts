@@ -116,6 +116,36 @@ describe("a impressão de uma tela não apaga a das outras", () => {
   });
 });
 
+describe("o papel perde a interface do site, não o conteúdo da página", () => {
+  // Até 13/10 a regra era `header:not(#ficha-impressa header), footer:not(...)`:
+  // pela TAG, ela apagava o `<header>` e o `<footer>` da própria página. A
+  // garagem imprimia sem título, sem o "Emitido em" e sem a nota de quem
+  // emitiu — o docblock de `garagem/meus-dados/page.tsx` diz que a data é o
+  // que deixa o documento legível fora de contexto.
+
+  it("nenhuma regra de impressão esconde `header` ou `footer` pela tag", () => {
+    const pelaTag = REGRAS.filter(
+      (r) => esconde(r.corpo) && r.seletor.split(",").some((s) => /^(header|footer)(?![-\w])/.test(s.trim())),
+    );
+    expect(pelaTag.map((r) => `${r.arquivo}: ${r.seletor}`)).toEqual([]);
+  });
+
+  it("o cabeçalho e o rodapé do site somem pela classe que eles carregam", () => {
+    const interface_ = REGRAS.find((r) => r.seletor.includes(".no-print") && esconde(r.corpo));
+    expect(interface_, "a regra que tira a interface do papel sumiu").toBeDefined();
+    const seletores = interface_!.seletor.split(",").map((s) => s.trim());
+    expect(seletores).toContain(".mt-cabecalho-do-site");
+    expect(seletores).toContain(".mt-rodape-do-site");
+
+    expect(lerCodigo("src/components/Header.tsx")).toMatch(/<header className="[^"]*\bmt-cabecalho-do-site\b/);
+    expect(lerCodigo("src/components/Footer.tsx")).toMatch(/<footer className="[^"]*\bmt-rodape-do-site\b/);
+    // A barra de topo do admin também é interface; antes saía pela tag.
+    expect(lerCodigo("src/components/admin/AdminLayoutClientWrapper.tsx")).toMatch(
+      /<header className="[^"]*\bno-print\b[^"]*\bh-16\b/,
+    );
+  });
+});
+
 describe("a folha do veículo cai na página dela", () => {
   it("a página `ficha` tem margem zero — a margem está desenhada na folha", () => {
     const css = lerCodigo("src/app/globals.css");

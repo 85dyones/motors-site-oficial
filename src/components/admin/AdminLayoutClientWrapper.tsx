@@ -164,8 +164,9 @@ export default function AdminLayoutClientWrapper({
 
         {/* ─── Conteúdo ─── */}
         <div className="flex min-h-screen w-full min-w-0 flex-grow flex-col">
-          {/* Barra de topo: 64px e régua de 2px, fixas pelo doc */}
-          <header className="flex h-16 shrink-0 items-center gap-4 border-b-2 border-mt-regua bg-mt-bg px-4 md:px-7">
+          {/* Barra de topo: 64px e régua de 2px, fixas pelo doc. `no-print`
+              porque a impressão tira a interface pela classe, não pela tag. */}
+          <header className="no-print flex h-16 shrink-0 items-center gap-4 border-b-2 border-mt-regua bg-mt-bg px-4 md:px-7">
             <button
               onClick={() => setSidebarOpen(true)}
               aria-label="Abrir menu"
