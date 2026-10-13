@@ -34,14 +34,25 @@ if [ "$(id -u)" = "0" ]; then
   exit 1
 fi
 
-read -rp "Quantas instâncias (uma a cada 4 GB cedidos ao WSL; com 16 GB, 4): " INSTANCIAS
+read -rp "Quantas instâncias de $REPO (notebook dedicado de 8 GB: 2 da Motors e 1 da plataforma; 16 GB cedidos ao WSL: 4 no total): " INSTANCIAS
 [[ "$INSTANCIAS" =~ ^[1-9][0-9]?$ ]] || { echo "Número inválido." >&2; exit 1; }
-read -rsp "Token da tela New self-hosted runner (não aparece enquanto digita): " TOKEN
-echo
-[[ "$TOKEN" =~ ^[A-Za-z0-9]+$ ]] || { echo "Token vazio ou com caractere estranho." >&2; exit 1; }
+TOKEN=""
+for TENTATIVA in 1 2 3; do
+  read -rsp "Token da tela New self-hosted runner (cole com o botão direito do mouse; não aparece na tela): " TOKEN
+  echo
+  # Colar pode trazer espaço, quebra de linha ou um ^V do Ctrl+V: fica só o resto.
+  TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:][:cntrl:]')
+  [[ "$TOKEN" =~ ^[A-Za-z0-9]+$ ]] && break
+  echo "Token vazio ou com caractere estranho (${#TOKEN} caracteres). Tente de novo." >&2
+  TOKEN=""
+done
+[ -n "$TOKEN" ] || { echo "Sem token válido." >&2; exit 1; }
+echo "Token recebido (${#TOKEN} caracteres)."
 
 echo "1/5 Isolando dos arquivos e programas do Windows (vale depois do wsl --shutdown)."
-sudo tee /etc/wsl.conf >/dev/null <<'CONF'
+# [user] deixa quem roda este script como usuário padrão da distribuição, mesmo
+# que ela tenha sido instalada sem criar um (entrando como root).
+sudo tee /etc/wsl.conf >/dev/null <<CONF
 [boot]
 systemd=true
 [automount]
@@ -49,6 +60,8 @@ enabled=false
 [interop]
 enabled=false
 appendWindowsPath=false
+[user]
+default=$(id -un)
 CONF
 
 echo "2/5 Pacotes e cliente do Postgres 17 (usado pelo workflow esquema-base)."
@@ -63,7 +76,9 @@ sudo apt-get update -qq
 sudo apt-get install -y -qq postgresql-client-17 >/dev/null
 
 echo "3/5 Usuário runner, sem sudo e sem senha."
-id runner >/dev/null 2>&1 || sudo adduser --disabled-password --gecos "" runner >/dev/null
+# useradd, e não adduser: imagem mínima do Ubuntu no WSL pode vir sem o adduser.
+# Sem senha: a conta fica travada para login, e só o sudo entra nela.
+id runner >/dev/null 2>&1 || sudo useradd -m -s /bin/bash runner
 
 echo "4/5 Runner mais recente e as bibliotecas de que ele precisa."
 URL=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest \
