@@ -3,16 +3,31 @@
 # no computador do dono.
 #
 # Rode no Ubuntu com o seu usuário (o que tem sudo), não como root:
-#   bash instalar-runner-wsl.sh
-# Pede o número de instâncias e o token da tela "New self-hosted runner".
-# O token vale 1 hora e serve para todas as instâncias. Não fica em arquivo nem
-# no histórico.
+#   bash instalar-runner-wsl.sh                    # motors-site-oficial
+#   bash instalar-runner-wsl.sh motors-plataforma  # outro repositório da conta
+# Pede o número de instâncias e o token da tela "New self-hosted runner" DAQUELE
+# repositório. O token vale 1 hora e serve para todas as instâncias. Não fica em
+# arquivo nem no histórico.
+#
+# Runner de conta pessoal é registrado por repositório: cada repositório tem as
+# suas instâncias, todas na mesma máquina e no mesmo usuário runner, e o
+# iniciar-runners.sh sobe todas juntas.
 #
 # Rodar de novo é seguro: troca as instâncias com o mesmo nome (--replace).
 set -euo pipefail
 
-REPO_URL=https://github.com/85dyones/motors-site-oficial
+REPO=${1:-motors-site-oficial}
+[[ "$REPO" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Nome de repositório inválido: $REPO" >&2; exit 1; }
+REPO_URL=https://github.com/85dyones/$REPO
 ROTULO=motors-ci
+# motors-site-oficial mantém os nomes da primeira instalação (12/10/2026).
+if [ "$REPO" = "motors-site-oficial" ]; then
+  PASTA=actions-runner
+  NOME=motors-casa
+else
+  PASTA=actions-runner-$REPO
+  NOME=$REPO-casa
+fi
 
 if [ "$(id -u)" = "0" ]; then
   echo "Rode com o seu usuário do Ubuntu, não como root." >&2
@@ -62,14 +77,14 @@ mkdir "$TMP/deps"
 tar xzf "$TMP/runner.tar.gz" -C "$TMP/deps"
 sudo "$TMP/deps/bin/installdependencies.sh" >/dev/null
 
-echo "5/5 Registrando $INSTANCIAS instância(s) com o rótulo $ROTULO."
+echo "5/5 Registrando $INSTANCIAS instância(s) de $REPO com o rótulo $ROTULO."
 for N in $(seq 1 "$INSTANCIAS"); do
-  DIR=/home/runner/actions-runner-$N
+  DIR=/home/runner/$PASTA-$N
   sudo -u runner -H mkdir -p "$DIR"
   sudo -u runner -H tar xzf "$TMP/runner.tar.gz" -C "$DIR"
   sudo -u runner -H bash -c "cd '$DIR' && ./config.sh --url '$REPO_URL' --token '$TOKEN' \
-    --name motors-casa-$N --labels '$ROTULO' --work _work --unattended --replace" >/dev/null
-  echo "    motors-casa-$N registrada."
+    --name $NOME-$N --labels '$ROTULO' --work _work --unattended --replace" >/dev/null
+  echo "    $NOME-$N registrada."
 done
 
 sudo tee /home/runner/iniciar-runners.sh >/dev/null <<'SH'
@@ -85,5 +100,6 @@ sudo chmod 755 /home/runner/iniciar-runners.sh
 rm -rf "$TMP"
 
 echo
-echo "Pronto. Agora, no PowerShell como administrador: wsl --shutdown"
-echo "e depois crie a tarefa que sobe os runners (docs/RUNNER_DO_CI.md, Windows, passo 4)."
+echo "Pronto. Se a tarefa \"Runner do CI\" já existe no Windows, reinicie-a para subir as instâncias novas:"
+echo "  PowerShell: Stop-ScheduledTask -TaskName 'Runner do CI'; wsl --shutdown; Start-ScheduledTask -TaskName 'Runner do CI'"
+echo "Se ainda não existe: wsl --shutdown e crie a tarefa (docs/RUNNER_DO_CI.md, Windows, passo 4)."

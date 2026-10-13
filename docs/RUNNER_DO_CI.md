@@ -218,6 +218,12 @@ Tudo no computador de casa. O PowerShell é sempre **como administrador**.
    - deixa pronto `/home/runner/iniciar-runners.sh`.
 
    Rodar de novo é seguro.
+
+   **Outro repositório da conta** (como `motors-plataforma`): runner de conta pessoal é registrado
+   por repositório. Gere o token na tela de runners **daquele** repositório e rode
+   `bash instalar-runner-wsl.sh motors-plataforma`. As instâncias novas (`motors-plataforma-casa-N`)
+   ficam na mesma máquina, sobem com a mesma tarefa e usam o mesmo rótulo `motors-ci`. Lá também é
+   preciso criar a variável `RUNNER_CI`. Reinicie a tarefa "Runner do CI" para elas subirem.
 4. **Subir quando você entra no Windows.** No PowerShell:
    ```powershell
    wsl --shutdown
