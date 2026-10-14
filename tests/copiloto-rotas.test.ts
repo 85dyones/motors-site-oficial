@@ -236,6 +236,8 @@ describe("POST /api/marketing/copiloto/diagnostico (script)", () => {
     expect(p.resumo.leads).toEqual({ total: 9, doSite: 7, comGclid: 2, comUtmGoogle: 3 });
     expect(p.propostas.map((x) => `${x.correspondencia}:${x.texto}`)).toContain("frase:loja rival");
     expect(chamadas.tabelas.filter((t) => t === "leads")).toHaveLength(4);
+    // O clique do iPhone conta: gbraid e wbraid vêm no lugar do gclid.
+    expect(chamadas.consultas.some((c) => c.startsWith("leads ") && /gclid\.not\.is\.null,gbraid\.not\.is\.null,wbraid\.not\.is\.null/.test(c))).toBe(true);
   });
 });
 

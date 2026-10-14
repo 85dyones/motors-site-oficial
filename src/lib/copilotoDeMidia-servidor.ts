@@ -235,7 +235,9 @@ function diaSeguinte(dia: string): string {
 }
 
 /**
- * Quantos leads entraram na janela, quantos do site, quantos com gclid e
+ * Quantos leads entraram na janela, quantos do site, quantos com clique do
+ * Google (gclid, ou gbraid/wbraid — o gclid do iPhone, migração
+ * 20261014160000) e
  * quantos com utm de Google pago. Quatro `count` exatos com `head`: nenhuma
  * linha, nenhum dado de pessoa sai do banco.
  */
@@ -247,7 +249,7 @@ export async function contarLeadsDaJanela(admin: SupabaseClient, janela: Janela,
   const [total, doSite, comGclid, comUtmGoogle] = await Promise.all([
     base(),
     base().or(`canal.is.null,canal.neq.${CANAL_DO_CHATWOOT}`),
-    base().not("gclid", "is", null),
+    base().or("gclid.not.is.null,gbraid.not.is.null,wbraid.not.is.null"),
     base().ilike("utm_source", "google%").or("utm_medium.ilike.cpc,utm_medium.ilike.ppc,utm_medium.ilike.paid*"),
   ]);
   for (const r of [total, doSite, comGclid, comUtmGoogle]) {

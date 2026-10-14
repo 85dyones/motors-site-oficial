@@ -254,6 +254,13 @@ const CADEIA = [
   // gatilho recusa transição para trás e alvo trocado, e que o desfazer é o
   // inverso exato. Pediu ao andaime o recorte de `auditoria_admin`.
   "20261014150000_copiloto_de_midia.sql",
+  // O gclid do iPhone (2026-10-14): `leads` ganha `gbraid` e `wbraid`, e a
+  // view de saúde da atribuição passa a contá-los. Entra na cadeia porque o
+  // aceite confere coluna, comentário, ausência de CHECK que recuse lead e a
+  // ordem das colunas da view — e `create or replace view` com coluna nova só
+  // se prova num banco de verdade. Pediu ao recorte de `leads` as colunas de
+  // mídia que a view lê.
+  "20261014160000_gbraid_e_wbraid_no_lead.sql",
 ];
 
 /**

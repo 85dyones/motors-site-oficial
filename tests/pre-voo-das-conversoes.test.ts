@@ -43,18 +43,28 @@ describe("contextoDeMidiaDoLead · o que vai para as colunas de mídia", () => {
       utm_term: "hb20 usado curitiba",
       utm_content: "rsa-1",
       gclid: "Cj0KCQjw-exemplo",
+      gbraid: "0AAAAA-exemplo",
+      wbraid: "wb-exemplo",
       fbclid: null,
       fbp: "fb.1.1726790000000.123456789",
       fbc: null,
     });
   });
 
-  it("não devolve `gbraid`/`wbraid`: a tabela não tem coluna, e o insert inteiro cairia", () => {
+  it("guarda `gbraid`/`wbraid`, o gclid do iPhone, e só porque a migração criou as colunas", () => {
     // Coluna inexistente no `insert` do PostgREST derruba a LINHA, não o
-    // campo — o lead se perderia por causa de um parâmetro opcional.
+    // campo — o lead se perderia por causa de um parâmetro opcional. Até
+    // 14/10/2026 os dois ficavam de fora por isso; a 20261014160000 criou as
+    // colunas, e esta trava amarra uma coisa à outra.
     const chaves = Object.keys(contextoDeMidiaDoLead(corpoDeAnuncio));
-    expect(chaves).not.toContain("gbraid");
-    expect(chaves).not.toContain("wbraid");
+    expect(chaves).toContain("gbraid");
+    expect(chaves).toContain("wbraid");
+    const migracao = ler("supabase/migrations/20261014160000_gbraid_e_wbraid_no_lead.sql");
+    expect(migracao).toMatch(/add column if not exists gbraid text/);
+    expect(migracao).toMatch(/add column if not exists wbraid text/);
+    // E o clique só de iPhone, sem gclid, chega inteiro à linha.
+    const soIphone = contextoDeMidiaDoLead({ utm: { utm_source: "google", gbraid: "0AAAAA-iphone" } });
+    expect(soIphone).toMatchObject({ gclid: null, gbraid: "0AAAAA-iphone", wbraid: null });
   });
 
   it("apara, e vazio vira null para `count(coluna)` significar preenchido", () => {

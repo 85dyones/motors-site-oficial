@@ -304,6 +304,15 @@ create table public.leads (
   observacoes   text,
   atualizado_em timestamptz not null default now(),
   created_at    timestamptz not null default now(),
+  -- As colunas de mídia que a view `saude_da_atribuicao_dos_leads` conta
+  -- (20260921090901). Entram pela 20261014160000, que recria a view com o
+  -- `gbraid` e o `wbraid` no fim; nulas, como em produção.
+  event_id      text,
+  fbp           text,
+  fbc           text,
+  gclid         text,
+  fbclid        text,
+  utm_source    text,
   constraint leads_situacao_valida check (
     situacao in ('novo', 'em_contato', 'proposta', 'visita',
                  'negociacao', 'fechado', 'perdido')

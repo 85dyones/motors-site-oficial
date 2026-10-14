@@ -295,7 +295,7 @@ describe("diagnosticar", () => {
     expect(um.achados.find((a) => a.titulo.includes("Mais leads com gclid"))?.gravidade).toBe("baixa");
   });
 
-  it("cruzamento cliques × leads: sem gclid com 110 cliques, e utm sem gclid lembra o gbraid do iPhone", () => {
+  it("cruzamento cliques × leads: sem gclid com 110 cliques, e utm sem identificador nenhum (nem o gbraid do iPhone)", () => {
     const sem = diagnosticar(retrato(), LEADS, P).achados.find((a) => a.regra === "cliques_e_leads")!;
     expect(sem.titulo).toBe("110 cliques → 0 leads com gclid");
     expect(sem.gravidade).toBe("media");

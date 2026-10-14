@@ -573,6 +573,11 @@ export interface LeadsDaJanela {
   total: number;
   /** Fora o canal que nasce no Chatwoot, que não tem como carregar gclid. */
   doSite: number;
+  /**
+   * Com identificador de clique do Google: `gclid`, ou `gbraid`/`wbraid`, que
+   * vêm NO LUGAR dele no iPhone, no app e em parte do PMax/YouTube. Contar só
+   * o `gclid` daria o iPhone por perdido.
+   */
   comGclid: number;
   /** utm_source começando por "google" e utm_medium de mídia paga (cpc, ppc, paid…). */
   comUtmGoogle: number;
@@ -855,11 +860,11 @@ function regraDosCliquesELeads(d: DiagnosticoDaConta, leads: LeadsDaJanela, p: P
   let detalhe = `De ${cliques} cliques pagos, ${leads.comGclid} ${leads.comGclid === 1 ? "virou lead" : "viraram lead"} com gclid (${taxa.toFixed(1).replace(".", ",")}%). O site recebeu ${leads.doSite} ${leads.doSite === 1 ? "lead" : "leads"} de formulário no período, ${leads.total} contando o WhatsApp.`;
   if (perdidoNoCaminho) {
     gravidade = "media";
-    detalhe += ` ${leads.comUtmGoogle - leads.comGclid} chegaram com utm de Google pago e SEM gclid. Em iPhone o Google manda gbraid/wbraid no lugar do gclid, e a tabela de leads não guarda esses dois; fora isso, o identificador se perde entre o clique e o formulário (redirecionamento, página que não guarda o parâmetro).`;
+    detalhe += ` ${leads.comUtmGoogle - leads.comGclid} chegaram com utm de Google pago e SEM identificador de clique (nem gclid, nem gbraid/wbraid, o gclid do iPhone). O identificador se perde entre o clique e o formulário: redirecionamento, página que não guarda o parâmetro, ou marcação automática desligada no dia do clique.`;
   } else if (cliques >= p.cliquesMinimosGclid && leads.comGclid === 0) {
     gravidade = "media";
     detalhe +=
-      " Nenhum lead com gclid. Ou o clique pago não está virando lead (veja os termos de pesquisa), ou o clique chega sem gclid: em iPhone o Google manda gbraid/wbraid no lugar, e a tabela de leads não guarda esses dois.";
+      " Nenhum lead com gclid (nem gbraid/wbraid, o gclid do iPhone). Ou o clique pago não está virando lead (veja os termos de pesquisa), ou o identificador se perde entre o clique e o formulário.";
   }
   achados.push({
     regra: "cliques_e_leads",

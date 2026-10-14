@@ -165,7 +165,7 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
           <Numero
             rotulo="Leads com gclid"
             valor={`${numero(resumo.leads.comGclid)} de ${numero(resumo.leads.doSite)}`}
-            detalhe={`leads do site no período (${numero(resumo.leads.total)} com o WhatsApp)`}
+            detalhe={`leads do site no período (${numero(resumo.leads.total)} com o WhatsApp); conta gbraid e wbraid, o gclid do iPhone`}
           />
           <Numero
             rotulo="Medição"
