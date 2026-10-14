@@ -3,8 +3,8 @@ import { SITE_URL } from "./site";
 import type { CompanySettings } from "../types";
 import { PARAMETROS_DE_FABRICA, type ParametrosDoFinanciamento } from "./finance-calculator";
 import { textoDosBancos } from "./textoDaParcela";
+import { CAMINHO_DO_REPASSE } from "./repasseNaNavegacao";
 import {
-  ALCANCE_DA_ENTREGA,
   GARANTIA_KM_TEXTO,
   GARANTIA_MESES,
   perguntasDeFinanciamento,
@@ -25,6 +25,30 @@ function bloco(titulo: string, linhas: (string | false | null | undefined)[]): s
 
 function perguntas(itens: { pergunta: string; resposta: string }[]): string[] {
   return itens.flatMap((item) => [`**${item.pergunta}**`, item.resposta, ""]);
+}
+
+/**
+ * O alcance da entrega fica FORA deste arquivo (decisão do dono, 14/10/2026).
+ *
+ * *"só transferir, deixe o consultor lidar com a objeção de área na hora
+ * certa"*. O site publica o alcance (`ALCANCE_DA_ENTREGA`), mas no WhatsApp a
+ * conversa de quem é de longe é do consultor: o assistente que responde "não
+ * chegamos aí" perde um cliente que o consultor talvez atendesse. Por isso o
+ * documento não traz a frase em lugar nenhum, nem dentro do FAQ da garantia,
+ * e diz ao assistente o que fazer no lugar dela.
+ */
+const DE_OUTRA_CIDADE =
+  "Cliente de outra cidade, ou que pergunta se a loja entrega: não fale de alcance, região, frete nem prazo. Anote a cidade e passe para o consultor, que trata disso na hora certa.";
+
+/** A pergunta da garantia que, no site, responde com o alcance. */
+const GARANTIA_DE_OUTRA_CIDADE = /outra cidade/i;
+const RESPOSTA_DE_OUTRA_CIDADE =
+  "Vale. A cobertura é a mesma em Curitiba, na Região Metropolitana e para quem compra de fora. Como o carro chega até a pessoa, o consultor combina caso a caso.";
+
+function semOAlcance(itens: { pergunta: string; resposta: string }[]) {
+  return itens.map((item) =>
+    GARANTIA_DE_OUTRA_CIDADE.test(item.pergunta) ? { ...item, resposta: RESPOSTA_DE_OUTRA_CIDADE } : item,
+  );
 }
 
 /**
@@ -51,7 +75,7 @@ export function montarLoja(
     "",
     "Este arquivo é o que a loja É: garantia, financiamento, endereço, horário e",
     "as perguntas que mais chegam. A ficha técnica de cada carro está no outro",
-    "documento.",
+    "documento, e o Repasse Motors tem um documento só dele.",
     "",
     "## Como usar",
     "",
@@ -68,12 +92,13 @@ export function montarLoja(
 
   const endereco = bloco("Onde fica e quando abre", [
     `Showroom: ${empresa.address ?? ""}`,
-    `Uma unidade só — e a loja ${ALCANCE_DA_ENTREGA}.`,
+    "Uma unidade só, no Bacacheri.",
     empresa.hours ? `Horário: ${String(empresa.hours).replace(/\n/g, " · ")}` : "",
     `WhatsApp e telefone: ${telefoneVisivel(empresa)}`,
     "",
     "Frete, prazo e forma de entrega são combinados caso a caso com o consultor.",
     "Nunca prometa prazo, valor de frete nem frete grátis.",
+    DE_OUTRA_CIDADE,
   ]);
 
   const garantia = bloco("Garantia", [
@@ -91,7 +116,7 @@ export function montarLoja(
     // que o Captain recupera quando alguém pergunta "como aciono a garantia?",
     // e o "avise antes de mexer" mora numa seção, não na abertura.
     ...SECOES_DE_GARANTIA.flatMap((secao) => [`### ${secao.titulo}`, ...secao.paragrafos, ""]),
-    ...perguntas(PERGUNTAS_DE_GARANTIA),
+    ...perguntas(semOAlcance(PERGUNTAS_DE_GARANTIA)),
   ]);
 
   const financiamento = bloco("Financiamento", [
@@ -116,6 +141,11 @@ export function montarLoja(
     `- Simulador de financiamento: ${SITE_URL}/financiamento — o número de lá é`,
     "  estimativa; quem fecha a condição é o banco.",
     `- Vitrine completa: ${SITE_URL}/estoque`,
+    `- Repasse Motors: ${SITE_URL}${CAMINHO_DO_REPASSE} — carros vendidos no estado, sem a garantia`,
+    "  da loja e só à vista. O que é e como funciona está no documento do repasse.",
+    "- Encomenda: quando o modelo não está no pátio, a página da marca ou do modelo",
+    "  tem \"Encomende seu carro\". O cliente deixa nome, WhatsApp e faixa de preço, e",
+    "  um consultor chama quando entrar. Sem prazo.",
   ]);
 
   const dados = bloco("Dados do cliente (LGPD)", [
