@@ -16,6 +16,13 @@ O produto tem três camadas:
   em rede, recompra futura). Especificado em `docs/MANUAL_MOTORS_CICLO.md`;
   implementação ainda no começo.
 
+Desde 2026-10-12 este código é a base de uma **plataforma SaaS multi-loja**, vendida
+por módulos a outras revendas, com a Motors como loja nº 1. A partir de 2026-10-13 a
+plataforma é construída num repositório próprio, `85dyones/motors-plataforma`, copiado
+deste (decisão SaaS-7). **Aqui segue o site e o painel da Motors**, sem mudança, até a
+migração. As decisões e a ordem das fases estão em `motors-handoff/HANDOFF.md` e
+`motors-handoff/docs/fases/PLANO.md`.
+
 ## Stack
 
 Next.js / React · Supabase (banco + auth, projeto `zwbqmzgnagfeqinqkolp`) ·
@@ -57,6 +64,7 @@ olhe o que mudou na versão antes de aprovar.
 
 | Documento | Assunto |
 |---|---|
+| `motors-handoff/HANDOFF.md` | Documento-mestre: sistema de operação e virada para SaaS multi-loja (decisões SaaS-1 a SaaS-7, 2026-10-12/13). A plataforma é construída em `85dyones/motors-plataforma`; este repositório segue sendo o site e o painel da Motors até a migração |
 | `docs/MANUAL_MOTORS_CICLO.md` | A especificação de produto do Ciclo — **fonte de verdade** |
 | `docs/MOTORS_CICLO_IMPLEMENTACAO.md` | O plano de implementação em pacotes |
 | `docs/FUNIL_DE_VENDAS.md` | O funil de leads — a régua de estagnação e transferência, a pesquisa que a embasa e o que ficou de fora |
@@ -68,6 +76,7 @@ olhe o que mudou na versão antes de aprovar.
 | `docs/MOTOR_DE_GATILHOS.md` | O motor de gatilhos do Ciclo — o n8n chama, o banco decide quem recebe e o site escreve a mensagem |
 | `TRACKING_SPEC.md` | Meta Pixel/CAPI e Google — spec em produção |
 | `docs/GTM_CONFIGURACAO.md` | Variáveis, tags, gatilhos e conversões do GTM, prontos para copiar |
+| `docs/RUNNER_DO_CI.md` | Runner próprio do CI (VPS da Hostinger, depois o computador de casa) e a ida automática para o GitHub quando ele está desligado |
 | `SETUP_MANUAL.md` | Passo a passo de configuração de contas externas |
 
 Migrações do banco são **versionadas** em `supabase/migrations/` — nunca altere

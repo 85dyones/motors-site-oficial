@@ -51,7 +51,9 @@ export default function Footer({ navegacao }: { navegacao?: NavegacaoDoRodape })
   const colunas = colunasDoRodape(companySettings);
 
   return (
-    <footer className="w-full bg-mt-inverso-fundo px-6 pb-8 pt-14 text-mt-inverso-suave lg:px-10">
+    // `mt-rodape-do-site`: é por ela que a impressão tira o rodapé do site
+    // sem tirar o `<footer>` da página impressa (globals.css, `@media print`).
+    <footer className="mt-rodape-do-site w-full bg-mt-inverso-fundo px-6 pb-8 pt-14 text-mt-inverso-suave lg:px-10">
       <div className="mx-auto max-w-[1600px]">
         <div className="flex flex-col gap-10 border-b border-mt-inverso-regua-fina pb-10 md:flex-row md:gap-14">
           <div className="flex-[1.2]">

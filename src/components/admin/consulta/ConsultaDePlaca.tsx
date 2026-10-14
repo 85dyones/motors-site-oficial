@@ -483,7 +483,9 @@ export default function ConsultaDePlaca({
             </div>
           </section>
 
-          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-mt-regua-fina pt-4 text-xs text-mt-neutral-800">
+          {/* Fora do papel, como sempre esteve: até 13/10 a impressão tirava
+              todo `<footer>` pela tag; agora é pela classe. */}
+          <footer className="nao-imprimir flex flex-wrap items-center justify-between gap-3 border-t border-mt-regua-fina pt-4 text-xs text-mt-neutral-800">
             <span>
               {veioGuardada ? "Consulta guardada" : "Consulta nova"}, feita em {dataCurta(consulta.criadoEm)} ({haQuanto(consulta.criadoEm, agora)})
               {consulta.consultadoPor ? ` por ${consulta.consultadoPor}` : ""}

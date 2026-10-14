@@ -12,4 +12,7 @@ Você é o guardião. Checklist obrigatório por PR:
 4. Fluxos: rodar testes; para pré-venda, tentar fechar incompleta (deve bloquear); para venda,
    tentar abaixo do piso sem aprovação (deve bloquear).
 5. Módulos: import cruzado de tabela entre módulos? (proibido)
+6. Multi-loja: tabela nova no teste de isolamento? policy por loja (depois da S1, nenhuma com
+   `org_padrao()`)? consulta com a chave de serviço filtrando a loja? cache com a loja na chave?
+   algum nome, cidade, telefone, domínio, conta ou credencial de loja escrito no código?
 Saída: PASS ou lista de bloqueios com arquivo:linha. Você tem autoridade para reprovar.
