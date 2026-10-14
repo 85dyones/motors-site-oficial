@@ -244,6 +244,16 @@ const CADEIA = [
   // do andaime exige nome. O aceite veste a chave de serviço como o webhook;
   // o andaime ganhou `auth.role()` para isso.
   "20261014120000_resposta_no_chatwoot_tira_do_novo.sql",
+  // O Copiloto de Mídia (2026-10-14): o retrato diário do Google Ads, os
+  // achados e as propostas que Administrador ou Marketing aprova e o script da
+  // conta aplica. Entra na cadeia porque o aceite veste admin, marketing,
+  // comercial, um marketing desativado, cliente, anon e a chave de serviço
+  // para provar quem lê, que ninguém escreve direto (nem a chave de serviço),
+  // que a decisão carimba a autoria e vai à trilha, que o segundo retrato não
+  // repete o aberto nem o recusado, que a reserva entrega uma vez só, que o
+  // gatilho recusa transição para trás e alvo trocado, e que o desfazer é o
+  // inverso exato. Pediu ao andaime o recorte de `auditoria_admin`.
+  "20261014150000_copiloto_de_midia.sql",
 ];
 
 /**
