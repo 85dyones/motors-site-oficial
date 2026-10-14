@@ -655,6 +655,10 @@ describe("montarHistorico", () => {
       autor: "Bia",
       texto: "Respondeu ao cliente pelo Chatwoot.",
     });
+    // A nota privada (2026-10-14) tem o seu canal e a sua frase.
+    expect(frase(evento("contato", { para: "chatwoot_nota", autor: "Rodrigo", detalhe: { canal: "chatwoot_nota" } })).texto).toBe(
+      "Anotou na conversa do Chatwoot.",
+    );
     // A linha da primeira versão da função, sem `via_servico`.
     expect(frase(evento("contato", { para: "telefone", detalhe: { canal: "telefone" } })).texto).toBe(
       "Contato com o cliente registrado pelo telefone.",

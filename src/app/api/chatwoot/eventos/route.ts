@@ -391,9 +391,11 @@ async function aplicar(
 
   // 3. O relógio ---------------------------------------------------------
   if (evento.tipo === "mensagem_do_consultor" && leadId) {
+    // Resposta ao cliente e nota privada param o relógio igual; só a resposta
+    // (canal `chatwoot`) tira o lead de "Novo" (migração 20261014120000).
     const { error } = await supabase.rpc("registrar_contato_do_lead", {
       p_lead: leadId,
-      p_canal: "chatwoot",
+      p_canal: evento.privada ? "chatwoot_nota" : "chatwoot",
       p_autor: evento.autor,
     });
     if (error) {

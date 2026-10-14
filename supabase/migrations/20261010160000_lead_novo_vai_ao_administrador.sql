@@ -21,7 +21,12 @@
 --     `alertado_em`); fora do horário espera a manhã, como os outros;
 --   - o rodízio não dá mais o PRIMEIRO dono a ninguém: a reserva só troca o
 --     dono na `transferencia`. Dado o dono, a régua de sempre (estagnação e
---     transferência, com a trava de `20261010140000`) começa a valer.
+--     transferência, com a trava de `20261010140000`) começa a valer;
+--   - o lead sem dono cuja conversa está no RESGATE do SDR (etiqueta
+--     `resgate` no atendimento mais recente) não gera aviso nenhum: é do SDR
+--     até ele passar ao comercial (2026-10-14, relato do dono: *"o sistema
+--     está entregando leads de resgate para o comercial"* — a mensagem de
+--     resgate criava o lead, e o rodízio o dava a um vendedor).
 --
 -- `atribuicao` some da fila. O site continua entendendo o aviso antigo, para a
 -- ordem de deploy não importar.
@@ -86,14 +91,17 @@ begin
       l.responsavel_desde,
       -- 2026-09-05: a entrega do assistente ao humano é mais um marco do
       -- relógio. Nulo não muda nada — `greatest` ignora nulo.
-      greatest(l.ultimo_movimento_em, l.ultimo_contato_em, atd.humano_assumiu_em) as parado_desde
+      greatest(l.ultimo_movimento_em, l.ultimo_contato_em, atd.humano_assumiu_em) as parado_desde,
+      -- 2026-10-14: a conversa está com o resgate do SDR (etiqueta `resgate`,
+      -- que a Fila de Resgate põe e o Espelho do Chatwoot copia para cá).
+      coalesce('resgate' = any(atd.tags), false)   as com_o_sdr
     from public.leads l
     join public.funil_etapas e on e.chave = l.situacao
     -- O atendimento mais recente deste lead, quando existe. O `limit 1`
     -- também protege a contagem: sem ele, um lead com três conversas viraria
     -- três linhas na fila e três mensagens no WhatsApp do vendedor.
     left join lateral (
-      select a.humano_assumiu_em, a.com_assistente
+      select a.humano_assumiu_em, a.com_assistente, a.tags
         from public.atendimentos a
        where a.lead_id = l.id
        order by coalesce(a.iniciado_em, a.created_at) desc, a.created_at desc, a.id desc
@@ -128,7 +136,13 @@ begin
         -- dança"*. O lead sem dono deixa de ser distribuído pelo rodízio (era
         -- a `atribuicao`, depois do prazo de estagnação da etapa) e vira um
         -- aviso, já na primeira rodada: quem recebe é decidido no site.
-        when m.responsavel is null                                       then 'lead_novo'
+        when m.responsavel is null and not m.com_o_sdr                  then 'lead_novo'
+        -- 2026-10-14: o lead sem dono que nasceu do RESGATE é do SDR até ele
+        -- passar ao comercial (a passagem do SDR dá o dono no painel). Sem
+        -- isto, a mensagem de resgate do SDR criava o lead, o rodízio o dava
+        -- ao comercial e a conversa saía do SDR no Chatwoot — "o sistema está
+        -- entregando leads de resgate para o comercial". Nenhum aviso.
+        when m.responsavel is null                                       then null
         when m.transferencia_minutos is not null
              and not m.protegida
              and m.minutos >= m.transferencia_minutos
@@ -256,7 +270,8 @@ comment on function public.montar_fila_do_funil(timestamptz, boolean) is
   'em hora entre vendedores. Desde a mesma data o lead sem dono não é '
   'distribuído pelo rodízio: vira o aviso `lead_novo`, entregue pelo site ao '
   'administrador que distribui e ao gestor, com lembrete a cada 20 h enquanto '
-  'continuar sem dono.';
+  'continuar sem dono — salvo o que está no resgate do SDR (etiqueta '
+  '`resgate`), que fica fora da fila até o SDR passar ao comercial.';
 
 -- `create or replace` preserva os privilégios, mas repetir a régua é barato e
 -- deixa o arquivo autoexplicativo: a fila carrega nome e telefone de cliente,
@@ -276,7 +291,9 @@ grant execute on function public.montar_fila_do_funil(timestamptz, boolean)
 --   - é `lead_novo` já na primeira rodada, sem ninguém escolhido para ele, e
 --     sai para entrega;
 --   - avisado há 1 h, fica suprimido por `alerta_recente`;
---   - a fila não tem mais `atribuicao` nenhuma.
+--   - a fila não tem mais `atribuicao` nenhuma;
+--   - com a conversa no resgate do SDR (etiqueta `resgate`), o lead sem dono
+--     não entra na fila.
 -- Tudo que o aceite cria ele apaga.
 do $$
 declare
@@ -326,13 +343,23 @@ begin
     raise warning 'FALHOU: a fila ainda tem atribuicao';
   end if;
 
+  -- A conversa vai para o resgate do SDR.
+  update public.leads set alertado_em = null where id = v_lead;
+  insert into public.atendimentos (lead_id, iniciado_em, tags)
+    values (v_lead, v_p - interval '1 minute', array['resgate']);
+  if exists (select 1 from public.montar_fila_do_funil(v_p, false) where lead_id = v_lead) then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: lead sem dono no resgate do SDR entrou na fila';
+  end if;
+
+  delete from public.atendimentos where lead_id = v_lead;
   delete from public.leads_eventos where lead_id = v_lead;
   delete from public.leads where id = v_lead;
 
   if falhas > 0 then
     raise exception 'ACEITE FALHOU: % problema(s) na régua do lead novo', falhas;
   end if;
-  raise notice 'Aceite verificado: lead sem dono vira lead_novo na primeira rodada, sem dono escolhido; avisado, espera 20 h; a fila não tem mais atribuicao (etapa de teste: %).', v_etapa;
+  raise notice 'Aceite verificado: lead sem dono vira lead_novo na primeira rodada, sem dono escolhido; avisado, espera 20 h; a fila não tem mais atribuicao; no resgate do SDR, fica fora (etapa de teste: %).', v_etapa;
 end $$;
 
 insert into supabase_migrations.schema_migrations (version, name)

@@ -237,6 +237,13 @@ const CADEIA = [
   // rodada sem ninguém escolhido, que a marca segura 20 h, e que `atribuicao`
   // sumiu.
   "20261010160000_lead_novo_vai_ao_administrador.sql",
+  // A resposta pelo Chatwoot tira o lead de "Novo" (2026-10-14). Traz a
+  // função inteira, na forma de produção (a de 20260915120000, com `p_autor`
+  // e a guarda que reconhece a chave de serviço); a 20260915120000 em si não
+  // entra porque o aceite dela insere lead sem nome, e o recorte de `leads`
+  // do andaime exige nome. O aceite veste a chave de serviço como o webhook;
+  // o andaime ganhou `auth.role()` para isso.
+  "20261014120000_resposta_no_chatwoot_tira_do_novo.sql",
 ];
 
 /**
