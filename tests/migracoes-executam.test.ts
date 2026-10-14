@@ -244,6 +244,23 @@ const CADEIA = [
   // do andaime exige nome. O aceite veste a chave de serviço como o webhook;
   // o andaime ganhou `auth.role()` para isso.
   "20261014120000_resposta_no_chatwoot_tira_do_novo.sql",
+  // O Copiloto de Mídia (2026-10-14): o retrato diário do Google Ads, os
+  // achados e as propostas que Administrador ou Marketing aprova e o script da
+  // conta aplica. Entra na cadeia porque o aceite veste admin, marketing,
+  // comercial, um marketing desativado, cliente, anon e a chave de serviço
+  // para provar quem lê, que ninguém escreve direto (nem a chave de serviço),
+  // que a decisão carimba a autoria e vai à trilha, que o segundo retrato não
+  // repete o aberto nem o recusado, que a reserva entrega uma vez só, que o
+  // gatilho recusa transição para trás e alvo trocado, e que o desfazer é o
+  // inverso exato. Pediu ao andaime o recorte de `auditoria_admin`.
+  "20261014150000_copiloto_de_midia.sql",
+  // O gclid do iPhone (2026-10-14): `leads` ganha `gbraid` e `wbraid`, e a
+  // view de saúde da atribuição passa a contá-los. Entra na cadeia porque o
+  // aceite confere coluna, comentário, ausência de CHECK que recuse lead e a
+  // ordem das colunas da view — e `create or replace view` com coluna nova só
+  // se prova num banco de verdade. Pediu ao recorte de `leads` as colunas de
+  // mídia que a view lê.
+  "20261014160000_gbraid_e_wbraid_no_lead.sql",
 ];
 
 /**

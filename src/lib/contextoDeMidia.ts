@@ -29,9 +29,11 @@
  *   quem se opôs (`getMatchParamsRespeitandoRecusa`), e os parâmetros de
  *   campanha viajam com o lead por decisão registrada em `getUtmParameters`.
  *   Esta função só grava o que o cliente já decidiu mandar.
- * - `gbraid`/`wbraid` ficam de fora: a tabela não tem coluna para eles, e
- *   gravar coluna inexistente faria o `insert` INTEIRO falhar — perdendo o
- *   lead, não só o parâmetro. Entram junto com a migração que criar as colunas.
+ * - `gbraid`/`wbraid` entram desde 14/10/2026 (migração 20261014160000):
+ *   são o `gclid` do iPhone, do app e de parte do PMax/YouTube, e vêm NO LUGAR
+ *   dele. Até lá ficavam de fora porque a tabela não tinha coluna — e coluna
+ *   inexistente no `insert` derruba a linha INTEIRA, perdendo o lead. Por isso
+ *   a migração vai ao banco ANTES do site que grava as colunas.
  * - IP e User-Agent também ficam de fora, e é decisão: a CAPI os lê do header
  *   na hora, e guardá-los na linha muda o que /privacidade declara.
  */
@@ -45,6 +47,10 @@ export interface ContextoDeMidia {
   utm_term: string | null;
   utm_content: string | null;
   gclid: string | null;
+  /** O `gclid` do iPhone e do app: vem no lugar dele, não junto. */
+  gbraid: string | null;
+  /** O `gclid` de parte do inventário web (PMax, YouTube). */
+  wbraid: string | null;
   fbclid: string | null;
   fbp: string | null;
   fbc: string | null;
@@ -81,6 +87,8 @@ export function contextoDeMidiaDoLead(corpo: unknown): ContextoDeMidia {
     utm_term: texto(utm.utm_term),
     utm_content: texto(utm.utm_content),
     gclid: texto(utm.gclid),
+    gbraid: texto(utm.gbraid),
+    wbraid: texto(utm.wbraid),
     fbclid: texto(utm.fbclid),
     fbp: texto(raiz.fbp),
     fbc: texto(raiz.fbc),

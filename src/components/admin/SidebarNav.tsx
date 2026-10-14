@@ -175,6 +175,12 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       roles: ["admin", "marketing"],
       items: [
         { name: "Mídia paga", href: "/admin/marketing/midia-paga" },
+        // O Copiloto de Mídia (14/10/2026): o diagnóstico diário do Google Ads
+        // e as mudanças na conta que esperam aprovação. Sem `roles` próprio:
+        // a linha "Aprovar mudanças do Copiloto de Mídia" é exatamente
+        // Administrador e Marketing, os dois papéis do grupo, e a página, as
+        // rotas e a RLS cobram a mesma régua.
+        { name: "Copiloto de mídia", href: "/admin/marketing/copiloto" },
         // As campanhas de SMS por veículo (07/10/2026). Sem `roles` próprio:
         // quem cria e envia são os mesmos dois papéis do grupo
         // (`PAPEIS_DAS_CAMPANHAS_DE_SMS`), e a página e as rotas cobram a

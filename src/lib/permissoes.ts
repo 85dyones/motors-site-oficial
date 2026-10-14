@@ -292,6 +292,14 @@ const linha = (
 export const ACAO_VER_AGENDA = "Ver clientes e fornecedores";
 export const ACAO_GERENCIAR_AGENDA = "Gerenciar clientes e fornecedores";
 
+/**
+ * O Copiloto de Mídia (2026-10-14): aprovar o que o script do Google Ads
+ * aplica na conta. Pelo nome pelo mesmo motivo das duas acima: a página, as
+ * rotas e o menu perguntam por ela, e a RLS e as funções do banco repetem os
+ * papéis (`PAPEIS_DO_COPILOTO` em `lib/copilotoDeMidia.ts`).
+ */
+export const ACAO_COPILOTO_DE_MIDIA = "Aprovar mudanças do Copiloto de Mídia";
+
 /** A matriz do A17, na ordem do doc. */
 export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   linha(
@@ -445,6 +453,16 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     "Gerenciar campanhas de mídia paga",
     ["faz", "nao_ve", "faz", "nao_ve", "nao_ve"],
     "Financeiro vê o total investido",
+  ),
+  // Linha ACRESCENTADA em 2026-10-14, com o Copiloto de Mídia
+  // (`/admin/marketing/copiloto`): negativar termo, pausar grupo e mudar verba
+  // MEXEM NA CONTA do Google Ads, e por isso não basta ver a mídia paga — a
+  // aprovação é um ato com autor, gravado em `auditoria_admin`. Os donos são
+  // os da mídia paga: Administrador e Marketing.
+  linha(
+    ACAO_COPILOTO_DE_MIDIA,
+    ["faz", "nao_ve", "faz", "nao_ve", "nao_ve"],
+    "O script aplica só o que foi aprovado e nunca exclui nada além de negativas",
   ),
   linha(
     "Criar e enviar campanhas de SMS",

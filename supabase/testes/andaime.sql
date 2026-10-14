@@ -304,6 +304,15 @@ create table public.leads (
   observacoes   text,
   atualizado_em timestamptz not null default now(),
   created_at    timestamptz not null default now(),
+  -- As colunas de mídia que a view `saude_da_atribuicao_dos_leads` conta
+  -- (20260921090901). Entram pela 20261014160000, que recria a view com o
+  -- `gbraid` e o `wbraid` no fim; nulas, como em produção.
+  event_id      text,
+  fbp           text,
+  fbc           text,
+  gclid         text,
+  fbclid        text,
+  utm_source    text,
   constraint leads_situacao_valida check (
     situacao in ('novo', 'em_contato', 'proposta', 'visita',
                  'negociacao', 'fechado', 'perdido')
@@ -490,3 +499,33 @@ revoke all on public.estoque_motors from anon, authenticated;
 insert into public.estoque_motors (id, marca, modelo, versao, ano, preco, vendido) values
   (7950008, 'fiat', 'uno', 'mille fire economy', 2013, 28900, false),
   (7950009, 'bmw',  'x4 m40i 3.0 m sport', 'm40i 3.0 m sport', 2022, 489900, false);
+
+
+-- ---------------------------------------------------------------------------
+-- Recorte de `auditoria_admin`: a trilha do painel, na forma de produção
+-- ---------------------------------------------------------------------------
+-- Entra pela `20261014150000_copiloto_de_midia.sql`, cujas funções gravam a
+-- decisão e o resultado do script nesta trilha, na mesma transação do ato. A
+-- migração que a cria (20260807120000) não entra na CADEIA: ela traz junto as
+-- quatro `midia_*` da digitação manual, que nada aqui lê.
+--
+-- Copiado fielmente:
+--   * tabela e índice ................... 20260807120000_midia_paga_e_auditoria.sql:109-126
+--   * RLS e as duas policies (staff) ..... 20260813120000_role_cliente_e_is_staff.sql:147-156
+--
+-- ⚠️ Mesma regra dos outros recortes: se a 20260807120000 entrar na cadeia um
+-- dia, este sai daqui.
+create table public.auditoria_admin (
+  id            uuid primary key default gen_random_uuid(),
+  acao          text not null,
+  detalhe       text,
+  autor_id      uuid,
+  autor_nome    text,
+  registrado_em timestamptz not null default now()
+);
+create index auditoria_admin_registro_idx on public.auditoria_admin (registrado_em desc);
+alter table public.auditoria_admin enable row level security;
+create policy auditoria_admin_leitura on public.auditoria_admin
+  for select to authenticated using (public.is_staff(auth.uid()));
+create policy auditoria_admin_insercao on public.auditoria_admin
+  for insert to authenticated with check (public.is_staff(auth.uid()));
