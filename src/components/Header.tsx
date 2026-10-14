@@ -93,6 +93,11 @@ export default function Header() {
 
   const whatsappHref = linkWhatsApp(companySettings);
 
+  // O "voltar ao topo" é do celular, menos no estoque: lá ele vale também no
+  // desktop (pedido do dono em 14/10/2026). A vitrine é a página mais longa do
+  // site — cada "CARREGAR MAIS" empurra a ordenação e a busca para mais longe.
+  const topoNoDesktop = pathname === "/estoque" || pathname.startsWith("/estoque/");
+
   return (
     // `mt-cabecalho-do-site`: quando a foto do card viaja até a ficha ou a
     // vitrine se reorganiza, a barra fica parada e por cima (modernist.css,
@@ -288,7 +293,7 @@ export default function Header() {
           type="button"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           aria-label="Voltar ao topo"
-          className="mt-foco fixed bottom-[90px] right-4 z-[999] flex h-10 w-10 items-center justify-center border-2 border-mt-ink bg-mt-bg text-mt-ink sm:hidden"
+          className={`mt-foco fixed bottom-[90px] right-4 z-[999] flex h-10 w-10 items-center justify-center border-2 border-mt-ink bg-mt-bg text-mt-ink ${topoNoDesktop ? "" : "sm:hidden"}`}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="h-4 w-4">
             <path d="m4.5 15.75 7.5-7.5 7.5 7.5" />

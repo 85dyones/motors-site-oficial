@@ -10,6 +10,7 @@ import {
   lerValorDigitado,
   limitesDaRegua,
   opcionaisDoVeiculo,
+  ordenarVeiculos,
   rotuloDaFaixa,
   sugestoesDeOpcionais,
   temTodosOsOpcionais,
@@ -293,6 +294,12 @@ describe("o filtro mora no endereço", () => {
     ]);
   });
 
+  it("as ordens de 14/10 também sobrevivem ao voltar da ficha", () => {
+    for (const ordem of ["maior-preco", "maior-ano", "menor-ano"] as const) {
+      expect(estadoDaUrl(new URLSearchParams(urlDoEstado({ ...vazio, ordem }))).ordem).toBe(ordem);
+    }
+  });
+
   it("ordenação desconhecida volta para a padrão", () => {
     expect(estadoDaUrl(new URLSearchParams("ordem=maior-desconto")).ordem).toBe("recentes");
   });
@@ -327,5 +334,42 @@ describe("reescrever o endereço não apaga o que não é do painel", () => {
 
   it("sem nada de fora e sem filtro, endereço limpo", () => {
     expect(enderecoComFiltro("", vazio)).toBe("");
+  });
+});
+
+describe("a ordem da vitrine", () => {
+  // Na ordem em que o estoque chega — a de "mais recentes".
+  const estoque = [
+    veiculo({ id: "a", ano: 2019, preco_original: 60000, quilometragem: 80000 }),
+    // Em promoção: o preço que conta é o do card, R$ 55 mil.
+    veiculo({ id: "b", ano: 2023, preco_original: 120000, preco_promocional: 55000, quilometragem: 20000 }),
+    veiculo({ id: "c", ano: 2021, preco_original: 90000, quilometragem: 40000 }),
+    veiculo({ id: "d", ano: 2021, preco_original: 75000, quilometragem: 10000 }),
+  ];
+  const ids = (lista: Veiculo[]) => lista.map((v) => v.id);
+
+  it("mais recentes é a ordem em que o estoque chegou", () => {
+    expect(ids(ordenarVeiculos(estoque, "recentes"))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("menor e maior preço usam o preço vigente, o mesmo do card", () => {
+    expect(ids(ordenarVeiculos(estoque, "menor-preco"))).toEqual(["b", "a", "d", "c"]);
+    expect(ids(ordenarVeiculos(estoque, "maior-preco"))).toEqual(["c", "d", "a", "b"]);
+  });
+
+  it("menor km", () => {
+    expect(ids(ordenarVeiculos(estoque, "menor-km"))).toEqual(["d", "b", "c", "a"]);
+  });
+
+  it("maior e menor ano; no empate, vale a ordem de chegada", () => {
+    expect(ids(ordenarVeiculos(estoque, "maior-ano"))).toEqual(["b", "c", "d", "a"]);
+    expect(ids(ordenarVeiculos(estoque, "menor-ano"))).toEqual(["a", "c", "d", "b"]);
+  });
+
+  it("não mexe na lista recebida", () => {
+    const copia = [...estoque];
+    ordenarVeiculos(estoque, "maior-preco");
+    ordenarVeiculos(estoque, "menor-ano");
+    expect(estoque).toEqual(copia);
   });
 });
