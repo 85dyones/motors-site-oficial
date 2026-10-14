@@ -24,10 +24,17 @@ const estado = {
   erroDaSessao: null as { message: string; code: string } | null,
 };
 
-const chamadas: { admin: Array<{ nome: string; args: Record<string, unknown> }>; sessao: Array<{ nome: string; args: Record<string, unknown> }>; tabelas: string[] } = {
+const chamadas: {
+  admin: Array<{ nome: string; args: Record<string, unknown> }>;
+  sessao: Array<{ nome: string; args: Record<string, unknown> }>;
+  tabelas: string[];
+  /** Cada consulta executada: a tabela e os filtros encadeados. */
+  consultas: string[];
+} = {
   admin: [],
   sessao: [],
   tabelas: [],
+  consultas: [],
 };
 
 function linhaDeRegras(hora = 0) {
@@ -40,6 +47,10 @@ function linhaDeRegras(hora = 0) {
     ritmo_baixo_pct: 50,
     reducao_verba_pct: 30,
     iq_baixo: 3,
+    leads_gclid_minimos: 2,
+    cliques_minimos_gclid: 30,
+    perda_por_verba_pct: 10,
+    perda_por_ranking_pct: 30,
     concorrentes: ["loja rival"],
     cidades_fora: [],
     palavras_informativas: ["como"],
@@ -62,6 +73,7 @@ function consulta(tabela: string) {
   }
   q.then = (ok: (r: Resultado) => unknown) => {
     const tudo = visto.join(" ");
+    chamadas.consultas.push(`${tabela} ${tudo}`);
     let r: Resultado = { data: [], error: null };
     if (tabela === "midia_copiloto_parametros") r = estado.regras;
     else if (tabela === "midia_copiloto_diagnosticos") r = { data: estado.ultimoDiagnostico, error: null };
@@ -80,6 +92,7 @@ vi.mock("../src/lib/supabase-server", () => ({
     rpc: async (nome: string, args: Record<string, unknown>) => {
       chamadas.admin.push({ nome, args });
       if (nome === "midia_confere_segredo") return { data: args.p_valor === estado.segredoValido, error: null };
+      if (nome === "org_padrao") return { data: "org-da-loja", error: null };
       if (nome === "midia_copiloto_reservar_acoes") return { data: estado.reservadas, error: null };
       if (nome === "midia_copiloto_registrar_resultado") return { data: args.p_situacao, error: null };
       if (nome === "midia_copiloto_gravar_diagnostico") {
@@ -138,6 +151,7 @@ beforeEach(() => {
   chamadas.admin = [];
   chamadas.sessao = [];
   chamadas.tabelas = [];
+  chamadas.consultas = [];
   estado.usuario = null;
   estado.papeis = ["marketing"];
   estado.regras = { data: [linhaDeRegras()], error: null };
@@ -176,6 +190,15 @@ describe("POST /api/marketing/copiloto/acoes (script)", () => {
     const r = await postAcoes(req({ previa: true, fuso: "America/Sao_Paulo" }, SEGREDO));
     expect((await r.json()).acoes).toHaveLength(1);
     expect(chamou("midia_copiloto_reservar_acoes")).toBe(false);
+  });
+
+  it("toda leitura com a chave de serviço filtra a loja do script", async () => {
+    await postAcoes(req({ previa: true, fuso: "America/Sao_Paulo" }, SEGREDO));
+    const daLoja = (tabela: string) => chamadas.consultas.filter((c) => c.startsWith(`${tabela} `));
+    for (const tabela of ["midia_copiloto_parametros", "midia_copiloto_diagnosticos", "midia_copiloto_acoes"]) {
+      expect(daLoja(tabela).length, tabela).toBeGreaterThan(0);
+      for (const c of daLoja(tabela)) expect(c, tabela).toContain('eq:["org_id","org-da-loja"]');
+    }
   });
 
   it("diagnóstico de hoje já recebido: não está devido", async () => {
@@ -274,6 +297,10 @@ describe("as rotas do painel", () => {
       ritmoBaixoPct: 50,
       reducaoVerbaPct: 30,
       iqBaixo: 3,
+      leadsGclidMinimos: 2,
+      cliquesMinimosGclid: 30,
+      perdaPorVerbaPct: 10,
+      perdaPorRankingPct: 30,
       horaDoDiagnostico: 7,
       concorrentes: " Loja Rival \n loja rival",
       cidadesFora: "",

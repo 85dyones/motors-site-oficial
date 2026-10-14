@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const d = validacao.valor;
 
   try {
-    const regras = await lerRegras(porta.admin);
+    const regras = await lerRegras(porta.admin, porta.org);
     if (!regras.ok) {
       const { status, motivo } = regras.faltaMigracao ? motivoDoErro({ code: "42P01" }) : { status: 500, motivo: regras.motivo };
       return NextResponse.json({ error: motivo }, { status, headers: SEM_CACHE });

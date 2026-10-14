@@ -21,6 +21,10 @@ type Campos = {
   ritmoBaixoPct: string;
   reducaoVerbaPct: string;
   iqBaixo: string;
+  leadsGclidMinimos: string;
+  cliquesMinimosGclid: string;
+  perdaPorVerbaPct: string;
+  perdaPorRankingPct: string;
   horaDoDiagnostico: string;
   concorrentes: string;
   cidadesFora: string;
@@ -35,6 +39,10 @@ const NUMEROS: Array<{ chave: keyof Campos; rotulo: string; ajuda: string; passo
   { chave: "ritmoBaixoPct", rotulo: "Ritmo baixo (%)", ajuda: "Abaixo disto, a verba está sobrando.", passo: "1" },
   { chave: "reducaoVerbaPct", rotulo: "Corte proposto (%)", ajuda: "Quanto a proposta tira da verba de quem gasta tudo sem converter.", passo: "1" },
   { chave: "iqBaixo", rotulo: "Índice de qualidade baixo", ajuda: "Palavra-chave com nota igual ou abaixo disto vira achado.", passo: "1" },
+  { chave: "leadsGclidMinimos", rotulo: "Leads com gclid (medição)", ajuda: "Leads com gclid, contra zero conversão no Google, que provam a medição quebrada.", passo: "1" },
+  { chave: "cliquesMinimosGclid", rotulo: "Cliques sem lead com gclid", ajuda: "Cliques pagos a partir dos quais nenhum lead com gclid vira achado de atenção.", passo: "1" },
+  { chave: "perdaPorVerbaPct", rotulo: "Perdido por verba (%)", ajuda: "Impressão perdida por verba para dizer que a campanha é limitada pela verba.", passo: "1" },
+  { chave: "perdaPorRankingPct", rotulo: "Perdido por classificação (%)", ajuda: "Impressão perdida por classificação para culpar lance e índice de qualidade.", passo: "1" },
   { chave: "horaDoDiagnostico", rotulo: "Hora do diagnóstico", ajuda: "Hora da conta a partir da qual o script lê o dia anterior.", passo: "1" },
 ];
 
@@ -52,6 +60,10 @@ const paraCampos = (r: RegrasVigentes): Campos => ({
   ritmoBaixoPct: String(r.parametros.ritmoBaixoPct),
   reducaoVerbaPct: String(r.parametros.reducaoVerbaPct),
   iqBaixo: String(r.parametros.iqBaixo),
+  leadsGclidMinimos: String(r.parametros.leadsGclidMinimos),
+  cliquesMinimosGclid: String(r.parametros.cliquesMinimosGclid),
+  perdaPorVerbaPct: String(r.parametros.perdaPorVerbaPct),
+  perdaPorRankingPct: String(r.parametros.perdaPorRankingPct),
   horaDoDiagnostico: String(r.parametros.horaDoDiagnostico),
   concorrentes: r.parametros.concorrentes.join("\n"),
   cidadesFora: r.parametros.cidadesFora.join("\n"),

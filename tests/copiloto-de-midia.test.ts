@@ -45,8 +45,12 @@ const P: ParametrosDoCopiloto = {
   ritmoBaixoPct: 50,
   reducaoVerbaPct: 30,
   iqBaixo: 3,
+  leadsGclidMinimos: 2,
+  cliquesMinimosGclid: 30,
+  perdaPorVerbaPct: 10,
+  perdaPorRankingPct: 30,
   concorrentes: ["loja rival"],
-  cidadesFora: ["são josé"],
+  cidadesFora: ["são tomé"],
   palavrasInformativas: ["como", "emprego", "ficha técnica"],
   horaDoDiagnostico: 7,
 };
@@ -75,8 +79,8 @@ function retrato(mudar: (d: DiagnosticoDaConta) => void = () => {}): Diagnostico
     termos: [
       termo("loja rival seminovos", 40),
       termo("Loja Rival carros usados", 25),
-      termo("carros usados são josé dos pinhais", 30),
-      termo("carros usados sao jose", 12),
+      termo("carros usados são tomé das letras", 30),
+      termo("carros usados sao tome", 12),
       termo("como financiar carro usado", 8),
       termo("emprego vendedor de carros", 5),
       termo("comprar suv usado", 60),
@@ -210,15 +214,15 @@ describe("validarDiagnostico", () => {
 
 describe("classificar termo", () => {
   it("acha a expressão como palavra inteira, ignorando acento, na grafia do termo", () => {
-    expect(acharNoTermo("carros usados são josé dos pinhais", "sao jose")).toBe("são josé");
-    expect(acharNoTermo("carros usados sao jose", "são josé")).toBe("sao jose");
+    expect(acharNoTermo("carros usados são tomé das letras", "sao tome")).toBe("são tomé");
+    expect(acharNoTermo("carros usados sao tome", "são tomé")).toBe("sao tome");
     expect(acharNoTermo("comoda usada", "como")).toBeNull();
     expect(acharNoTermo("Loja-Rival, seminovos!", "loja rival")).toBe("loja rival");
   });
 
   it("concorrente vence cidade, que vence informativo", () => {
-    expect(classificarTermo("como chegar na loja rival em são josé", P)).toEqual({ grupo: "concorrente", expressao: "loja rival" });
-    expect(classificarTermo("emprego em são josé", P)).toEqual({ grupo: "cidade", expressao: "são josé" });
+    expect(classificarTermo("como chegar na loja rival em são tomé", P)).toEqual({ grupo: "concorrente", expressao: "loja rival" });
+    expect(classificarTermo("emprego em são tomé", P)).toEqual({ grupo: "cidade", expressao: "são tomé" });
     expect(classificarTermo("ficha tecnica civic", P).grupo).toBe("informativo");
     expect(classificarTermo("comprar suv usado", P).grupo).toBe("outros");
   });
@@ -229,8 +233,8 @@ describe("diagnosticar", () => {
     const r = diagnosticar(retrato(), LEADS, P);
     const negativas = r.propostas.filter((p) => p.tipo === "negativar").map((p) => `${p.correspondencia}:${p.texto}`);
     expect(negativas).toContain("frase:loja rival");
-    expect(negativas).toContain("frase:são josé");
-    expect(negativas).toContain("frase:sao jose");
+    expect(negativas).toContain("frase:são tomé");
+    expect(negativas).toContain("frase:sao tome");
     expect(negativas).toContain("exata:comprar suv usado");
     // Informativo vira proposta mesmo abaixo do mínimo: intenção errada não depende do valor.
     expect(negativas).toContain("exata:emprego vendedor de carros");
@@ -297,6 +301,24 @@ describe("diagnosticar", () => {
     expect(sem.gravidade).toBe("media");
     const perdido = diagnosticar(retrato(), { ...LEADS, comUtmGoogle: 3 }, P).achados.find((a) => a.regra === "cliques_e_leads")!;
     expect(perdido.detalhe).toMatch(/gbraid/);
+  });
+
+  it("os limiares da medição e da impressão perdida vêm das regras da loja, não do código", () => {
+    const exigente = { ...P, leadsGclidMinimos: 3, cliquesMinimosGclid: 200 };
+    expect(diagnosticar(retrato(), { ...LEADS, comGclid: 2 }, exigente).resumo.medicaoConfiavel).toBe(true);
+    expect(diagnosticar(retrato(), LEADS, exigente).achados.find((a) => a.regra === "cliques_e_leads")?.gravidade).toBe("baixa");
+
+    const convertendo = retrato((d) => (d.campanhas[0].conversoes7 = 3));
+    const limitada = (perdaPorVerbaPct: number) =>
+      diagnosticar(convertendo, LEADS, { ...P, perdaPorVerbaPct }).achados.some((a) => a.titulo.includes("limitada pela verba"));
+    expect(limitada(20)).toBe(true); // perdeu 20%
+    expect(limitada(25)).toBe(false);
+
+    const sobrando = retrato((d) => ((d.campanhas[0].custo7 = 50), (d.campanhas[0].perdaPorRanking = 0.4)));
+    const culpaORanking = (perdaPorRankingPct: number) =>
+      diagnosticar(sobrando, LEADS, { ...P, perdaPorRankingPct }).achados.find((a) => a.titulo.includes("da verba"))!.detalhe.includes("classificação");
+    expect(culpaORanking(30)).toBe(true);
+    expect(culpaORanking(50)).toBe(false);
   });
 
   it("anúncios parados: campanha ativa sem impressão, grupo só com reprovado e grupo sem anúncio", () => {
@@ -453,5 +475,20 @@ describe("as listas fechadas do banco são as do código", () => {
 
   it("a única exclusão que o banco deixa nascer é o desfazer de uma negativa", () => {
     expect(MIGRACAO).toMatch(/diagnostico_id is not null and tipo not in \('remover_negativa', 'reativar_grupo'\)/);
+  });
+
+  it("verba vinda do diagnóstico só diminui", () => {
+    expect(MIGRACAO).toMatch(/midia_copiloto_acoes_proposta_so_corta check \(\s*desfaz_acao_id is not null or verba_nova is null or verba_nova < verba_atual\)/);
+  });
+
+  it("os números das regras são colunas da tabela de parâmetros, uma por limiar do código", () => {
+    for (const coluna of [
+      "gasto_minimo_termo", "gasto_minimo_grupo", "gasto_minimo_campanha", "ritmo_alto_pct", "ritmo_baixo_pct",
+      "reducao_verba_pct", "iq_baixo", "leads_gclid_minimos", "cliques_minimos_gclid", "perda_por_verba_pct",
+      "perda_por_ranking_pct", "hora_do_diagnostico",
+    ]) {
+      expect(MIGRACAO, coluna).toMatch(new RegExp(`\\n  ${coluna}\\s+(numeric|smallint|integer)`));
+    }
+    expect(Object.keys(P)).toHaveLength(15);
   });
 });

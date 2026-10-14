@@ -27,7 +27,8 @@
 -- ---------------------------------------------------------------------------
 -- 1. `public.midia_copiloto_parametros` — as regras da loja, com vigência
 --    (D-T1.7: valor vigente não sofre UPDATE): os mínimos de gasto, o ritmo,
---    o corte de verba, o índice de qualidade baixo, a hora do diagnóstico e as
+--    o corte de verba, o índice de qualidade baixo, os limiares da medição e
+--    da impressão perdida, a hora do diagnóstico e as
 --    três listas que classificam termo — concorrentes, cidades fora da área e
 --    palavras informativas. O código não conhece concorrente nem cidade de
 --    ninguém: a semente traz as duas listas VAZIAS, e a loja as preenche na
@@ -114,6 +115,11 @@
 --   midia_copiloto_parametros_reducao_valida ..... corte de 5% a 90%
 --   midia_copiloto_parametros_iq_valido .......... 1 a 10
 --   midia_copiloto_parametros_hora_valida ........ 0 a 23
+--   midia_copiloto_parametros_medicao_valida ..... leads com gclid que provam a medição
+--                                                  quebrada: 1 a 100; cliques para o
+--                                                  achado de gclid: 1 a 100.000
+--   midia_copiloto_parametros_perdas_validas ..... impressão perdida por verba e por
+--                                                  classificação: 1% a 100%
 --   midia_copiloto_parametros_listas_validas ..... até 200 itens, 2 a 60 caracteres,
 --                                                  minúsculos e aparados, sem nulo
 --   midia_copiloto_parametros_vigencia_em_ordem .. vigencia_ate ≥ vigencia_desde
@@ -138,6 +144,9 @@
 --                                                  mudar verba) OU desfaz outra ação, nunca
 --                                                  as duas; remover negativa e reativar
 --                                                  grupo só nascem desfazendo
+--   midia_copiloto_acoes_proposta_so_corta ....... verba que vem do diagnóstico só diminui:
+--                                                  aumento é decisão de quem paga, e só
+--                                                  volta ao valor de antes pelo desfazer
 --   midia_copiloto_acoes_decisao_carimbada ....... fora de proposta/descartada, tem quem e quando
 --   midia_copiloto_acoes_reserva_carimbada ....... do script em diante, tem a hora da reserva
 --   midia_copiloto_acoes_conclusao_carimbada ..... concluída ⇔ tem a hora da conclusão
@@ -169,7 +178,7 @@
 --   drop function if exists public.midia_copiloto_gravar_diagnostico(jsonb);
 --   drop function if exists public.midia_copiloto_desfazer(uuid);
 --   drop function if exists public.midia_copiloto_decidir(uuid[], text, text);
---   drop function if exists public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, text[], text[], text[], integer);
+--   drop function if exists public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer);
 --   drop table    if exists public.midia_copiloto_acoes;
 --   drop function if exists public.midia_copiloto_acoes_transicao();
 --   drop table    if exists public.midia_copiloto_achados;
@@ -241,6 +250,10 @@ create table if not exists public.midia_copiloto_parametros (
   ritmo_baixo_pct        smallint not null,
   reducao_verba_pct      smallint not null,
   iq_baixo               smallint not null,
+  leads_gclid_minimos    smallint not null,
+  cliques_minimos_gclid  integer not null,
+  perda_por_verba_pct    smallint not null,
+  perda_por_ranking_pct  smallint not null,
   concorrentes           text[] not null default '{}',
   cidades_fora           text[] not null default '{}',
   palavras_informativas  text[] not null default '{}',
@@ -258,6 +271,8 @@ alter table public.midia_copiloto_parametros
   drop constraint if exists midia_copiloto_parametros_reducao_valida,
   drop constraint if exists midia_copiloto_parametros_iq_valido,
   drop constraint if exists midia_copiloto_parametros_hora_valida,
+  drop constraint if exists midia_copiloto_parametros_medicao_valida,
+  drop constraint if exists midia_copiloto_parametros_perdas_validas,
   drop constraint if exists midia_copiloto_parametros_listas_validas,
   drop constraint if exists midia_copiloto_parametros_vigencia_em_ordem;
 alter table public.midia_copiloto_parametros
@@ -273,6 +288,10 @@ alter table public.midia_copiloto_parametros
     iq_baixo between 1 and 10),
   add constraint midia_copiloto_parametros_hora_valida check (
     hora_do_diagnostico between 0 and 23),
+  add constraint midia_copiloto_parametros_medicao_valida check (
+    leads_gclid_minimos between 1 and 100 and cliques_minimos_gclid between 1 and 100000),
+  add constraint midia_copiloto_parametros_perdas_validas check (
+    perda_por_verba_pct between 1 and 100 and perda_por_ranking_pct between 1 and 100),
   add constraint midia_copiloto_parametros_listas_validas check (
         public.midia_copiloto_lista_valida(concorrentes)
     and public.midia_copiloto_lista_valida(cidades_fora)
@@ -294,10 +313,14 @@ create unique index if not exists midia_copiloto_parametros_um_vigente
 insert into public.midia_copiloto_parametros
   (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha,
    ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo,
+   leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct,
    concorrentes, cidades_fora, palavras_informativas, hora_do_diagnostico,
    criado_por_nome)
 select 10, 50, 100,
        90, 50, 30, 3,
+       -- Um lead com gclid sozinho não prova nada: o Google conta a conversão
+       -- no dia do CLIQUE, e o gclid guardado há semanas cai fora da janela.
+       2, 30, 10, 30,
        '{}', '{}',
        array['como', 'o que é', 'significado', 'manual', 'consumo', 'ficha técnica',
              'recall', 'defeito', 'defeitos', 'problema', 'problemas', 'reclame aqui',
@@ -439,6 +462,7 @@ alter table public.midia_copiloto_acoes
   drop constraint if exists midia_copiloto_acoes_negativa_cabe,
   drop constraint if exists midia_copiloto_acoes_verba_na_faixa,
   drop constraint if exists midia_copiloto_acoes_origem_do_tipo,
+  drop constraint if exists midia_copiloto_acoes_proposta_so_corta,
   drop constraint if exists midia_copiloto_acoes_decisao_carimbada,
   drop constraint if exists midia_copiloto_acoes_reserva_carimbada,
   drop constraint if exists midia_copiloto_acoes_conclusao_carimbada,
@@ -486,6 +510,8 @@ alter table public.midia_copiloto_acoes
       else
         diagnostico_id is null and achado_id is null
     end),
+  add constraint midia_copiloto_acoes_proposta_so_corta check (
+    desfaz_acao_id is not null or verba_nova is null or verba_nova < verba_atual),
   add constraint midia_copiloto_acoes_decisao_carimbada check (
     situacao in ('proposta', 'descartada')
     or (decidida_por is not null and decidida_em is not null)),
@@ -582,7 +608,9 @@ begin
        or new.grupo_id_externo    is distinct from v_origem.grupo_id_externo
        or new.texto               is distinct from v_origem.texto
        or new.correspondencia     is distinct from v_origem.correspondencia
-       or (v_origem.tipo = 'mudar_verba' and new.verba_nova is distinct from v_origem.verba_atual) then
+       or (v_origem.tipo = 'mudar_verba'
+           and (new.verba_atual is distinct from v_origem.verba_nova
+                or new.verba_nova is distinct from v_origem.verba_atual)) then
       raise exception 'O desfazer tem de ser o inverso exato da ação %.', v_origem.id using errcode = 'raise_exception';
     end if;
     return new;
@@ -683,6 +711,10 @@ create or replace function public.midia_copiloto_nova_vigencia(
   p_ritmo_baixo_pct        integer,
   p_reducao_verba_pct      integer,
   p_iq_baixo               integer,
+  p_leads_gclid_minimos    integer,
+  p_cliques_minimos_gclid  integer,
+  p_perda_por_verba_pct    integer,
+  p_perda_por_ranking_pct  integer,
   p_concorrentes           text[],
   p_cidades_fora           text[],
   p_palavras_informativas  text[],
@@ -723,10 +755,12 @@ begin
   insert into public.midia_copiloto_parametros
     (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha,
      ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo,
+     leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct,
      concorrentes, cidades_fora, palavras_informativas, hora_do_diagnostico,
      criado_por, criado_por_nome, vigencia_desde)
   select p_gasto_minimo_termo, p_gasto_minimo_grupo, p_gasto_minimo_campanha,
          p_ritmo_alto_pct, p_ritmo_baixo_pct, p_reducao_verba_pct, p_iq_baixo,
+         p_leads_gclid_minimos, p_cliques_minimos_gclid, p_perda_por_verba_pct, p_perda_por_ranking_pct,
          l.concorrentes, l.cidades_fora, l.palavras_informativas, p_hora_do_diagnostico,
          v_quem, v_nome, current_date
     from (select
@@ -749,9 +783,11 @@ begin
 
   insert into public.auditoria_admin (acao, detalhe, autor_id, autor_nome)
   values ('copiloto_regras',
-          format('Regras do Copiloto de Mídia: termo %s, grupo %s, campanha %s; ritmo %s–%s%%; corte %s%%; IQ ≤ %s; %s concorrente(s), %s cidade(s), %s palavra(s) informativa(s); diagnóstico às %sh',
+          format('Regras do Copiloto de Mídia: termo %s, grupo %s, campanha %s; ritmo %s–%s%%; corte %s%%; IQ ≤ %s; medição: %s lead(s) com gclid, %s cliques; perda por verba %s%%, por classificação %s%%; %s concorrente(s), %s cidade(s), %s palavra(s) informativa(s); diagnóstico às %sh',
                  v_nova.gasto_minimo_termo, v_nova.gasto_minimo_grupo, v_nova.gasto_minimo_campanha,
                  v_nova.ritmo_baixo_pct, v_nova.ritmo_alto_pct, v_nova.reducao_verba_pct, v_nova.iq_baixo,
+                 v_nova.leads_gclid_minimos, v_nova.cliques_minimos_gclid,
+                 v_nova.perda_por_verba_pct, v_nova.perda_por_ranking_pct,
                  cardinality(v_nova.concorrentes), cardinality(v_nova.cidades_fora),
                  cardinality(v_nova.palavras_informativas), v_nova.hora_do_diagnostico),
           v_quem, v_nome);
@@ -886,12 +922,12 @@ end;
 $fn$;
 
 revoke all on function public.midia_copiloto_nova_vigencia(
-  numeric, numeric, numeric, integer, integer, integer, integer, text[], text[], text[], integer)
+  numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer)
   from public, anon;
 revoke all on function public.midia_copiloto_decidir(uuid[], text, text) from public, anon;
 revoke all on function public.midia_copiloto_desfazer(uuid) from public, anon;
 grant execute on function public.midia_copiloto_nova_vigencia(
-  numeric, numeric, numeric, integer, integer, integer, integer, text[], text[], text[], integer)
+  numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer)
   to authenticated;
 grant execute on function public.midia_copiloto_decidir(uuid[], text, text) to authenticated;
 grant execute on function public.midia_copiloto_desfazer(uuid) to authenticated;
@@ -956,13 +992,17 @@ begin
     v_achados := v_achados || v_id;
   end loop;
 
-  -- O que ninguém decidiu ainda tem os números de ontem: sai de cena.
-  update public.midia_copiloto_acoes
-     set situacao = 'descartada',
-         descartada_motivo = format('Substituída pelo diagnóstico de %s a %s.',
-                                    to_char(v_de, 'DD/MM'), to_char(v_ate, 'DD/MM'))
-   where org_id = v_org and situacao = 'proposta';
-  get diagnostics v_descartadas = row_count;
+  -- O que ninguém decidiu ainda tem os números de ontem: sai de cena. A
+  -- prévia ("Visualizar" no Google Ads) não tira nada de cena: quem clicou
+  -- estava testando a instalação, e alguém pode estar revisando as propostas.
+  if not coalesce((p->>'previa')::boolean, false) then
+    update public.midia_copiloto_acoes
+       set situacao = 'descartada',
+           descartada_motivo = format('Substituída pelo diagnóstico de %s a %s.',
+                                      to_char(v_de, 'DD/MM'), to_char(v_ate, 'DD/MM'))
+     where org_id = v_org and situacao = 'proposta';
+    get diagnostics v_descartadas = row_count;
+  end if;
 
   for x in select e from jsonb_array_elements(coalesce(p->'propostas', '[]'::jsonb)) as t(e) loop
     v_indice := (x->>'achado')::int;
@@ -1230,7 +1270,7 @@ begin
   --     chave de serviço, nenhuma para anon.
   for v_caso in
     select * from (values
-      ('public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, text[], text[], text[], integer)', true,  false),
+      ('public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer)', true,  false),
       ('public.midia_copiloto_decidir(uuid[], text, text)',                                     true,  false),
       ('public.midia_copiloto_desfazer(uuid)',                                                  true,  false),
       ('public.midia_copiloto_gravar_diagnostico(jsonb)',                                       false, true),
@@ -1250,6 +1290,7 @@ begin
     'midia_copiloto_parametros_gastos_validos', 'midia_copiloto_parametros_ritmo_valido',
     'midia_copiloto_parametros_reducao_valida', 'midia_copiloto_parametros_iq_valido',
     'midia_copiloto_parametros_hora_valida', 'midia_copiloto_parametros_listas_validas',
+    'midia_copiloto_parametros_medicao_valida', 'midia_copiloto_parametros_perdas_validas',
     'midia_copiloto_parametros_vigencia_em_ordem',
     'midia_copiloto_diagnosticos_janela_valida', 'midia_copiloto_diagnosticos_formas_validas',
     'midia_copiloto_achados_regra_valida', 'midia_copiloto_achados_grupo_valido',
@@ -1257,7 +1298,8 @@ begin
     'midia_copiloto_acoes_tipo_valido', 'midia_copiloto_acoes_situacao_valida',
     'midia_copiloto_acoes_ids_validos', 'midia_copiloto_acoes_alvo_do_tipo',
     'midia_copiloto_acoes_negativa_cabe', 'midia_copiloto_acoes_verba_na_faixa',
-    'midia_copiloto_acoes_origem_do_tipo', 'midia_copiloto_acoes_decisao_carimbada',
+    'midia_copiloto_acoes_origem_do_tipo', 'midia_copiloto_acoes_proposta_so_corta',
+    'midia_copiloto_acoes_decisao_carimbada',
     'midia_copiloto_acoes_reserva_carimbada', 'midia_copiloto_acoes_conclusao_carimbada',
     'midia_copiloto_acoes_falha_explicada', 'midia_copiloto_acoes_textos_curtos'
   ] loop
@@ -1358,7 +1400,7 @@ begin
       select * from (values
         ('marketing', 'update public.midia_copiloto_acoes set situacao = ''aprovada'''),
         ('marketing', 'delete from public.midia_copiloto_acoes'),
-        ('admin',     'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, hora_do_diagnostico) values (1, 1, 1, 90, 50, 30, 3, 7)'),
+        ('admin',     'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico) values (1, 1, 1, 90, 50, 30, 3, 2, 30, 10, 30, 7)'),
         ('service',   'update public.midia_copiloto_acoes set situacao = ''aprovada''')
       ) as t(quem, comando)
     loop
@@ -1429,6 +1471,14 @@ begin
       v_r2->>'propostas', v_r2->>'puladas', v_r2->>'descartadas',
       (select situacao from public.midia_copiloto_acoes where id = v_p4),
       (select count(*) from public.midia_copiloto_acoes where chave = 'negativar:111:frase:cidade vizinha' and situacao = 'proposta'));
+
+    -- 5e' · A prévia do mesmo dia não tira de cena o que está em revisão.
+    set local role service_role;
+    v_r2 := public.midia_copiloto_gravar_diagnostico(jsonb_set(v_lote2, '{previa}', 'true'::jsonb));
+    reset role;
+    v_regravou := v_regravou || format(' previa:%s/%s/%s abertas:%s',
+      v_r2->>'propostas', v_r2->>'puladas', v_r2->>'descartadas',
+      (select count(*) from public.midia_copiloto_acoes where situacao = 'proposta'));
 
     -- 5f · Reservar: as duas aprovadas, uma vez só.
     set local role service_role;
@@ -1501,7 +1551,7 @@ begin
       perform set_config('request.jwt.claims',
         json_build_object('sub', (v_ids->>'comercial')::uuid, 'role', 'authenticated')::text, true);
       set local role authenticated;
-      perform public.midia_copiloto_nova_vigencia(10, 50, 100, 90, 50, 30, 3, '{}', '{}', '{}', 7);
+      perform public.midia_copiloto_nova_vigencia(10, 50, 100, 90, 50, 30, 3, 2, 30, 10, 30, '{}', '{}', '{}', 7);
       reset role;
       v_vigencia := 'comercial:abriu ';
     exception when insufficient_privilege then
@@ -1510,7 +1560,7 @@ begin
     perform set_config('request.jwt.claims',
       json_build_object('sub', (v_ids->>'marketing')::uuid, 'role', 'authenticated')::text, true);
     set local role authenticated;
-    v_par := public.midia_copiloto_nova_vigencia(15, 60, 120, 85, 40, 25, 4,
+    v_par := public.midia_copiloto_nova_vigencia(15, 60, 120, 85, 40, 25, 4, 3, 40, 15, 35,
                array['  Loja Rival ', 'loja rival', '', null], array['Cidade Vizinha'], array['como'], 6);
     reset role;
     v_vigencia := v_vigencia || format('concorrentes:%s cidades:%s vigentes:%s',
@@ -1518,7 +1568,7 @@ begin
       (select count(*) from public.midia_copiloto_parametros where org_id = public.org_padrao() and vigencia_ate is null));
     begin
       set local role authenticated;
-      perform public.midia_copiloto_nova_vigencia(15, 60, 120, 40, 85, 25, 4, '{}', '{}', '{}', 6);
+      perform public.midia_copiloto_nova_vigencia(15, 60, 120, 40, 85, 25, 4, 3, 40, 15, 35, '{}', '{}', '{}', 6);
       reset role;
       v_vigencia := v_vigencia || ' ritmo:aceitou';
     exception when check_violation then
@@ -1539,10 +1589,11 @@ begin
         ('midia_copiloto_acoes_alvo_do_tipo',        'mudar_verba', '111', null, null, null, 10, null),
         ('midia_copiloto_acoes_negativa_cabe',       'negativar', '111', null, ' x', 'exata', null, null),
         ('midia_copiloto_acoes_negativa_cabe',       'negativar', '111', null, 'a b c d e f g h i j k', 'exata', null, null),
-        ('midia_copiloto_acoes_verba_na_faixa',      'mudar_verba', '111', null, null, null, 10, 10),
+        ('midia_copiloto_acoes_verba_na_faixa',      'mudar_verba', '111', null, null, null, 200000, 10),
         ('midia_copiloto_acoes_verba_na_faixa',      'mudar_verba', '111', null, null, null, 10, 0),
         ('midia_copiloto_acoes_origem_do_tipo',      'remover_negativa', '111', null, 'x', 'exata', null, null),
-        ('midia_copiloto_acoes_origem_do_tipo',      'reativar_grupo', '111', '222', null, null, null, null)
+        ('midia_copiloto_acoes_origem_do_tipo',      'reativar_grupo', '111', '222', null, null, null, null),
+        ('midia_copiloto_acoes_proposta_so_corta',   'mudar_verba', '111', null, null, null, 10, 20)
       ) as t(regra, tipo, campanha, grupo, texto, corr, verba_atual, verba_nova)
     loop
       v_regras := v_regras + 1;
@@ -1562,10 +1613,12 @@ begin
     end loop;
     for v_caso in
       select * from (values
-        ('midia_copiloto_parametros_listas_validas', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, hora_do_diagnostico, concorrentes, vigencia_ate) values (1, 1, 1, 90, 50, 30, 3, 7, array[''Maiúscula''], current_date)'),
-        ('midia_copiloto_parametros_reducao_valida', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, hora_do_diagnostico, vigencia_ate) values (1, 1, 1, 90, 50, 95, 3, 7, current_date)'),
-        ('midia_copiloto_parametros_gastos_validos', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, hora_do_diagnostico, vigencia_ate) values (0, 1, 1, 90, 50, 30, 3, 7, current_date)'),
-        ('midia_copiloto_parametros_hora_valida',    'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, hora_do_diagnostico, vigencia_ate) values (1, 1, 1, 90, 50, 30, 3, 24, current_date)'),
+        ('midia_copiloto_parametros_listas_validas', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, concorrentes, vigencia_ate) values (1, 1, 1, 90, 50, 30, 3, 2, 30, 10, 30, 7, array[''Maiúscula''], current_date)'),
+        ('midia_copiloto_parametros_reducao_valida', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, vigencia_ate) values (1, 1, 1, 90, 50, 95, 3, 2, 30, 10, 30, 7, current_date)'),
+        ('midia_copiloto_parametros_gastos_validos', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, vigencia_ate) values (0, 1, 1, 90, 50, 30, 3, 2, 30, 10, 30, 7, current_date)'),
+        ('midia_copiloto_parametros_medicao_valida', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, vigencia_ate) values (1, 1, 1, 90, 50, 30, 3, 0, 30, 10, 30, 7, current_date)'),
+        ('midia_copiloto_parametros_perdas_validas', 'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, vigencia_ate) values (1, 1, 1, 90, 50, 30, 3, 2, 30, 10, 130, 7, current_date)'),
+        ('midia_copiloto_parametros_hora_valida',    'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, vigencia_ate) values (1, 1, 1, 90, 50, 30, 3, 2, 30, 10, 30, 24, current_date)'),
         ('midia_copiloto_achados_gravidade_valida',  'insert into public.midia_copiloto_achados (diagnostico_id, ordem, regra, gravidade, titulo, detalhe) select id, 99, ''medicao'', ''urgente'', ''t'', ''d'' from public.midia_copiloto_diagnosticos limit 1'),
         ('midia_copiloto_diagnosticos_janela_valida', 'insert into public.midia_copiloto_diagnosticos (conta, de, ate, dados, resumo) values (''1'', ''2026-10-12'', ''2026-10-06'', ''{}'', ''{}'')')
       ) as t(regra, comando)
@@ -1600,7 +1653,7 @@ begin
   if v_decidiu <> 'comercial:negado marketing:2 denovo:0 admin:1 carimbo:true trilha:3' then
     falhas := falhas + 1; raise warning 'FALHOU: decidir — %', v_decidiu;
   end if;
-  if v_regravou <> 'propostas:2 puladas:2 descartadas:1 p4:descartada abertas_vizinha:1' then
+  if v_regravou <> 'propostas:2 puladas:2 descartadas:1 p4:descartada abertas_vizinha:1 previa:0/4/0 abertas:2' then
     falhas := falhas + 1; raise warning 'FALHOU: segundo retrato — %', v_regravou;
   end if;
   if v_reserva <> 'negativar:111:exata:como vender carro,pausar_grupo:222 segunda:0' then
@@ -1618,7 +1671,7 @@ begin
   if v_vigencia <> 'comercial:negado concorrentes:loja rival cidades:cidade vizinha vigentes:1 ritmo:midia_copiloto_parametros_ritmo_valido' then
     falhas := falhas + 1; raise warning 'FALHOU: regras novas — %', v_vigencia;
   end if;
-  if v_regras < 18 or v_regras_certas <> v_regras then
+  if v_regras < 21 or v_regras_certas <> v_regras then
     falhas := falhas + 1; raise warning 'FALHOU: regras — % de % recusas pela regra certa', v_regras_certas, v_regras;
   end if;
 
@@ -1647,14 +1700,16 @@ begin
     'Admin e marketing leem as propostas, e comercial, marketing desativado e '
     'cliente não veem nada; o comercial não decide (42501), o marketing aprova com '
     'o carimbo dele e a trilha registra cada decisão; o segundo retrato substitui a '
-    'pendente, não repete a aberta nem a recusada e traz a nova; a reserva entrega '
+    'pendente, não repete a aberta nem a recusada e traz a nova, e a prévia não '
+    'tira de cena o que está em revisão; a reserva entrega '
     'as aprovadas uma vez só; o resultado fecha a ação com o que o script leu, dá '
     'motivo à falha muda e não reabre a fechada; o gatilho recusa voltar situação, '
     'mudar o alvo, apagar, nascer aprovada e remover negativa que não é o inverso '
     'exato; o desfazer cria o inverso aprovado e não desfaz duas vezes nem o que '
     'falhou; as regras novas são de admin e marketing, normalizam as listas, deixam '
-    'uma vigente e recusam ritmo invertido; % tentativas inválidas caem na regra '
-    'certa; a prova não deixou rastro.', v_regras;
+    'uma vigente e recusam ritmo invertido; % tentativas inválidas (entre elas '
+    'proposta de AUMENTO de verba vinda do diagnóstico) caem na regra certa; a '
+    'prova não deixou rastro.', v_regras;
 end $aceite$;
 
 

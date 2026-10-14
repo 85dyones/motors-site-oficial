@@ -34,14 +34,14 @@ export async function POST(request: NextRequest) {
   const previa = corpo.previa === true;
 
   try {
-    const regras = await lerRegras(porta.admin);
+    const regras = await lerRegras(porta.admin, porta.org);
     if (!regras.ok) {
       const { status, motivo } = regras.faltaMigracao ? motivoDoErro({ code: "42P01" }) : { status: 500, motivo: regras.motivo };
       return NextResponse.json({ error: motivo }, { status, headers: SEM_CACHE });
     }
     const [ultimo, acoes] = await Promise.all([
-      ultimoDiagnostico(porta.admin),
-      previa ? acoesAprovadas(porta.admin) : reservarAcoes(porta.admin),
+      ultimoDiagnostico(porta.admin, porta.org),
+      previa ? acoesAprovadas(porta.admin, porta.org) : reservarAcoes(porta.admin),
     ]);
     return NextResponse.json(
       { diagnosticoDevido: diagnosticoDevido(ultimo, new Date(), corpo.fuso, regras.valor.parametros.horaDoDiagnostico), acoes },

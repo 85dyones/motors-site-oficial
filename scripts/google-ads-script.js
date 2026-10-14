@@ -38,7 +38,8 @@
  */
 
 var URL_DO_PAINEL = "https://motorsstore.com.br/api/marketing/sincronizar/google";
-var URL_DO_COPILOTO = "https://motorsstore.com.br/api/marketing/copiloto";
+// O copiloto mora ao lado da sincronização: o endereço do site fica num lugar só.
+var URL_DO_COPILOTO = URL_DO_PAINEL.replace(/\/sincronizar\/google$/, "/copiloto");
 var SEGREDO = "COLE_AQUI_O_SEGREDO";
 var DIAS = 7;
 

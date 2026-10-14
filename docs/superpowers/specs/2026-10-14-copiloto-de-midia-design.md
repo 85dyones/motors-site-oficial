@@ -82,7 +82,7 @@ conversão" é prova ou falta de dado.
    termo (a palavra sozinha bloquearia busca boa); outros → exata, só a partir
    do mínimo de gasto. Termo já negativado, termo que é palavra-chave e termo
    que converteu nunca viram negativa. A negativa guarda a grafia do termo
-   ("são josé" e "sao jose" são duas negativas: negativa não pega variação).
+   ("são tomé" e "sao tome" são duas negativas: negativa não pega variação).
 4. **Ritmo de verba** — gasta ≥ ritmo alto sem conversão e acima do mínimo →
    corte de `reducao_verba_pct` (não em verba compartilhada); limitada pela
    verba e convertendo → achado (aumento é decisão de quem paga); abaixo do
@@ -94,7 +94,9 @@ conversão" é prova ou falta de dado.
 7. **Índice de qualidade** — palavra com nota ≤ `iq_baixo` e gasto.
 
 Todo número de régua mora em `midia_copiloto_parametros` (vigência; editável
-na tela). As listas de **concorrentes** e **cidades fora da área** nascem
+na tela), inclusive os limiares da medição (leads com gclid que provam a
+medição quebrada, cliques do achado de gclid) e da impressão perdida (por
+verba, por classificação). As listas de **concorrentes** e **cidades fora da área** nascem
 vazias: são da loja, e o código não conhece nenhuma. A de palavras
 informativas nasce com o vocabulário de quem pesquisa e não compra carro.
 
@@ -117,7 +119,9 @@ Depois de mexer, lê de volta e devolve o que leu.
 - `midia_copiloto_acoes` — situação: proposta → aprovada | recusada |
   descartada; aprovada → em_aplicacao | recusada; em_aplicacao → aplicada |
   falhou | sem_efeito. O alvo não muda depois de proposto; nada se apaga
-  (gatilho). Uma aberta por chave; aplicada ou recusada não volta por uma
+  (gatilho). Verba vinda do diagnóstico só diminui (CHECK); voltar ao valor
+  de antes é pelo desfazer, que o banco confere como o inverso exato. A
+  prévia não tira de cena as propostas em revisão. Uma aberta por chave; aplicada ou recusada não volta por uma
   janela (7 dias) — é também o que impede o corte de verba em cascata.
 - RLS: admin e marketing leem; ninguém escreve direto (nem a chave de
   serviço). Funções: `midia_copiloto_{nova_vigencia,decidir,desfazer}`
@@ -142,7 +146,8 @@ motivo no registro do Google Ads.
 ## Em aberto (para o dono)
 
 - Os números da semente (R$ 10 por termo, R$ 50 por grupo, R$ 100 por
-  campanha, ritmo 50–90%, corte de 30%, IQ ≤ 3, 7h) são de partida.
+  campanha, ritmo 50–90%, corte de 30%, IQ ≤ 3, 2 leads com gclid, 30
+  cliques, 10% perdido por verba, 30% por classificação, 7h) são de partida.
 - `gbraid`/`wbraid` não são guardados em `leads`: clique de iPhone chega sem
   gclid. Guardá-los é outra migração (colunas novas + `contextoDeMidia`).
 - v2: subir a conversão offline (lead → venda) com o gclid guardado.

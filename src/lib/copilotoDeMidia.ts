@@ -152,6 +152,14 @@ export interface ParametrosDoCopiloto {
   reducaoVerbaPct: number;
   /** Índice de qualidade igual ou abaixo disto é achado. */
   iqBaixo: number;
+  /** Leads com gclid, contra zero conversão no Google, que provam a medição quebrada. */
+  leadsGclidMinimos: number;
+  /** Cliques pagos a partir dos quais "nenhum lead com gclid" vira achado de atenção. */
+  cliquesMinimosGclid: number;
+  /** % de impressão perdida por verba para dizer que a campanha é limitada pela verba. */
+  perdaPorVerbaPct: number;
+  /** % de impressão perdida por classificação para culpar lance e qualidade. */
+  perdaPorRankingPct: number;
   /** Nomes de concorrentes (a loja escreve; o código não conhece nenhum). */
   concorrentes: string[];
   /** Cidades que a loja NÃO atende. */
@@ -507,7 +515,7 @@ export function limparTermo(s: string): string {
     .trim();
 }
 
-/** "São José" → "sao jose": é assim que termo e lista se comparam. */
+/** "São Tomé" → "sao tome": é assim que termo e lista se comparam. */
 export function semAcento(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
@@ -515,8 +523,8 @@ export function semAcento(s: string): string {
 /**
  * Onde a expressão aparece no termo, palavra inteira, e com que grafia o
  * próprio termo a escreveu — é essa grafia que vira negativa: o Google não
- * estende a negativa a variações de acento, e a negativa "sao jose" não
- * bloqueia quem digitou "são josé".
+ * estende a negativa a variações de acento, e a negativa "sao tome" não
+ * bloqueia quem digitou "são tomé".
  */
 export function acharNoTermo(termo: string, expressao: string): string | null {
   const original = limparTermo(termo).split(" ").filter(Boolean);
@@ -628,7 +636,7 @@ const soma = <T>(xs: T[], f: (x: T) => number) => arred(xs.reduce((s, x) => s + 
 const APROVADO = new Set(["APPROVED", "APPROVED_LIMITED", "AREA_OF_INTEREST_ONLY"]);
 
 /**
- * A identidade da negativa. Com o acento: "são josé" e "sao jose" são DUAS
+ * A identidade da negativa. Com o acento: "são tomé" e "sao tome" são DUAS
  * negativas no Google (negativa não pega variação), e a chave não pode fundi-las.
  */
 const chaveDaNegativa = (campanhaId: string, correspondencia: Correspondencia, texto: string) =>
@@ -760,7 +768,7 @@ function regraDosTermos(d: DiagnosticoDaConta, p: ParametrosDoCopiloto, achados:
  * problema — zero conversão de uma conta que não se consegue ler não é prova
  * de nada, e as regras que pausam e cortam verba dependem desta resposta.
  */
-function regraDaMedicao(d: DiagnosticoDaConta, leads: LeadsDaJanela, achados: Achado[]): boolean {
+function regraDaMedicao(d: DiagnosticoDaConta, leads: LeadsDaJanela, p: ParametrosDoCopiloto, achados: Achado[]): boolean {
   let confiavel = true;
   const acusar = (gravidade: Gravidade, titulo: string, detalhe: string, evidencias: Record<string, unknown> = {}) => {
     achados.push({ regra: "medicao", grupo: null, gravidade, titulo, detalhe, evidencias });
@@ -809,13 +817,13 @@ function regraDaMedicao(d: DiagnosticoDaConta, leads: LeadsDaJanela, achados: Ac
   }
 
   // O site sabe que o lead veio de um clique (gclid na linha) e o Google não
-  // contou a conversão. Um lead só não prova nada: o Google conta a conversão
-  // no dia do CLIQUE, e o gclid guardado há três semanas cai fora da janela.
-  // Dois ou mais contra zero é a medição, não o tráfego.
+  // contou a conversão. Poucos leads não provam nada: o Google conta a
+  // conversão no dia do CLIQUE, e o gclid guardado há semanas cai fora da
+  // janela. A partir de `leadsGclidMinimos` contra zero, é a medição.
   if (!d.erros.campanhas) {
     const conversoes = soma(d.campanhas, (c) => c.conversoes7);
     const evidencias = { leadsComGclid: leads.comGclid, conversoesNoGoogle: conversoes };
-    if (leads.comGclid >= 2 && conversoes === 0) {
+    if (leads.comGclid >= p.leadsGclidMinimos && conversoes === 0) {
       acusar(
         "alta",
         "Lead com gclid no site e nenhuma conversão no Google",
@@ -835,7 +843,7 @@ function regraDaMedicao(d: DiagnosticoDaConta, leads: LeadsDaJanela, achados: Ac
   return confiavel;
 }
 
-function regraDosCliquesELeads(d: DiagnosticoDaConta, leads: LeadsDaJanela, achados: Achado[]): void {
+function regraDosCliquesELeads(d: DiagnosticoDaConta, leads: LeadsDaJanela, p: ParametrosDoCopiloto, achados: Achado[]): void {
   if (d.erros.campanhas) return;
   const cliques = soma(d.campanhas, (c) => c.cliques7);
   if (cliques === 0) return;
@@ -848,7 +856,7 @@ function regraDosCliquesELeads(d: DiagnosticoDaConta, leads: LeadsDaJanela, acha
   if (perdidoNoCaminho) {
     gravidade = "media";
     detalhe += ` ${leads.comUtmGoogle - leads.comGclid} chegaram com utm de Google pago e SEM gclid. Em iPhone o Google manda gbraid/wbraid no lugar do gclid, e a tabela de leads não guarda esses dois; fora isso, o identificador se perde entre o clique e o formulário (redirecionamento, página que não guarda o parâmetro).`;
-  } else if (cliques >= 30 && leads.comGclid === 0) {
+  } else if (cliques >= p.cliquesMinimosGclid && leads.comGclid === 0) {
     gravidade = "media";
     detalhe +=
       " Nenhum lead com gclid. Ou o clique pago não está virando lead (veja os termos de pesquisa), ou o clique chega sem gclid: em iPhone o Google manda gbraid/wbraid no lugar, e a tabela de leads não guarda esses dois.";
@@ -914,7 +922,7 @@ function regraDoRitmo(d: DiagnosticoDaConta, p: ParametrosDoCopiloto, medicaoCon
         economia7d: arred((c.verba - nova) * 7),
         evidencias: base,
       });
-    } else if (ritmo >= p.ritmoAltoPct && c.conversoes7 > 0 && (c.perdaPorVerba ?? 0) >= 0.1) {
+    } else if (ritmo >= p.ritmoAltoPct && c.conversoes7 > 0 && (c.perdaPorVerba ?? 0) * 100 >= p.perdaPorVerbaPct) {
       achados.push({
         regra: "ritmo_de_verba",
         grupo: null,
@@ -931,7 +939,7 @@ function regraDoRitmo(d: DiagnosticoDaConta, p: ParametrosDoCopiloto, medicaoCon
         gravidade: "baixa",
         titulo: `${c.nome}: gasta ${pct(ritmo)} da verba`,
         detalhe:
-          ranking >= 0.3
+          ranking * 100 >= p.perdaPorRankingPct
             ? `A verba sobra porque o anúncio perde ${pct(ranking * 100)} das impressões por classificação (lance ou índice de qualidade), não por falta de busca.`
             : "A verba sobra: há pouca busca para as palavras-chave da campanha, ou o lance está baixo.",
         evidencias: base,
@@ -1088,8 +1096,8 @@ export function diagnosticar(d: DiagnosticoDaConta, leads: LeadsDaJanela, p: Par
   const achados: Achado[] = [];
   const propostas: Proposta[] = [];
 
-  const medicaoConfiavel = regraDaMedicao(d, leads, achados);
-  regraDosCliquesELeads(d, leads, achados);
+  const medicaoConfiavel = regraDaMedicao(d, leads, p, achados);
+  regraDosCliquesELeads(d, leads, p, achados);
   regraDosTermos(d, p, achados, propostas);
   regraDoRitmo(d, p, medicaoConfiavel, achados, propostas);
   regraDosGrupos(d, p, medicaoConfiavel, achados, propostas);
@@ -1266,6 +1274,10 @@ export function validarRegras(corpo: unknown): Validacao<ParametrosDoCopiloto> {
     ritmoBaixoPct: n("ritmoBaixoPct"),
     reducaoVerbaPct: n("reducaoVerbaPct"),
     iqBaixo: n("iqBaixo"),
+    leadsGclidMinimos: n("leadsGclidMinimos"),
+    cliquesMinimosGclid: n("cliquesMinimosGclid"),
+    perdaPorVerbaPct: n("perdaPorVerbaPct"),
+    perdaPorRankingPct: n("perdaPorRankingPct"),
     concorrentes: normalizarLista(c.concorrentes),
     cidadesFora: normalizarLista(c.cidadesFora),
     palavrasInformativas: normalizarLista(c.palavrasInformativas),
@@ -1281,6 +1293,11 @@ export function validarRegras(corpo: unknown): Validacao<ParametrosDoCopiloto> {
   if (!inteiro(p.reducaoVerbaPct, 5, 90)) return { ok: false, erro: "O corte de verba vai de 5% a 90%." };
   if (!inteiro(p.iqBaixo, 1, 10)) return { ok: false, erro: "O índice de qualidade baixo vai de 1 a 10." };
   if (!inteiro(p.horaDoDiagnostico, 0, 23)) return { ok: false, erro: "A hora do diagnóstico vai de 0 a 23." };
+  if (!inteiro(p.leadsGclidMinimos, 1, 100)) return { ok: false, erro: "Os leads com gclid que provam a medição quebrada vão de 1 a 100." };
+  if (!inteiro(p.cliquesMinimosGclid, 1, 100000)) return { ok: false, erro: "Os cliques mínimos do achado de gclid vão de 1 a 100.000." };
+  if (!inteiro(p.perdaPorVerbaPct, 1, 100) || !inteiro(p.perdaPorRankingPct, 1, 100)) {
+    return { ok: false, erro: "A impressão perdida por verba e por classificação vai de 1% a 100%." };
+  }
   for (const [nome, l] of [
     ["concorrentes", p.concorrentes],
     ["cidades fora da área", p.cidadesFora],

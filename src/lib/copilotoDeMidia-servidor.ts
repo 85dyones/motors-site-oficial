@@ -73,11 +73,16 @@ export async function autorizarCopiloto(): Promise<PortaDoCopiloto> {
 // A porta do script
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type PortaDoScript = { ok: true; admin: SupabaseClient } | { ok: false; status: 401 | 503; motivo: string };
+export type PortaDoScript = { ok: true; admin: SupabaseClient; org: string } | { ok: false; status: 401 | 503; motivo: string };
 
 /**
  * O segredo do script, conferido pelo banco (o site nunca o lê). Tentativa sem
  * segredo válido não deixa rastro: qualquer um na internet pode bater aqui.
+ *
+ * A loja do script é `org_padrao()`, a mesma que as três funções do script
+ * usam lá dentro: até a S1 o segredo é um só. Toda leitura que a rota faz com
+ * a chave de serviço filtra por ela — a chave ignora a RLS. Na plataforma, o
+ * segredo passa a ser da loja (`org_integracoes`) e a loja vem dele.
  */
 export async function autorizarScript(cabecalhos: Headers): Promise<PortaDoScript> {
   let admin: SupabaseClient;
@@ -90,7 +95,11 @@ export async function autorizarScript(cabecalhos: Headers): Promise<PortaDoScrip
   if (!(await segredoConfere(admin, "midia_google_segredo", segredo))) {
     return { ok: false, status: 401, motivo: "Não autorizado" };
   }
-  return { ok: true, admin };
+  const { data: org, error } = await admin.rpc("org_padrao");
+  if (error || typeof org !== "string") {
+    return { ok: false, status: 503, motivo: `A loja do script não pôde ser lida: ${error?.message ?? "org_padrao() vazia"}` };
+  }
+  return { ok: true, admin, org };
 }
 
 /** A tabela ainda não existe: o script foi colado antes de a migração ser aplicada. */
@@ -123,7 +132,8 @@ export function statusDoErro(erro: { code?: string } | null | undefined): number
 
 const COLUNAS_DOS_PARAMETROS =
   "id, gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, " +
-  "reducao_verba_pct, iq_baixo, concorrentes, cidades_fora, palavras_informativas, hora_do_diagnostico, " +
+  "reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, " +
+  "perda_por_ranking_pct, concorrentes, cidades_fora, palavras_informativas, hora_do_diagnostico, " +
   "criado_por_nome, vigencia_desde";
 
 export interface RegrasVigentes {
@@ -146,6 +156,10 @@ function linhaParaRegras(l: Record<string, unknown>): RegrasVigentes {
       ritmoBaixoPct: Number(l.ritmo_baixo_pct),
       reducaoVerbaPct: Number(l.reducao_verba_pct),
       iqBaixo: Number(l.iq_baixo),
+      leadsGclidMinimos: Number(l.leads_gclid_minimos),
+      cliquesMinimosGclid: Number(l.cliques_minimos_gclid),
+      perdaPorVerbaPct: Number(l.perda_por_verba_pct),
+      perdaPorRankingPct: Number(l.perda_por_ranking_pct),
       concorrentes: lista(l.concorrentes),
       cidadesFora: lista(l.cidades_fora),
       palavrasInformativas: lista(l.palavras_informativas),
@@ -156,14 +170,15 @@ function linhaParaRegras(l: Record<string, unknown>): RegrasVigentes {
   };
 }
 
-/** As regras vigentes. Sem elas o diagnóstico não roda: não há número de reserva no código. */
-export async function lerRegras(cliente: SupabaseClient): Promise<Leitura<RegrasVigentes>> {
-  const { data, error } = await cliente
-    .from("midia_copiloto_parametros")
-    .select(COLUNAS_DOS_PARAMETROS)
-    .is("vigencia_ate", null)
-    .order("vigencia_desde", { ascending: false })
-    .limit(1);
+/**
+ * As regras vigentes. Sem elas o diagnóstico não roda: não há número de
+ * reserva no código. `org` é obrigatório com a chave de serviço (que ignora a
+ * RLS); com a sessão do painel, a RLS já recorta a loja.
+ */
+export async function lerRegras(cliente: SupabaseClient, org?: string): Promise<Leitura<RegrasVigentes>> {
+  let consulta = cliente.from("midia_copiloto_parametros").select(COLUNAS_DOS_PARAMETROS).is("vigencia_ate", null);
+  if (org) consulta = consulta.eq("org_id", org);
+  const { data, error } = await consulta.order("vigencia_desde", { ascending: false }).limit(1);
   if (error) return { ok: false, faltaMigracao: ehTabelaAusente(error), motivo: error.message };
   const linha = (data as unknown as Record<string, unknown>[] | null)?.[0];
   if (!linha) return { ok: false, faltaMigracao: false, motivo: "Nenhuma regra vigente para o copiloto." };
@@ -179,6 +194,10 @@ export async function abrirVigencia(supabase: SupabaseClient, p: ParametrosDoCop
     p_ritmo_baixo_pct: p.ritmoBaixoPct,
     p_reducao_verba_pct: p.reducaoVerbaPct,
     p_iq_baixo: p.iqBaixo,
+    p_leads_gclid_minimos: p.leadsGclidMinimos,
+    p_cliques_minimos_gclid: p.cliquesMinimosGclid,
+    p_perda_por_verba_pct: p.perdaPorVerbaPct,
+    p_perda_por_ranking_pct: p.perdaPorRankingPct,
     p_concorrentes: p.concorrentes,
     p_cidades_fora: p.cidadesFora,
     p_palavras_informativas: p.palavrasInformativas,
@@ -246,11 +265,12 @@ export async function contarLeadsDaJanela(admin: SupabaseClient, janela: Janela,
 // O lado do script (chave de serviço)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Quando chegou o último diagnóstico de verdade (a prévia não conta). */
-export async function ultimoDiagnostico(admin: SupabaseClient): Promise<string | null> {
+/** Quando chegou o último diagnóstico de verdade da loja (a prévia não conta). */
+export async function ultimoDiagnostico(admin: SupabaseClient, org: string): Promise<string | null> {
   const { data, error } = await admin
     .from("midia_copiloto_diagnosticos")
     .select("recebido_em")
+    .eq("org_id", org)
     .eq("previa", false)
     .order("recebido_em", { ascending: false })
     .limit(1);
@@ -287,11 +307,12 @@ export async function reservarAcoes(admin: SupabaseClient): Promise<AcaoParaOScr
   return ((data ?? []) as LinhaDaAcao[]).map(paraOScript);
 }
 
-/** Na prévia: o que espera a rodada de verdade, sem reservar nada. */
-export async function acoesAprovadas(admin: SupabaseClient): Promise<AcaoParaOScript[]> {
+/** Na prévia: o que espera a rodada de verdade na loja, sem reservar nada. */
+export async function acoesAprovadas(admin: SupabaseClient, org: string): Promise<AcaoParaOScript[]> {
   const { data, error } = await admin
     .from("midia_copiloto_acoes")
     .select("id, tipo, campanha_id_externo, grupo_id_externo, texto, correspondencia, verba_atual, verba_nova")
+    .eq("org_id", org)
     .eq("situacao", "aprovada")
     .order("decidida_em", { ascending: true })
     .limit(50);

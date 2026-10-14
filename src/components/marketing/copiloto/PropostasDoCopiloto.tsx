@@ -92,7 +92,7 @@ export default function PropostasDoCopiloto({
   const aprovarGrupo = async (g: Grupo) => {
     const ok = await confirm({
       title: "Aprovar o grupo inteiro",
-      message: `${g.acoes.length} mudanças na conta do Google Ads (${g.titulo}). Elas cobrem ${reais(soma(g.acoes))} gastos nos últimos 7 dias sem conversão. O script aplica na próxima rodada; cada uma pode ser desfeita depois.`,
+      message: `${g.acoes.length} mudanças na conta do Google Ads (${g.titulo}), somando ${reais(soma(g.acoes))} de economia estimada em 7 dias. O script aplica na próxima rodada; cada uma pode ser desfeita depois.`,
       confirmLabel: `Aprovar ${g.acoes.length}`,
     });
     if (ok) await decidir(g.acoes.map((a) => a.id), "aprovar", g.chave);
