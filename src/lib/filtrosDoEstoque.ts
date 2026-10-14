@@ -1,4 +1,5 @@
 import type { Veiculo } from "../types";
+import { precoVigente } from "./regrasEstoque";
 import { normalizarParaBusca } from "./vitrine";
 
 /**
@@ -232,11 +233,53 @@ export function temTodosOsOpcionais(veiculo: Veiculo, chaves: string[]): boolean
 // O filtro no endereço
 // ---------------------------------------------------------------------------
 
-export type Ordenacao = "recentes" | "menor-preco" | "menor-km";
+export type Ordenacao =
+  | "recentes"
+  | "menor-preco"
+  | "maior-preco"
+  | "menor-km"
+  | "maior-ano"
+  | "menor-ano";
 
 export const ORDEM_PADRAO: Ordenacao = "recentes";
 
-const ORDENS: readonly Ordenacao[] = ["recentes", "menor-preco", "menor-km"];
+const ORDENS: readonly Ordenacao[] = [
+  "recentes",
+  "menor-preco",
+  "maior-preco",
+  "menor-km",
+  "maior-ano",
+  "menor-ano",
+];
+
+/**
+ * A vitrine na ordem escolhida, sem mexer na lista recebida.
+ *
+ * MAIOR PREÇO, MAIOR ANO e MENOR ANO entraram em 14/10/2026, pedido do dono.
+ *
+ * O `sort` é estável: num empate (dois carros 2021, dois de R$ 89.900), vale a
+ * ordem em que o estoque chegou, que é a de "mais recentes". `recentes` é essa
+ * ordem crua, e por isso devolve a lista sem copiar.
+ *
+ * O preço é o vigente, o mesmo que o card mostra: ordenar pelo original poria
+ * o carro em promoção fora do lugar em que a pessoa o vê.
+ */
+export function ordenarVeiculos(lista: Veiculo[], ordem: Ordenacao): Veiculo[] {
+  switch (ordem) {
+    case "menor-preco":
+      return [...lista].sort((a, b) => precoVigente(a) - precoVigente(b));
+    case "maior-preco":
+      return [...lista].sort((a, b) => precoVigente(b) - precoVigente(a));
+    case "menor-km":
+      return [...lista].sort((a, b) => a.quilometragem - b.quilometragem);
+    case "maior-ano":
+      return [...lista].sort((a, b) => b.ano - a.ano);
+    case "menor-ano":
+      return [...lista].sort((a, b) => a.ano - b.ano);
+    default:
+      return lista;
+  }
+}
 
 /**
  * Os grupos de caixa que vão para o endereço.

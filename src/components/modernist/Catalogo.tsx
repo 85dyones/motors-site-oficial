@@ -18,6 +18,7 @@ import {
   enderecoComFiltro,
   estadoDaUrl,
   limitesDaRegua,
+  ordenarVeiculos,
   rotuloDaFaixa,
   SEM_FAIXA,
   temTodosOsOpcionais,
@@ -34,6 +35,7 @@ import {
   mostrarLimparTudo,
   painelDeFiltro,
   rotuloDosResultados,
+  SO_NO_CELULAR,
   termosDaBusca,
 } from "../../lib/vitrine";
 import CampoDeOpcionais from "./CampoDeOpcionais";
@@ -100,7 +102,10 @@ function chipDaFaixa(chave: keyof Faixas, faixa: Faixa, formatar: (n: number) =>
 const ORDENACOES: { id: Ordenacao; rotulo: string }[] = [
   { id: "recentes", rotulo: "MAIS RECENTES" },
   { id: "menor-preco", rotulo: "MENOR PREÇO" },
+  { id: "maior-preco", rotulo: "MAIOR PREÇO" },
   { id: "menor-km", rotulo: "MENOR KM" },
+  { id: "maior-ano", rotulo: "MAIOR ANO" },
+  { id: "menor-ano", rotulo: "MENOR ANO" },
 ];
 
 interface GrupoFiltro {
@@ -524,14 +529,7 @@ export default function Catalogo({
 
   const filtrados = useMemo(() => {
     const lista = estoque.filter((v) => passaNosFiltros(v));
-    switch (ordem) {
-      case "menor-preco":
-        return [...lista].sort((a, b) => precoVigente(a) - precoVigente(b));
-      case "menor-km":
-        return [...lista].sort((a, b) => a.quilometragem - b.quilometragem);
-      default:
-        return lista;
-    }
+    return ordenarVeiculos(lista, ordem);
   }, [estoque, selecionados, faixas, opcionais, termos, ordem]);
 
   /**
@@ -715,10 +713,33 @@ export default function Catalogo({
             </span>
           </div>
 
-          {/* `gap-y-6`: quando a ordenação quebra em duas linhas (celular de
-              360 px), as camadas de toque de 44 px (`.mt-alvo`) de uma linha
-              e da outra não se encostam. */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-6 text-xs font-semibold tracking-[.1em]">
+          {/* Seis ordens desde 14/10 (MAIOR PREÇO, MAIOR ANO e MENOR ANO, pedido
+              do dono). Em botões, no celular de 360 px elas quebravam em três
+              linhas antes da busca; abaixo do `lg` a ordenação é uma lista
+              nativa, que abre a roleta do aparelho como o ANO do painel. As
+              duas leem e escrevem o mesmo `ordem`, e a escondida é
+              `display:none` — fora do Tab e do leitor de tela. */}
+          <label
+            className={`flex w-full items-center gap-3 text-xs font-semibold tracking-[.1em] ${SO_NO_CELULAR}`}
+          >
+            <span className="shrink-0 text-mt-neutral-600">ORDENAR:</span>
+            <select
+              value={ordem}
+              onChange={(e) => setOrdem(e.target.value as Ordenacao)}
+              className="mt-campo-caixa mt-foco cursor-pointer px-2 text-[13px] font-semibold"
+            >
+              {ORDENACOES.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.rotulo}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {/* `gap-y-6`: se a ordenação quebrar em duas linhas, as camadas de
+              toque de 44 px (`.mt-alvo`) de uma linha e da outra não se
+              encostam. */}
+          <div className="hidden flex-wrap items-center gap-x-4 gap-y-6 text-xs font-semibold tracking-[.1em] lg:flex">
             <span className="text-mt-neutral-600">ORDENAR:</span>
             {ORDENACOES.map((o) => (
               <button
