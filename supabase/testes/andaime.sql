@@ -67,6 +67,16 @@ create or replace function auth.jwt() returns jsonb as $$
   select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
 $$ language sql stable;
 
+-- `auth.role()` como o Supabase a define: o papel do JWT da requisição. É por
+-- ele que `registrar_contato_do_lead` reconhece a chave de serviço
+-- (20260915120000), e o aceite da 20261014120000 o veste.
+create or replace function auth.role() returns text as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.role', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb->>'role'
+  )::text;
+$$ language sql stable;
+
 grant usage on schema public, auth to anon, authenticated, service_role;
 
 -- O que o bootstrap do Supabase declara e o andaime precisa espelhar: tabela
@@ -325,6 +335,9 @@ create table public.atendimentos (
   iniciado_em       timestamptz,
   humano_assumiu_em timestamptz,
   com_assistente    boolean,
+  -- As etiquetas do Chatwoot espelhadas: `resgate` tira o lead sem dono da
+  -- fila (20261010160000).
+  tags              text[],
   created_at        timestamptz not null default now()
 );
 

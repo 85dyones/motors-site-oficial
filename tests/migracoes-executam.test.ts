@@ -231,6 +231,19 @@ const CADEIA = [
   // transfere, dono com o prazo inteiro transfere, `responsavel_desde` nulo
   // transfere como antes. Pediu ao andaime o recorte de `atendimentos`.
   "20261010140000_transferencia_espera_o_prazo_do_novo_dono.sql",
+  // O lead novo vai ao administrador, e não ao rodízio (2026-10-10). Entra na
+  // cadeia porque reescreve a fila inteira de novo; o aceite prova, contra o
+  // gatilho de `leads`, que o lead sem dono vira `lead_novo` na primeira
+  // rodada sem ninguém escolhido, que a marca segura 20 h, e que `atribuicao`
+  // sumiu.
+  "20261010160000_lead_novo_vai_ao_administrador.sql",
+  // A resposta pelo Chatwoot tira o lead de "Novo" (2026-10-14). Traz a
+  // função inteira, na forma de produção (a de 20260915120000, com `p_autor`
+  // e a guarda que reconhece a chave de serviço); a 20260915120000 em si não
+  // entra porque o aceite dela insere lead sem nome, e o recorte de `leads`
+  // do andaime exige nome. O aceite veste a chave de serviço como o webhook;
+  // o andaime ganhou `auth.role()` para isso.
+  "20261014120000_resposta_no_chatwoot_tira_do_novo.sql",
 ];
 
 /**

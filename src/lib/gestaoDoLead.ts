@@ -737,6 +737,7 @@ function fraseDoEvento(e: EventoDoLead, contexto: ContextoDoHistorico): string {
     case "contato": {
       const canal = texto(d.canal) || para;
       if (canal === "chatwoot") return "Respondeu ao cliente pelo Chatwoot.";
+      if (canal === "chatwoot_nota") return "Anotou na conversa do Chatwoot.";
       const nome = ROTULO_DO_CANAL[canal] ?? canal;
       return nome ? `Contato com o cliente registrado pelo ${nome}.` : "Contato com o cliente registrado.";
     }
@@ -768,6 +769,9 @@ function fraseDoEvento(e: EventoDoLead, contexto: ContextoDoHistorico): string {
         const quem = para ? ` para ${para}` : "";
         const antes = de && de !== para ? ` (estava com ${de})` : "";
         return `Aviso de transferência gerado${quem}${antes}${parado ? `: ${parado} sem atendimento${onde}` : ""}.`;
+      }
+      if (aviso === "lead_novo") {
+        return `Aviso de lead novo enviado ao administrador${onde ? `: sem responsável${onde}` : ""}.`;
       }
       if (aviso === "atribuicao") {
         return `Aviso de atribuição gerado${para ? ` para ${para}` : ""}${parado ? `: ${parado} sem responsável${onde}` : ""}.`;

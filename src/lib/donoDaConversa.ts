@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizarNome, type AgenteDoChatwoot } from "./atribuicaoDoChatwoot";
 import { lerAgentesDoChatwoot } from "./atribuicaoDoChatwoot-servidor";
@@ -30,15 +31,39 @@ import { chamarChatwoot, type ConfigDoChatwoot, type Resultado } from "./etiquet
  * O que não deu certo vira `{ ok: false, motivo }` para o log.
  */
 
-/** Quanto a atribuição pode gastar falando com o Chatwoot. */
-export const ORCAMENTO_DA_ATRIBUICAO_MS = 4000;
+/**
+ * O que a RESPOSTA espera: ler as conversas do lead e a lista de agentes.
+ * É o que diz à tela, na hora, que o vendedor não é agente ou que o token
+ * foi recusado.
+ */
+export const ORCAMENTO_DA_LEITURA_MS = 4000;
+/**
+ * Quanto cada atribuição pode levar, já DEPOIS da resposta. Medido em
+ * 10/10, na primeira rodada do funil com a atribuição no ar: o Chatwoot
+ * atribuiu as 6 conversas, mas só respondeu uns 15 s depois — com 2,5 s de
+ * prazo, o site registrou como falha uma atribuição que tinha acontecido.
+ */
+export const PRAZO_DA_ATRIBUICAO_MS = 30000;
+
 /** O começo do aviso da tela quando a conversa não acompanhou a troca. */
 export const AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO =
   "O lead mudou de dono, mas a conversa no Chatwoot continua com quem estava";
-/** Tempo máximo de cada chamada. */
-const PRAZO_DA_CHAMADA_MS = 2500;
 
 type Buscar = (url: string, init?: RequestInit) => Promise<Response>;
+
+/**
+ * Roda a tarefa depois da resposta (`after()` do Next, como em `/api/capi`).
+ * Fora de um escopo de requisição (teste, script) `after()` estoura; aí a
+ * tarefa é disparada solta. Nada daqui lança.
+ */
+export function depoisDaResposta(tarefa: () => Promise<unknown>): void {
+  const segura = () => tarefa().catch(() => {});
+  try {
+    after(segura);
+  } catch {
+    void segura();
+  }
+}
 
 /** O id do agente do Chatwoot que atende por este nome, ou o motivo de não haver. */
 export function agenteDoResponsavel(
@@ -82,26 +107,24 @@ export function conversasAbertasPorLead(
 }
 
 /**
- * Atribui as conversas ao agente. Devolve quantas entraram e, se alguma não
- * entrou, por quê.
+ * Atribui as conversas ao agente, cada uma com o próprio prazo. Devolve
+ * quantas entraram e, se alguma não entrou, por quê.
  */
 export async function atribuirConversas(
   conversas: readonly number[],
   agenteId: number,
   cfg: ConfigDoChatwoot,
-  limite: number,
   buscar: Buscar = fetch,
+  prazoMs: number = PRAZO_DA_ATRIBUICAO_MS,
 ): Promise<{ atribuidas: number; falhas: string[] }> {
   const feitas = await Promise.all(
     conversas.map(async (conversa) => {
-      const resta = limite - Date.now();
-      if (resta <= 0) return { ok: false as const, motivo: "sem tempo para falar com o Chatwoot" };
       const r = await chamarChatwoot(
         buscar,
         `${cfg.base}/api/v1/accounts/${cfg.conta}/conversations/${conversa}/assignments`,
         cfg,
         { method: "POST", body: JSON.stringify({ assignee_id: agenteId }) },
-        Math.min(PRAZO_DA_CHAMADA_MS, resta),
+        prazoMs,
       );
       return r.ok ? r : { ok: false as const, motivo: `conversa ${conversa}: ${r.motivo}` };
     }),
@@ -112,23 +135,6 @@ export async function atribuirConversas(
   };
 }
 
-/**
- * As conversas de um lead para o agente que atende pelo nome do responsável,
- * com a lista de agentes já lida.
- */
-async function atribuirAoResponsavel(
-  conversas: readonly number[],
-  responsavel: string | null,
-  agentes: readonly AgenteDoChatwoot[],
-  cfg: ConfigDoChatwoot,
-  limite: number,
-  buscar: Buscar,
-): Promise<{ atribuidas: number; falhas: string[] }> {
-  const agente = agenteDoResponsavel(responsavel, agentes);
-  if (!agente.ok) return { atribuidas: 0, falhas: [agente.motivo] };
-  return atribuirConversas(conversas, agente.valor, cfg, limite, buscar);
-}
-
 /** O texto da exceção, para o log. */
 function motivoDe(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -137,6 +143,11 @@ function motivoDe(e: unknown): string {
 /**
  * Para o painel: depois que um lead troca de dono, as conversas abertas dele
  * passam para o agente do novo dono. Ver o cabeçalho. Nunca lança.
+ *
+ * A leitura (conversas do lead e agentes) acontece antes da resposta: o que
+ * ela recusa — vendedor que não é agente, token recusado — volta para a tela.
+ * A atribuição em si vai para depois da resposta (`depoisDaResposta`), porque
+ * o Chatwoot demora; o resultado dela fica no log.
  */
 export async function atribuirConversasDoLead(
   supabase: SupabaseClient,
@@ -144,8 +155,8 @@ export async function atribuirConversasDoLead(
   responsavel: string,
   cfg: ConfigDoChatwoot | null,
   buscar: Buscar = fetch,
-  orcamentoMs: number = ORCAMENTO_DA_ATRIBUICAO_MS,
-): Promise<{ ok: true; atribuidas: number } | { ok: false; motivo: string }> {
+  orcamentoMs: number = ORCAMENTO_DA_LEITURA_MS,
+): Promise<{ ok: true; agendadas: number } | { ok: false; motivo: string }> {
   try {
     const limite = Date.now() + orcamentoMs;
     const { data, error } = await supabase
@@ -154,13 +165,21 @@ export async function atribuirConversasDoLead(
       .eq("lead_id", leadId);
     if (error) return { ok: false, motivo: `conversas do lead ilegíveis: ${error.message}` };
     const conversas = conversasAbertasPorLead(data ?? []).get(leadId) ?? [];
-    if (conversas.length === 0) return { ok: true, atribuidas: 0 };
+    if (conversas.length === 0) return { ok: true, agendadas: 0 };
     if (!cfg) return { ok: false, motivo: "Chatwoot não configurado no site" };
 
     const agentes = await lerAgentesDoChatwoot(cfg, limite, buscar);
     if (!agentes.ok) return agentes;
-    const r = await atribuirAoResponsavel(conversas, responsavel, agentes.valor, cfg, limite, buscar);
-    return r.falhas.length === 0 ? { ok: true, atribuidas: r.atribuidas } : { ok: false, motivo: r.falhas.join("; ") };
+    const agente = agenteDoResponsavel(responsavel, agentes.valor);
+    if (!agente.ok) return agente;
+
+    depoisDaResposta(async () => {
+      const r = await atribuirConversas(conversas, agente.valor, cfg, buscar);
+      if (r.falhas.length > 0) {
+        console.warn(`[Leads] Conversa do Chatwoot sem o dono novo — lead ${leadId}:`, r.falhas.join("; "));
+      }
+    });
+    return { ok: true, agendadas: conversas.length };
   } catch (e) {
     return { ok: false, motivo: motivoDe(e) };
   }
@@ -169,33 +188,29 @@ export async function atribuirConversasDoLead(
 /**
  * Para o rodízio do funil: os leads que a fila acabou de passar de mão, com
  * uma leitura só da lista de agentes para todos. As conversas vêm prontas
- * (a rota já leu `atendimentos` para o link do aviso). Nunca lança; o que não
- * entrou volta em `falhas`, com o lead na frente.
+ * (a rota já leu `atendimentos` para o link do aviso). Quem chama a põe
+ * inteira depois da resposta: a fila não espera o Chatwoot. Nunca lança; o
+ * que não entrou volta em `falhas`, com o lead na frente.
  */
 export async function atribuirConversasDaFila(
   trocas: ReadonlyArray<{ leadId: string; responsavel: string | null }>,
   conversasPorLead: ReadonlyMap<string, readonly number[]>,
   cfg: ConfigDoChatwoot | null,
   buscar: Buscar = fetch,
-  orcamentoMs: number = ORCAMENTO_DA_ATRIBUICAO_MS,
+  orcamentoDaLeituraMs: number = ORCAMENTO_DA_LEITURA_MS,
 ): Promise<{ atribuidas: number; falhas: string[] }> {
   const comConversa = trocas.filter((t) => (conversasPorLead.get(t.leadId)?.length ?? 0) > 0);
   if (comConversa.length === 0) return { atribuidas: 0, falhas: [] };
   if (!cfg) return { atribuidas: 0, falhas: ["Chatwoot não configurado no site"] };
   try {
-    const limite = Date.now() + orcamentoMs;
-    const agentes = await lerAgentesDoChatwoot(cfg, limite, buscar);
+    const agentes = await lerAgentesDoChatwoot(cfg, Date.now() + orcamentoDaLeituraMs, buscar);
     if (!agentes.ok) return { atribuidas: 0, falhas: [agentes.motivo] };
     const feitas = await Promise.all(
       comConversa.map(async (t) => {
-        const r = await atribuirAoResponsavel(
-          conversasPorLead.get(t.leadId) ?? [],
-          t.responsavel,
-          agentes.valor,
-          cfg,
-          limite,
-          buscar,
-        );
+        const agente = agenteDoResponsavel(t.responsavel, agentes.valor);
+        const r = agente.ok
+          ? await atribuirConversas(conversasPorLead.get(t.leadId) ?? [], agente.valor, cfg, buscar)
+          : { atribuidas: 0, falhas: [agente.motivo] };
         return { atribuidas: r.atribuidas, falhas: r.falhas.map((f) => `lead ${t.leadId}: ${f}`) };
       }),
     );

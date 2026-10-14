@@ -6,6 +6,7 @@ import {
   avisoComCopiaAoGestor,
   destinatarioDoAviso,
   mensagemDeAlerta,
+  mensagemDeLeadNovo,
   mensagemParaGestor,
   numeroDiscavel,
   type LinhaDaFilaDoFunil,
@@ -14,9 +15,16 @@ import { maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
 import { urlDoLead } from "../../../../lib/filaDoFunil";
 import { urlDoSite } from "../../../../lib/site";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
-import { atribuirConversasDaFila, conversasAbertasPorLead } from "../../../../lib/donoDaConversa";
+import {
+  atribuirConversasDaFila,
+  conversasAbertasPorLead,
+  depoisDaResposta,
+} from "../../../../lib/donoDaConversa";
 
 export const dynamic = "force-dynamic";
+// A atribuição das conversas no Chatwoot corre depois da resposta e pode
+// levar dezenas de segundos (ver `lib/donoDaConversa`).
+export const maxDuration = 60;
 
 /**
  * A fila de alertas do funil — o que o n8n consome para cutucar o vendedor.
@@ -59,6 +67,35 @@ export const dynamic = "force-dynamic";
  * silêncio é fila que ninguém audita — a lição do 404 engolido, registrada na
  * AUDITORIA.
  */
+/**
+ * Os perfis ativos que têm TODOS estes papéis, com WhatsApp, um por número.
+ * Falhar a leitura não segura a fila: devolve ninguém e deixa o log.
+ */
+async function quemTemOsPapeis(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  papeis: string[],
+  rotulo: string,
+  semQuem: string,
+): Promise<{ nome: string; whatsapp: string }[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("full_name, telefone_e164")
+    .eq("is_active", true)
+    .contains("papeis", papeis);
+  if (error) {
+    console.warn(`[Funil] ${semQuem}:`, error.message);
+    return [];
+  }
+  const pessoas: { nome: string; whatsapp: string }[] = [];
+  for (const p of (data ?? []) as { full_name?: string | null; telefone_e164?: string | null }[]) {
+    const whatsapp = numeroDiscavel(p.telefone_e164);
+    if (whatsapp && !pessoas.some((g) => g.whatsapp === whatsapp)) {
+      pessoas.push({ nome: p.full_name?.trim() || rotulo, whatsapp });
+    }
+  }
+  return pessoas;
+}
+
 export async function POST(request: Request) {
   const auth = await autorizarFunil(request);
   if (auth.erro) return auth.erro;
@@ -154,24 +191,26 @@ export async function POST(request: Request) {
   // WhatsApp —, e não de um número escrito no n8n: trocar o gestor é trocar o
   // papel no painel. Só se lê quando há o que copiar, e a falha da leitura não
   // segura o aviso do vendedor: sem gestor, sai só o aviso dele.
+  const temLeadNovo = linhas.some((l) => !l.suprimido_por && l.aviso === "lead_novo");
   const gestores: { nome: string; whatsapp: string }[] = [];
-  if (linhas.some((l) => !l.suprimido_por && avisoComCopiaAoGestor(l))) {
-    const { data: perfis, error: erroGestores } = await supabase
-      .from("profiles")
-      .select("full_name, telefone_e164")
-      .eq("is_active", true)
-      .contains("papeis", ["gestor"]);
-    if (erroGestores) {
-      console.warn("[Funil] Sem o gestor para a cópia dos avisos:", erroGestores.message);
-    } else {
-      for (const p of (perfis ?? []) as { full_name?: string | null; telefone_e164?: string | null }[]) {
-        const whatsapp = numeroDiscavel(p.telefone_e164);
-        if (whatsapp && !gestores.some((g) => g.whatsapp === whatsapp)) {
-          gestores.push({ nome: p.full_name?.trim() || "Gestor", whatsapp });
-        }
-      }
-    }
+  if (temLeadNovo || linhas.some((l) => !l.suprimido_por && avisoComCopiaAoGestor(l))) {
+    gestores.push(...(await quemTemOsPapeis(supabase, ["gestor"], "Gestor", "Sem o gestor para a cópia dos avisos")));
   }
+
+  // Quem recebe o lead novo (2026-10-10, decisão do dono: *"avise o
+  // administrador quando entrar lead novo, Dyones. ele vai determinar o dono e
+  // depois começa a dança"*). É o administrador que também é do comercial —
+  // quem distribui a carteira —, e não todo admin: o admin só do marketing não
+  // escolhe vendedor. Vem do cadastro, como o gestor: trocar quem distribui é
+  // trocar o papel no painel.
+  const distribuidores = temLeadNovo
+    ? await quemTemOsPapeis(
+        supabase,
+        ["admin", "comercial"],
+        "Administrador",
+        "Sem o administrador para o aviso de lead novo",
+      )
+    : [];
 
   for (const linha of linhas.filter((l) => !l.suprimido_por)) {
     const numero = destinatarioDoAviso(linha);
@@ -189,6 +228,35 @@ export async function POST(request: Request) {
       etapa: linha.etapa,
       minutos_parado: linha.minutos_parado,
     };
+
+    // O lead novo não tem dono, e por isso não tem "vendedor": vai a quem
+    // distribui e ao gestor. Quem é as duas coisas recebe uma vez, como
+    // administrador. Sem ninguém para receber, sai em `sem_destinatario` —
+    // no modo reservado ele já foi marcado como avisado.
+    if (linha.aviso === "lead_novo") {
+      const recebem = [
+        ...distribuidores.map((d) => ({ ...d, para: "administrador" as const })),
+        ...gestores
+          .filter((g) => !distribuidores.some((d) => d.whatsapp === g.whatsapp))
+          .map((g) => ({ ...g, para: "gestor" as const })),
+      ];
+      if (recebem.length === 0) {
+        console.error("[Funil] Lead novo sem administrador nem gestor para avisar — lead", linha.lead_id);
+        semDestinatario.push({ lead_id: linha.lead_id, nome: linha.nome, aviso: linha.aviso });
+      }
+      for (const r of recebem) {
+        fila.push({
+          lead_id: linha.lead_id,
+          aviso: linha.aviso,
+          para: r.para,
+          lead,
+          destinatario: { nome: r.nome, whatsapp: r.whatsapp },
+          responsavel_anterior: null,
+          mensagem: mensagemDeLeadNovo(linha, opcoes, r.para),
+        });
+      }
+      continue;
+    }
 
     if (numero) {
       fila.push({
@@ -235,21 +303,25 @@ export async function POST(request: Request) {
   // cliente em "Minhas" (`lib/donoDaConversa`).
   //
   // Só no modo reservado, o único que troca o dono, e só para o que foi
-  // entregue: lead suprimido não mudou de mão. Depois da fila pronta e com
-  // prazo, porque o aviso é o que não pode faltar. O que não entrou no
-  // Chatwoot sai na resposta, para a execução do n8n mostrar.
-  let noChatwoot: { atribuidas: number; falhas: string[] } | null = null;
-  if (reservar) {
-    noChatwoot = await atribuirConversasDaFila(
-      linhas
+  // entregue: lead suprimido não mudou de mão. DEPOIS da resposta: o Chatwoot
+  // leva uns 15 s para responder a uma atribuição (medido em 10/10), e a fila
+  // do n8n não espera por isso. A resposta diz quantas conversas ficaram
+  // agendadas; o resultado de cada uma fica no log.
+  const trocas = reservar
+    ? linhas
         .filter((l) => !l.suprimido_por && avisoComCopiaAoGestor(l))
-        .map((l) => ({ leadId: l.lead_id, responsavel: l.novo_responsavel })),
-      abertasPorLead,
-      configDoChatwoot(),
-    );
-    if (noChatwoot.falhas.length > 0) {
-      console.warn("[Funil] Conversa do Chatwoot sem o dono novo:", noChatwoot.falhas.join(" | "));
-    }
+        .map((l) => ({ leadId: l.lead_id, responsavel: l.novo_responsavel }))
+    : [];
+  const agendadas = trocas.reduce((n, t) => n + (abertasPorLead.get(t.leadId)?.length ?? 0), 0);
+  if (agendadas > 0) {
+    const cfg = configDoChatwoot();
+    depoisDaResposta(async () => {
+      const r = await atribuirConversasDaFila(trocas, abertasPorLead, cfg);
+      if (r.falhas.length > 0) {
+        console.warn("[Funil] Conversa do Chatwoot sem o dono novo:", r.falhas.join(" | "));
+      }
+      console.info(`[Funil] Conversas do Chatwoot com o dono novo: ${r.atribuidas} de ${agendadas}.`);
+    });
   }
 
   return NextResponse.json({
@@ -259,8 +331,6 @@ export async function POST(request: Request) {
     fila,
     suprimidos,
     ...(semDestinatario.length > 0 ? { sem_destinatario: semDestinatario } : {}),
-    ...(noChatwoot && (noChatwoot.atribuidas > 0 || noChatwoot.falhas.length > 0)
-      ? { conversas_no_chatwoot: noChatwoot }
-      : {}),
+    ...(agendadas > 0 ? { conversas_no_chatwoot: { agendadas } } : {}),
   });
 }

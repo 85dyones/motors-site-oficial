@@ -655,6 +655,10 @@ describe("montarHistorico", () => {
       autor: "Bia",
       texto: "Respondeu ao cliente pelo Chatwoot.",
     });
+    // A nota privada (2026-10-14) tem o seu canal e a sua frase.
+    expect(frase(evento("contato", { para: "chatwoot_nota", autor: "Rodrigo", detalhe: { canal: "chatwoot_nota" } })).texto).toBe(
+      "Anotou na conversa do Chatwoot.",
+    );
     // A linha da primeira versão da função, sem `via_servico`.
     expect(frase(evento("contato", { para: "telefone", detalhe: { canal: "telefone" } })).texto).toBe(
       "Contato com o cliente registrado pelo telefone.",
@@ -695,6 +699,10 @@ describe("montarHistorico", () => {
     expect(
       frase(evento("alerta", { de: null, para: "Bia", automatico: true, detalhe: { aviso: "atribuicao", minutos_parado: 20, etapa: "novo" } })).texto,
     ).toBe("Aviso de atribuição gerado para Bia: 20 min sem responsável em Novo.");
+    // O lead novo (2026-10-10) vai ao administrador, sem dono escolhido.
+    expect(
+      frase(evento("alerta", { de: null, para: null, automatico: true, detalhe: { aviso: "lead_novo", minutos_parado: 7, etapa: "novo" } })).texto,
+    ).toBe("Aviso de lead novo enviado ao administrador: sem responsável em Novo.");
     // A linha mínima que o aceite da migração de etiquetas grava.
     expect(frase(evento("alerta", { automatico: true, detalhe: { aviso: "estagnacao" } })).texto).toBe(
       "Aviso de lead parado gerado.",

@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ETAPAS_PADRAO } from "../src/lib/funil";
 import {
   AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO,
+  PRAZO_DA_ATRIBUICAO_MS,
   agenteDoResponsavel,
+  atribuirConversas,
   atribuirConversasDaFila,
   conversasAbertasPorLead,
 } from "../src/lib/donoDaConversa";
@@ -19,7 +21,10 @@ import {
  *     conversas abertas do lead ao agente do novo dono; o Chatwoot que falha
  *     não desfaz a troca, e a tela recebe o aviso;
  *   - a fila do funil, EXECUTADA: no modo reservado, o lead que o rodízio
- *     passou de mão leva as conversas junto; a prévia não fala com o Chatwoot.
+ *     passou de mão leva as conversas junto; a prévia não fala com o Chatwoot;
+ *   - o TEMPO (medido em 10/10): o Chatwoot leva uns 15 s para responder a uma
+ *     atribuição. A leitura (conversas e agentes) fica antes da resposta; a
+ *     atribuição vai para depois dela (`after()`), com prazo que cabe os 15 s.
  *
  * Um banco em memória para as duas rotas, e um Chatwoot falso no `fetch`.
  */
@@ -33,6 +38,21 @@ let pedidosDaFila: Linha[];
 let autor: { role: string; papeis: string[]; full_name: string };
 /** Roda logo antes de a rota gravar em `leads`: é onde o lead muda de dono no meio. */
 let aoGravarOLead: (() => void) | null;
+/** O que as rotas deixaram para depois da resposta (`after()` do Next). */
+let agendadas: Array<() => unknown>;
+
+vi.mock("next/server", async (original) => ({
+  ...(await original<typeof import("next/server")>()),
+  after: (tarefa: () => unknown) => {
+    agendadas.push(tarefa);
+  },
+}));
+
+/** O que acontece depois que a resposta saiu. */
+async function depoisDaResposta() {
+  const tarefas = agendadas.splice(0);
+  await Promise.all(tarefas.map((t) => t()));
+}
 
 function consulta(tabela: string) {
   const filtros: Array<(l: Linha) => boolean> = [];
@@ -177,6 +197,7 @@ beforeEach(() => {
   statusDoChatwoot = null;
   statusAoAtribuir = null;
   aoGravarOLead = null;
+  agendadas = [];
   autor = ANA;
   agentes = [DYONES, RODRIGO, BIA];
   fila = [];
@@ -300,6 +321,9 @@ describe("PATCH /api/leads/gerenciar: trocar o dono atribui a conversa", () => {
     expect(status).toBe(200);
     expect(corpo).toEqual({ ok: true });
     expect(lead().responsavel).toBe("Bia Souza");
+    // A resposta não esperou a atribuição: ela corre depois.
+    expect(atribuicoes()).toEqual([]);
+    await depoisDaResposta();
     expect(atribuicoes()).toEqual([{ conversa: 412, agente: 8 }]);
     expect(chamadas.every((c) => c.token === "tok-123")).toBe(true);
     expect(chamadas.find((c) => c.url.endsWith("/assignments"))).toMatchObject({
@@ -315,6 +339,7 @@ describe("PATCH /api/leads/gerenciar: trocar o dono atribui a conversa", () => {
       { id: "at-4", lead_id: "lead-2", chatwoot_conversation_id: 500, status_conversa: "open" },
     );
     await gravar({ responsavel: "Rodrigo Naumowicz" });
+    await depoisDaResposta();
     expect(atribuicoes()).toEqual([
       { conversa: 412, agente: 7 },
       { conversa: 413, agente: 7 },
@@ -326,6 +351,7 @@ describe("PATCH /api/leads/gerenciar: trocar o dono atribui a conversa", () => {
     const { status, corpo } = await gravar({ responsavel: "Bia Souza" });
     expect(status).toBe(200);
     expect(lead().responsavel).toBe("Bia Souza");
+    await depoisDaResposta();
     expect(atribuicoes()).toEqual([]);
     expect(corpo.aviso).toBe(
       `${AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO}: nenhum agente do Chatwoot se chama "Bia Souza".`,
@@ -340,11 +366,16 @@ describe("PATCH /api/leads/gerenciar: trocar o dono atribui a conversa", () => {
     expect(String(corpo.aviso)).toContain("CHATWOOT_API_TOKEN");
   });
 
-  it("a atribuição recusada também vira aviso, com a conversa que não foi", async () => {
+  it("a atribuição recusada, que já é depois da resposta, fica no log com a conversa que não foi", async () => {
     statusAoAtribuir = 500;
     const { corpo } = await gravar({ responsavel: "Bia Souza" });
     expect(lead().responsavel).toBe("Bia Souza");
-    expect(String(corpo.aviso)).toMatch(/^O lead mudou de dono.*conversa 412/);
+    expect(corpo).toEqual({ ok: true });
+    await depoisDaResposta();
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Leads] Conversa do Chatwoot sem o dono novo — lead lead-1:",
+      expect.stringContaining("conversa 412"),
+    );
   });
 
   it("lead sem conversa aberta: nenhuma chamada, nenhum aviso", async () => {
@@ -414,20 +445,25 @@ describe("a fila do funil: o lead que o rodízio passa leva a conversa junto", (
     fila = [linhaDaFila()];
     const corpo = await pedirAFila(true);
     expect(pedidosDaFila).toEqual([{ p_reservar: true }]);
-    expect(atribuicoes()).toEqual([{ conversa: 412, agente: 7 }]);
-    expect(corpo.conversas_no_chatwoot).toEqual({ atribuidas: 1, falhas: [] });
+    expect(corpo.conversas_no_chatwoot).toEqual({ agendadas: 1 });
     expect(corpo.fila.map((i) => i.para)).toEqual(["vendedor"]);
+    // A fila não esperou o Chatwoot.
+    expect(chamadas).toEqual([]);
+    await depoisDaResposta();
+    expect(atribuicoes()).toEqual([{ conversa: 412, agente: 7 }]);
   });
 
   it("atribuição (lead que chegou sem dono) também", async () => {
     fila = [linhaDaFila({ aviso: "atribuicao", responsavel: null, responsavel_whatsapp: null })];
     await pedirAFila(true);
+    await depoisDaResposta();
     expect(atribuicoes()).toEqual([{ conversa: 412, agente: 7 }]);
   });
 
   it("a prévia não transfere ninguém, então não fala com o Chatwoot", async () => {
     fila = [linhaDaFila()];
     const corpo = await pedirAFila(false);
+    await depoisDaResposta();
     expect(chamadas).toEqual([]);
     expect(corpo.conversas_no_chatwoot).toBeUndefined();
   });
@@ -439,6 +475,7 @@ describe("a fila do funil: o lead que o rodízio passa leva a conversa junto", (
       linhaDaFila({ lead_id: "lead-2", suprimido_por: "quiet_hours" }),
     ];
     const corpo = await pedirAFila(true);
+    await depoisDaResposta();
     expect(chamadas).toEqual([]);
     expect(corpo.conversas_no_chatwoot).toBeUndefined();
   });
@@ -454,33 +491,66 @@ describe("a fila do funil: o lead que o rodízio passa leva a conversa junto", (
       linhaDaFila({ lead_id: "lead-3", novo_responsavel: "Bia Souza" }),
     ];
     const corpo = await pedirAFila(true);
+    expect(corpo.conversas_no_chatwoot).toEqual({ agendadas: 2 });
+    await depoisDaResposta();
     expect(leiturasDosAgentes()).toHaveLength(1);
     expect(atribuicoes()).toEqual([
       { conversa: 412, agente: 7 },
       { conversa: 500, agente: 8 },
     ]);
-    expect(corpo.conversas_no_chatwoot).toEqual({ atribuidas: 2, falhas: [] });
+    expect(console.info).toHaveBeenCalledWith("[Funil] Conversas do Chatwoot com o dono novo: 2 de 2.");
   });
 
-  it("o Chatwoot fora do ar não segura o aviso: a fila sai, e a falha vem na resposta", async () => {
+  it("o Chatwoot fora do ar não segura o aviso: a fila sai, e a falha fica no log", async () => {
     statusDoChatwoot = 503;
     fila = [linhaDaFila()];
     const corpo = await pedirAFila(true);
     expect(corpo.fila).toHaveLength(1);
-    expect(corpo.conversas_no_chatwoot?.atribuidas).toBe(0);
-    expect(corpo.conversas_no_chatwoot?.falhas).toHaveLength(1);
+    await depoisDaResposta();
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Funil] Conversa do Chatwoot sem o dono novo:",
+      expect.stringContaining("503"),
+    );
   });
 
   it("o vendedor que não é agente aparece na falha, com o lead; os outros vão", async () => {
     agentes = [DYONES, BIA];
     banco.atendimentos.push({ id: "at-2", lead_id: "lead-2", chatwoot_conversation_id: 500, status_conversa: "open" });
     fila = [linhaDaFila(), linhaDaFila({ lead_id: "lead-2", novo_responsavel: "Bia Souza" })];
-    const corpo = await pedirAFila(true);
+    await pedirAFila(true);
+    await depoisDaResposta();
     expect(atribuicoes()).toEqual([{ conversa: 500, agente: 8 }]);
-    expect(corpo.conversas_no_chatwoot).toEqual({
-      atribuidas: 1,
-      falhas: ['lead lead-1: nenhum agente do Chatwoot se chama "Rodrigo Naumowicz"'],
+    expect(console.warn).toHaveBeenCalledWith(
+      "[Funil] Conversa do Chatwoot sem o dono novo:",
+      'lead lead-1: nenhum agente do Chatwoot se chama "Rodrigo Naumowicz"',
+    );
+  });
+});
+
+describe("o tempo do Chatwoot", () => {
+  /** Um Chatwoot que só responde depois de `ms`, e respeita o cancelamento. */
+  const lento = (ms: number) => (_url: string, init?: RequestInit) =>
+    new Promise<Response>((ok, recusar) => {
+      const t = setTimeout(() => ok(Response.json({ id: 7 })), ms);
+      init?.signal?.addEventListener("abort", () => {
+        clearTimeout(t);
+        recusar(init.signal!.reason);
+      });
     });
+  const cfg = { base: "https://chat.exemplo.com.br", conta: "3", token: "t" };
+
+  it("o prazo da atribuição cabe os 15 s que o Chatwoot levou em 10/10", () => {
+    expect(PRAZO_DA_ATRIBUICAO_MS).toBeGreaterThanOrEqual(20000);
+  });
+
+  it("atribuição que demora mas responde dentro do prazo conta como feita", async () => {
+    const r = await atribuirConversas([1, 2], 7, cfg, lento(60), 1000);
+    expect(r).toEqual({ atribuidas: 2, falhas: [] });
+  });
+
+  it("estourado o prazo, a falha diz que o Chatwoot não respondeu a tempo", async () => {
+    const r = await atribuirConversas([1], 7, cfg, lento(200), 20);
+    expect(r).toEqual({ atribuidas: 0, falhas: ["conversa 1: o Chatwoot não respondeu a tempo"] });
   });
 });
 

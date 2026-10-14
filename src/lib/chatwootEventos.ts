@@ -44,6 +44,14 @@ import {
 } from "./atribuicaoDoChatwoot";
 import { ehNotaDoPainel } from "./conversaDoDesfecho";
 
+/** Como começa a nota de contexto que o fluxo de entrada do site escreve na conversa. */
+export const INICIO_DA_NOTA_DE_ENTRADA = "**Lead do site**";
+
+/** A nota PRIVADA de contexto do fluxo de entrada — automática, não é atendimento. */
+export function ehNotaDeContextoDaEntrada(conteudo: unknown, privada: unknown): boolean {
+  return privada === true && typeof conteudo === "string" && conteudo.trimStart().startsWith(INICIO_DA_NOTA_DE_ENTRADA);
+}
+
 /** O que aconteceu, do ponto de vista do funil. */
 export type TipoDeEventoDoChatwoot =
   /** O cliente escreveu. É o que cria lead e o que abre atendimento. */
@@ -69,6 +77,12 @@ export interface EventoDoChatwoot {
   nome: string | null;
   /** Nome do agente que respondeu — vai para o `autor` do rastro. */
   autor: string | null;
+  /**
+   * Na mensagem do consultor: foi nota PRIVADA. Anotar é trabalhar o lead (o
+   * relógio para), mas o cliente não recebeu nada — o lead não sai de "Novo"
+   * por causa dela (2026-10-14).
+   */
+  privada?: boolean;
   /** Por que foi ignorado. Fila que descarta em silêncio é fila que ninguém audita. */
   motivo?: string;
   /**
@@ -326,6 +340,13 @@ export function interpretarEventoDoChatwoot(bruto: unknown): EventoDoChatwoot {
     if (ehNotaDoPainel(corpo.content, corpo.private)) {
       return IGNORADO("nota do painel ao encerrar o lead — robô não atende");
     }
+    // A nota de contexto que o fluxo de entrada do site (n8n "Entrada de Lead
+    // do Site") escreve ao abrir a conversa (2026-10-14). Sai com o token de
+    // um usuário do Chatwoot e chegava aqui com cara de gente: o lead do site
+    // já nascia com um "contato" que ninguém fez.
+    if (ehNotaDeContextoDaEntrada(corpo.content, corpo.private)) {
+      return IGNORADO("nota de contexto da entrada do lead — robô não atende");
+    }
     if (!ehAgenteHumano(remetente)) {
       return IGNORADO("mensagem de saída automática — robô não atende");
     }
@@ -336,6 +357,7 @@ export function interpretarEventoDoChatwoot(bruto: unknown): EventoDoChatwoot {
       telefone: telefoneDoChatwoot(contatoDaConversa.phone_number ?? contatoDaConversa.identifier),
       nome: texto(contatoDaConversa.name),
       autor: texto(remetente.name) ?? texto(remetente.available_name),
+      privada: corpo.private === true,
     };
   }
 

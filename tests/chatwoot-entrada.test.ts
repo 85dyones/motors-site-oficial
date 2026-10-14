@@ -97,6 +97,52 @@ describe("o consultor respondendo — o relógio da estagnação", () => {
   });
 });
 
+/**
+ * Nota privada e resposta ao cliente (2026-10-14).
+ *
+ * Relato do dono: *"o sistema transferência também está enviando leads
+ * supostamente parados no painel, mas que tem mensagens recente no
+ * chatwoot"*. A resposta pelo Chatwoot passou a tirar o lead de "Novo"
+ * (migração 20261014120000) — mas só a resposta que o cliente RECEBEU. Na 515,
+ * em 14/10, o vendedor escreveu "Bom dia Anelize…" como nota privada: ela para
+ * o relógio (anotar é trabalhar o lead), e não move a etapa.
+ */
+describe("nota privada e resposta ao cliente", () => {
+  it("a resposta pública sai marcada como não privada", () => {
+    const e = interpretarEventoDoChatwoot(saida({ id: 3, type: "user", name: "Ana" }, { private: false }));
+    expect(e.tipo).toBe("mensagem_do_consultor");
+    expect(e.privada).toBe(false);
+  });
+
+  it("a nota privada do consultor ainda conta como atendimento, marcada como privada", () => {
+    const e = interpretarEventoDoChatwoot(
+      saida({ id: 9, type: "user", name: "Rodrigo" }, { private: true, content: "Bom dia Anelize, me chamo Rodrigo" }),
+    );
+    expect(e.tipo).toBe("mensagem_do_consultor");
+    expect(e.privada).toBe(true);
+    expect(e.autor).toBe("Rodrigo");
+  });
+
+  it("a nota de contexto do fluxo de entrada do site não é atendimento de ninguém", () => {
+    const nota = "**Lead do site**\nCanal: WhatsApp Proposta\nVeículo: Nissan March 1.6";
+    const e = interpretarEventoDoChatwoot(saida({ id: 1, type: "user", name: "Dyones Oliveira" }, { private: true, content: nota }));
+    expect(e.tipo).toBe("ignorado");
+    expect(e.motivo).toMatch(/entrada do lead/);
+  });
+
+  it("a mesma frase numa mensagem PÚBLICA é gente falando com o cliente", () => {
+    const e = interpretarEventoDoChatwoot(
+      saida({ id: 1, type: "user", name: "Dyones Oliveira" }, { private: false, content: "**Lead do site** recebido, já te chamo" }),
+    );
+    expect(e.tipo).toBe("mensagem_do_consultor");
+  });
+
+  it("a rota registra a nota com o canal próprio, que não tira o lead de Novo", () => {
+    const rota = lerCodigo("src/app/api/chatwoot/eventos/route.ts");
+    expect(rota).toContain('p_canal: evento.privada ? "chatwoot_nota" : "chatwoot"');
+  });
+});
+
 describe("o casamento de telefone", () => {
   it("tira o `+` e guarda como `leads.telefone` guarda", () => {
     expect(telefoneDoChatwoot("+55 (41) 99999-0000")).toBe("5541999990000");
