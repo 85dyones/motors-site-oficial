@@ -3,6 +3,7 @@ import { ler, lerCodigo } from "./fonte";
 import type { CompanySettings } from "../src/types";
 import { montarLoja } from "../src/lib/lojaParaOAssistente";
 import {
+  ALCANCE_DA_ENTREGA,
   GARANTIA_KM_TEXTO,
   GARANTIA_MESES,
   PERGUNTAS_DE_FINANCIAMENTO,
@@ -118,6 +119,9 @@ describe("a fonte é a mesma que o site publica", () => {
   it("todas as perguntas do site entram, nenhuma fica de fora", () => {
     for (const item of [...PERGUNTAS_DE_GARANTIA, ...PERGUNTAS_DE_FINANCIAMENTO]) {
       expect(texto, item.pergunta).toContain(item.pergunta);
+      // A de outra cidade entra com a resposta sem o alcance (ver o bloco do
+      // alcance, abaixo); todas as outras, com a resposta do site.
+      if (/outra cidade/i.test(item.pergunta)) continue;
       expect(texto, item.pergunta).toContain(item.resposta.slice(0, 40));
     }
   });
@@ -145,14 +149,30 @@ describe("a fonte é a mesma que o site publica", () => {
   });
 });
 
-describe("o alcance e a entrega dizem o que o site diz", () => {
-  it("uma unidade, e o alcance que o dono decidiu em 17/09/2026", () => {
-    // O assistente responde a cliente de verdade: se ele prometer o Brasil
-    // inteiro enquanto a ficha promete Paraná e Santa Catarina, quem corrige
-    // a diferença é o consultor, no meio da venda.
-    expect(texto).toMatch(/Uma unidade só/);
-    expect(texto).toMatch(/em todo o Paraná e no litoral catarinense até Balneário Camboriú/);
-    expect(texto).not.toMatch(/todo o Brasil/);
+describe("o alcance da entrega é conversa do consultor", () => {
+  it("o documento não diz até onde a loja entrega, nem por dentro do FAQ da garantia", () => {
+    // Decisão do dono em 14/10/2026: "só transferir, deixe o consultor lidar
+    // com a objeção de área na hora certa". Até 14/10 o assistente prometia
+    // "todo o Brasil" (05/09) e depois teria lido Paraná e litoral
+    // catarinense. Nenhuma das duas é dele dizer.
+    expect(texto).toMatch(/Uma unidade só, no Bacacheri/);
+    expect(texto).not.toMatch(new RegExp(ALCANCE_DA_ENTREGA, "i"));
+    expect(texto).not.toMatch(/Balneário|litoral catarinense|todo o Brasil/i);
+    expect(fonte).not.toMatch(/\$\{ALCANCE_DA_ENTREGA\}/);
+  });
+
+  it("e diz o que fazer no lugar: anotar a cidade e passar ao consultor", () => {
+    expect(texto).toMatch(/não fale de alcance, região, frete nem prazo/);
+    expect(texto).toMatch(/Anote a cidade e passe para o consultor/);
+  });
+
+  it("a pergunta de outra cidade continua, com a cobertura e sem a região", () => {
+    const pergunta = PERGUNTAS_DE_GARANTIA.find((p) => /outra cidade/i.test(p.pergunta))!;
+    const depois = texto.slice(texto.indexOf(pergunta.pergunta));
+    const resposta = depois.split("\n")[1];
+
+    expect(resposta).toMatch(/A cobertura é a mesma/);
+    expect(resposta).toMatch(/o consultor combina caso a caso/);
   });
 
   it("e nenhum prazo de frete é prometido", () => {
