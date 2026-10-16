@@ -465,12 +465,10 @@ function lerConta(fuso, previa) {
   secao(retrato, "recursos", function () {
     var doAnuncio = todas(
       "SELECT asset.id, asset.type, asset.text_asset.text, ad_group_ad_asset_view.field_type, " +
-        "ad_group_ad_asset_view.policy_summary.approval_status, " +
-        "ad_group_ad_asset_view.policy_summary.policy_topic_entries, campaign.id, campaign.name, " +
+        "ad_group_ad_asset_view.policy_summary, campaign.id, campaign.name, " +
         "ad_group.id, ad_group.name FROM ad_group_ad_asset_view " +
         "WHERE ad_group_ad_asset_view.enabled = TRUE AND campaign.status = 'ENABLED' " +
-        "AND ad_group.status = 'ENABLED' AND ad_group_ad_asset_view.policy_summary.approval_status " +
-        "IN ('DISAPPROVED', 'APPROVED_LIMITED', 'AREA_OF_INTEREST_ONLY') LIMIT 400",
+        "AND ad_group.status = 'ENABLED' LIMIT 10000",
       function (l) {
         var p = l.adGroupAdAssetView.policySummary || {};
         return {
@@ -485,11 +483,15 @@ function lerConta(fuso, previa) {
           motivos: topicos(p.policyTopicEntries)
         };
       }
-    );
+    ).filter(function (r) {
+      // O Google só aceita policy_summary inteiro nesta visão: não dá para pedir nem
+      // filtrar approval_status na consulta, então o filtro dos reprovados é aqui.
+      return ["DISAPPROVED", "APPROVED_LIMITED", "AREA_OF_INTEREST_ONLY"].indexOf(r.situacao) >= 0;
+    }).slice(0, 400);
     var daCampanha = todas(
       "SELECT asset.id, asset.type, asset.name, campaign_asset.field_type, " +
         "campaign_asset.primary_status, campaign_asset.primary_status_reasons, campaign.id, " +
-        "campaign.name FROM campaign_asset WHERE campaign_asset.status = 'ENABLED' " +
+        "campaign.name, campaign.status FROM campaign_asset WHERE campaign_asset.status = 'ENABLED' " +
         "AND campaign.status = 'ENABLED' AND campaign_asset.primary_status IN ('NOT_ELIGIBLE', 'LIMITED') " +
         "LIMIT 100",
       function (l) {
