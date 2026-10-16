@@ -800,3 +800,94 @@ como secundárias; o resto é comportamento. Marcar `view_vehicle` como convers�
 ensina o algoritmo a comprar curioso.
 
 Implementação em `src/lib/dataLayer.ts`; travada por `tests/camada-de-dados.test.ts`.
+
+---
+
+## Fase 6 — A qualificação de volta para o Meta (2026-10-16)
+
+**Implementada em 2026-10-16.** Decisão do dono: *"as etapas de VISITA
+AGENDADA e NEGOCIANDO são a métrica de lead qualificado; sim, envie o Purchase
+com o valor real"*.
+
+### O problema
+
+Até aqui o Meta só recebia o topo do funil: `Lead`, na hora do formulário. A
+campanha otimiza para isso — e "lead" inclui quem some depois do primeiro
+contato. O que ensina o algoritmo a comprar o lead CERTO é o que acontece
+depois, no painel: a visita agendada, a negociação, a venda. Nada disso voltava
+para o Meta.
+
+A integração "Conversion Leads" do Meta (CRM → `event_source: crm`) vale só
+para Lead Ads (formulário dentro do Facebook/Instagram). Para lead de site, o
+caminho é mandar os eventos SEGUINTES pela mesma CAPI, com a mesma
+correspondência do `Lead`. É o que esta fase faz.
+
+### Os dois eventos
+
+| Evento | Quando | `event_id` | `custom_data` |
+|---|---|---|---|
+| `LeadQualificado` (personalizado) | o lead entra em `visita` ou `negociacao` — pelo quadro (`PATCH /api/leads/gerenciar`) ou pelo "Chegou na loja" (`POST /api/leads/[id]/chegou`) — ou fecha como **ganho** sem ter passado por elas | `<id do lead>:qualificado` | `etapa`, `content_ids`/`content_type` do carro |
+| `Purchase` | o negócio fecha como **ganho**, com `desfecho_valor` | `<id do lead>:purchase` | `value` = o valor gravado, `currency: "BRL"`, `content_ids`/`content_type` |
+
+- `action_source: system_generated`. O evento nasce no painel, de uma ação da
+  equipe, e não de uma página: por isso **não** leva IP nem User-Agent (seriam
+  os do vendedor). A correspondência vem da linha do lead: `em`, `ph` (SHA-256
+  em `sendCapiEvent`), `fbp`, `fbc`, `external_id` = `ag_uid`.
+- **Uma vez por lead, cada um.** O `event_id` é fixo e o resultado fica na
+  linha (abaixo): visita → negociação não conta duas vezes, nem o lead reaberto
+  e fechado de novo. Recusa do Meta e rede voltam a tentar no próximo
+  movimento que justifique, com o mesmo `event_id`.
+- **Sem valor não há Purchase.** Um Purchase de R$ 0 ensinaria o algoritmo a
+  otimizar para vendas de zero. O ganho sem valor fica `Purchase:pulado` na
+  linha e a tela recebe o aviso; o vendedor informa o valor (o PATCH com o
+  motivo de novo grava `desfecho_valor`) e o Purchase vai.
+- As chaves `visita` e `negociacao` são as **protegidas** de `funil_etapas`:
+  renomear o rótulo ("Visita agendada", "Negociando") ou mudar prazos não move
+  a régua. Mudar as ETAPAS que qualificam é mudar `ETAPAS_QUALIFICADAS` em
+  `src/lib/qualificacaoParaMeta.ts`, e é decisão de negócio.
+
+### O resultado fica na linha do lead
+
+As colunas `capi_meta_status`, `capi_meta_response` e `capi_meta_sent_at` de
+`leads` existiam desde a tabela de marketing e **nunca foram escritas** (97 de
+97 leads em `aguardando`, 16/10/2026): a CAPI respondia e ninguém guardava o
+quê. Agora:
+
+- `capi_meta_response` (jsonb) tem até três entradas — `lead` (o `Lead` da
+  captura, gravado por `/api/leads`), `qualificado` e `purchase` —, cada uma com
+  `evento`, `event_id`, `resultado` (`enviado` · `recusado` · `sem_rede` ·
+  `pulado`), `em`, `http`, o resumo da resposta do Graph (`events_received`,
+  `fbtrace_id`, o `error`) e `motivo` quando pulado.
+- `capi_meta_status` é `<evento>:<resultado>` do registro mais recente
+  (`Purchase:enviado`, `LeadQualificado:recusado`, `Lead:pulado`): um `where`
+  ou um olhar na tabela dizem como o lead está com o Meta.
+- `capi_meta_sent_at` é a última entrega que o Meta aceitou.
+
+Sem pixel em `site_settings`, a CAPI inteira está desligada: nada vai e nada
+se registra, como na captura. O `Lead` sem `event_id` (formulário sem sessão
+de rastreio) fica `Lead:pulado` com o motivo.
+
+### Onde mora
+
+- `src/lib/qualificacaoParaMeta.ts` — as regras, puras.
+- `src/lib/qualificacaoParaMeta-servidor.ts` — lê a linha, manda, grava.
+- `src/lib/meta-capi.ts` — `CapiEvent` ganhou os dois nomes e a origem
+  `system_generated`; `sendCapiEvent` passou a devolver o corpo do Graph.
+- Travado por `tests/qualificacao-para-meta.test.ts`.
+
+### No Events Manager
+
+Os dois eventos aparecem com origem **Servidor** e sem par do navegador (não
+há "Desduplicado" aqui: eles só existem no servidor). Para a campanha usar:
+
+1. Em **Eventos personalizados**, `LeadQualificado` aparece sozinho depois do
+   primeiro envio. Para otimizar por ele, crie uma **conversão personalizada**
+   a partir dele (ou use-o direto como evento de otimização, onde o objetivo
+   permitir).
+2. `Purchase` é padrão: entra em "Vendas" com o valor, e o ROAS passa a ser
+   calculável.
+3. Volume: ~8 leads/semana e 5 em etapa qualificada hoje. Abaixo dos ~50
+   eventos/semana que a otimização por evento pede, `LeadQualificado` serve
+   mais como **relatório** (qual campanha traz visita) do que como alvo de
+   lance. O alvo pode ser testado quando o volume subir.
+

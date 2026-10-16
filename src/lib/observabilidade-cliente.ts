@@ -93,7 +93,15 @@ const ORIGENS_DE_FORA = [
  * sobra de erro em script de outra origem sem CORS — sem stack, sem arquivo,
  * sem nada que se possa investigar.
  */
-const MENSAGENS_DE_FORA = ["ResizeObserver loop", "Script error"];
+/*
+ * `Java object is gone` (16/10/2026): é a ponte JavaScript→Java do navegador
+ * interno do Facebook e do Instagram no Android chamando `postMessage` num
+ * objeto que o app já descartou. Medido na fila: 324 das ~330 linhas de
+ * navegador em 14 dias, todas de `FBAN`/`FBAV`/`Instagram`, quase todas em
+ * fichas — o tráfego de anúncio aterrissando pelo app. Não há stack nosso,
+ * não há o que corrigir aqui, e o volume enterrava o resto da fila.
+ */
+const MENSAGENS_DE_FORA = ["ResizeObserver loop", "Script error", "Java object is gone"];
 
 function corta(texto: string, teto: number): string {
   return texto.length <= teto ? texto : texto.slice(0, teto);

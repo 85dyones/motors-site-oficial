@@ -12,7 +12,10 @@ import type { ParDaCopia } from "./estoqueParaORepasse";
 import { BUCKET_DE_FOTOS, type VarianteDaFoto } from "./fotosDoVeiculo";
 import type { createAdminSupabaseClient } from "./supabase-server";
 
-const VARIANTES: readonly VarianteDaFoto[] = ["web", "zap"];
+// Só o par das colunas: a `card` (16/10/2026) não entra na importação do
+// repasse — quem a gera para o que já está no bucket é
+// `supabase/manutencao/gerar-card-das-fotos.js`, e o card cai na `web` até lá.
+const VARIANTES = ["web", "zap"] as const satisfies readonly VarianteDaFoto[];
 
 export type ArmazenamentoDoRepasse = ReturnType<typeof createAdminSupabaseClient>["storage"];
 export type ParTrazido = { ok: true; web: string; zap: string; baixou: boolean } | { ok: false; erro: string };

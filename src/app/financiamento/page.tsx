@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GUIAS_DA_PAGINA } from "../../lib/guiasNoSite";
 import PaginaDeEstoque from "../../components/modernist/PaginaDeEstoque";
 import SimuladorDeFinanciamento from "../../components/SimuladorDeFinanciamento";
+import { aliviarListaParaOCliente } from "../../lib/estoqueParaOCliente";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
 import { getCachedSettings } from "../../lib/settings";
 import { parametrosDoFinanciamento } from "../../lib/parametrosDoFinanciamento-servidor";
@@ -124,7 +125,10 @@ export default async function FinanciamentoPage() {
         contagem={false}
         veiculos={paraGrade}
         textoSemEstoque={`Sem veículos nesta faixa agora — o simulador acima funciona com qualquer carro do estoque de ${parametros.anoMaisAntigo} em diante.`}
-        conteudo={<SimuladorDeFinanciamento veiculos={disponiveis} parametros={parametros} />}
+        /* Lista aliviada (`lib/estoqueParaOCliente`, 16/10/2026): o simulador
+           lê id, marca, modelo, versão, ano e preço, e a lista inteira pesava
+           315 KB no HTML desta página. */
+        conteudo={<SimuladorDeFinanciamento veiculos={aliviarListaParaOCliente(disponiveis)} parametros={parametros} />}
         /* O texto de abertura diz "o simulador ABAIXO responde a primeira
            pergunta". Medido na produção em 05/09/2026: a frase ficava a 267px
            do topo e o primeiro campo do simulador a 1702px, com a grade de

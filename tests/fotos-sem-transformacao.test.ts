@@ -92,11 +92,14 @@ describe("urlDaVersaoGravada", () => {
 });
 
 describe("o que chega ao HTML", () => {
-  it("o card serve a `web` inteira, sem srcset — e troca a `zap` pela irmã", async () => {
+  it("o card serve a `card` inteira, sem srcset — a partir da `zap` ou da `web` (a `web` é a reserva, no onError)", async () => {
+    // Até 16/10/2026 era a `web` de 1280 px; agora é a `card` de 640 px, a
+    // mesma medida da `_G_` do carro57. Sem srcset e sem transformação, como antes.
+    const CARD = WEB.replace("-web.webp", "-card.webp");
     const { default: FotoPropriaDoCard } = await import("../src/components/modernist/FotoPropriaDoCard");
     for (const src of [WEB, ZAP]) {
       const html = renderToStaticMarkup(createElement(FotoPropriaDoCard, { src, alt: "x", fill: true, sizes: "33vw" }));
-      expect(html).toContain(`src="${WEB}"`);
+      expect(html).toContain(`src="${CARD}"`);
       expect(html).not.toContain("srcSet");
       expect(html).not.toContain("srcset");
     }

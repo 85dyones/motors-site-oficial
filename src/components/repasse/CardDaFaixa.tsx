@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
+import FotoPropriaDoCard from "../modernist/FotoPropriaDoCard";
 import { grafiaDoCarro } from "../../lib/grafiaCanonica";
 import { nomeComAno } from "../../lib/nomeDoVeiculo";
 import { CAMINHO_DO_REPASSE, abaixoDaFipeNaBarra } from "../../lib/paginaDoRepasse";
@@ -34,14 +35,13 @@ export default function CardDaFaixa({ repasse: r }: { repasse: Repasse }) {
         {foto ? (
           // `alt=""`: o nome do carro já é o texto do link, logo abaixo, e
           // repeti-lo faria o leitor de tela dizê-lo duas vezes.
-          <Image
-            src={foto}
-            alt=""
-            fill
-            sizes="(max-width: 640px) 100vw, 20vw"
-            unoptimized={ehFotoPropria(foto)}
-            className="object-cover"
-          />
+          // A foto nossa vai pela versão `card` de 640 px, com a `web` de
+          // reserva (`FotoPropriaDoCard`, 16/10/2026).
+          ehFotoPropria(foto) ? (
+            <FotoPropriaDoCard src={foto} alt="" fill sizes="(max-width: 640px) 100vw, 20vw" className="object-cover" />
+          ) : (
+            <Image src={foto} alt="" fill sizes="(max-width: 640px) 100vw, 20vw" className="object-cover" />
+          )
         ) : null}
         <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[11px]">
           {etiqueta}

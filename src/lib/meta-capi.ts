@@ -31,17 +31,64 @@ export interface CapiUserData {
   clientUserAgent?: string | null;
 }
 
+/**
+ * Os eventos que o servidor manda. Os cinco primeiros espelham o pixel do
+ * navegador (mesmo `event_id`, desduplicados). Os dois últimos nascem no
+ * PAINEL, sem par no navegador (16/10/2026): `LeadQualificado` quando o lead
+ * entra em visita agendada ou negociação, e `Purchase` quando o negócio
+ * fecha como ganho, com o valor real — ver `lib/qualificacaoParaMeta`.
+ */
+export type NomeDoEventoCapi =
+  | "ViewContent"
+  | "Lead"
+  | "Contact"
+  | "Search"
+  | "CompleteRegistration"
+  | "LeadQualificado"
+  | "Purchase";
+
 export interface CapiEvent {
-  eventName: "ViewContent" | "Lead" | "Contact" | "Search" | "CompleteRegistration";
+  eventName: NomeDoEventoCapi;
   eventId: string;
   eventTime?: number; // unix seconds; default = agora
   eventSourceUrl?: string | null;
-  actionSource?: "website";
+  /**
+   * `website` para o que espelha o navegador. `system_generated` para o que
+   * o painel gera de uma ação da equipe (a qualificação): o Meta pede essa
+   * origem para evento que não aconteceu numa página, e ela dispensa IP e
+   * User-Agent — seriam os do vendedor, não os do cliente.
+   */
+  actionSource?: "website" | "system_generated";
   userData: CapiUserData;
   customData?: Record<string, unknown>;
   // Pixel ID já resolvido de site_settings (companySettings.metaPixelId).
   // Se omitido, cai para META_PIXEL_ID do ambiente.
   pixelId?: string | null;
+}
+
+/**
+ * O que uma entrega devolve a quem chamou.
+ *
+ * `status` 0 é "nem chegou ao Graph": configuração ausente, rede ou tempo
+ * limite. `corpo` é a resposta do Graph, já lida — o JSON quando é JSON
+ * (`events_received`, `fbtrace_id`, ou o `error` dele), senão o texto. Existe
+ * para quem grava o resultado na linha do lead (`capi_meta_*`), que até
+ * 16/10/2026 nunca foi escrita: a CAPI respondia e ninguém guardava o quê.
+ */
+export interface EntregaDaCapi {
+  ok: boolean;
+  status: number;
+  corpo?: unknown;
+}
+
+/** O corpo do Graph como JSON quando dá; o texto, quando não dá. */
+function lerCorpo(texto: string): unknown {
+  if (!texto) return undefined;
+  try {
+    return JSON.parse(texto);
+  } catch {
+    return texto;
+  }
 }
 
 /**
@@ -58,7 +105,7 @@ export interface CapiEvent {
  */
 const FORMA_DA_VERSAO = /^v\d+\.\d+$/;
 
-export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; status: number }> {
+export async function sendCapiEvent(event: CapiEvent): Promise<EntregaDaCapi> {
   /* `trim` nos três, e não só na versão: os valores vêm de um painel, e colar
      de um documento traz espaço ou quebra de linha junto. No token isso vira
      um 401 que se parece com credencial errada; na versão, um caminho que o
@@ -153,12 +200,15 @@ export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; st
        */
       signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
     });
+    // O corpo é lido nos dois casos: na recusa vai para o log e para o aviso;
+    // no sucesso leva `events_received` e `fbtrace_id`, que é o que a linha
+    // do lead guarda para a entrega poder ser conferida depois.
+    const corpo = await res.text().catch(() => "");
     if (!res.ok) {
       // `console.error`, não `warn`: é o nível que o filtro de erro da Vercel
       // enxerga, e é sobre ele que se liga alerta. Um CAPI recusando evento em
       // silêncio já custou um mês a este projeto (ver o gate de consentimento,
       // 31/08 a 02/09) — o log existia e ninguém o via porque era `warn`.
-      const corpo = await res.text().catch(() => "");
       /* O CAMINHO vai junto — versão e pixel, nunca o token. Quando o Meta
          recusa por causa da URL, a resposta dele descreve o que sobrou, não o
          que foi enviado: em 03/09 a mensagem citava o pixel para reclamar do
@@ -171,7 +221,7 @@ export async function sendCapiEvent(event: CapiEvent): Promise<{ ok: boolean; st
       // expirado alternando 400/401 furar a carência.
       await registrarFalha("parada", "meta-capi", `${res.status} em ${caminho} no evento ${event.eventName}: ${corpo}`);
     }
-    return { ok: res.ok, status: res.status };
+    return { ok: res.ok, status: res.status, corpo: lerCorpo(corpo) };
   } catch (err) {
     const expirou = err instanceof Error && err.name === "TimeoutError";
     const oQue = expirou ? `tempo limite (${TEMPO_LIMITE_MS}ms)` : "rede";

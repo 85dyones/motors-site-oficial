@@ -913,7 +913,11 @@ describe("o site continua servindo as fotos", () => {
     expect(card).toContain("ehFotoPropria(foto) ? (");
     expect(card).toContain("<FotoPropriaDoCard");
     const componente = ler("src", "components", "modernist", "FotoPropriaDoCard.tsx");
-    expect(componente).toMatch(/src=\{versaoWebDaFoto\(props\.src\) \?\? props\.src\} unoptimized/);
+    // Desde 16/10 a versão pedida é a `card` (640 px), com a `web` de reserva
+    // no `onError` — as duas gravadas no envio, nenhuma transformada.
+    expect(componente).toContain("versaoCardDaFoto(props.src)");
+    expect(componente).toContain("versaoWebDaFoto(props.src) ?? props.src");
+    expect(componente).toMatch(/src=\{src\} unoptimized/);
     expect(componente).not.toContain("loader=");
     // O `next/image` e o `sizes` continuam — é o que faz a foto do carro57
     // valer a pena otimizar (`tests/rodape-e-imagens.test.ts` também cobra).

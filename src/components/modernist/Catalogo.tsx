@@ -1,10 +1,11 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Fragment, startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, startTransition, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import type { QuickTag, StockOverrides, Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
+import { totalDeFotos } from "../../lib/estoqueParaOCliente";
 import {
   checkTagMatchesVehicle,
   precoVigente,
@@ -60,6 +61,51 @@ import { marcarTransicao, Transicao, transicaoPermitida } from "./Transicao";
  */
 
 const PAGINA = 9;
+
+/**
+ * Onde a vitrine guarda quantos cards estavam abertos (16/10/2026).
+ *
+ * Por URL, com a query: cada filtro é uma vitrine, e a contagem de uma não
+ * vale para a outra. `sessionStorage`, e não a URL: `?mostrar=27` viraria
+ * endereço compartilhável e indexável de uma página que é a mesma.
+ */
+const chaveDaVitrine = () => `mt-vitrine:${window.location.pathname}${window.location.search}`;
+
+/**
+ * A loja da contagem: lê e grava no `sessionStorage` e avisa quem assina.
+ *
+ * É `useSyncExternalStore`, e não `useState` mais um efeito que restaura: o
+ * servidor e a hidratação lêem `PAGINA` (o HTML bate), e logo depois o React
+ * refaz com o que o navegador guardou — sem `setState` dentro de efeito.
+ * Com o armazenamento bloqueado, a vitrine abre e fica na primeira leva.
+ */
+const ouvintesDaVitrine = new Set<() => void>();
+const assinarVitrine = (ouvinte: () => void) => {
+  ouvintesDaVitrine.add(ouvinte);
+  return () => {
+    ouvintesDaVitrine.delete(ouvinte);
+  };
+};
+const lerVisiveis = (): number => {
+  try {
+    const salvo = Number(sessionStorage.getItem(chaveDaVitrine()));
+    return salvo > PAGINA ? salvo : PAGINA;
+  } catch {
+    return PAGINA;
+  }
+};
+const lerVisiveisNoServidor = () => PAGINA;
+const gravarVisiveis = (valor: number | ((atual: number) => number)) => {
+  const proximo = typeof valor === "function" ? valor(lerVisiveis()) : valor;
+  try {
+    const chave = chaveDaVitrine();
+    if (proximo > PAGINA) sessionStorage.setItem(chave, String(proximo));
+    else sessionStorage.removeItem(chave);
+  } catch {
+    /* armazenamento bloqueado: fica na primeira leva */
+  }
+  for (const ouvinte of ouvintesDaVitrine) ouvinte();
+};
 
 /**
  * O tipo da transição em que a vitrine se reorganiza (`marcarTransicao`).
@@ -152,7 +198,19 @@ export default function Catalogo({
   });
   const [opcionais, setOpcionais] = useState<string[]>(inicial.opcionais);
   const [ordem, setOrdem] = useState<Ordenacao>(inicial.ordem);
-  const [visiveis, setVisiveis] = useState(PAGINA);
+  /**
+   * O "carregar mais" sobrevive ao voltar da ficha (16/10/2026).
+   *
+   * Medido na produção: quem abria 27 carros e tocava no 20º voltava para
+   * uma vitrine com 9, e a rolagem que o navegador restaura caía no fim de
+   * uma página mais curta — a pessoa perdia o lugar toda vez que passava do
+   * 9º carro. O estado de um componente morre quando a página sai; a
+   * contagem vive no `sessionStorage`, por URL, e volta na hidratação. Todo
+   * filtro novo zera a contagem (os `setVisiveis(PAGINA)` abaixo), e a chave
+   * vai junto.
+   */
+  const visiveis = useSyncExternalStore(assinarVitrine, lerVisiveis, lerVisiveisNoServidor);
+  const setVisiveis = gravarVisiveis;
   const [busca, setBusca] = useState(inicial.busca);
   const termos = useMemo(() => termosDaBusca(busca), [busca]);
   // Grupos abertos no "VER TODAS". Estado de tela, não de filtro: não vai
@@ -1207,8 +1265,8 @@ export default function Catalogo({
                       href={getVeiculoPdpUrl(v)}
                       etiqueta={v.status_tag || undefined}
                       contagemFotos={
-                        v.web_full_images?.length
-                          ? `${v.web_full_images.length} fotos`
+                        totalDeFotos(v)
+                          ? `${totalDeFotos(v)} fotos`
                           : undefined
                       }
                       prioridade={i < 3}

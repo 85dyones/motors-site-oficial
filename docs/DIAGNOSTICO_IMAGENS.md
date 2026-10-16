@@ -305,3 +305,42 @@ para a galeria do painel, e o card e a ficha passaram por fora dela.
    aviso de carência, a escolha é entre desligar o Spend Cap até a virada do
    ciclo (o excedente deste ciclo deve caber em um pacote de US$ 5, porque o bucket inteiro tem ~1.100 arquivos) e correr o risco da
    restrição.
+
+## Adendo de 2026-10-16 — a opção A entra, e a foto nossa ganha a `card`
+
+Medido na produção em 16/10 (Chromium emulando um Pixel 7 em 4G lento):
+home com LCP de 10,6 s e 3,0 MB; ficha com 3,4 MB, dos quais 1,6 MB eram os
+quatro originais `_O_` da folha de impressão, no DOM da tela, mais os quatro
+`<link rel="preload">` que o React emite para toda `<img>` que não é
+preguiçosa. O card continuava pedindo a `_W_` ao otimizador da Vercel.
+
+**O que entrou (PR #279):**
+
+1. **A opção A, enfim.** `src/lib/fotosDoCarro57.ts` troca o token da URL
+   do carro57 pela variante que cobre a largura pedida — a escada remedida em
+   16/10: `S` 260 px (11 KB), `M` 485 (31 KB), `G` 640 (48 KB), `W` 1620
+   (224 KB), `O` 1920 (428 KB), todas com `max-age=31536000`. O card nunca
+   passa da `G` (`LADO_DO_CARD`); miniaturas, slides e tela cheia vão pelas
+   variantes. Só a capa da galeria da ficha e o hero da home seguem pelo
+   otimizador: são o LCP, o WebP dele pesa um terço da `W`, e é uma foto por
+   carro. A `W` do `web_full_images` e a `O` do `whatsapp_images` viram o
+   mesmo endereço na mesma largura — a inversão card/ficha anotada acima
+   deixou de custar cache.
+2. **A folha de impressão** aponta para `W`/`G`, com `loading="lazy"`:
+   escondida, não baixa nada; o botão de imprimir e o `beforeprint` acordam
+   as fotos antes do diálogo (`src/lib/imprimirFicha.ts`).
+3. **O hero** passou a `next/image` com `sizes="100vw"`, e só três slides
+   existem no DOM (o da tela, o que sai e o próximo). Eram quatro `<img>`
+   crus da `W`, e o `lazy` deles não valia dentro da viewport.
+4. **A foto nossa ganhou a terceira versão** que o adendo de 09/10 previu:
+   `card`, 640 px, WebP, qualidade 0,80, gravada no envio junto da `zap` e da
+   `web` (`LADO_DA_VARIANTE.card`). O card (`FotoPropriaDoCard`, e os cards
+   do repasse) pede a `card` e cai na `web` no `onError`. A galeria da ficha
+   continua no par `web`/`zap`. Para o que já estava no bucket:
+   `node supabase/manutencao/gerar-card-das-fotos.js --gravar` (ensaio sem a
+   flag; só gera o que falta, pode rodar de novo). A importação do repasse
+   continua gravando só o par — rodar o script depois de importar.
+
+**Medido no build local, mesmo perfil:** home 10,6 s → 4,7 s de LCP e
+3,0 MB → 2,3 MB; /estoque 4,5 s → 2,7 s; ficha 3,4 MB → 1,7 MB. Cota do
+otimizador: só a capa de cada ficha e os slides curados do hero.

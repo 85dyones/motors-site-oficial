@@ -17,6 +17,7 @@ import FaixasDePreco from "../../components/modernist/FaixasDePreco";
 import FaixaDoRepasseNoEstoque from "../../components/repasse/FaixaDoRepasseNoEstoque";
 import { faixaNoEstoque, lerRepassesDasPortas } from "../../lib/portasDoRepasse";
 import ContagemDeEstoque from "../../components/ContagemDeEstoque";
+import { aliviarListaParaOCliente } from "../../lib/estoqueParaOCliente";
 import {
   blocoJsonLd,
   schemaDeListagem,
@@ -298,8 +299,11 @@ export default async function EstoquePage() {
           </>
         }
       >
+        {/* A lista aliviada (`lib/estoqueParaOCliente`, 16/10/2026): o
+            catálogo é componente de cliente, e os 43 veículos inteiros eram
+            358 KB do HTML desta página. O card lê a capa e a contagem. */}
         <Catalogo
-          estoque={disponiveis}
+          estoque={aliviarListaParaOCliente(disponiveis)}
           quickTags={quickTags.length > 0 ? quickTags : DESTAQUES_PADRAO}
           stockOverrides={stockOverrides}
         />

@@ -4,6 +4,8 @@ import { logLeadCaptured, META_CONTENT_TYPE } from "../../../lib/telemetry";
 import { createAdminSupabaseClient } from "../../../lib/supabase-server";
 import { getCachedSettings } from "../../../lib/settings";
 import { sendCapiEvent } from "../../../lib/meta-capi";
+import { SEM_EVENT_ID, registroDaEntrega, registroPulado } from "../../../lib/qualificacaoParaMeta";
+import { registrarLeadNaLinha } from "../../../lib/qualificacaoParaMeta-servidor";
 import { verificarTurnstile, ACOES_DE_LEADS, ipDoVisitante } from "../../../lib/turnstile";
 import { interesseDoLead } from "../../../lib/interesseDoLead";
 import { grafiaDoCarro } from "../../../lib/grafiaCanonica";
@@ -413,7 +415,7 @@ export async function POST(request: NextRequest) {
       const pixelId = companySettings?.metaPixelId || null;
 
       if (pixelId && body.eventId) {
-        await sendCapiEvent({
+        const entrega = await sendCapiEvent({
           eventName: "Lead",
           eventId: body.eventId,
           eventSourceUrl: body.eventSourceUrl || null,
@@ -450,6 +452,25 @@ export async function POST(request: NextRequest) {
           },
           pixelId,
         });
+        // O resultado fica na linha do lead (16/10/2026). As colunas
+        // `capi_meta_*` existiam desde a tabela de marketing e nunca foram
+        // escritas: a CAPI respondia e ninguém guardava o quê. Agora dá para
+        // conferir no banco o que o Meta aceitou — e é na mesma linha que a
+        // qualificação do painel grava os eventos seguintes
+        // (`lib/qualificacaoParaMeta`). Só com a linha gravada e com uma
+        // entrega de verdade: a CAPI dublada devolve nada, e nada se registra.
+        if (idDoLead && entrega) {
+          await registrarLeadNaLinha(
+            createAdminSupabaseClient(),
+            idDoLead,
+            registroDaEntrega("Lead", String(body.eventId), entrega),
+          );
+        }
+      } else if (pixelId && idDoLead) {
+        // Pixel configurado e nenhum `event_id`: o Lead não vai pelo servidor
+        // (sem par no navegador, contaria dobrado). Fica dito na linha, para
+        // o "Lead:pulado" no banco explicar o que o Events Manager não mostra.
+        await registrarLeadNaLinha(createAdminSupabaseClient(), idDoLead, registroPulado("Lead", null, SEM_EVENT_ID));
       }
     } catch (capiError) {
       console.warn("[Meta CAPI] Falha não-bloqueante no lead:", capiError);

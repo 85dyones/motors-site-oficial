@@ -1,7 +1,10 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { CompanySettings, Veiculo } from "../../types";
+import { LADO_DA_FOLHA, LADO_DO_CARD, varianteDoCarro57 } from "../../lib/fotosDoCarro57";
+import { urlDaVersaoGravada, LARGURA_DA_VERSAO_WEB } from "../../lib/fotosDoVeiculo";
+import { acordarFotosDaFolha } from "../../lib/imprimirFicha";
 import type { QrDaFicha } from "../../lib/qrDaFicha";
 import { telefoneVisivel } from "../../lib/whatsapp";
 import { razaoSocialAparte } from "../../lib/identidadeLegal";
@@ -193,7 +196,25 @@ export default function FichaImpressa({
    * carros que ainda não têm o curto.
    */
   const descritivo = resumo(textoPuro(veiculo.descricao_seo) || textoPuro(veiculo.descricao));
-  const miniaturas = fotos.slice(1, 4);
+  /* As fotos no tamanho da folha, e não no original (16/10/2026).
+
+     A folha mora no DOM da tela, escondida, e até aqui apontava para o
+     `_O_` do carro57 (1920 px, ~430 KB cada): quatro fotos, 1,6 MB, baixadas
+     em toda visita à ficha para um papel que quase ninguém pede. Numa A4 a
+     150 dpi a `_W_` (1620 px) já sobra para a foto grande, e a `_G_`
+     (640 px) para cada miniatura. A foto nossa vai pela versão `web`
+     gravada no envio (1280 px). E tudo `loading="lazy"`: escondida, a foto
+     preguiçosa não é baixada; na impressão, `lib/imprimirFicha.ts` a acorda. */
+  const naFolha = (foto: string, lado: number) => varianteDoCarro57(urlDaVersaoGravada(foto, LARGURA_DA_VERSAO_WEB), lado);
+  const capa = fotos[0] ? naFolha(fotos[0], LADO_DA_FOLHA) : null;
+  const miniaturas = fotos.slice(1, 4).map((foto) => naFolha(foto, LADO_DO_CARD));
+
+  // Ctrl+P não passa pelo botão: a folha mesma acorda as fotos.
+  useEffect(() => {
+    const acordar = () => acordarFotosDaFolha();
+    window.addEventListener("beforeprint", acordar);
+    return () => window.removeEventListener("beforeprint", acordar);
+  }, []);
 
   return (
     <section
@@ -391,13 +412,15 @@ export default function FichaImpressa({
             background: "var(--mt-surface)",
           }}
         >
-          {fotos[0] && (
+          {capa && (
             /* `<img>` cru: o `srcset` do next/image não serve à impressora.
                Mesma exceção que o bloco de impressão anterior já abria. */
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={fotos[0]}
+              src={capa}
               alt={`${veiculo.marca} ${modeloExibido}`}
+              loading="lazy"
+              decoding="async"
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
             />
           )}
@@ -418,6 +441,8 @@ export default function FichaImpressa({
                 <img
                   src={foto}
                   alt={`${veiculo.marca} ${modeloExibido} — foto ${i + 2}`}
+                  loading="lazy"
+                  decoding="async"
                   style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
                 />
               </div>

@@ -72,7 +72,11 @@ describe("o que é nosso para relatar", () => {
     ).toBeNull();
   });
 
-  it.each(["ResizeObserver loop completed with undelivered notifications.", "Script error."])(
+  it.each([
+    "ResizeObserver loop completed with undelivered notifications.",
+    "Script error.",
+    "Error invoking postMessage: Java object is gone",
+  ])(
     "ruído conhecido de navegador é descartado: %s",
     (mensagem) => {
       expect(montarEvento({ tipo: "erro", mensagem, arquivo: "/app.js" }, CTX)).toBeNull();

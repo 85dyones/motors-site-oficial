@@ -211,7 +211,9 @@ export default function IntegrationsTracker() {
           // A biblioteca entra uma vez só; o `config` é por propriedade.
           if (!bibliotecaGtagCarregada.current) {
             const script1 = document.createElement("script");
-            script1.async = true;
+            // `async=false`: executa antes do gtm.js inserido logo abaixo, sem
+            // bloquear nada (o porquê está em `BootstrapDeTags`).
+            script1.async = false;
             script1.src = `https://www.googletagmanager.com/gtag/js?id=${ga4Id}`;
             document.head.appendChild(script1);
             bibliotecaGtagCarregada.current = true;
@@ -260,7 +262,7 @@ export default function IntegrationsTracker() {
           script.innerHTML = `
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=false;j.src=
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
             })(window,document,'script','dataLayer','${gtmId}');
           `;

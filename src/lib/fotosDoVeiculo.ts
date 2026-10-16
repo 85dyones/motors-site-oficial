@@ -69,11 +69,30 @@ export const MIMES_DO_BUCKET = ["image/jpeg", "image/png", "image/webp"] as cons
  * `web_full_images[3]` são a mesma fotografia. É isso que faz "a primeira é a
  * capa" valer nas duas colunas ao mesmo tempo.
  */
-export type VarianteDaFoto = "web" | "zap";
+/*
+ * A terceira versão, `card` (16/10/2026): 640 px, WebP, só para o card.
+ *
+ * A `web` de 1280 px foi desenhada para o card em tela retina, e é o que o
+ * card baixava inteiro: ~90 a 200 KB por carro com foto nossa (medido na
+ * home em 16/10: 200 KB, a maior imagem da página depois que o hero
+ * passou pelo otimizador). A foto do carro57 já sai pela `_G_` de 640 px e
+ * 48 KB (`lib/fotosDoCarro57.ts`); a `card` é a mesma medida para a foto
+ * nossa, gravada no envio como as outras duas — sem transformação de
+ * ninguém, que é a regra desde 09/10.
+ *
+ * Não entra nas colunas do anúncio: `web_full_images` e `whatsapp_images`
+ * continuam sendo o par `web`/`zap`, e a `card` sai do nome
+ * (`versaoCardDaFoto`). Foto gravada antes de 16/10 não tem a `card`; o card
+ * cai na `web` quando ela não existe, e o script
+ * `supabase/manutencao/gerar-card-das-fotos.js` gera a versão para o que já
+ * está no bucket.
+ */
+export type VarianteDaFoto = "web" | "zap" | "card";
 
 export const EXTENSAO_DA_VARIANTE: Record<VarianteDaFoto, string> = {
   web: "webp",
   zap: "jpg",
+  card: "webp",
 };
 
 /**
@@ -185,9 +204,29 @@ export function ehFotoPropria(url: string | null | undefined): boolean {
  */
 export const LARGURA_DA_VERSAO_WEB = 1280;
 export const LARGURA_DA_VERSAO_ZAP = 1600;
+export const LARGURA_DA_VERSAO_CARD = 640;
 
 const SUFIXO_ZAP = `-zap.${EXTENSAO_DA_VARIANTE.zap}`;
 const SUFIXO_WEB = `-web.${EXTENSAO_DA_VARIANTE.web}`;
+const SUFIXO_CARD = `-card.${EXTENSAO_DA_VARIANTE.card}`;
+
+/**
+ * A versão `card` (640 px, WebP) da mesma fotografia, a partir da `zap` ou
+ * da `web` — as duas que as colunas guardam.
+ *
+ * `null` quando a URL não é nossa ou não é uma das duas. Quem usa é só o
+ * card (`FotoPropriaDoCard`, `CardDoRepasse`, `CardDaFaixa`), com a `web`
+ * de reserva: a `card` só existe para o que foi enviado desde 16/10/2026 ou
+ * passou pelo script `gerar-card-das-fotos.js`, e um 404 aqui cai na `web`
+ * em vez de deixar a célula vazia.
+ */
+export function versaoCardDaFoto(url: string | null | undefined): string | null {
+  const limpo = (url ?? "").trim().split("?")[0];
+  if (!ehFotoPropria(limpo)) return null;
+  if (limpo.endsWith(SUFIXO_ZAP)) return limpo.slice(0, -SUFIXO_ZAP.length) + SUFIXO_CARD;
+  if (limpo.endsWith(SUFIXO_WEB)) return limpo.slice(0, -SUFIXO_WEB.length) + SUFIXO_CARD;
+  return null;
+}
 
 /**
  * A versão `web` (1280 px, WebP) da mesma fotografia, a partir da `zap`.

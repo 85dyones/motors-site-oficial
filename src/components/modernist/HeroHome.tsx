@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image, { type ImageLoader } from "next/image";
 import { useEffect, useState, type CSSProperties } from "react";
+import { ehFotoPropria, urlDaVersaoGravada } from "../../lib/fotosDoVeiculo";
 import type { Veiculo } from "../../types";
 import { getVeiculoPdpUrl } from "../../lib/supabase";
 import { EstatisticasRegua, formatarKm, formatarPreco } from "./primitivos";
@@ -19,6 +21,14 @@ import { modeloEVersaoParaExibir } from "../../lib/estoqueTabela";
  */
 
 const INTERVALO_MS = 5200;
+
+/**
+ * A foto nossa vai pelas versões gravadas no envio (`web` até 1280 px, `zap`
+ * acima), como na galeria da ficha — sem transformação de ninguém. A do
+ * carro57 vai pelo otimizador da Vercel: são no máximo `VAGAS.banner` fotos
+ * curadas, e o WebP dele a 1080 px pesa um terço da `_W_` em JPEG.
+ */
+const carregadorDaFotoNossa: ImageLoader = ({ src, width }) => urlDaVersaoGravada(src, width);
 
 export default function HeroHome({
   slides,
@@ -141,6 +151,16 @@ export default function HeroHome({
       {slides.map((v, i) => {
         const foto = v.web_full_images?.[0] ?? v.whatsapp_images?.[0];
         if (!foto) return null;
+        /* Só três slides existem no DOM: o que está na tela, o que está
+           saindo e o próximo (16/10/2026). Até aqui os quatro eram `<img>`
+           crus da `_W_` do carro57 (225 a 285 KB cada), e o `loading="lazy"`
+           dos três escondidos não valia nada: eles ficam dentro da viewport,
+           só com opacidade zero. Medido na produção no celular: 1 MB de hero
+           no primeiro carregamento, e a home com LCP de 10,6 s em 4G lento.
+           O próximo slide entra escondido para já estar carregado quando a
+           troca chegar, 5,2 s depois; os outros nascem quando chegar a vez. */
+        const proximo = (atual + 1) % slides.length;
+        if (i !== atual && i !== anterior && i !== proximo) return null;
         return (
           <div
             key={v.id}
@@ -149,16 +169,24 @@ export default function HeroHome({
             className="absolute inset-0 transition-opacity duration-[900ms] ease-out"
             style={{ opacity: i === atual ? 1 : 0 }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            {/* `next/image` com `sizes="100vw"` (16/10/2026): no celular a
+                faixa tem 412 px e recebia a `_W_` de 1620 px. O otimizador
+                serve o WebP na largura da tela. */}
+            <Image
               src={foto}
               alt={i === atual ? `${v.marca} ${v.modelo} em destaque` : ""}
-              loading={i === 0 ? "eager" : "lazy"}
-              /* A primeira foto é o LCP da home no desktop. Sem prioridade ela
-                 disputava a rede com as três fotos prioritárias da grade de
-                 destaques (medido em 09/10: LCP de 1,2 a 1,3 s, o maior entre
-                 as páginas no visual novo). */
-              fetchPriority={i === 0 ? "high" : undefined}
+              fill
+              sizes="100vw"
+              {...(ehFotoPropria(foto) ? { loader: carregadorDaFotoNossa } : {})}
+              /* A primeira foto é o LCP da home. Sem prioridade ela disputava
+                 a rede com as três fotos prioritárias da grade de destaques
+                 (medido em 09/10: LCP de 1,2 a 1,3 s, o maior entre as
+                 páginas no visual novo). Com `priority` ela ganha também o
+                 `<link rel="preload">` no `<head>`. O próximo slide pede
+                 prioridade baixa: ele só precisa chegar antes da troca. */
+              priority={i === 0}
+              fetchPriority={i === 0 ? "high" : "low"}
+              loading={i === 0 ? undefined : "lazy"}
               /* O recorte olha para baixo do centro, não para o centro.
                *
                * Foto de carro tem o veículo na metade inferior do quadro e
@@ -166,7 +194,7 @@ export default function HeroHome({
                * padrão (50% 50%) a faixa do hero come as rodas e mantém o
                * que não interessa; puxando para 62% o carro entra inteiro e
                * o que se perde é o topo do fundo. */
-              className="mt-hero-foto h-full w-full object-cover object-[50%_62%]"
+              className="mt-hero-foto object-cover object-[50%_62%]"
             />
           </div>
         );

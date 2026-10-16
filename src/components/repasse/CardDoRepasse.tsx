@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ehFotoPropria } from "../../lib/fotosDoVeiculo";
+import FotoPropriaDoCard from "../modernist/FotoPropriaDoCard";
 import { grafiaDoCarro } from "../../lib/grafiaCanonica";
 import { carroDoWhatsApp } from "../../lib/leadDoRepasse";
 import type { WhatsappDaLoja } from "../../lib/loteDoRepasse";
@@ -57,16 +58,29 @@ export default function CardDoRepasse({
   return (
     <article className="flex flex-col">
       <Link href={ficha} className="mt-foco relative block aspect-[4/3] bg-mt-neutral-300">
+        {/* A foto nossa vai pela versão `card` de 640 px, com a `web` de
+            reserva (`FotoPropriaDoCard`, 16/10/2026): era a `web` inteira,
+            ~90 a 200 KB por card. */}
         {foto ? (
-          <Image
-            src={foto}
-            alt={[naGrafia.marca, naGrafia.modelo, naGrafia.versao].filter(Boolean).join(" ")}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-            priority={prioridade}
-            unoptimized={ehFotoPropria(foto)}
-            className="object-cover"
-          />
+          ehFotoPropria(foto) ? (
+            <FotoPropriaDoCard
+              src={foto}
+              alt={[naGrafia.marca, naGrafia.modelo, naGrafia.versao].filter(Boolean).join(" ")}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+              priority={prioridade}
+              className="object-cover"
+            />
+          ) : (
+            <Image
+              src={foto}
+              alt={[naGrafia.marca, naGrafia.modelo, naGrafia.versao].filter(Boolean).join(" ")}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+              priority={prioridade}
+              className="object-cover"
+            />
+          )
         ) : null}
         {estado === "aberto" && (
           <Etiqueta accent={etiqueta === "COM LAUDO"} className="pointer-events-none absolute left-0 top-0 text-[11px]">
