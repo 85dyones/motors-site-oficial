@@ -44,6 +44,21 @@ interface Cenario {
   grupo?: { campanha: string; situacao: "ENABLED" | "PAUSED" };
 }
 
+/**
+ * O que a conta de verdade recusou na prévia do Google Ads Scripts (16/10/2026).
+ * O falso recusa igual, para o script não voltar a pedir o que o Google não aceita.
+ */
+function recusaDoGoogle(q: string): string | null {
+  if (q.includes("FROM ad_group_ad_asset_view") && q.includes("ad_group_ad_asset_view.policy_summary.")) {
+    return "QueryError.UNRECOGNIZED_FIELD: nesta visão, policy_summary só sai inteiro";
+  }
+  const select = q.slice(0, q.indexOf(" FROM "));
+  if (q.includes("FROM campaign_asset") && q.includes("campaign.status") && !select.includes("campaign.status")) {
+    return "QueryError.EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE: 'campaign.status'";
+  }
+  return null;
+}
+
 const iterador = (linhas: unknown[]) => {
   let i = 0;
   return { hasNext: () => i < linhas.length, next: () => linhas[i++] };
@@ -127,11 +142,16 @@ function rodarScript(c: Cenario = {}) {
     ["FROM keyword_view", () => [
       { adGroupCriterion: { criterionId: "501", keyword: { text: "carros usados", matchType: "BROAD" }, qualityInfo: { qualityScore: 3, creativeQualityScore: "BELOW_AVERAGE", postClickQualityScore: "AVERAGE", searchPredictedCtr: "AVERAGE" } }, campaign: { id: "2233", name: "Pesquisa" }, adGroup: { id: "77", name: "Seminovos" }, metrics: { costMicros: "90000000", clicks: "30", conversions: 0 } },
     ]],
-    ["FROM ad_group_ad_asset_view", () => []],
+    ["FROM ad_group_ad_asset_view", () => [
+      { asset: { id: "61", type: "TEXT", textAsset: { text: "Seminovos revisados" } }, adGroupAdAssetView: { fieldType: "HEADLINE", policySummary: { approvalStatus: "APPROVED", reviewStatus: "REVIEWED", policyTopicEntries: [] } }, campaign: { id: "2233", name: "Pesquisa" }, adGroup: { id: "77", name: "Seminovos" } },
+      { asset: { id: "62", type: "TEXT", textAsset: { text: "Financie em 60x" } }, adGroupAdAssetView: { fieldType: "DESCRIPTION", policySummary: { approvalStatus: "APPROVED_LIMITED", reviewStatus: "REVIEWED", policyTopicEntries: [{ topic: "FINANCIAL_SERVICES", type: "LIMITED" }] } }, campaign: { id: "2233", name: "Pesquisa" }, adGroup: { id: "77", name: "Seminovos" } },
+    ]],
     ["FROM ad_group_ad ", () => [
       { adGroupAd: { ad: { id: "9" }, policySummary: { approvalStatus: "DISAPPROVED", reviewStatus: "REVIEWED", policyTopicEntries: [{ topic: "DESTINATION_NOT_WORKING", type: "PROHIBITED" }] } }, campaign: { id: "2233", name: "Pesquisa" }, adGroup: { id: "77", name: "Seminovos" } },
     ]],
-    ["FROM campaign_asset", () => []],
+    ["FROM campaign_asset", () => [
+      { asset: { id: "71", type: "SITELINK", name: "Estoque" }, campaignAsset: { fieldType: "SITELINK", primaryStatus: "NOT_ELIGIBLE", primaryStatusReasons: ["ASSET_DISAPPROVED"] }, campaign: { id: "2233", name: "Pesquisa", status: "ENABLED" } },
+    ]],
     ["FROM conversion_action", () => [
       { conversionAction: { id: "31", name: "Lead do site", status: "ENABLED", type: "WEBPAGE", category: "SUBMIT_LEAD_FORM", primaryForGoal: true } },
     ]],
@@ -158,6 +178,8 @@ function rodarScript(c: Cenario = {}) {
       getExecutionInfo: () => ({ isPreview: () => c.previa === true }),
       search: (q: string) => {
         if ((c.recusar ?? []).some((t) => q.includes(t))) throw new Error(`consulta recusada: ${q.slice(0, 40)}`);
+        const recusa = recusaDoGoogle(q);
+        if (recusa) throw new Error(recusa);
         const achada = consultas.find(([trecho]) => q.includes(trecho));
         if (!achada) throw new Error(`consulta sem resposta no falso: ${q}`);
         return iterador(achada[1]());
@@ -264,6 +286,11 @@ describe("scripts/google-ads-script.js — Copiloto de Mídia", () => {
     expect(v.valor.termos[0]).toMatchObject({ termo: "loja rival seminovos", custo: 40, campanhaId: "2233" });
     expect(v.valor.palavras[0]).toMatchObject({ iq: 3, iqAnuncio: "BELOW_AVERAGE" });
     expect(v.valor.anuncios[0]).toMatchObject({ aprovacao: "DISAPPROVED", motivos: ["DESTINATION_NOT_WORKING"] });
+    // O recurso aprovado fica no script: só vai o que tem problema.
+    expect(v.valor.recursos.map((r) => [r.id, r.situacao, r.motivos])).toEqual([
+      ["62", "APPROVED_LIMITED", ["FINANCIAL_SERVICES"]],
+      ["71", "NOT_ELIGIBLE", ["ASSET_DISAPPROVED"]],
+    ]);
     expect(v.valor.conversoes[0]).toMatchObject({ primaria: true, ultimos30: 2, ultimoDia: "2026-09-30" });
     expect(v.valor.campanhas[0]).toMatchObject({ verba: 50, custo7: 340, cliques7: 110, custoMes: 600, perdaPorVerba: 0.25 });
     expect(v.valor.grupos[0]).toMatchObject({ id: "77", custo7: 280 });
