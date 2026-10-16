@@ -24,8 +24,10 @@ import { ler, lerCodigo } from "./fonte";
 vi.mock("next/image", () => ({
   default: (props: Record<string, unknown>) => {
     // Só os atributos que um <img> entende; o resto é do `next/image`.
+    // `fetchPriority` fica: o <img> o entende, e o hero (next/image desde
+    // 16/10/2026) é quem o declara na primeira foto.
     const resto = Object.fromEntries(
-      Object.entries(props).filter(([k]) => !["fill", "sizes", "priority", "unoptimized", "fetchPriority", "loader"].includes(k)),
+      Object.entries(props).filter(([k]) => !["fill", "sizes", "priority", "unoptimized", "loader"].includes(k)),
     );
     return createElement("img", resto as never);
   },

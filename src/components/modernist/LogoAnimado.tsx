@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import {
   ALTURA_VERTICAL,
   ASAS,
@@ -58,6 +58,20 @@ import {
 
 type Estado = "acende" | "armado" | "parado";
 
+/**
+ * Já viu a abertura nesta sessão? (`scriptAntiFlicker`, 16/10/2026.)
+ *
+ * O `<html>` nasce com `data-logo-visto` da segunda página em diante, e o
+ * CSS segura as animações desde a primeira pintura. Aqui o componente lê o
+ * atributo pelo `useSyncExternalStore`: no servidor e na hidratação vale
+ * `false` (o HTML bate), e logo depois o React refaz com o valor do
+ * navegador — sem `setState` em efeito. O atributo não muda durante a vida
+ * da página, então a inscrição é vazia.
+ */
+const semInscricao = () => () => {};
+const lerVisto = () => document.documentElement.hasAttribute("data-logo-visto");
+const naoVisto = () => false;
+
 // A tinta e o cobre são os do SVG negativo da marca: o quadro final tem de ser
 // o logo de antes. O design pintava o MOTORS em #ECE9E5, e a diferença não
 // aparece durante a abertura. O bronze escovado da v3 sai do CSS, nas cores de
@@ -94,11 +108,15 @@ export default function LogoAnimado({
   // `useId` traz caracteres que não servem dentro de `url(#…)`.
   const id = `logo${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const ref = useRef<SVGSVGElement>(null);
-  const [estado, setEstado] = useState<Estado>(inicio === "carga" ? "acende" : "parado");
+  const [estadoDaAbertura, setEstado] = useState<Estado>(inicio === "carga" ? "acende" : "parado");
   const [reflexo, setReflexo] = useState(false);
+  const visto = useSyncExternalStore(semInscricao, lerVisto, naoVisto);
+  // Quem já viu a abertura fica no parado: o reflexo do mouse continua
+  // valendo, e nada rearma o rodapé.
+  const estado: Estado = visto ? "parado" : estadoDaAbertura;
 
   useEffect(() => {
-    if (inicio !== "visivel") return;
+    if (visto || inicio !== "visivel") return;
     const svg = ref.current;
     if (!svg || typeof IntersectionObserver === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -124,7 +142,7 @@ export default function LogoAnimado({
     );
     observador.observe(svg);
     return () => observador.disconnect();
-  }, [inicio]);
+  }, [inicio, visto]);
 
   const horizontal = variante === "horizontal";
   const url = (nome: string) => `url(#${id}-${nome})`;

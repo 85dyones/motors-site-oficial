@@ -1080,6 +1080,15 @@ p {
 .mt-logo[data-logo="armado"] * {
   animation-play-state: paused;
 }
+/* A abertura toca uma vez por sessão (16/10/2026, `scriptAntiFlicker` em
+   `lib/temas.ts`): da segunda página em diante o `<html>` nasce com
+   `data-logo-visto`, e o logo já aparece pronto na primeira pintura — as
+   peças que só existem durante a abertura ficam no quadro final que o CSS
+   acima declara. Vale só enquanto o logo não é "parado": depois de hidratar
+   o componente o põe nesse estado, e o reflexo do mouse continua valendo. */
+html[data-logo-visto] .mt-logo:not([data-logo="parado"]) * {
+  animation: none;
+}
 
 /* Duas piscadas, como motor pegando: a primeira sobe a 60% em 0,07 s e cai
    em 0,18 s; a segunda acende inteira em 0,07 s e fica. */

@@ -51,6 +51,7 @@ import { blocoJsonLd } from "../lib/schemaListagem";
 import FaixasDePreco from "../components/modernist/FaixasDePreco";
 import FaixaDoRepasseNaHome from "../components/repasse/FaixaDoRepasseNaHome";
 import { faixaNaHome, lerRepassesDasPortas } from "../lib/portasDoRepasse";
+import { aliviarListaParaOCliente } from "../lib/estoqueParaOCliente";
 
 // A home declara o próprio canonical desde que ele saiu do layout raiz, onde
 // era herdado indevidamente por /login, /test e /admin. As demais páginas
@@ -190,6 +191,11 @@ export default async function Home() {
   // tinha como avisar que o 4º marcado não caberia — e não avisava: medido em
   // 21/09, o carro escolhido por último era descartado em silêncio.
   const slidesHero = (curados.length > 0 ? curados : disponiveis).slice(0, VAGAS.banner);
+  // O que vai para componente de CLIENTE vai aliviado (`lib/estoqueParaOCliente`,
+  // 16/10/2026): a barra de busca lê marca, modelo, ano e câmbio, e o hero lê a
+  // capa e o preço — e os 43 veículos inteiros pesavam 358 KB no HTML da home.
+  const estoqueParaOCliente = aliviarListaParaOCliente(disponiveis);
+  const slidesParaOCliente = aliviarListaParaOCliente(slidesHero);
   // A curadoria da GRADE, que não é a do banner: lista própria, decidida pelo
   // dono em 2026-09-09. O que ele marcou vem primeiro, na ordem em que marcou;
   // o sorteio só completa as vagas que sobraram, e evita repetir na grade o
@@ -231,13 +237,13 @@ export default async function Home() {
   const blocos: Record<string, React.ReactNode> = {
     hero: (
       <HeroHome
-        slides={slidesHero}
+        slides={slidesParaOCliente}
         totalEstoque={total}
         totalMarcas={contarMarcas(disponiveis)}
       />
     ),
 
-    busca: <BuscaRegua estoque={disponiveis} />,
+    busca: <BuscaRegua estoque={estoqueParaOCliente} />,
 
     /* Trilho de destaques rápidos — cada um é uma landing indexável */
     destaques_rapidos: destaquesRapidos.length > 0 && (

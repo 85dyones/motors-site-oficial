@@ -288,6 +288,13 @@ export interface Veiculo {
   pericia: string;
   whatsapp_images: string[];
   web_full_images: string[];
+  /**
+   * Quantas fotos o veículo tem, quando a lista foi aliviada para um
+   * componente de cliente (`lib/estoqueParaOCliente.ts`, 16/10/2026): as
+   * listas acima ficam só com a capa, e a contagem vive aqui. Ausente na
+   * ficha inteira — lá a contagem é o tamanho das listas.
+   */
+  total_de_fotos?: number;
   opcionais: string; // Comma separated list of features
   laudo_pericia: string;
   tipo?: string;

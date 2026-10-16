@@ -13,6 +13,7 @@ import {
 } from "../../../../../lib/compartilhamento";
 import { normalizarProcedencia } from "../../../../../lib/procedencia";
 import { escolherSimilares } from "../../../../../lib/similares";
+import { aliviarListaParaOCliente } from "../../../../../lib/estoqueParaOCliente";
 import {
   ehSegmentoDePdp,
   segmentoDoVeiculo,
@@ -391,7 +392,10 @@ export default async function CarDetailsPage({ params }: PageProps) {
       />
       <PDPClientWrapper
         veiculo={veiculo}
-        similares={similares}
+        /* Os similares vão aliviados (`lib/estoqueParaOCliente`): são cards.
+           A ficha do próprio carro vai inteira — a galeria e a descrição são
+           dela. */
+        similares={aliviarListaParaOCliente(similares)}
         indisponivel={publicacao.indisponivel}
         rotuloIndisponivel={publicacao.rotulo}
         caminhoDaMarca={caminhoDaMarca}

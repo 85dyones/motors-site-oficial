@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Veiculo } from "../../lib/supabase";
 import { textoDeCompartilhamento } from "../../lib/mensagensDoVeiculo";
+import { imprimirFicha } from "../../lib/imprimirFicha";
 
 /**
  * Imprimir e compartilhar, no pé da coluna do preço.
@@ -32,7 +33,7 @@ export default function CompartilharFicha({ veiculo, precoTexto }: { veiculo: Ve
     <div className="flex select-none items-center justify-between gap-4 border-t border-mt-regua-fina pt-4">
       <button
         type="button"
-        onClick={() => window.print()}
+        onClick={() => void imprimirFicha()}
         className="mt-foco flex cursor-pointer items-center gap-2 border border-mt-regua-media px-3 py-2 text-[11px] font-bold uppercase tracking-[.1em] text-mt-neutral-800 transition-colors hover:border-mt-ink hover:text-mt-ink"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">

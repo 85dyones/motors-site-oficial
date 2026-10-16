@@ -116,6 +116,24 @@ export const TEMAS_ESCUROS: readonly ThemeType[] = ["stealth-dark", "sport-nardo
  * acima. Lê a escolha salva no navegador (só quem trocou pelo painel tem uma)
  * e cai no padrão.
  */
+/**
+ * A abertura do logo toca UMA vez por sessão (16/10/2026).
+ *
+ * A sequência de 8,2 s do `LogoAnimado` (filtros SVG, brilho, varredura)
+ * tocava em TODA carga de página — medido no celular lento: a home com
+ * 129 animações ativas na carga e ~0,6 s a mais de thread bloqueada do que
+ * com movimento reduzido. Quem abre o site vê a abertura na primeira página;
+ * nas seguintes o logo já nasce pronto, antes da primeira pintura, porque
+ * isto roda no mesmo `<script>` que aplica a paleta. O CSS (`modernist.css`,
+ * "o logo que acende") tira a abertura de `html[data-logo-visto]`, e o
+ * componente vai direto ao estado parado ao hidratar.
+ *
+ * `sessionStorage`, e não `localStorage`: fechar a aba zera, e quem volta
+ * amanhã vê a abertura de novo. Com o armazenamento bloqueado, toca sempre.
+ */
+export const ATRIBUTO_LOGO_VISTO = "data-logo-visto";
+export const CHAVE_LOGO_VISTO = "mt_logo_visto";
+
 export function scriptAntiFlicker(): string {
   // `<` escapado: o JSON vai dentro de um <script>, e um valor com "</script>"
   // fecharia a tag. Hoje são só hexadecimais — é para continuar seguro amanhã.
@@ -134,6 +152,7 @@ var a=p[t],d=document.documentElement;
 for(var k in a)d.style.setProperty(k,a[k]);
 d.setAttribute('data-theme',t);
 if(escuros.indexOf(t)>=0)d.classList.add('dark');
+try{if(sessionStorage.getItem('${CHAVE_LOGO_VISTO}'))d.setAttribute('${ATRIBUTO_LOGO_VISTO}','');else sessionStorage.setItem('${CHAVE_LOGO_VISTO}','1');}catch(e){}
 })();`;
 }
 

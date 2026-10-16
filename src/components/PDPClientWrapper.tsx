@@ -303,6 +303,8 @@ export default function PDPClientWrapper({
     veiculo.preco_promocional < veiculo.preco_original;
   
   const finalPrice = hasDiscount ? veiculo.preco_promocional : veiculo.preco_original;
+  // O mesmo preço, escrito uma vez, para o eco do topo no celular.
+  const precoAVista = formatPrice(finalPrice);
 
   // Split comma-separated features into array
   const featuresList = veiculo.opcionais
@@ -660,6 +662,35 @@ export default function PDPClientWrapper({
                 {veiculo.pericia}
               </span>
             )}
+
+          {/* Preço e o botão principal na PRIMEIRA tela do celular (16/10/2026).
+
+              Medido num Pixel 7: a primeira tela da ficha acabava nas células
+              de câmbio e combustível; o preço e o "FALAR COM O CONSULTOR"
+              — a ação de 70 dos 91 leads dos últimos 60 dias — só apareciam
+              na segunda tela. É o mesmo preço e o MESMO `handleWhatsappPDPClick`
+              do bloco de ações abaixo: um caminho só de conversão e de
+              medição. Só abaixo de `lg`: no desktop o bloco de ações já está
+              na primeira tela, na coluna da direita. */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t-2 border-mt-regua pt-3 lg:hidden">
+            <div>
+              <div className="text-[11px] font-semibold tracking-[.16em] text-mt-neutral-600">
+                {hasDiscount ? "PREÇO PROMOCIONAL" : "À VISTA"}
+              </div>
+              {/* 30px: acima da parcela do simulador (28px) e abaixo do preço
+                  da coluna (38px), que é a régua (`simulador-na-ficha`). */}
+              <div className="mt-0.5 whitespace-nowrap text-[30px] font-extrabold leading-none tracking-[-.04em]">
+                {precoAVista}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleWhatsappPDPClick}
+              className="mt-btn mt-btn-primario mt-foco shrink-0 px-4 py-3 text-[11px] tracking-[.08em]"
+            >
+              {indisponivel ? "CONSULTAR SIMILARES" : "FALAR COM O CONSULTOR"}
+            </button>
+          </div>
         </div>
 
         {/* Especificações rápidas em régua */}
