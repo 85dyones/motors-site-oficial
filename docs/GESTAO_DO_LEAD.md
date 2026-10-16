@@ -220,6 +220,12 @@ do banco). Resposta `200`:
 O lead só anda para **frente**: quem está em `visita` ou `negociacao` fica onde
 está (`movido: false`), com a visita e o próximo passo registrados.
 
+Movido, o lead é **qualificado no Meta** (16/10/2026): a rota manda o mesmo
+`LeadQualificado` que o movimento pelo quadro manda, pela mesma régua
+(`lib/qualificacaoParaMeta`, seção "Fase 6" de `TRACKING_SPEC.md`), depois do
+`update` e só porque ele alcançou o lead. O resultado fica na linha
+(`capi_meta_*`); falhar não desfaz nada e não muda a resposta.
+
 ### 2.4 `PATCH /api/leads/[id]/dados`: dados do negócio
 
 Corpo: um ou mais dos cinco campos. `null` ou `""` limpa o campo.

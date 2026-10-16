@@ -36,6 +36,7 @@ import {
   etiquetasConhecidas,
   maisRecentePrimeiro,
 } from "../../../../lib/etiquetasDoLead";
+import { pixelIdDasSettings, qualificarNoMeta } from "../../../../lib/qualificacaoParaMeta-servidor";
 import {
   decidirDesfecho,
   ehTipoDeDesfecho,
@@ -557,6 +558,8 @@ export async function PATCH(request: NextRequest) {
     let desfechoGravado: TipoDeDesfecho | null = null;
     /** Os motivos lidos para a decisão: é deles que sai o rótulo da nota do Chatwoot. */
     let motivosLidos: MotivoDoFunil[] = [];
+    /** O tipo da etapa de destino, para a qualificação no Meta saber se é ganho. */
+    let tipoDaEtapaGravada: string | null = null;
     if (situacao !== undefined) atualizacao.situacao = situacao;
     // Aparado: a validação acima já apara para comparar, e o nome gravado com
     // espaço sobrando não casaria com o `full_name` de ninguém — o vendedor
@@ -663,6 +666,7 @@ export async function PATCH(request: NextRequest) {
       }
       Object.assign(atualizacao, decisao.campos);
       const tipoDaEtapa = (etapa as EtapaDoDesfecho | null)?.tipo;
+      tipoDaEtapaGravada = tipoDaEtapa ?? null;
       if (tipoDaEtapa && ehTipoDeDesfecho(tipoDaEtapa) && "desfecho_motivo" in decisao.campos) {
         desfechoGravado = tipoDaEtapa;
       }
@@ -769,6 +773,27 @@ export async function PATCH(request: NextRequest) {
           .filter(Boolean)
           .join(" ");
       }
+    }
+    // ------------------------------------------------------------------------
+    // A qualificação de volta para o Meta (2026-10-16)
+    // ------------------------------------------------------------------------
+    // Decisão do dono: *"as etapas de VISITA AGENDADA e NEGOCIANDO são a
+    // métrica de lead qualificado; sim, envie o Purchase com o valor real"*.
+    // As regras (quais etapas, uma vez por lead, sem valor não há Purchase)
+    // moram em `lib/qualificacaoParaMeta`; aqui só se diz em que etapa o lead
+    // FICOU e qual desfecho este pedido gravou. DEPOIS do `update`, e só se
+    // ele alcançou o lead: evento de etapa que não houve é o pior dado
+    // possível para uma campanha. Falhar não desfaz o movimento — o resultado
+    // fica na linha (`capi_meta_*`), e o que não foi vai no próximo movimento.
+    // O ganho sem valor avisa a tela: é o vendedor quem tem o número.
+    if (alcancouOLead && situacao !== undefined) {
+      const meta = await qualificarNoMeta(
+        supabase,
+        String(id),
+        { etapa: { chave: String(situacao), tipo: tipoDaEtapaGravada }, desfecho: desfechoGravado },
+        { lerPixelId: pixelIdDasSettings },
+      );
+      if (meta.aviso) doDesfecho.aviso = [doDesfecho.aviso, meta.aviso].filter(Boolean).join(" ");
     }
     /** Os avisos do desfecho, se houver, junto com o aviso próprio de cada resposta. */
     const comAviso = (aviso: string) => [doDesfecho.aviso, aviso].filter(Boolean).join(" ");
