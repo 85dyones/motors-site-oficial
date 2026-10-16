@@ -359,8 +359,13 @@ describe("o script servido, executado contra um DOM de mentira", () => {
 
     expect(srcs.some((s) => s.includes("gtag/js?id=G-KBL1MFN9E3"))).toBe(true);
     expect(srcs.some((s) => s.includes("gtm.js?id=GTM-TB665RN9"))).toBe(true);
-    // `async` nos dois: o script está no `<head>` e não pode bloquear o parse.
-    expect(criados.every((s) => s.async)).toBe(true);
+    // `async=false` nos dois (16/10/2026): script inserido por JavaScript
+    // nunca bloqueia o parse; o `false` só garante a ORDEM — gtag.js executa
+    // antes do gtm.js, e o container encontra o GA4 já registrado em vez de
+    // carregar a própria cópia (medido em produção: 191 KB e uma segunda
+    // configuração em metade das cargas no celular).
+    expect(criados.every((s) => s.async === false)).toBe(true);
+    expect(srcs.findIndex((s) => s.includes("gtag/js?id="))).toBeLessThan(srcs.findIndex((s) => s.includes("gtm.js?id=")));
 
     // E deixa dito o que subiu, para o tracker não repetir.
     expect(janela.__mtTagsNoAto).toEqual({ ga4: "G-KBL1MFN9E3", gtm: "GTM-TB665RN9" });

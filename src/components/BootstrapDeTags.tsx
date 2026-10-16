@@ -89,6 +89,24 @@ export default async function BootstrapDeTags() {
 
   const carga = JSON.stringify(cargaDaCamadaGlobal({ page_type: "other" }));
 
+  /*
+   * `async=false` nos DOIS scripts — e não `true` (16/10/2026).
+   *
+   * Script inserido por JavaScript nunca bloqueia o parse, com `async` em
+   * qualquer valor; o que `async=false` muda é a ORDEM de execução: os dois
+   * baixam em paralelo e executam na ordem em que foram inseridos, o gtag.js
+   * antes do gtm.js. Com `true` a ordem era a da chegada, e medido na
+   * produção em 16/10: quando o gtm.js chegava primeiro (4G lento, metade
+   * das cargas no celular), o container não achava o destino G-KBL… já
+   * registrado e carregava a PRÓPRIA cópia do gtag.js (`cx=c`) — 191 KB a
+   * mais e uma segunda configuração do GA4 na página, exatamente o que o
+   * §6 de `docs/GTM_CONFIGURACAO.md` manda não existir. No desktop rápido o
+   * gtag.js ganhava por milissegundos e o Tag Assistant via uma só.
+   *
+   * Se o gtag.js falhar (bloqueador), o navegador tira-o da fila e executa
+   * o gtm.js em seguida: o container não fica refém.
+   */
+
   // `w.location`, e não o `location` global: o script referencia só o que
   // recebe por `window` e `document`. Além de ser mais explícito, é o que
   // permite executá-lo num DOM de mentira — e é assim que
@@ -127,7 +145,7 @@ export default async function BootstrapDeTags() {
   ${
     ga4Id
       ? `try{
-    var g=d.createElement('script');g.async=true;
+    var g=d.createElement('script');g.async=false;
     g.src='https://www.googletagmanager.com/gtag/js?id=${ga4Id}';
     d.head.appendChild(g);
     function gtag(){w.dataLayer.push(arguments);}
@@ -141,7 +159,7 @@ export default async function BootstrapDeTags() {
   ${
     gtmLigado
       ? `try{
-    var j=d.createElement('script');j.async=true;
+    var j=d.createElement('script');j.async=false;
     j.src='https://www.googletagmanager.com/gtm.js?id=${gtmId}';
     d.head.appendChild(j);
     w.dataLayer.push({'gtm.start':new Date().getTime(),event:'gtm.js'});
