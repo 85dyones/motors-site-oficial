@@ -9,6 +9,7 @@ import {
   PAPEIS_DO_COPILOTO,
   REGRAS,
   SITUACOES_DA_ACAO,
+  TETO_DO_PEDIDO_DE_VERBA,
   TIPOS_DE_ACAO,
   acharNoTermo,
   classificarTermo,
@@ -19,6 +20,7 @@ import {
   normalizarLista,
   validarDecisao,
   validarDiagnostico,
+  validarPedidoDeVerba,
   validarRegras,
   validarResultados,
   type DiagnosticoDaConta,
@@ -492,3 +494,31 @@ describe("as listas fechadas do banco são as do código", () => {
     expect(Object.keys(P)).toHaveLength(15);
   });
 });
+
+describe("pedido de verba", () => {
+  it("só campanha numérica, verba de centavo em centavo até o teto, e motivo aparado", () => {
+    expect(validarPedidoDeVerba({ campanhaId: "24277346771", verbaNova: 10, motivo: "  converte  " })).toEqual({
+      ok: true,
+      valor: { campanhaId: "24277346771", verbaNova: 10, motivo: "converte" },
+    });
+    expect(validarPedidoDeVerba({ campanhaId: "1", verbaNova: 0.1 + 0.2 })).toMatchObject({ ok: true, valor: { verbaNova: 0.3, motivo: null } });
+    for (const ruim of [
+      null,
+      { campanhaId: 111, verbaNova: 10 },
+      { campanhaId: "1e3", verbaNova: 10 },
+      { campanhaId: "111", verbaNova: -1 },
+      { campanhaId: "111", verbaNova: Number.NaN },
+      { campanhaId: "111", verbaNova: 12.345 },
+      { campanhaId: "111", verbaNova: 100_000.01 },
+      { campanhaId: "111", verbaNova: 10, motivo: 5 },
+    ]) {
+      expect(validarPedidoDeVerba(ruim).ok, JSON.stringify(ruim)).toBe(false);
+    }
+  });
+
+  it("o teto do pedido é o do script: acima de 10× a verba de agora, o script não mexe", () => {
+    const script = readFileSync(join(__dirname, "..", "scripts", "google-ads-script.js"), "utf8");
+    expect(script).toContain(`nova > esperada * ${TETO_DO_PEDIDO_DE_VERBA}`);
+  });
+});
+

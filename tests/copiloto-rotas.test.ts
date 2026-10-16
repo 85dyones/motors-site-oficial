@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
  *
  * As do SCRIPT (`/acoes`, `/acoes/resultado`, `/diagnostico`) entram pelo
  * segredo e falam com a chave de serviço; as do PAINEL (`/decisao`,
- * `/desfazer`, `/regras`) entram pela sessão, conferem a matriz e falam com o
+ * `/desfazer`, `/regras`, `/verba`) entram pela sessão, conferem a matriz e falam com o
  * banco pela PRÓPRIA sessão — é a sessão que carimba a autoria lá dentro.
  */
 
@@ -114,6 +114,7 @@ vi.mock("../src/lib/supabase-server", () => ({
       if (estado.erroDaSessao) return { data: null, error: estado.erroDaSessao };
       if (nome === "midia_copiloto_decidir") return { data: (args.p_acoes as string[]).length, error: null };
       if (nome === "midia_copiloto_desfazer") return { data: "novo-id", error: null };
+      if (nome === "midia_copiloto_pedir_verba") return { data: "pedido-id", error: null };
       return { data: {}, error: null };
     },
   }),
@@ -125,6 +126,7 @@ const { POST: postDiagnostico } = await import("../src/app/api/marketing/copilot
 const { POST: postDecisao } = await import("../src/app/api/marketing/copiloto/decisao/route");
 const { POST: postDesfazer } = await import("../src/app/api/marketing/copiloto/desfazer/route");
 const { POST: postRegras } = await import("../src/app/api/marketing/copiloto/regras/route");
+const { POST: postVerba } = await import("../src/app/api/marketing/copiloto/verba/route");
 
 const SEGREDO = { "x-motors-segredo": "a".repeat(64) };
 const ID = "0c7f3b8e-1d2a-4f5b-9c6d-7e8f9a0b1c2d";
@@ -264,6 +266,7 @@ describe("as rotas do painel", () => {
     expect((await postDecisao(req({ ids: [ID], decisao: "aprovar" }))).status).toBe(403);
     expect((await postDesfazer(req({ id: ID }))).status).toBe(403);
     expect((await postRegras(req({}))).status).toBe(403);
+    expect((await postVerba(req({ campanhaId: "111", verbaNova: 10 }))).status).toBe(403);
     expect(chamadas.sessao).toEqual([]);
   });
 
@@ -312,5 +315,43 @@ describe("as rotas do painel", () => {
     expect((await postRegras(req(corpo))).status).toBe(200);
     const rpc = chamadas.sessao.find((c) => c.nome === "midia_copiloto_nova_vigencia")!;
     expect(rpc.args).toMatchObject({ p_concorrentes: ["loja rival"], p_cidades_fora: [], p_palavras_informativas: ["como"], p_hora_do_diagnostico: 7 });
+  });
+
+  it("pedido de verba: pela SESSÃO, só com campanha, verba e motivo — a verba de agora o banco lê", async () => {
+    estado.usuario = { id: "u1" };
+    const r = await postVerba(req({ campanhaId: "24277346771", verbaNova: 10, motivo: "  única que converte  ", verbaAtual: 1 }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ id: "pedido-id" });
+    expect(chamadas.sessao).toEqual([
+      { nome: "midia_copiloto_pedir_verba", args: { p_campanha: "24277346771", p_verba_nova: 10, p_motivo: "única que converte" } },
+    ]);
+    expect(chamadas.admin).toEqual([]);
+  });
+
+  it("pedido de verba torto: 400, e o banco não é chamado", async () => {
+    estado.usuario = { id: "u1" };
+    for (const corpo of [
+      { campanhaId: "abc", verbaNova: 10 },
+      { campanhaId: "111", verbaNova: 0 },
+      { campanhaId: "111", verbaNova: "10" },
+      { campanhaId: "111", verbaNova: 10.001 },
+      { campanhaId: "111", verbaNova: 100_000.01 },
+      { campanhaId: "111", verbaNova: 10, motivo: "x".repeat(501) },
+    ]) {
+      expect((await postVerba(req(corpo))).status, JSON.stringify(corpo)).toBe(400);
+    }
+    expect(chamadas.sessao).toEqual([]);
+  });
+
+  it("pedido de verba que o banco recusa: 400 com o motivo; sem a migração, 503 com o nome dela", async () => {
+    estado.usuario = { id: "u1" };
+    estado.erroDaSessao = { message: "Já há uma mudança de verba aprovada para esta campanha esperando o script.", code: "22023" };
+    const r = await postVerba(req({ campanhaId: "111", verbaNova: 10 }));
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toMatch(/aprovada/);
+    estado.erroDaSessao = { message: "Could not find the function", code: "PGRST202" };
+    const semMigracao = await postVerba(req({ campanhaId: "111", verbaNova: 10 }));
+    expect(semMigracao.status).toBe(503);
+    expect((await semMigracao.json()).error).toContain("20261016200000_copiloto_pedido_de_verba");
   });
 });

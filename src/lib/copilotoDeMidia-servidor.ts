@@ -391,8 +391,24 @@ export interface AcaoNaTela {
   lidoDeVolta: Record<string, unknown> | null;
   erro: string | null;
   descartadaMotivo: string | null;
+  /** Quem pediu, quando a ação é um pedido de verba feito no painel (e não do diagnóstico). */
+  pedidaPorNome: string | null;
   /** Já tem um desfazer a caminho ou feito: a tela não oferece de novo. */
   desfeita: boolean;
+}
+
+/**
+ * Uma campanha do Google que pode receber pedido de verba: a verba é a que a
+ * sincronização de hora em hora gravou (`midia_campanhas.orcamento_diario`) —
+ * a mesma que o banco usa como "verba de agora" no pedido.
+ */
+export interface CampanhaParaPedido {
+  /** O ID da campanha no Google Ads. */
+  id: string;
+  nome: string;
+  verba: number;
+  situacao: string;
+  sincronizadoEm: string | null;
 }
 
 export interface DiagnosticoNaTela {
@@ -413,6 +429,8 @@ export interface LeituraDoCopiloto {
   abertas: AcaoNaTela[];
   /** O que já tem desfecho, dos últimos 30 dias. */
   historico: AcaoNaTela[];
+  /** As campanhas do Google para o pedido de verba (vazia quando a leitura falha: o resto da tela segue). */
+  campanhas: CampanhaParaPedido[];
   /** A última sincronização de hora em hora que deu certo — o pulso do script. */
   ultimaSincronizacao: string | null;
   /** Sem sincronizar há mais de `HORAS_PARADA`: nada aprovado está sendo aplicado. */
@@ -424,7 +442,7 @@ export interface LeituraDoCopiloto {
 const COLUNAS_DA_ACAO =
   "id, achado_id, desfaz_acao_id, tipo, situacao, campanha_nome, grupo_nome, texto, correspondencia, " +
   "verba_atual, verba_nova, motivo, economia_7d, evidencias, proposta_em, decidida_por_nome, decidida_em, nota, " +
-  "concluida_em, lido_de_volta, erro, descartada_motivo";
+  "concluida_em, lido_de_volta, erro, descartada_motivo, pedida_por_nome";
 
 const numeroOuNulo = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
@@ -452,13 +470,14 @@ function linhaParaAcao(l: Record<string, unknown>, desfeitas: Set<string>): Acao
     lidoDeVolta: (l.lido_de_volta as Record<string, unknown> | null) ?? null,
     erro: (l.erro as string | null) ?? null,
     descartadaMotivo: (l.descartada_motivo as string | null) ?? null,
+    pedidaPorNome: (l.pedida_por_nome as string | null) ?? null,
     desfeita: desfeitas.has(String(l.id)),
   };
 }
 
 export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Date()): Promise<Leitura<LeituraDoCopiloto>> {
   const desde = new Date(agora.getTime() - 30 * 24 * 3600 * 1000).toISOString();
-  const [regras, diag, abertas, historico, sinc] = await Promise.all([
+  const [regras, diag, abertas, historico, sinc, camp] = await Promise.all([
     lerRegras(supabase),
     supabase
       .from("midia_copiloto_diagnosticos")
@@ -485,6 +504,15 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
       .eq("ok", true)
       .order("iniciada_em", { ascending: false })
       .limit(1),
+    // Só as que o script sincroniza (têm ID) e que ainda existem na conta.
+    supabase
+      .from("midia_campanhas")
+      .select("id_externo, nome, orcamento_diario, situacao, sincronizado_em")
+      .eq("plataforma", "google")
+      .in("situacao", ["no_ar", "pausada"])
+      .not("id_externo", "is", null)
+      .order("nome", { ascending: true })
+      .limit(200),
   ]);
 
   if (!regras.ok && regras.faltaMigracao) return regras;
@@ -525,6 +553,17 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
   }
 
   const ultimaSincronizacao = (sinc.data?.[0]?.iniciada_em as string | undefined) ?? null;
+  const campanhas: CampanhaParaPedido[] = camp.error
+    ? []
+    : ((camp.data ?? []) as Array<Record<string, unknown>>)
+        .filter((c) => Number(c.orcamento_diario) > 0)
+        .map((c) => ({
+          id: String(c.id_externo),
+          nome: String(c.nome),
+          verba: Number(c.orcamento_diario),
+          situacao: String(c.situacao),
+          sincronizadoEm: (c.sincronizado_em as string | null) ?? null,
+        }));
   return {
     ok: true,
     valor: {
@@ -533,6 +572,7 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
       achados,
       abertas: ((abertas.data ?? []) as unknown as Record<string, unknown>[]).map((l) => linhaParaAcao(l, desfeitas)),
       historico: ((historico.data ?? []) as unknown as Record<string, unknown>[]).map((l) => linhaParaAcao(l, desfeitas)),
+      campanhas,
       ultimaSincronizacao,
       scriptParado: !ultimaSincronizacao || agora.getTime() - new Date(ultimaSincronizacao).getTime() > HORAS_PARADA * 36e5,
       lidoEm: agora.toISOString(),

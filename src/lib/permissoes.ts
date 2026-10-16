@@ -294,9 +294,10 @@ export const ACAO_GERENCIAR_AGENDA = "Gerenciar clientes e fornecedores";
 
 /**
  * O Copiloto de Mídia (2026-10-14): aprovar o que o script do Google Ads
- * aplica na conta. Pelo nome pelo mesmo motivo das duas acima: a página, as
- * rotas e o menu perguntam por ela, e a RLS e as funções do banco repetem os
- * papéis (`PAPEIS_DO_COPILOTO` em `lib/copilotoDeMidia.ts`).
+ * aplica na conta — e, desde 2026-10-16, pedir a mudança de verba que o
+ * diagnóstico não propõe (o aumento). Pelo nome pelo mesmo motivo das duas
+ * acima: a página, as rotas e o menu perguntam por ela, e a RLS e as funções
+ * do banco repetem os papéis (`PAPEIS_DO_COPILOTO` em `lib/copilotoDeMidia.ts`).
  */
 export const ACAO_COPILOTO_DE_MIDIA = "Aprovar mudanças do Copiloto de Mídia";
 
@@ -462,7 +463,7 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   linha(
     ACAO_COPILOTO_DE_MIDIA,
     ["faz", "nao_ve", "faz", "nao_ve", "nao_ve"],
-    "O script aplica só o que foi aprovado e nunca exclui nada além de negativas",
+    "O script aplica só o que foi aprovado e nunca exclui nada além de negativas; aumento de verba só por pedido de uma pessoa",
   ),
   linha(
     "Criar e enviar campanhas de SMS",

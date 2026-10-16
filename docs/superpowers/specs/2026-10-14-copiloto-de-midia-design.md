@@ -112,6 +112,36 @@ O script, antes de mexer, confere o estado: negativa que já existe →
 feito; verba compartilhada → `falhou`; grupo de outra campanha → `falhou`.
 Depois de mexer, lê de volta e devolve o que leu.
 
+## Pedido de verba (16/10/2026)
+
+Pedido do dono: "aumentos pelo copiloto". O diagnóstico continua só cortando
+— aumento é decisão de quem paga —, e quem paga (ou o Marketing) agora o pede
+no painel, em "Para decidir" → **Pedir mudança de verba**.
+
+- **Quem:** a mesma linha da matriz A17 (Administrador e Marketing).
+- **Fluxo:** escolhe a campanha e a verba nova (com o motivo, opcional) →
+  `/api/marketing/copiloto/verba` → `midia_copiloto_pedir_verba`. O pedido
+  nasce **proposta**, no grupo "Pedidos de verba", e passa pela mesma
+  aprovação (`midia_copiloto_decidir`); o script aplica na rodada seguinte e lê
+  de volta. O script não muda: `mudarVerba` já aceitava aumento.
+- **A verba de agora não vem da tela:** o banco lê `midia_campanhas.orcamento_diario`
+  (gravada pela sincronização de hora em hora). Se alguém mudou a verba no
+  Google Ads depois, o script devolve `falhou` sem mexer, como em qualquer
+  mudança de verba.
+- **Teto:** até 10× a verba de agora — o mesmo do script e do CHECK
+  `midia_copiloto_acoes_pedido_na_faixa`. Igual à de agora é recusado.
+- **Com o diagnóstico:** o pedido usa a chave dele (`verba:<campanha>`).
+  Proposta do diagnóstico aberta para a campanha é substituída pelo pedido;
+  mudança já aprovada esperando o script recusa o pedido. O retrato novo não
+  descarta pedido; e, depois de aplicado, o diagnóstico não propõe corte na
+  mesma campanha por uma janela (7 dias), como na cascata. Pedido recusado não
+  segura proposta do diagnóstico.
+- **Trilha:** `copiloto_pediu` (quem pediu, carimbado por `auth.uid()`), depois
+  `copiloto_aprovou` e `copiloto_aplicou`, como as outras.
+- Migração `20261016200000_copiloto_pedido_de_verba` (aditiva, não aplicada
+  em produção pelo PR): `pedida_por`/`pedida_por_nome`, a terceira origem da
+  ação, o corte obrigatório só para o que vem do diagnóstico, e a função.
+
 ## Dados (`20261014150000_copiloto_de_midia.sql`)
 
 - `midia_copiloto_parametros` — regras com vigência (D-T1.7), uma vigente por loja.

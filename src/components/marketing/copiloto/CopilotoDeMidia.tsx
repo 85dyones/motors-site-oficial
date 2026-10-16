@@ -17,6 +17,7 @@ import type { AcaoNaTela, Leitura, LeituraDoCopiloto } from "../../../lib/copilo
 import SinalDeEstado, { COR_DO_ESTADO } from "../../admin/consulta/SinalDeEstado";
 import { useConfirm } from "../../admin/ConfirmDialog";
 import Evidencias from "./Evidencias";
+import PedidoDeVerba from "./PedidoDeVerba";
 import PropostasDoCopiloto from "./PropostasDoCopiloto";
 import RegrasDoCopiloto from "./RegrasDoCopiloto";
 import { SINAL_DA_GRAVIDADE, SINAL_DA_SITUACAO, diaMes, haQuanto, numero, quando, reais } from "./formato";
@@ -29,7 +30,9 @@ import { SINAL_DA_GRAVIDADE, SINAL_DA_SITUACAO, diaMes, haQuanto, numero, quando
  * diagnóstico diário que o script da conta manda (a hora está nas regras).
  * Que decisão sai: **aprovar ou recusar cada mudança proposta na conta** —
  * negativar termo, pausar grupo, cortar verba — e, quando a medição acusa
- * problema, consertar a medição antes de cortar qualquer coisa.
+ * problema, consertar a medição antes de cortar qualquer coisa. Aumento de
+ * verba o diagnóstico não propõe: uma pessoa o pede aqui (`PedidoDeVerba`), e
+ * ele passa pela mesma aprovação.
  *
  * O script aplica o que foi aprovado na rodada seguinte (de hora em hora), lê
  * de volta da conta e devolve o resultado; o histórico mostra o que ele leu.
@@ -120,7 +123,7 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
         <p className="m-0 max-w-3xl text-sm leading-relaxed text-mt-neutral-800">
           Todo dia o script da conta do Google Ads manda o retrato dos últimos 7 dias: termos de pesquisa, verba, anúncios parados e
           medição. As regras viram propostas — negativar termo, pausar grupo, cortar verba —, e nada muda na conta sem aprovação aqui.
-          O script aplica na rodada seguinte, lê de volta e registra.
+          Aumento de verba se pede aqui e passa pela mesma aprovação. O script aplica na rodada seguinte, lê de volta e registra.
         </p>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs tabular-nums text-mt-neutral-700" data-pulso>
           {diag && (
@@ -183,6 +186,7 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
             <span className="text-xs text-mt-neutral-700">O aprovado vai para a conta na próxima rodada do script, e pode ser desfeito.</span>
           </div>
           <PropostasDoCopiloto abertas={dados.abertas} achados={dados.achados} agora={agora} />
+          <PedidoDeVerba campanhas={dados.campanhas} />
         </section>
       )}
 
@@ -363,6 +367,7 @@ function Historico({ acoes }: { acoes: AcaoNaTela[] }) {
                 <td className="text-mt-ink">
                   {descreverAcao(a)}
                   {a.desfazAcaoId && <div className="text-[11px] text-mt-neutral-700">desfazer</div>}
+                  {a.pedidaPorNome && <div className="text-[11px] text-mt-neutral-700">pedido de {a.pedidaPorNome}</div>}
                 </td>
                 <td>
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
