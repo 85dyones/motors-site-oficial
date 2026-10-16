@@ -11,6 +11,7 @@ import {
   fotosDoVeiculo,
   moverFoto,
   novoLote,
+  versaoCardDaFoto,
   validarFoto,
   type FotoDoVeiculo,
 } from "../../lib/fotosDoVeiculo";
@@ -230,7 +231,7 @@ export default function GaleriaDeFotos({
 
         if (removidas.length > 0) {
           const caminhos = removidas
-            .flatMap((f) => [caminhoDaUrlPublica(f.zap), caminhoDaUrlPublica(f.web)])
+            .flatMap((f) => [caminhoDaUrlPublica(f.zap), caminhoDaUrlPublica(f.web), caminhoDaUrlPublica(versaoCardDaFoto(f.web))])
             .filter((c): c is string => Boolean(c));
           if (caminhos.length > 0) {
             const supabase = createBrowserSupabaseClient();
@@ -449,6 +450,7 @@ export default function GaleriaDeFotos({
         const caminhos = {
           web: alvo.caminho(lote, "web"),
           zap: alvo.caminho(lote, "zap"),
+          card: alvo.caminho(lote, "card"),
         };
 
         for (const variante of ["zap", "web"] as const) {
@@ -475,6 +477,19 @@ export default function GaleriaDeFotos({
               cacheControl: "31536000",
             });
           if (error) throw new Error(error.message);
+        }
+        // A `card` (16/10/2026) vai por último e não derruba a foto: o par
+        // `zap`/`web` já é o anúncio inteiro, e o card cai na `web` quando a
+        // `card` não existe (`FotoPropriaDoCard`).
+        {
+          const { error } = await supabase.storage
+            .from(BUCKET_DE_FOTOS)
+            .upload(caminhos.card, versoes.card, {
+              contentType: versoes.card.type,
+              upsert: false,
+              cacheControl: "31536000",
+            });
+          if (error) console.warn("[Fotos] a versão card não subiu; o card usa a web:", error.message);
         }
 
         subidas.push({

@@ -132,12 +132,18 @@ export const processImage = (
  *   dos portais (`whatsapp_images`). Aqui a foto é ampliada até a tela cheia,
  *   e é a única superfície onde o pixel a mais aparece.
  *
+ * • **`card` 640** (16/10/2026) — é o card de verdade. A `web` de 1280 foi
+ *   pensada para a tela retina, mas o card nunca passa de ~640 px CSS e a
+ *   foto do carro57 já sai pela `_G_` de 640 px (`lib/fotosDoCarro57.ts`);
+ *   a `web` continua sendo a capa das colunas e a reserva do card.
+ *
  * Mexer nestes números não quebra nada retroativo: o que já subiu continua no
  * tamanho em que subiu. Só as fotos novas mudam.
  */
 export const LADO_DA_VARIANTE: Record<VarianteDaFoto, number> = {
   web: 1280,
   zap: 1600,
+  card: 640,
 };
 
 /** Qualidade de compressão por versão. */
@@ -148,16 +154,20 @@ export const QUALIDADE_DA_VARIANTE: Record<VarianteDaFoto, number> = {
   // JPEG precisa de mais, porque quem recorta o card do WhatsApp recomprime
   // por cima do nosso arquivo.
   zap: 0.84,
+  // Pequena e vista de longe: 0,80 fica em ~35 KB sem artefato visível.
+  card: 0.8,
 };
 
 export const MIME_DA_VARIANTE: Record<VarianteDaFoto, string> = {
   web: "image/webp",
   zap: "image/jpeg",
+  card: "image/webp",
 };
 
 export interface VersoesDaFoto {
   web: File;
   zap: File;
+  card: File;
 }
 
 /**
@@ -255,7 +265,7 @@ export async function processarFotoDeVeiculo(
   try {
     const versoes = {} as Record<VarianteDaFoto, File>;
 
-    for (const variante of ["web", "zap"] as const) {
+    for (const variante of ["web", "zap", "card"] as const) {
       const maior = Math.max(carregada.largura, carregada.altura);
       const escala = Math.min(1, LADO_DA_VARIANTE[variante] / (maior || 1));
       const largura = Math.max(1, Math.round(carregada.largura * escala));
