@@ -1274,6 +1274,9 @@ export const MIGRACAO_DO_PEDIDO_DE_VERBA = "20261016200000_copiloto_pedido_de_ve
  */
 export const TETO_DO_PEDIDO_DE_VERBA = 10;
 
+/** Quem pediu, quando o perfil não tem nome — a mesma frase do banco. */
+export const QUEM_PEDIU_SEM_NOME = "alguém da equipe";
+
 /** O teto de verba diária do CHECK `midia_copiloto_acoes_verba_na_faixa`. */
 export const VERBA_DIARIA_MAXIMA = 100_000;
 

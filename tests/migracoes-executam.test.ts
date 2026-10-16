@@ -261,6 +261,16 @@ const CADEIA = [
   // se prova num banco de verdade. Pediu ao recorte de `leads` as colunas de
   // mídia que a view lê.
   "20261014160000_gbraid_e_wbraid_no_lead.sql",
+  // O pedido de verba do Copiloto (2026-10-16): uma pessoa pede a verba nova
+  // de uma campanha, inclusive AUMENTO, e o pedido passa pela mesma aprovação.
+  // Entra na cadeia porque o aceite veste admin, marketing, comercial, um
+  // marketing desativado, um sem nome, cliente, anon e a chave de serviço para
+  // provar quem pede, que a verba de hoje vem da sincronização, que o retrato
+  // não descarta pedido e pula a verba com pedido aberto, que o diagnóstico
+  // segue sem poder aumentar, o teto de 10× do script, a janela que pedido
+  // recusado não segura, e que outra loja com a mesma chave não é tocada.
+  // Pediu ao andaime o recorte de `midia_campanhas`.
+  "20261016200000_copiloto_pedido_de_verba.sql",
 ];
 
 /**
@@ -669,6 +679,114 @@ describe.skipIf(!temBanco)("as campanhas de SMS e a base de marketing, pelo lado
       recusa(`set local role service_role; select * from public.marketing_importar_lote(gen_random_uuid(), '[]'::jsonb)`),
     ).toContain("não existe");
     expect(recusa(`set local role service_role; select public.marketing_resumo_da_base()`)).toBe("");
+  });
+});
+
+/**
+ * O pedido de verba do Copiloto (20261016200000), pelo lado de fora. O aceite
+ * da migração prova o efeito com sonda; aqui ficam a reaplicação (o catálogo
+ * e as linhas não mudam) e cada violação falhando pelo NOME da regra, com um
+ * controle que tem de entrar. Toda escrita é desfeita.
+ */
+describe.skipIf(!temBanco)("o pedido de verba do Copiloto, reaplicado e pelo lado de fora", () => {
+  const MIGRACAO = "20261016200000_copiloto_pedido_de_verba.sql";
+
+  /** A mensagem do erro, ou "" se o comando passou. Sempre desfeito. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(`begin; ${sql}; rollback;`);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  /** Regras, colunas, corpo e privilégio das três funções, comentário e contagens, num hash. */
+  const retrato = (): string => {
+    const saida = psql!(
+      `select md5(
+         (select string_agg(conname || ':' || pg_get_constraintdef(oid), '|' order by conname)
+            from pg_constraint where conrelid = 'public.midia_copiloto_acoes'::regclass)
+         || (select string_agg(attname || ':' || format_type(atttypid, atttypmod), '|' order by attnum)
+               from pg_attribute where attrelid = 'public.midia_copiloto_acoes'::regclass and attnum > 0 and not attisdropped)
+         || (select string_agg(proname || ':' || md5(prosrc) || ':' || coalesce(array_to_string(proacl, ','), ''), '|' order by proname)
+               from pg_proc where pronamespace = 'public'::regnamespace
+                 and proname in ('midia_copiloto_pedir_verba', 'midia_copiloto_gravar_diagnostico', 'midia_copiloto_acoes_transicao'))
+         || coalesce(obj_description('public.midia_copiloto_acoes'::regclass, 'pg_class'), '')
+         || (select count(*) from public.midia_copiloto_acoes)::text
+         || (select count(*) from public.auditoria_admin)::text
+         || (select count(*) from public.midia_campanhas)::text) as h`,
+    );
+    return saida.match(/[0-9a-f]{32}/)?.[0] ?? `sem hash: ${saida}`;
+  };
+
+  /** Uma ação gravada como dono: só o gatilho e os CHECKs falam. */
+  const acao = (colunas: string, valores: string) =>
+    `insert into public.midia_copiloto_acoes
+       (chave, tipo, campanha_id_externo, campanha_nome, motivo, ${colunas})
+     values ('fora:' || gen_random_uuid(), 'mudar_verba', '111', 'Pesquisa', 'teste de fora', ${valores})`;
+  const doDiagnostico = (colunas: string, valores: string) =>
+    `with d as (insert into public.midia_copiloto_diagnosticos (conta, de, ate, dados, resumo)
+                values ('1', '2026-10-08', '2026-10-14', '{}', '{}') returning id)
+     insert into public.midia_copiloto_acoes
+       (diagnostico_id, chave, tipo, campanha_id_externo, campanha_nome, motivo, ${colunas})
+     select d.id, 'fora:' || gen_random_uuid(), 'mudar_verba', '111', 'Pesquisa', 'teste de fora', ${valores} from d`;
+  const PESSOA = "'00000000-0000-0000-0000-0000000000a1'";
+
+  it("reaplicar levanta o aceite de novo e não muda regra, coluna, função, privilégio nem linha", () => {
+    const antes = retrato();
+    // Um hash nulo seria igual a ele mesmo: a comparação só vale com um md5 de verdade.
+    expect(antes).toMatch(/^[0-9a-f]{32}$/);
+    const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+    expect(saida).toContain("Aceite verificado");
+    expect(saida).not.toMatch(/^psql.*ERROR:/m);
+    expect(retrato()).toBe(antes);
+  });
+
+  it("violação falha: o diagnóstico não aumenta, o pedido não passa de 10× nem é de negativa, e o nome não vem sem quem pediu", () => {
+    // Controles: o corte do diagnóstico e o pedido de 10× exatos entram.
+    expect(recusa(doDiagnostico("verba_atual, verba_nova", "50, 35"))).toBe("");
+    expect(recusa(acao("verba_atual, verba_nova, pedida_por, pedida_por_nome", `10, 100, ${PESSOA}, 'Fora'`))).toBe("");
+    expect(recusa(doDiagnostico("verba_atual, verba_nova", "50, 80"))).toContain("midia_copiloto_acoes_proposta_so_corta");
+    expect(recusa(acao("verba_atual, verba_nova, pedida_por", `10, 100.01, ${PESSOA}`))).toContain(
+      "midia_copiloto_acoes_pedido_na_faixa",
+    );
+    expect(
+      recusa(
+        `insert into public.midia_copiloto_acoes
+           (chave, tipo, campanha_id_externo, campanha_nome, texto, correspondencia, motivo, pedida_por)
+         values ('fora:negativa', 'negativar', '111', 'Pesquisa', 'x', 'exata', 'teste de fora', ${PESSOA})`,
+      ),
+    ).toContain("midia_copiloto_acoes_origem_do_tipo");
+    expect(recusa(doDiagnostico("verba_atual, verba_nova, pedida_por", `50, 80, ${PESSOA}`))).toContain(
+      "midia_copiloto_acoes_origem_do_tipo",
+    );
+    expect(recusa(doDiagnostico("verba_atual, verba_nova, pedida_por_nome", "50, 35, 'Ninguém'"))).toContain(
+      "midia_copiloto_acoes_pedido_carimbado",
+    );
+    // O pedido nasce proposta, e quem pediu não muda depois.
+    expect(
+      recusa(acao("verba_atual, verba_nova, pedida_por, situacao, decidida_por, decidida_em", `10, 20, ${PESSOA}, 'aprovada', ${PESSOA}, now()`)),
+    ).toContain("nasce proposta");
+    expect(
+      recusa(
+        `${acao("verba_atual, verba_nova, pedida_por", `10, 20, ${PESSOA}`)};
+         update public.midia_copiloto_acoes set situacao = 'descartada', pedida_por = gen_random_uuid()
+          where motivo = 'teste de fora'`,
+      ),
+    ).toContain("não muda depois de proposto");
+    expect(psql!("select count(*) from public.midia_copiloto_acoes where motivo = 'teste de fora'")).toMatch(/^\s*0\s*$/m);
+  });
+
+  it("violação falha: anônimo não chama a porta; sessão sem o papel e chamada sem sessão levam 42501", () => {
+    expect(recusa("set local role anon; select public.midia_copiloto_pedir_verba('111', 80, null)")).toContain("permission denied");
+    expect(
+      recusa(
+        `select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
+         set local role authenticated; select public.midia_copiloto_pedir_verba('111', 80, null)`,
+      ),
+    ).toContain("Só Administrador ou Marketing");
+    expect(recusa("select public.midia_copiloto_pedir_verba('111', 80, null)")).toContain("sem sessão");
   });
 });
 

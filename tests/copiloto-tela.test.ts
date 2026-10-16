@@ -58,6 +58,7 @@ const acao = (a: Partial<AcaoNaTela>): AcaoNaTela => ({
   lidoDeVolta: null,
   erro: null,
   descartadaMotivo: null,
+  pedido: false,
   pedidaPorNome: null,
   desfeita: false,
   ...a,
@@ -296,13 +297,17 @@ describe("tela do Copiloto de Mídia", () => {
       economia7d: null,
       evidencias: {},
       motivo: "Pedido de Dyones: única que converte",
+      pedido: true,
       pedidaPorNome: "Dyones",
     });
-    await montar(leitura((l) => l.abertas.push(pedido)));
+    // Perfil sem nome: continua sendo pedido, no mesmo grupo.
+    const semNome = { ...pedido, id: H2, campanhaNome: "Repasse", motivo: "Pedido de alguém da equipe.", pedidaPorNome: null };
+    await montar(leitura((l) => l.abertas.push(pedido, semNome)));
     const grupo = caixa.querySelector('[data-grupo-de-propostas="pedidos"]')!;
     const texto = grupo.textContent!.replace(/\u00a0/g, " ");
     expect(texto).toContain("Pedidos de verba");
-    expect(texto).toContain("1 pedido");
+    expect(texto).toContain("2 pedidos");
+    expect(texto).toContain("Verba de Repasse");
     expect(texto).not.toContain("em 7 dias");
     expect(texto).toContain("Verba de Pesquisa: R$ 5,00 → R$ 10,00 por dia");
     await clicar(grupo.querySelector(`[data-proposta="${V1}"] [data-aprovar]`));

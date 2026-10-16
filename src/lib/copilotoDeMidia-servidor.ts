@@ -391,7 +391,9 @@ export interface AcaoNaTela {
   lidoDeVolta: Record<string, unknown> | null;
   erro: string | null;
   descartadaMotivo: string | null;
-  /** Quem pediu, quando a ação é um pedido de verba feito no painel (e não do diagnóstico). */
+  /** É um pedido de verba feito no painel por uma pessoa, e não uma proposta do diagnóstico. */
+  pedido: boolean;
+  /** O nome de quem pediu; nulo quando o perfil não tem nome (o pedido continua sendo pedido). */
   pedidaPorNome: string | null;
   /** Já tem um desfazer a caminho ou feito: a tela não oferece de novo. */
   desfeita: boolean;
@@ -442,7 +444,7 @@ export interface LeituraDoCopiloto {
 const COLUNAS_DA_ACAO =
   "id, achado_id, desfaz_acao_id, tipo, situacao, campanha_nome, grupo_nome, texto, correspondencia, " +
   "verba_atual, verba_nova, motivo, economia_7d, evidencias, proposta_em, decidida_por_nome, decidida_em, nota, " +
-  "concluida_em, lido_de_volta, erro, descartada_motivo, pedida_por_nome";
+  "concluida_em, lido_de_volta, erro, descartada_motivo, pedida_por, pedida_por_nome";
 
 const numeroOuNulo = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
@@ -470,6 +472,7 @@ function linhaParaAcao(l: Record<string, unknown>, desfeitas: Set<string>): Acao
     lidoDeVolta: (l.lido_de_volta as Record<string, unknown> | null) ?? null,
     erro: (l.erro as string | null) ?? null,
     descartadaMotivo: (l.descartada_motivo as string | null) ?? null,
+    pedido: l.pedida_por !== null && l.pedida_por !== undefined,
     pedidaPorNome: (l.pedida_por_nome as string | null) ?? null,
     desfeita: desfeitas.has(String(l.id)),
   };

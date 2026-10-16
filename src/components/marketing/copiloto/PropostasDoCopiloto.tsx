@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ROTULO_DA_SITUACAO, ROTULO_DO_TIPO, descreverAcao } from "../../../lib/copilotoDeMidia";
+import { QUEM_PEDIU_SEM_NOME, ROTULO_DA_SITUACAO, ROTULO_DO_TIPO, descreverAcao } from "../../../lib/copilotoDeMidia";
 import type { AcaoNaTela, AchadoNaTela } from "../../../lib/copilotoDeMidia-servidor";
 import SinalDeEstado from "../../admin/consulta/SinalDeEstado";
 import { useConfirm } from "../../admin/ConfirmDialog";
@@ -29,9 +29,8 @@ function agrupar(acoes: AcaoNaTela[], achados: AchadoNaTela[]): Grupo[] {
   const titulos = new Map(achados.map((a) => [a.id, a.titulo]));
   const grupos = new Map<string, Grupo>();
   for (const a of acoes) {
-    const pedido = a.pedidaPorNome !== null && !a.achadoId;
-    const titulo = pedido ? "Pedidos de verba" : (a.achadoId && titulos.get(a.achadoId)) || ROTULO_DO_TIPO[a.tipo];
-    const chave = pedido ? GRUPO_DOS_PEDIDOS : a.achadoId && titulos.has(a.achadoId) ? a.achadoId : `tipo:${a.tipo}`;
+    const titulo = a.pedido ? "Pedidos de verba" : (a.achadoId && titulos.get(a.achadoId)) || ROTULO_DO_TIPO[a.tipo];
+    const chave = a.pedido ? GRUPO_DOS_PEDIDOS : a.achadoId && titulos.has(a.achadoId) ? a.achadoId : `tipo:${a.tipo}`;
     const g = grupos.get(chave) ?? { chave, titulo, acoes: [] };
     g.acoes.push(a);
     grupos.set(chave, g);
@@ -207,7 +206,7 @@ export default function PropostasDoCopiloto({
                 </span>
                 <span className="inline-flex items-center gap-3 text-mt-neutral-700">
                   {ROTULO_DA_SITUACAO[a.situacao]}
-                  {a.pedidaPorNome ? ` · pedido de ${a.pedidaPorNome}` : ""}
+                  {a.pedido ? ` · pedido de ${a.pedidaPorNome ?? QUEM_PEDIU_SEM_NOME}` : ""}
                   {a.decididaPorNome ? ` · ${a.decididaPorNome}` : ""}
                   {a.decididaEm ? ` · ${haQuanto(a.decididaEm, agora)}` : ""}
                   {a.situacao === "aprovada" && (

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { EstadoDaChecagem } from "../../../lib/consultaDePlaca";
 import {
+  QUEM_PEDIU_SEM_NOME,
   ROTULO_DA_GRAVIDADE,
   ROTULO_DA_REGRA,
   ROTULO_DA_SITUACAO,
@@ -367,7 +368,7 @@ function Historico({ acoes }: { acoes: AcaoNaTela[] }) {
                 <td className="text-mt-ink">
                   {descreverAcao(a)}
                   {a.desfazAcaoId && <div className="text-[11px] text-mt-neutral-700">desfazer</div>}
-                  {a.pedidaPorNome && <div className="text-[11px] text-mt-neutral-700">pedido de {a.pedidaPorNome}</div>}
+                  {a.pedido && <div className="text-[11px] text-mt-neutral-700">pedido de {a.pedidaPorNome ?? QUEM_PEDIU_SEM_NOME}</div>}
                 </td>
                 <td>
                   <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
