@@ -13,6 +13,7 @@ let staff = false;
 let aplicacaoFalha = false;
 let diagnosticoFalha = false;
 let buscaFalha = false;
+let repescagemFalha = false;
 
 vi.mock("../src/lib/supabase-server", () => ({
   createAdminSupabaseClient: () => ({
@@ -60,6 +61,14 @@ vi.mock("../src/lib/copilotoMeta-servidor", () => ({
   },
 }));
 
+vi.mock("../src/lib/qualificacaoParaMeta-servidor", () => ({
+  repescarQualificacoes: async () => {
+    ordem.push("repescar");
+    if (repescagemFalha) throw new Error("Meta recusou");
+    return { pendentes: 0, enviados: 0, naoAceitos: 0 };
+  },
+}));
+
 const { POST } = await import("../src/app/api/marketing/sincronizar/meta/route");
 
 const SEGREDO = "a".repeat(64);
@@ -74,16 +83,26 @@ beforeEach(() => {
   aplicacaoFalha = false;
   diagnosticoFalha = false;
   buscaFalha = false;
+  repescagemFalha = false;
 });
 
 describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
-  it("agendada: aplica, sincroniza e diagnostica, nessa ordem", async () => {
+  it("agendada: aplica, sincroniza, diagnostica e repesca o LeadQualificado, nessa ordem", async () => {
     const r = await POST(agendado());
     expect(r.status).toBe(200);
-    expect(ordem).toEqual(["aplicar", "buscar", "gravar", "diagnosticar:act_802008949148808"]);
+    expect(ordem).toEqual(["aplicar", "buscar", "gravar", "diagnosticar:act_802008949148808", "repescar"]);
     const corpo = (await r.json()) as { copiloto: Record<string, { feito: boolean }> };
     expect(corpo.copiloto.aplicacao.feito).toBe(true);
     expect(corpo.copiloto.diagnostico.feito).toBe(false);
+    expect(corpo.copiloto.repescagem).toEqual({ pendentes: 0, enviados: 0, naoAceitos: 0 });
+  });
+
+  it("a repescagem falhando não derruba a sincronização", async () => {
+    repescagemFalha = true;
+    const r = await POST(agendado());
+    expect(r.status).toBe(200);
+    const corpo = (await r.json()) as { copiloto: Record<string, { feito: boolean; motivo?: string }> };
+    expect(corpo.copiloto.repescagem).toEqual({ feito: false, motivo: "Meta recusou" });
   });
 
   it("painel: só sincroniza", async () => {
@@ -91,6 +110,7 @@ describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
     const r = await POST(painel());
     expect(r.status).toBe(200);
     expect(ordem).toEqual(["buscar", "gravar"]);
+    expect(ordem).not.toContain("repescar");
     expect(await r.json()).not.toHaveProperty("copiloto");
   });
 

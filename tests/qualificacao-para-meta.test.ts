@@ -6,6 +6,7 @@ import {
   AVISO_DE_GANHO_SEM_VALOR,
   COLUNAS_PARA_O_META,
   ETAPAS_QUALIFICADAS,
+  PERMANENCIA_MINIMA_MS,
   SEM_CORRESPONDENCIA,
   SEM_VALOR,
   colunasDaCapi,
@@ -13,6 +14,7 @@ import {
   ehEtapaQualificada,
   eventosDevidos,
   lerRegistros,
+  quandoQualificou,
   registroDaEntrega,
   registroPulado,
   resumirResposta,
@@ -20,6 +22,7 @@ import {
   ultimoEnvio,
   valorGravado,
   type LeadParaOMeta,
+  type PassagemDeEtapa,
   type RegistrosDaCapi,
   type ResultadoDaCapi,
 } from "../src/lib/qualificacaoParaMeta";
@@ -770,5 +773,56 @@ describe("os outros caminhos para a etapa qualificada e para a linha", () => {
     // O padrão continua `website`: nada do que o navegador espelha muda.
     expect(lib).toContain('action_source: event.actionSource ?? "website"');
     expect(lib).toContain("return { ok: res.ok, status: res.status, corpo: lerCorpo(corpo) };");
+  });
+});
+
+describe("quandoQualificou — se o lead CHEGOU a qualificar, pelo rastro", () => {
+  const p = (para: string, em: string): PassagemDeEtapa => ({ para, em: `2026-10-${em}Z` });
+
+  it("o cartão arrastado coluna a coluna não qualifica (os casos do rastro de produção)", () => {
+    // Recontato → Visita → Negociação em segundos, de volta a Recontato em segundos.
+    const relampago = [p("em_contato", "13T18:56:50"), p("proposta", "13T18:56:51"), p("visita", "13T18:56:54"), p("negociacao", "13T18:56:55"), p("proposta", "13T18:57:30")];
+    expect(quandoQualificou(relampago, { situacao: "proposta", desfecho: null })).toEqual({ qualificou: false, desde: null });
+    expect(PERMANENCIA_MINIMA_MS).toBe(10 * 60 * 1000);
+  });
+
+  it("a passagem rápida por Visita até Negociação, que ficou, conta desde a Visita", () => {
+    const r = [p("em_contato", "09T14:25:08"), p("proposta", "09T14:35:12"), p("visita", "09T14:35:16"), p("negociacao", "09T14:35:19"), p("proposta", "15T14:49:24")];
+    expect(quandoQualificou(r, { situacao: "proposta", desfecho: null })).toEqual({ qualificou: true, desde: "2026-10-09T14:35:16Z" });
+  });
+
+  it("visitou e depois foi perdido: qualificou", () => {
+    const r = [p("em_contato", "12T12:27:54"), p("proposta", "12T12:58:22"), p("visita", "14T15:39:52"), p("perdido", "16T12:42:29")];
+    expect(quandoQualificou(r, { situacao: "perdido", desfecho: "perdido" })).toEqual({ qualificou: true, desde: "2026-10-14T15:39:52Z" });
+  });
+
+  it("'Não é oportunidade' nunca qualifica, mesmo depois de 21 horas em Negociação", () => {
+    const r = [p("em_contato", "13T18:56:50"), p("visita", "13T18:56:54"), p("negociacao", "13T18:56:55"), p("descartado", "14T15:46:13")];
+    expect(quandoQualificou(r, { situacao: "descartado", desfecho: "descartado" })).toEqual({ qualificou: false, desde: null });
+  });
+
+  it("ainda em Visita: conta desde a entrada, dure o que durar", () => {
+    const r = [p("em_contato", "17T12:31:16"), p("proposta", "17T12:43:58"), p("visita", "17T12:43:59")];
+    expect(quandoQualificou(r, { situacao: "visita", desfecho: null })).toEqual({ qualificou: true, desde: "2026-10-17T12:43:59Z" });
+  });
+
+  it("ganho qualifica sempre: desde a primeira Visita/Negociação, ou desde a entrada no ganho", () => {
+    expect(quandoQualificou([p("em_contato", "01T18:12:10"), p("fechado", "09T16:04:26")], { situacao: "fechado", desfecho: "ganho" })).toEqual({
+      qualificou: true,
+      desde: "2026-10-09T16:04:26Z",
+    });
+    expect(
+      quandoQualificou([p("visita", "05T10:00:00"), p("proposta", "05T10:00:05"), p("fechado", "09T16:04:26")], { situacao: "fechado", desfecho: "ganho" }),
+    ).toEqual({ qualificou: true, desde: "2026-10-05T10:00:00Z" });
+  });
+
+  it("sem rastro (lead de antes dele): vale a etapa de agora, sem data", () => {
+    expect(quandoQualificou([], { situacao: "negociacao", desfecho: null })).toEqual({ qualificou: true, desde: null });
+    expect(quandoQualificou([], { situacao: "em_contato", desfecho: null })).toEqual({ qualificou: false, desde: null });
+  });
+
+  it("a ordem de chegada do rastro não importa", () => {
+    const r = [p("perdido", "16T12:42:29"), p("visita", "14T15:39:52"), p("em_contato", "12T12:27:54")];
+    expect(quandoQualificou(r, { situacao: "perdido", desfecho: "perdido" }).desde).toBe("2026-10-14T15:39:52Z");
   });
 });

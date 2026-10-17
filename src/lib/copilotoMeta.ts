@@ -7,7 +7,6 @@ import {
   type Proposta,
 } from "./copilotoDeMidia";
 import type { Janela, Situacao } from "./midiaSync";
-import { ETAPAS_QUALIFICADAS } from "./qualificacaoParaMeta";
 
 /**
  * O Copiloto do Meta Ads (17/10/2026) — as regras puras.
@@ -28,8 +27,8 @@ import { ETAPAS_QUALIFICADAS } from "./qualificacaoParaMeta";
  *     outro anúncio no ar, entregando e fora da lista;
  *   - cortar a verba (no máximo 20% por vez) da campanha cujo custo por lead
  *     é o dobro do da conta, ou que gastou sem lead.
- * E aponta, sem propor nada: leads maduros sem nenhum qualificado, funil
- * parado, pixel e CRM contando coisas diferentes, verba sobrando.
+ * E aponta, sem propor nada: leads maduros sem nenhum qualificado, leads sem
+ * avanço no funil, pixel e CRM contando coisas diferentes, verba sobrando.
  *
  * Por que 2,5× o custo por lead da conta antes de chamar de "sem lead": com
  * a conta trazendo leads a R$ 60, um conjunto que gastou R$ 60 sem lead está
@@ -54,8 +53,8 @@ export const DIAS_DA_QUALIDADE = 30;
 export const CORTE_MAXIMO_META_PCT = 20;
 /**
  * Pisos estatísticos dos achados que só apontam (não propõem): com menos de 5
- * leads de um lado, "metade" é ruído; o funil "parado" pede 5 leads e 40% dos
- * maduros.
+ * leads de um lado, "metade" é ruído; o "sem avanço no funil" pede 5 leads e
+ * 40% dos maduros.
  */
 const LEADS_PARA_COMPARAR = 5;
 const PARADOS_MINIMOS = 5;
@@ -103,9 +102,13 @@ export interface LeadDoMeta {
   anuncioId: string | null;
   /** YYYY-MM-DD no fuso da conta. */
   dia: string;
-  /** Chegou a uma etapa qualificada (visita, negociação) ou fechou como ganho. */
+  /**
+   * CHEGOU a uma etapa qualificada (visita, negociação) ou fechou como ganho —
+   * pelo rastro do funil (`quandoQualificou`), não pela etapa de hoje: quem
+   * visitou e depois foi perdido qualificou.
+   */
   qualificado: boolean;
-  /** Ainda sem desfecho e sem qualificar. */
+  /** Ainda sem desfecho e nunca qualificou. */
   aberto: boolean;
 }
 
@@ -135,7 +138,7 @@ export interface ResumoDoMeta {
   /** Os maduros (≥ 7 dias) dos 30 dias, e quantos deles qualificaram. */
   maduros: number;
   qualificados: number;
-  /** Maduros ainda sem desfecho e sem qualificar. */
+  /** Maduros ainda sem desfecho e que nunca qualificaram: sem avanço no funil. */
   abertosParados: number;
   achados: Record<Gravidade, number>;
   propostas: number;
@@ -163,17 +166,6 @@ export function somarDias(dia: string, n: number): string {
 }
 
 const dentro = (dia: string, j: Janela) => dia >= j.de && dia <= j.ate;
-
-/**
- * O lead do CRM qualificou? A régua é a da qualificação que vai ao Meta
- * (`qualificacaoParaMeta`): etapa qualificada ou ganho. A etapa de tipo
- * `ganho`, seja qual for a chave, grava `desfecho = 'ganho'` (gatilho do funil).
- * É a etapa de AGORA: lead que visitou e depois foi perdido não conta.
- */
-export function leadQualificado(situacao: string | null | undefined, desfecho: string | null | undefined): boolean {
-  if (desfecho === "ganho") return true;
-  return typeof situacao === "string" && ETAPAS_QUALIFICADAS.includes(situacao);
-}
 
 interface Totais {
   gasto: number;
@@ -536,9 +528,9 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
       regra: "meta_qualidade",
       grupo: null,
       gravidade: "media",
-      titulo: `${c.nome}: ${m.n} leads em ${DIAS_DA_QUALIDADE} dias e nenhum em visita, negociação ou venda`,
+      titulo: `${c.nome}: ${m.n} leads em ${DIAS_DA_QUALIDADE} dias e nenhum chegou a visita, negociação ou venda`,
       detalhe:
-        `Dos leads com mais de ${diasParaAmadurecer} dias, nenhum está hoje em Visita agendada, Negociação ou Ganho. ` +
+        `Dos leads com mais de ${diasParaAmadurecer} dias, nenhum chegou a Visita agendada, Negociação ou Ganho. ` +
         "Ou o público não é de comprador, ou o funil não está sendo movido — confira antes de aumentar a verba.",
       evidencias: { janelaQualidade: r.janelaQualidade, campanhaId: id, maduros: m.n, qualificados: 0 },
     });
@@ -548,11 +540,11 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
       regra: "meta_qualidade",
       grupo: null,
       gravidade: "baixa",
-      titulo: `${abertosParados} leads do Meta parados no funil há mais de ${diasParaAmadurecer} dias`,
+      titulo: `${abertosParados} leads do Meta sem avanço no funil há mais de ${diasParaAmadurecer} dias`,
       detalhe:
-        `De ${maduros.length} leads do Meta com mais de ${diasParaAmadurecer} dias, ${abertosParados} continuam sem desfecho e sem visita. ` +
-        "Movê-los no quadro do funil (para Visita, Perdido ou Não é oportunidade) é o que deixa o copiloto julgar qualidade — " +
-        "e o que manda o LeadQualificado de volta para o Meta.",
+        `De ${maduros.length} leads do Meta com mais de ${diasParaAmadurecer} dias, ${abertosParados} seguem em contato, sem desfecho, e nunca chegaram a Visita agendada. ` +
+        "Se a visita foi marcada, mova para Visita agendada — é isso que manda o lead qualificado ao Meta; " +
+        "se não há negócio, marque Perdido ou Não é oportunidade.",
       evidencias: { janelaQualidade: r.janelaQualidade, maduros: maduros.length, abertosParados },
     });
   }

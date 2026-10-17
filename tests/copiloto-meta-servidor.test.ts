@@ -5,7 +5,7 @@ import { montarRetratoMeta, rodarDiagnosticoMeta } from "../src/lib/copilotoMeta
 /**
  * O Copiloto do Meta no servidor, com o banco trocado por um falso que anota
  * cada consulta: o retrato lê só a plataforma do Meta e, do lead, só origem,
- * data e etapa; o diagnóstico sai uma vez por dia, depois da hora; e, sem a
+ * data e etapa (a de hoje e o rastro do funil); o diagnóstico sai uma vez por dia, depois da hora; e, sem a
  * migração, nada é gravado (a função antiga gravaria o retrato como do Google).
  */
 
@@ -111,13 +111,27 @@ function tabelas(extra: { ultimoDiagnostico?: Resultado } = {}) {
       case "leads":
         return {
           data: [
-            ...Array.from({ length: 6 }, () => ({ utm_campaign: "A", utm_content: "a1", created_at: "2026-10-10T15:00:00Z", situacao: "novo", desfecho: null })),
-            { utm_campaign: "A", utm_content: "a1", created_at: "2026-09-25T15:00:00Z", situacao: "visita", desfecho: null },
+            ...Array.from({ length: 6 }, (_, i) => ({ id: `novo-${i}`, utm_campaign: "A", utm_content: "a1", created_at: "2026-10-10T15:00:00Z", situacao: "novo", desfecho: null })),
+            { id: "visita", utm_campaign: "A", utm_content: "a1", created_at: "2026-09-25T15:00:00Z", situacao: "visita", desfecho: null },
+            { id: "visitou-e-perdeu", utm_campaign: "A", utm_content: "a1", created_at: "2026-09-28T15:00:00Z", situacao: "perdido", desfecho: "perdido" },
+            { id: "arrastado", utm_campaign: "A", utm_content: "a1", created_at: "2026-09-28T15:00:00Z", situacao: "em_contato", desfecho: null },
             // 02h UTC do dia 11 ainda é dia 10 em Brasília.
-            { utm_campaign: "A", utm_content: "a1", created_at: "2026-10-11T02:00:00Z", situacao: null, desfecho: "ganho" },
+            { id: "ganho", utm_campaign: "A", utm_content: "a1", created_at: "2026-10-11T02:00:00Z", situacao: null, desfecho: "ganho" },
           ],
           error: null,
         };
+      case "leads_eventos": {
+        // O rastro do funil, filtrado pelo `in("lead_id", ...)` da consulta.
+        const rastro = [
+          { lead_id: "visitou-e-perdeu", para: "visita", criado_em: "2026-10-01T14:00:00Z" },
+          { lead_id: "visitou-e-perdeu", para: "perdido", criado_em: "2026-10-03T10:00:00Z" },
+          // Cartão arrastado pela coluna de Visita em segundos: não qualificou.
+          { lead_id: "arrastado", para: "visita", criado_em: "2026-10-01T14:00:00Z" },
+          { lead_id: "arrastado", para: "em_contato", criado_em: "2026-10-01T14:00:20Z" },
+        ];
+        const ids = c.filtros.find((f) => f[0] === "in" && f[1] === "lead_id")?.[2] as string[] | undefined;
+        return { data: rastro.filter((e) => ids?.includes(e.lead_id)), error: null };
+      }
       default:
         return { data: null, error: { message: `tabela inesperada ${c.tabela}` } };
     }
@@ -140,7 +154,7 @@ describe("montarRetratoMeta", () => {
     expect(diario.filtros).toContainEqual(["lte", "dia", "2026-10-16"]);
 
     const leads = consultas.find((c) => c.tabela === "leads")!;
-    expect(leads.select).toBe("utm_campaign, utm_content, created_at, situacao, desfecho");
+    expect(leads.select).toBe("id, utm_campaign, utm_content, created_at, situacao, desfecho");
     expect(leads.filtros).toContainEqual(["in", "utm_campaign", ["A", "B"]]);
     // Meia-noite de Brasília (03h UTC) do primeiro e do dia seguinte ao último.
     expect(leads.filtros).toContainEqual(["gte", "created_at", "2026-09-17T03:00:00.000Z"]);
@@ -160,13 +174,52 @@ describe("montarRetratoMeta", () => {
       conjuntoSituacao: "no_ar",
     });
     expect(r.dias[0]).toMatchObject({ campanhaId: "A", anuncioId: "a1", gasto: 30 });
-    expect(r.leads.filter((l) => l.qualificado)).toHaveLength(2);
+    const eventos = consultas.find((c) => c.tabela === "leads_eventos")!;
+    expect(eventos.select).toBe("lead_id, para, criado_em");
+    expect(eventos.filtros).toContainEqual(["eq", "tipo", "etapa"]);
+
+    // Visita hoje, ganho, e o que visitou e depois foi perdido: 3 qualificados.
+    expect(r.leads.filter((l) => l.qualificado)).toHaveLength(3);
     expect(r.leads.at(-1)).toEqual({ campanhaId: "A", anuncioId: "a1", dia: "2026-10-10", qualificado: true, aberto: false });
     expect(r.leads[0]).toMatchObject({ qualificado: false, aberto: true });
+    expect(r.leads[7]).toMatchObject({ qualificado: true, aberto: false });
+    // O arrastado pela coluna segue sem avanço no funil.
+    expect(r.leads[8]).toMatchObject({ qualificado: false, aberto: true });
+  });
+
+  it("o rastro é lido em lotes de até 100 leads (a lista vai na URL)", async () => {
+    const muitos = Array.from({ length: 250 }, (_, i) => ({
+      id: `l${i}`,
+      utm_campaign: "A",
+      utm_content: "a1",
+      created_at: "2026-10-01T15:00:00Z",
+      situacao: "em_contato",
+      desfecho: null,
+    }));
+    const rastro = [{ lead_id: "l249", para: "negociacao", criado_em: "2026-10-05T15:00:00Z" }];
+    const { admin, consultas } = bancoFalso((c) => {
+      if (c.tabela === "leads") return { data: muitos, error: null };
+      if (c.tabela === "leads_eventos") {
+        const ids = c.filtros.find((f) => f[0] === "in" && f[1] === "lead_id")?.[2] as string[];
+        return { data: rastro.filter((e) => ids.includes(e.lead_id)), error: null };
+      }
+      return tabelas()(c);
+    });
+    const r = await montarRetratoMeta(admin, "act_1", AGORA);
+    const lotes = consultas.filter((c) => c.tabela === "leads_eventos").map((c) => (c.filtros.find((f) => f[0] === "in")?.[2] as string[]).length);
+    expect(lotes).toEqual([100, 100, 50]);
+    expect(r.leads.filter((l) => l.qualificado)).toHaveLength(1);
+    expect(r.leads.at(-1)).toMatchObject({ qualificado: true, aberto: false });
+  });
+
+  it("erro ao ler o rastro derruba o retrato (não julga qualidade pela metade)", async () => {
+    const { admin } = bancoFalso((c) => (c.tabela === "leads_eventos" ? { data: null, error: { message: "timeout" } } : tabelas()(c)));
+    await expect(montarRetratoMeta(admin, "act_1", AGORA)).rejects.toThrow("timeout");
   });
 
   it("lê tudo em páginas de 1000, na ordem do id (o PostgREST corta em 1000 em silêncio)", async () => {
     const muitos = Array.from({ length: 2500 }, (_, i) => ({
+      id: `l${i}`,
       utm_campaign: "A",
       utm_content: "a1",
       created_at: "2026-10-10T15:00:00Z",
@@ -182,7 +235,7 @@ describe("montarRetratoMeta", () => {
       ["range", 1000, 1999],
       ["range", 2000, 2999],
     ]);
-    for (const c of [...paginas, ...consultas.filter((x) => x.tabela === "midia_anuncios" || x.tabela === "midia_diario")]) {
+    for (const c of [...paginas, ...consultas.filter((x) => ["midia_anuncios", "midia_diario", "leads_eventos"].includes(x.tabela))]) {
       expect(c.filtros).toContainEqual(["order", "id", { ascending: true }]);
     }
   });

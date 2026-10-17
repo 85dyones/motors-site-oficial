@@ -87,6 +87,8 @@ export interface RegistroDaCapi {
   valor?: number;
   /** O que o Graph respondeu, resumido (`events_received`, `fbtrace_id`, o erro). */
   resposta?: unknown;
+  /** Mandado pela repescagem (`repescarQualificacoes`), e não no movimento do painel. */
+  repescado?: boolean;
 }
 
 export type RegistrosDaCapi = Partial<Record<ChaveDoRegistro, RegistroDaCapi>>;
@@ -316,6 +318,74 @@ export function ehEtapaQualificada(
   if (desfecho === "ganho") return true;
   if (!etapa) return false;
   return ETAPAS_QUALIFICADAS.includes(etapa.chave) || etapa.tipo === "ganho";
+}
+
+// ---------------------------------------------------------------------------
+// Se o lead CHEGOU a qualificar, pelo rastro (17/10/2026)
+// ---------------------------------------------------------------------------
+
+/** Uma mudança de etapa do rastro do lead (`leads_eventos`, tipo `etapa`). */
+export interface PassagemDeEtapa {
+  /** A chave da etapa para onde o lead foi. */
+  para: string;
+  /** Quando, em ISO. */
+  em: string;
+}
+
+/**
+ * Abaixo disto numa etapa qualificada não é qualificação: é o cartão sendo
+ * arrastado coluna a coluna. O rastro de produção mostra Recontato → Visita
+ * → Negociação em três segundos, e um lead que atravessou até Negociação em
+ * cinco segundos e foi marcado "Não é oportunidade". Anti-ruído da tela, não
+ * régua de negócio.
+ */
+export const PERMANENCIA_MINIMA_MS = 10 * 60 * 1000;
+
+const emMs = (iso: string) => Date.parse(iso);
+
+/**
+ * Se o lead chegou a qualificar, e desde quando — pelo rastro, e não só pela
+ * etapa de agora: quem visitou e depois foi perdido qualificou.
+ *
+ *   - Ganho qualificou sempre; `desde` é a primeira entrada em etapa
+ *     qualificada, ou a entrada na etapa do ganho.
+ *   - "Não é oportunidade" (descartado) nunca: a equipe disse que não havia
+ *     negócio, e isso vale mais que a passagem pelo funil.
+ *   - Senão, a primeira permanência contínua em Visita/Negociação que durou
+ *     `PERMANENCIA_MINIMA_MS`, ou que dura até agora.
+ *   - Sem rastro (lead de antes dele), vale a etapa de agora, sem `desde`.
+ *
+ * `desde` é o `event_time` do LeadQualificado que a repescagem manda, e o que
+ * diz se ele ainda cabe nos 7 dias que o Meta aceita.
+ */
+export function quandoQualificou(
+  passagens: readonly PassagemDeEtapa[],
+  atual: { situacao: string | null | undefined; desfecho: string | null | undefined },
+): { qualificou: boolean; desde: string | null } {
+  if (atual.desfecho === "descartado") return { qualificou: false, desde: null };
+  const ordenadas = passagens.filter((p) => Number.isFinite(emMs(p.em))).sort((a, b) => emMs(a.em) - emMs(b.em));
+  const qualificada = (chave: string) => ETAPAS_QUALIFICADAS.includes(chave);
+
+  if (atual.desfecho === "ganho") {
+    const primeira = ordenadas.find((p) => qualificada(p.para)) ?? ordenadas.at(-1);
+    return { qualificou: true, desde: primeira?.em ?? null };
+  }
+
+  let inicio: string | null = null;
+  for (const p of ordenadas) {
+    if (qualificada(p.para)) {
+      inicio ??= p.em;
+      continue;
+    }
+    if (inicio !== null && emMs(p.em) - emMs(inicio) >= PERMANENCIA_MINIMA_MS) return { qualificou: true, desde: inicio };
+    inicio = null;
+  }
+  // Ainda numa etapa qualificada: conta, dure o que durar.
+  if (inicio !== null) return { qualificou: true, desde: inicio };
+  if (ordenadas.length === 0 && typeof atual.situacao === "string" && qualificada(atual.situacao)) {
+    return { qualificou: true, desde: null };
+  }
+  return { qualificou: false, desde: null };
 }
 
 export type EventoDevido =

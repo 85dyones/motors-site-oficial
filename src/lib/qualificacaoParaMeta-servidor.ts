@@ -6,16 +6,19 @@ import {
   AVISO_DE_GANHO_SEM_VALOR,
   COLUNAS_PARA_O_META,
   EVENTO_DE_COMPRA,
+  ETAPAS_QUALIFICADAS,
   EVENTO_DE_QUALIFICACAO,
   SEM_VALOR,
   colunasDaCapi,
   ehEtapaQualificada,
   eventosDevidos,
   lerRegistros,
+  quandoQualificou,
   registroDaEntrega,
   registroPulado,
   type LeadParaOMeta,
   type MovimentoDoLead,
+  type PassagemDeEtapa,
   type RegistroDaCapi,
   type RegistrosDaCapi,
 } from "./qualificacaoParaMeta";
@@ -178,4 +181,124 @@ export async function registrarLeadNaLinha(
   registro: RegistroDaCapi,
 ): Promise<void> {
   await gravarRegistros(supabase, leadId, {}, { lead: registro });
+}
+
+// ---------------------------------------------------------------------------
+// A repescagem (17/10/2026)
+// ---------------------------------------------------------------------------
+
+/** O Meta recusa evento com mais de 7 dias; uma hora de folga para a rodada. */
+export const JANELA_DA_REPESCAGEM_MS = 7 * 24 * 3600 * 1000 - 3600 * 1000;
+/** Envios por rodada: cada um pode levar até 5 s, e a rota agendada tem 60 s. */
+export const REPESCAGEM_POR_RODADA = 5;
+/** Ids por consulta: o filtro `in` vai na URL. */
+const IDS_POR_CONSULTA = 100;
+
+export interface RodadaDaRepescagem {
+  /** Leads que qualificaram na janela e ainda não têm o LeadQualificado aceito. */
+  pendentes: number;
+  enviados: number;
+  /** Tentados e não aceitos (recusa ou rede): ficam registrados e voltam na próxima rodada. */
+  naoAceitos: number;
+}
+
+type LinhaDaRepescagem = LeadParaOMeta & { situacao?: string | null; desfecho?: string | null };
+
+const emLotes = <T>(xs: T[]) => Array.from({ length: Math.ceil(xs.length / IDS_POR_CONSULTA) }, (_, i) => xs.slice(i * IDS_POR_CONSULTA, (i + 1) * IDS_POR_CONSULTA));
+
+/**
+ * O LeadQualificado que ficou para trás: o lead qualificou (pelo rastro,
+ * `quandoQualificou`) nos últimos 7 dias e o Meta ainda não aceitou o evento
+ * — porque qualificou antes de 16/10, quando o envio não existia, ou porque a
+ * entrega falhou e o lead não se mexeu de novo. Vai com `event_time` = quando
+ * qualificou e o mesmo `event_id` (`<lead>:qualificado`): se por acaso já
+ * tinha chegado, o Meta descarta o repetido.
+ *
+ * Quem chama é a rodada agendada da sincronização do Meta (de hora em hora),
+ * com a chave de serviço. Só o LeadQualificado: o Purchase depende do valor,
+ * que chega pelo painel. Lead sem correspondência não é tentado nem
+ * registrado (nada mudaria a cada hora). Nunca lança.
+ */
+export async function repescarQualificacoes(
+  cliente: ClienteDeLeads,
+  fontes: FontesDaQualificacao = { lerPixelId: pixelIdDasSettings },
+  agora: Date = new Date(),
+): Promise<RodadaDaRepescagem> {
+  const rodada: RodadaDaRepescagem = { pendentes: 0, enviados: 0, naoAceitos: 0 };
+  const desde = new Date(agora.getTime() - JANELA_DA_REPESCAGEM_MS).toISOString();
+  try {
+    // Quem pode ter qualificado na janela: entrou em Visita/Negociação, ou fechou ganho.
+    const [entradas, ganhos] = await Promise.all([
+      cliente.from("leads_eventos").select("lead_id").eq("tipo", "etapa").in("para", [...ETAPAS_QUALIFICADAS]).gte("criado_em", desde).limit(2000),
+      cliente.from("leads").select("id").eq("desfecho", "ganho").gte("desfecho_em", desde).limit(500),
+    ]);
+    if (entradas.error) throw new Error(entradas.error.message);
+    if (ganhos.error) throw new Error(ganhos.error.message);
+    const ids = [
+      ...new Set([
+        ...((entradas.data ?? []) as Array<{ lead_id: string }>).map((e) => e.lead_id),
+        ...((ganhos.data ?? []) as Array<{ id: string }>).map((g) => g.id),
+      ]),
+    ];
+    if (ids.length === 0) return rodada;
+
+    const pendentes: LinhaDaRepescagem[] = [];
+    for (const lote of emLotes(ids)) {
+      const { data, error } = await cliente.from("leads").select(`${COLUNAS_PARA_O_META}, situacao, desfecho`).in("id", lote);
+      if (error) throw new Error(error.message);
+      for (const l of (data ?? []) as unknown as LinhaDaRepescagem[]) {
+        if (lerRegistros(l.capi_meta_response).qualificado?.resultado !== "enviado") pendentes.push(l);
+      }
+    }
+    if (pendentes.length === 0) return rodada;
+
+    const passagens = new Map<string, PassagemDeEtapa[]>();
+    for (const lote of emLotes(pendentes.map((l) => l.id))) {
+      const { data, error } = await cliente
+        .from("leads_eventos")
+        .select("lead_id, para, criado_em")
+        .eq("tipo", "etapa")
+        .in("lead_id", lote)
+        .order("criado_em", { ascending: true })
+        .limit(5000);
+      if (error) throw new Error(error.message);
+      for (const e of (data ?? []) as Array<{ lead_id: string; para: string | null; criado_em: string }>) {
+        if (!e.para) continue;
+        const lista = passagens.get(e.lead_id) ?? [];
+        lista.push({ para: e.para, em: e.criado_em });
+        passagens.set(e.lead_id, lista);
+      }
+    }
+
+    let pixelId: string | null | undefined;
+    for (const lead of pendentes) {
+      const rastro = passagens.get(lead.id) ?? [];
+      const q = quandoQualificou(rastro, { situacao: lead.situacao, desfecho: lead.desfecho });
+      if (!q.qualificou || !q.desde || Date.parse(q.desde) < Date.parse(desde)) continue;
+      // A etapa em que qualificou; no ganho direto, a etapa do ganho.
+      const etapa = rastro.find((p) => p.em === q.desde)?.para ?? lead.situacao ?? null;
+      const ganho = lead.desfecho === "ganho";
+      const devido = eventosDevidos(lead, { etapa: etapa ? { chave: etapa } : null, desfecho: ganho ? "ganho" : null }).find(
+        (d) => d.chave === "qualificado",
+      );
+      if (!devido?.evento) continue;
+      rodada.pendentes++;
+      if (rodada.enviados + rodada.naoAceitos >= REPESCAGEM_POR_RODADA) continue;
+
+      if (pixelId === undefined) pixelId = await fontes.lerPixelId().catch(() => null);
+      if (!pixelId) return rodada;
+
+      const evento = { ...devido.evento, pixelId, eventTime: Math.floor(Date.parse(q.desde) / 1000) };
+      const entrega = await sendCapiEvent(evento);
+      const registro: RegistroDaCapi = { ...registroDaEntrega(evento.eventName, evento.eventId, entrega, devido.extra), repescado: true };
+      if (registro.resultado === "enviado") rodada.enviados++;
+      else rodada.naoAceitos++;
+      await gravarRegistros(cliente, lead.id, lerRegistros(lead.capi_meta_response), { qualificado: registro });
+    }
+    return rodada;
+  } catch (erro) {
+    console.error("[Meta CAPI] A repescagem da qualificação falhou", erro);
+    await registrarFalha("quebra", "meta-capi-repescagem", erro);
+    return rodada;
+  }
 }

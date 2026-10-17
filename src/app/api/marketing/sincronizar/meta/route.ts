@@ -3,6 +3,7 @@ import { createAdminSupabaseClient } from "../../../../../lib/supabase-server";
 import { janelaDeDias } from "../../../../../lib/midiaSync";
 import { aplicarAprovadasNoMeta } from "../../../../../lib/copilotoMeta-aplicar";
 import { rodarDiagnosticoMeta } from "../../../../../lib/copilotoMeta-servidor";
+import { repescarQualificacoes } from "../../../../../lib/qualificacaoParaMeta-servidor";
 import { buscarMeta, configMeta } from "../../../../../lib/midiaMeta";
 import {
   gravarLote,
@@ -32,7 +33,9 @@ export const maxDuration = 60;
  *      sincronizar, para a sincronização logo depois já ler a conta mudada;
  *   2. sincroniza;
  *   3. faz o diagnóstico do dia, uma vez, a partir da hora das regras
- *      (`rodarDiagnosticoMeta`).
+ *      (`rodarDiagnosticoMeta`);
+ *   4. manda ao Meta o LeadQualificado que ficou para trás
+ *      (`repescarQualificacoes`, 17/10/2026).
  * O copiloto nunca derruba a sincronização: o erro dele vai no log e na
  * resposta, e a rodada segue. O botão do painel só sincroniza.
  */
@@ -80,6 +83,15 @@ export async function POST(request: NextRequest) {
         const motivo = err instanceof Error ? err.message : String(err);
         console.error(`[Copiloto do Meta] diagnóstico: ${motivo}`);
         copiloto.diagnostico = { feito: false, motivo };
+      }
+      // O LeadQualificado que ficou para trás (qualificou antes do envio
+      // existir, ou a entrega falhou): até 5 por rodada, dentro dos 7 dias.
+      try {
+        copiloto.repescagem = await repescarQualificacoes(admin);
+      } catch (err) {
+        const motivo = err instanceof Error ? err.message : String(err);
+        console.error(`[Meta CAPI] repescagem: ${motivo}`);
+        copiloto.repescagem = { feito: false, motivo };
       }
     }
     return NextResponse.json({ ok: true, janela, ...r, ...(gatilho === "agendado" ? { copiloto } : {}) });
