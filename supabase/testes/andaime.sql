@@ -584,3 +584,164 @@ create policy midia_campanhas_autenticados on public.midia_campanhas
   for all to authenticated
   using (public.is_staff(auth.uid()))
   with check (public.is_staff(auth.uid()));
+
+
+-- ---------------------------------------------------------------------------
+-- Recorte de `midia_anuncios`, `midia_diario` e `midia_gravar_lote`: a
+-- gravação da sincronização
+-- ---------------------------------------------------------------------------
+-- Entra pela `20261017150000_copiloto_meta.sql`: ela dá conjunto e situações
+-- ao anúncio do Meta e reescreve `midia_gravar_lote` (mesma assinatura) para
+-- gravá-los. As migrações que criam as três (20260807120000, 20260924120000)
+-- não entram na CADEIA pelo mesmo motivo do recorte de `midia_campanhas`
+-- acima: trazem `midia_leituras`, `midia_ajustes`, `midia_sincronizacoes`, o
+-- Vault e o pg_cron, que nada aqui lê.
+--
+-- Copiado fielmente, na forma de produção (supabase/base/esquema_da_producao.sql):
+--   * midia_anuncios: tabela e comentário ......... 20260807120000_midia_paga_e_auditoria.sql:51-60
+--   * id_externo e a unicidade por campanha ....... 20260924120000_midia_paga_sincronizada.sql:64-70
+--   * RLS e a policy (staff, for all) ............. 20260813120000_role_cliente_e_is_staff.sql:171-175
+--   * midia_diario: tabela, índice, comentário,
+--     RLS e a policy de leitura ................... 20260924120000_midia_paga_sincronizada.sql:75-95,121-133
+--   * midia_gravar_lote, SECURITY INVOKER com
+--     search_path vazio, só da chave de serviço ... 20260924120000_midia_paga_sincronizada.sql:177-269
+-- ⚠️ As policies abaixo são as de produção ANTES da 20261017150000, copiadas
+-- de propósito: `midia_anuncios_autenticados` (for all — qualquer staff
+-- escreve em qualquer linha) e `midia_diario_leitura` (using true — qualquer
+-- conta logada lê). É essa forma que aquela migração estreita (staff lê; só o
+-- anúncio de campanha manual se escreve pela sessão; o desempenho, não). Com a
+-- forma nova aqui, o aceite provaria a porta fechada num banco onde ela nunca
+-- esteve aberta — a mesma regra dos recortes de `leads` e `midia_campanhas`.
+-- O GRANT de anon e authenticated é o da default ACL do topo; em
+-- `midia_diario`, a produção não dá TRUNCATE a nenhum dos dois
+-- (esquema_da_producao.sql, ACL de midia_diario), e o recorte também não.
+--
+-- ⚠️ Mesma regra dos outros recortes: se a 20260807120000 ou a 20260924120000
+-- entrar na cadeia um dia, este sai daqui.
+create table public.midia_anuncios (
+  id           uuid primary key default gen_random_uuid(),
+  campanha_id  uuid not null references public.midia_campanhas (id) on delete cascade,
+  nome         text not null,
+  criado_em    timestamptz not null default now(),
+  id_externo   text,
+  constraint midia_anuncios_campanha_id_externo_key unique (campanha_id, id_externo)
+);
+comment on table public.midia_anuncios is
+  'Anúncios (criativos) dentro de uma campanha — as linhas da tabela de '
+  'criativos da tela A14.';
+alter table public.midia_anuncios enable row level security;
+create policy midia_anuncios_autenticados on public.midia_anuncios
+  for all to authenticated
+  using (public.is_staff(auth.uid()))
+  with check (public.is_staff(auth.uid()));
+
+create table public.midia_diario (
+  id uuid primary key default gen_random_uuid(),
+  campanha_id uuid not null references public.midia_campanhas (id) on delete cascade,
+  anuncio_id uuid references public.midia_anuncios (id) on delete cascade,
+  dia date not null,
+  investido numeric(12, 2) not null default 0 check (investido >= 0),
+  impressoes integer not null default 0 check (impressoes >= 0),
+  cliques integer not null default 0 check (cliques >= 0),
+  conversoes numeric(12, 2) not null default 0 check (conversoes >= 0),
+  atualizado_em timestamptz not null default now(),
+  constraint midia_diario_unico unique nulls not distinct (campanha_id, anuncio_id, dia)
+);
+create index midia_diario_dia_idx on public.midia_diario (dia desc);
+comment on table public.midia_diario is
+  'Desempenho por dia (e por anúncio, no Meta) vindo das plataformas. '
+  'Escrito só por midia_gravar_lote, que apaga e regrava a janela do lote.';
+alter table public.midia_diario enable row level security;
+create policy midia_diario_leitura on public.midia_diario
+  for select to authenticated using (true);
+revoke truncate on public.midia_diario from anon, authenticated;
+
+create or replace function public.midia_gravar_lote(p jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_plat   text := p->>'plataforma';
+  v_de     date := (p->>'de')::date;
+  v_ate    date := (p->>'ate')::date;
+  c        jsonb;
+  a        jsonb;
+  v_camp   uuid;
+  v_n_camp int := 0;
+  v_n_dias int := 0;
+  v_fora   int;
+  v_ins    int;
+begin
+  if v_plat is null or v_plat not in ('meta', 'google') then
+    raise exception 'plataforma inválida: %', v_plat using errcode = 'invalid_parameter_value';
+  end if;
+  if v_de is null or v_ate is null or v_de > v_ate then
+    raise exception 'janela inválida: % a %', v_de, v_ate using errcode = 'invalid_parameter_value';
+  end if;
+
+  for c in select * from jsonb_array_elements(coalesce(p->'campanhas', '[]'::jsonb)) loop
+    select count(*) into v_fora
+      from jsonb_array_elements(coalesce(c->'dias', '[]'::jsonb)) d
+     where (d->>'dia')::date not between v_de and v_ate;
+    if v_fora > 0 then
+      raise exception 'campanha %: % dia(s) fora da janela % a %', c->>'id_externo', v_fora, v_de, v_ate
+        using errcode = 'invalid_parameter_value';
+    end if;
+
+    insert into public.midia_campanhas as m
+      (nome, plataforma, origem, id_externo, objetivo, orcamento_diario, situacao,
+       no_ar_desde, alcance_total, sincronizado_em)
+    values
+      (c->>'nome', v_plat, v_plat, c->>'id_externo', c->>'objetivo',
+       (c->>'orcamento_diario')::numeric, c->>'situacao',
+       (c->>'no_ar_desde')::timestamptz, (c->>'alcance_total')::integer, now())
+    on conflict (plataforma, id_externo) do update set
+      nome             = excluded.nome,
+      objetivo         = coalesce(excluded.objetivo, m.objetivo),
+      orcamento_diario = excluded.orcamento_diario,
+      situacao         = excluded.situacao,
+      no_ar_desde      = coalesce(excluded.no_ar_desde, m.no_ar_desde),
+      alcance_total    = coalesce(excluded.alcance_total, m.alcance_total),
+      sincronizado_em  = now()
+    returning m.id into v_camp;
+
+    for a in select * from jsonb_array_elements(coalesce(c->'anuncios', '[]'::jsonb)) loop
+      insert into public.midia_anuncios as an (campanha_id, id_externo, nome)
+      values (v_camp, a->>'id_externo', a->>'nome')
+      on conflict (campanha_id, id_externo) do update set nome = excluded.nome;
+    end loop;
+
+    delete from public.midia_diario
+     where campanha_id = v_camp and dia between v_de and v_ate;
+
+    insert into public.midia_diario
+      (campanha_id, anuncio_id, dia, investido, impressoes, cliques, conversoes)
+    select v_camp,
+           an.id,
+           (d->>'dia')::date,
+           coalesce((d->>'investido')::numeric, 0),
+           coalesce((d->>'impressoes')::integer, 0),
+           coalesce((d->>'cliques')::integer, 0),
+           coalesce((d->>'conversoes')::numeric, 0)
+      from jsonb_array_elements(coalesce(c->'dias', '[]'::jsonb)) d
+      left join public.midia_anuncios an
+        on an.campanha_id = v_camp and an.id_externo = d->>'anuncio_id_externo';
+    get diagnostics v_ins = row_count;
+
+    update public.midia_campanhas
+       set no_ar_desde = (
+             select min(dia)::timestamptz from public.midia_diario
+              where campanha_id = v_camp and impressoes > 0)
+     where id = v_camp and no_ar_desde is null;
+
+    v_n_camp := v_n_camp + 1;
+    v_n_dias := v_n_dias + v_ins;
+  end loop;
+
+  return jsonb_build_object('campanhas', v_n_camp, 'dias', v_n_dias);
+end;
+$$;
+revoke all on function public.midia_gravar_lote(jsonb) from public, anon, authenticated;
+grant execute on function public.midia_gravar_lote(jsonb) to service_role;

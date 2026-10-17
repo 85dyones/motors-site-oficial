@@ -271,6 +271,18 @@ const CADEIA = [
   // recusado não segura, e que outra loja com a mesma chave não é tocada.
   // Pediu ao andaime o recorte de `midia_campanhas`.
   "20261016200000_copiloto_pedido_de_verba.sql",
+  // O Copiloto no Meta Ads (2026-10-17): retrato e ação ganham plataforma, o
+  // Meta ganha pausar/reativar conjunto e anúncio, a reserva do Meta nasce e o
+  // anúncio sincronizado ganha conjunto e situação. Entra na cadeia porque o
+  // aceite prova pelo efeito, vestindo admin, marketing e a chave de serviço,
+  // que um retrato do Meta não descarta proposta nem pedido do Google (e
+  // vice-versa), que cada reserva só entrega a sua plataforma, que a trilha
+  // diz quem aplicou, que o desfazer do anúncio nasce no Meta e no mesmo
+  // anúncio, o pedido de verba numa campanha do Meta, cada regra nova
+  // tentando gravar o inválido, e que a sessão de staff não reescreve o
+  // anúncio nem o desempenho sincronizados (e cliente não os lê). Pediu ao
+  // andaime o recorte de `midia_anuncios`, `midia_diario` e `midia_gravar_lote`.
+  "20261017150000_copiloto_meta.sql",
 ];
 
 /**
@@ -745,9 +757,17 @@ describe.skipIf(!temBanco)("o pedido de verba do Copiloto, reaplicado e pelo lad
     const antes = retrato();
     // Um hash nulo seria igual a ele mesmo: a comparação só vale com um md5 de verdade.
     expect(antes).toMatch(/^[0-9a-f]{32}$/);
-    const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
-    expect(saida).toContain("Aceite verificado");
-    expect(saida).not.toMatch(/^psql.*ERROR:/m);
+    // A migração do Meta (20261017150000), logo depois na cadeia, reescreve o
+    // gatilho, a gravação do retrato, o pedido, o desfazer e o CHECK de origem
+    // por `create or replace`/`drop constraint` + `add constraint`. Reaplicar
+    // só esta voltaria tudo à forma de antes do Meta — verdade, mas não é o
+    // que este teste mede. Reaplica-se o TRECHO da cadeia a partir desta, e
+    // cada uma levanta o próprio aceite.
+    for (const m of CADEIA.slice(CADEIA.indexOf(MIGRACAO))) {
+      const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, m));
+      expect(saida, m).toContain("Aceite verificado");
+      expect(saida, m).not.toMatch(/^psql.*ERROR:/m);
+    }
     expect(retrato()).toBe(antes);
   });
 
@@ -1001,6 +1021,508 @@ describe.skipIf(!temBanco)("o pedido de verba do Copiloto, reaplicado e pelo lad
         ),
       ),
     ).toEqual(["t", "t", "t"]);
+  });
+});
+
+/**
+ * O Copiloto no Meta (20261017150000), pelo lado de fora. O aceite da
+ * migração prova o efeito com sonda; aqui ficam a reaplicação (o catálogo e as
+ * linhas não mudam), cada violação falhando pelo NOME da regra (com controles
+ * que têm de entrar), e o isolamento entre as duas plataformas passando pelas
+ * portas de verdade — o retrato, as duas reservas, o resultado, o desfazer, o
+ * pedido de verba e a gravação do lote —, e o anúncio e o desempenho
+ * sincronizados, que a sessão não reescreve. Toda escrita é desfeita.
+ */
+describe.skipIf(!temBanco)("o Copiloto no Meta, reaplicado e pelo lado de fora", () => {
+  const MIGRACAO = "20261017150000_copiloto_meta.sql";
+
+  /** A mensagem do erro, ou "" se o comando passou. Sempre desfeito. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(`begin; ${sql}; rollback;`);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  /**
+   * Regras, colunas e comentários das quatro tabelas que a migração toca;
+   * corpo, privilégio e comentário de toda função `midia_*`; os índices da
+   * ação e do retrato; e as contagens — num hash.
+   */
+  const TABELAS = ["midia_copiloto_acoes", "midia_copiloto_diagnosticos", "midia_copiloto_achados", "midia_anuncios"]
+    .map((t) => `'public.${t}'::regclass`)
+    .join(", ");
+  const retrato = (): string => {
+    const saida = psql!(
+      `select md5(
+         (select string_agg(conrelid::regclass::text || ':' || conname || ':' || pg_get_constraintdef(oid), '|'
+                            order by conrelid::regclass::text, conname)
+            from pg_constraint where conrelid in (${TABELAS}))
+         || (select string_agg(attrelid::regclass::text || ':' || attname || ':' || format_type(atttypid, atttypmod)
+                               || ':' || attnotnull, '|' order by attrelid::regclass::text, attnum)
+               from pg_attribute where attrelid in (${TABELAS}) and attnum > 0 and not attisdropped)
+         || (select string_agg(proname || ':' || pg_get_function_identity_arguments(oid) || ':' || md5(prosrc) || ':'
+                               || prosecdef || ':' || coalesce(array_to_string(proconfig, ','), '') || ':'
+                               || coalesce(array_to_string(proacl, ','), '') || ':' || coalesce(md5(obj_description(oid, 'pg_proc')), ''),
+                               '|' order by proname, oid)
+               from pg_proc where pronamespace = 'public'::regnamespace and proname like 'midia\\_%')
+         || (select string_agg(indexrelid::regclass::text || ':' || pg_get_indexdef(indexrelid), '|' order by indexrelid::regclass::text)
+               from pg_index where indrelid in ('public.midia_copiloto_acoes'::regclass, 'public.midia_copiloto_diagnosticos'::regclass))
+         || (select string_agg(objoid::regclass::text || ':' || objsubid || ':' || md5(description), '|'
+                               order by objoid::regclass::text, objsubid)
+               from pg_description where classoid = 'pg_class'::regclass and objoid in (${TABELAS}))
+         || (select string_agg(tablename || ':' || policyname || ':' || cmd || ':' || array_to_string(roles, ',') || ':'
+                               || coalesce(qual, '') || ':' || coalesce(with_check, ''), '|' order by tablename, policyname)
+               from pg_policies where schemaname = 'public' and tablename in ('midia_anuncios', 'midia_diario'))
+         || (select string_agg(relname || ':' || coalesce(array_to_string(relacl, ','), ''), '|' order by relname)
+               from pg_class where oid in ('public.midia_anuncios'::regclass, 'public.midia_diario'::regclass))
+         || (select count(*) from public.midia_copiloto_acoes)::text
+         || (select count(*) from public.midia_copiloto_diagnosticos)::text
+         || (select count(*) from public.midia_copiloto_achados)::text
+         || (select count(*) from public.auditoria_admin)::text
+         || (select count(*) from public.midia_campanhas)::text
+         || (select count(*) from public.midia_anuncios)::text) as h`,
+    );
+    return saida.match(/[0-9a-f]{32}/)?.[0] ?? `sem hash: ${saida}`;
+  };
+
+  // IDs com a cara de cada plataforma: o do Google, curto; os do Meta, do Graph.
+  const G = "88881001";
+  const M = "888800000000001101";
+  const M_CONJUNTOS = "888800000000001102";
+  const DUPLA = "88881201";
+  const CJ = "888800000000001121";
+  const AN = "888800000000001111";
+  const NEGATIVA = `negativar:${G}:exata:teste de fora`;
+  const ANUNCIO = `meta:pausar_anuncio:${AN}`;
+  const CONJUNTO = `meta:pausar_conjunto:${CJ}`;
+
+  /** Uma ação gravada como dono, de um retrato: só o gatilho e os CHECKs falam. */
+  const acao = (plataforma: string, tipo: string, colunas = "", valores = "") =>
+    `with d as (insert into public.midia_copiloto_diagnosticos (conta, de, ate, dados, resumo)
+                values ('fora', '2026-10-10', '2026-10-16', '{}', '{}') returning id)
+     insert into public.midia_copiloto_acoes
+       (diagnostico_id, plataforma, chave, tipo, campanha_id_externo, campanha_nome, motivo${colunas ? `, ${colunas}` : ""})
+     select d.id, '${plataforma}', 'fora:' || gen_random_uuid(), '${tipo}', '${M}', 'Fora', 'teste de fora'${valores ? `, ${valores}` : ""} from d`;
+  const CONJ = `grupo_id_externo, grupo_nome`;
+  const CONJ_V = `'${CJ}', 'Fora Conjunto'`;
+  const ANUN = `${CONJ}, anuncio_id_externo, anuncio_nome`;
+  const ANUN_V = `${CONJ_V}, '${AN}', 'Fora Anúncio'`;
+
+  /** O retrato, como a chave de serviço o grava (sem `plataforma` = o script do Google). */
+  const DOLAR = "$j$";
+  const retratoDe = (plataforma: "google" | "meta" | "tiktok" | null, propostas: object[]) =>
+    `select public.midia_copiloto_gravar_diagnostico(${DOLAR}${JSON.stringify({
+      ...(plataforma ? { plataforma } : {}),
+      conta: "fora",
+      de: "2026-10-10",
+      ate: "2026-10-16",
+      previa: false,
+      achados: [{ regra: plataforma === "meta" ? "meta_sem_lead" : "ritmo_de_verba", gravidade: "media", titulo: "t", detalhe: "d" }],
+      propostas,
+    })}${DOLAR}::jsonb)`;
+  const negativa = {
+    achado: 0, chave: NEGATIVA, tipo: "negativar", campanha_id_externo: G, campanha_nome: "Fora Google",
+    texto: "teste de fora", correspondencia: "exata", motivo: "m",
+  };
+  const anuncio = {
+    achado: 0, chave: ANUNCIO, tipo: "pausar_anuncio", campanha_id_externo: M, campanha_nome: "Fora Meta",
+    grupo_id_externo: CJ, grupo_nome: "Fora Conjunto", anuncio_id_externo: AN, anuncio_nome: "Fora Anúncio", motivo: "m",
+  };
+  const conjunto = {
+    achado: 0, chave: CONJUNTO, tipo: "pausar_conjunto", campanha_id_externo: M, campanha_nome: "Fora Meta",
+    grupo_id_externo: CJ, grupo_nome: "Fora Conjunto", motivo: "m",
+  };
+
+  /**
+   * Um cenário inteiro numa transação desfeita: um marketing com sessão, as
+   * campanhas sincronizadas (uma do Google, uma do Meta com orçamento de
+   * campanha, uma do Meta com a verba nos conjuntos, e o mesmo ID nas duas) e,
+   * depois, o `sql`. Devolve a saída (as linhas `t`/`f` são os vereditos) ou a
+   * mensagem do erro.
+   */
+  const PESSOA = "00000000-0000-0000-0000-0000000000c1";
+  const cenario = (sql: string): string => {
+    try {
+      return psql!(
+        `begin;
+         insert into auth.users (id, instance_id, aud, role, email)
+         values ('${PESSOA}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fora-meta@exemplo.invalido');
+         update public.profiles set full_name = 'Fora marketing', papeis = array['marketing'], role = 'marketing', is_active = true
+          where id = '${PESSOA}';
+         insert into public.midia_campanhas (nome, plataforma, origem, id_externo, orcamento_diario, situacao, sincronizado_em)
+         values ('Fora Google', 'google', 'google', '${G}', 50, 'no_ar', now() - interval '1 hour'),
+                ('Fora Meta', 'meta', 'meta', '${M}', 40, 'no_ar', now() - interval '1 hour'),
+                ('Fora Meta Conjuntos', 'meta', 'meta', '${M_CONJUNTOS}', null, 'no_ar', now() - interval '1 hour'),
+                ('Fora Dupla Google', 'google', 'google', '${DUPLA}', 20, 'no_ar', now() - interval '1 hour'),
+                ('Fora Dupla Meta', 'meta', 'meta', '${DUPLA}', 25, 'no_ar', now() - interval '1 hour');
+         select set_config('request.jwt.claims', json_build_object('sub', '${PESSOA}', 'role', 'authenticated')::text, true);
+         ${sql};
+         rollback;`,
+      );
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+  /** Os vereditos (`t`/`f`) que a saída trouxe, em ordem. */
+  const vereditos = (saida: string): string[] => (saida.match(/^\s*[tf]\s*$/gm) ?? []).map((v) => v.trim());
+  const idDe = (chave: string, situacao = "") =>
+    `(select id from public.midia_copiloto_acoes where chave = '${chave}'${situacao ? ` and situacao = '${situacao}'` : ""})`;
+  /** Os dois retratos (o do Google e o do Meta), e o marketing aprovando a negativa, o anúncio e o conjunto. */
+  const DUAS_FILAS = `
+    set local role service_role;
+    ${retratoDe(null, [negativa])};
+    ${retratoDe("meta", [anuncio, conjunto])};
+    reset role;
+    select public.midia_copiloto_decidir(array[${idDe(NEGATIVA)}, ${idDe(ANUNCIO)}, ${idDe(CONJUNTO)}], 'aprovar')`;
+
+  it("reaplicar levanta o aceite de novo e não muda regra, coluna, função, privilégio, comentário nem linha", () => {
+    const antes = retrato();
+    // Um hash nulo seria igual a ele mesmo: a comparação só vale com um md5 de verdade.
+    expect(antes).toMatch(/^[0-9a-f]{32}$/);
+    const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+    expect(saida).toContain("Aceite verificado");
+    expect(saida).not.toMatch(/^psql.*ERROR:/m);
+    expect(retrato()).toBe(antes);
+  });
+
+  it("nenhuma porta ganhou sobrecarga, e a reserva do Meta é só da chave de serviço", () => {
+    // Duas funções com o mesmo nome deixariam o PostgREST ambíguo (PGRST203).
+    expect(
+      psql!(
+        `select count(*) from (select proname from pg_proc where pronamespace = 'public'::regnamespace
+                                 and proname like 'midia\\_%' group by proname having count(*) > 1) d`,
+      ),
+    ).toMatch(/^\s*0\s*$/m);
+    for (const papel of ["anon", "authenticated"]) {
+      expect(recusa(`set local role ${papel}; select * from public.midia_copiloto_reservar_acoes_meta(1)`), papel).toContain(
+        "permission denied",
+      );
+    }
+    expect(recusa("set local role service_role; select * from public.midia_copiloto_reservar_acoes_meta(1)")).toBe("");
+  });
+
+  it("violação falha: cada tipo na sua plataforma, e o tipo inventado cai na regra de tipo", () => {
+    // Controles: o que é de cada plataforma entra.
+    expect(recusa(acao("meta", "pausar_anuncio", ANUN, ANUN_V))).toBe("");
+    expect(recusa(acao("meta", "pausar_conjunto", CONJ, CONJ_V))).toBe("");
+    expect(recusa(acao("meta", "mudar_verba", "verba_atual, verba_nova", "40, 28"))).toBe("");
+    expect(recusa(acao("google", "pausar_grupo", CONJ, CONJ_V))).toBe("");
+    expect(recusa(acao("google", "pausar_conjunto", CONJ, CONJ_V))).toContain("midia_copiloto_acoes_tipo_da_plataforma");
+    expect(recusa(acao("google", "pausar_anuncio", ANUN, ANUN_V))).toContain("midia_copiloto_acoes_tipo_da_plataforma");
+    expect(recusa(acao("meta", "negativar", "texto, correspondencia", "'x', 'exata'"))).toContain(
+      "midia_copiloto_acoes_tipo_da_plataforma",
+    );
+    expect(recusa(acao("meta", "pausar_grupo", CONJ, CONJ_V))).toContain("midia_copiloto_acoes_tipo_da_plataforma");
+    expect(recusa(acao("meta", "excluir_anuncio", ANUN, ANUN_V))).toContain("midia_copiloto_acoes_tipo_valido");
+    expect(recusa(acao("tiktok", "mudar_verba", "verba_atual, verba_nova", "40, 28"))).toContain(
+      "midia_copiloto_acoes_plataforma_valida",
+    );
+  });
+
+  it("violação falha: o anúncio leva o conjunto, o conjunto não leva anúncio, e reativar só nasce desfazendo", () => {
+    expect(recusa(acao("meta", "pausar_conjunto", ANUN, ANUN_V))).toContain("midia_copiloto_acoes_alvo_do_tipo");
+    expect(recusa(acao("meta", "pausar_anuncio", "anuncio_id_externo, anuncio_nome", `'${AN}', 'Fora Anúncio'`))).toContain(
+      "midia_copiloto_acoes_alvo_do_tipo",
+    );
+    expect(recusa(acao("meta", "pausar_anuncio", `${CONJ}, anuncio_id_externo`, `${CONJ_V}, '${AN}'`))).toContain(
+      "midia_copiloto_acoes_alvo_do_tipo",
+    );
+    expect(recusa(acao("meta", "pausar_anuncio", `${ANUN}, verba_atual, verba_nova`, `${ANUN_V}, 40, 28`))).toContain(
+      "midia_copiloto_acoes_alvo_do_tipo",
+    );
+    expect(recusa(acao("google", "negativar", "texto, correspondencia, anuncio_id_externo", `'x', 'exata', '${AN}'`))).toContain(
+      "midia_copiloto_acoes_alvo_do_tipo",
+    );
+    expect(recusa(acao("meta", "mudar_verba", "verba_atual, verba_nova, anuncio_nome", "40, 28, 'Fora Anúncio'"))).toContain(
+      "midia_copiloto_acoes_alvo_do_tipo",
+    );
+    expect(recusa(acao("meta", "pausar_anuncio", ANUN, `${CONJ_V}, 'act_${AN}', 'Fora Anúncio'`))).toContain(
+      "midia_copiloto_acoes_ids_validos",
+    );
+    expect(recusa(acao("meta", "reativar_conjunto", CONJ, CONJ_V))).toContain("midia_copiloto_acoes_origem_do_tipo");
+    expect(recusa(acao("meta", "reativar_anuncio", ANUN, ANUN_V))).toContain("midia_copiloto_acoes_origem_do_tipo");
+    // E pelo retrato: o diagnóstico do Meta não propõe reativar.
+    expect(
+      recusa(`set local role service_role; ${retratoDe("meta", [{ ...anuncio, chave: "meta:reativar_anuncio:1", tipo: "reativar_anuncio" }])}`),
+    ).toContain("midia_copiloto_acoes_origem_do_tipo");
+    expect(psql!("select count(*) from public.midia_copiloto_acoes where motivo = 'teste de fora'")).toMatch(/^\s*0\s*$/m);
+  });
+
+  it("violação falha: regra de achado fora da lista, achado do Meta com classe de termo, retrato de plataforma inventada", () => {
+    const achado = (regra: string, grupo = "null") =>
+      `with d as (insert into public.midia_copiloto_diagnosticos (plataforma, conta, de, ate, dados, resumo)
+                  values ('meta', 'fora', '2026-10-10', '2026-10-16', '{}', '{}') returning id)
+       insert into public.midia_copiloto_achados (diagnostico_id, ordem, regra, grupo, gravidade, titulo, detalhe)
+       select d.id, 0, '${regra}', ${grupo}, 'alta', 't', 'd' from d`;
+    for (const regra of ["meta_sem_lead", "meta_custo_por_lead", "meta_qualidade", "meta_medicao", "ritmo_de_verba"]) {
+      expect(recusa(achado(regra)), regra).toBe("");
+    }
+    expect(recusa(achado("meta_inventada"))).toContain("midia_copiloto_achados_regra_valida");
+    expect(recusa(achado("meta_sem_lead", "'outros'"))).toContain("midia_copiloto_achados_meta_sem_grupo");
+    expect(
+      recusa(`insert into public.midia_copiloto_diagnosticos (plataforma, conta, de, ate, dados, resumo)
+              values ('tiktok', 'fora', '2026-10-10', '2026-10-16', '{}', '{}')`),
+    ).toContain("midia_copiloto_diagnosticos_plataforma_valida");
+    expect(recusa(`set local role service_role; ${retratoDe("tiktok", [])}`)).toContain("Plataforma do diagnóstico é google ou meta");
+  });
+
+  it("violação falha: o desfazer não troca de plataforma nem de anúncio, e a plataforma não muda depois de proposta", () => {
+    const aplicado = `
+      ${DUAS_FILAS};
+      update public.midia_copiloto_acoes set situacao = 'em_aplicacao', reservada_em = now(), tentativas = 1 where id = ${idDe(ANUNCIO)};
+      update public.midia_copiloto_acoes set situacao = 'aplicada', concluida_em = now() where id = ${idDe(ANUNCIO)}`;
+    const desfazer = (plataforma: string, anuncioId: string) =>
+      `insert into public.midia_copiloto_acoes
+         (plataforma, desfaz_acao_id, chave, tipo, campanha_id_externo, campanha_nome, grupo_id_externo, grupo_nome,
+          anuncio_id_externo, anuncio_nome, motivo, situacao, decidida_por, decidida_em)
+       values ('${plataforma}', ${idDe(ANUNCIO)}, 'fora:desfazer', 'reativar_anuncio', '${M}', 'Fora Meta', '${CJ}', 'Fora Conjunto',
+               '${anuncioId}', 'Fora Anúncio', 'teste de fora', 'aprovada', '${PESSOA}', now())`;
+    // Controle: o inverso exato entra.
+    expect(vereditos(cenario(`${aplicado}; ${desfazer("meta", AN)}; select true as ok`))).toEqual(["t"]);
+    expect(cenario(`${aplicado}; ${desfazer("google", AN)}`)).toContain("inverso exato");
+    expect(cenario(`${aplicado}; ${desfazer("meta", "12345")}`)).toContain("inverso exato");
+    expect(
+      cenario(`${DUAS_FILAS}; update public.midia_copiloto_acoes set situacao = 'recusada', plataforma = 'google' where id = ${idDe(ANUNCIO)}`),
+    ).toContain("não muda depois de proposto");
+    expect(
+      cenario(`${DUAS_FILAS}; update public.midia_copiloto_acoes set situacao = 'recusada', anuncio_nome = 'Outro' where id = ${idDe(ANUNCIO)}`),
+    ).toContain("não muda depois de proposto");
+  });
+
+  it("violação falha: o anúncio sincronizado só aceita conjunto numérico e situação da régua", () => {
+    const lote = (anuncio: object) =>
+      `set local role service_role;
+       select public.midia_gravar_lote(${DOLAR}${JSON.stringify({
+         plataforma: "meta", de: "2026-10-10", ate: "2026-10-16",
+         campanhas: [{ id_externo: M, nome: "Fora Meta", situacao: "no_ar", orcamento_diario: 40, dias: [],
+                       anuncios: [{ id_externo: AN, nome: "Fora Anúncio", ...anuncio }] }],
+       })}${DOLAR}::jsonb)`;
+    expect(recusa(lote({ conjunto_id_externo: CJ, situacao: "no_ar", conjunto_situacao: "pausada" }))).toBe("");
+    expect(recusa(lote({ conjunto_id_externo: "act_1" }))).toContain("midia_anuncios_conjunto_id_valido");
+    expect(recusa(lote({ situacao: "ACTIVE" }))).toContain("midia_anuncios_situacoes_validas");
+    expect(recusa(lote({ conjunto_situacao: "ativa" }))).toContain("midia_anuncios_situacoes_validas");
+  });
+
+  it("violação falha: a sessão não reescreve anúncio nem desempenho sincronizados; o anúncio de campanha manual segue de staff", () => {
+    // O lote do Meta, como a chave de serviço o grava: um anúncio e um dia de gasto.
+    const sincronizado = `
+      set local role service_role;
+      select public.midia_gravar_lote(${DOLAR}${JSON.stringify({
+        plataforma: "meta", de: "2026-10-10", ate: "2026-10-16",
+        campanhas: [{ id_externo: M, nome: "Fora Meta", situacao: "no_ar", orcamento_diario: 40,
+                      anuncios: [{ id_externo: AN, nome: "Fora Anúncio", conjunto_id_externo: CJ, conjunto_nome: "Fora Conjunto" }],
+                      dias: [{ anuncio_id_externo: AN, dia: "2026-10-15", investido: 12.5, impressoes: 100, cliques: 3, conversoes: 1 }] }],
+      })}${DOLAR}::jsonb);
+      reset role;
+      insert into public.midia_campanhas (nome, plataforma) values ('Fora Manual', 'meta')`;
+    const daCampanha = (qual: string) => `(select id from public.midia_campanhas where ${qual})`;
+    const META = daCampanha(`plataforma = 'meta' and id_externo = '${M}'`);
+    const MANUAL = daCampanha(`nome = 'Fora Manual'`);
+    // Marketing e, no mesmo cenário, a mesma checagem para quem a sessão é: nada muda no sincronizado.
+    expect(
+      vereditos(
+        cenario(
+          `${sincronizado};
+           set local role authenticated;
+           with u as (update public.midia_anuncios set nome = 'Forjado', conjunto_id_externo = '1' where id_externo = '${AN}' returning 1)
+           select count(*) = 0 as ok from u;
+           with d as (delete from public.midia_anuncios where id_externo = '${AN}' returning 1) select count(*) = 0 as ok from d;
+           select (count(*) = 1) as ok from public.midia_diario where campanha_id = ${META};
+           reset role;
+           select (nome = 'Fora Anúncio' and conjunto_id_externo = '${CJ}') as ok from public.midia_anuncios where id_externo = '${AN}'`,
+        ),
+      ),
+    ).toEqual(["t", "t", "t", "t"]);
+    // Ninguém cria anúncio em campanha sincronizada, nem leva o manual para uma.
+    expect(
+      cenario(`${sincronizado}; set local role authenticated;
+               insert into public.midia_anuncios (campanha_id, nome, conjunto_id_externo) values (${META}, 'Forjado', '${CJ}')`),
+    ).toContain("row-level security");
+    expect(
+      cenario(`${sincronizado}; set local role authenticated;
+               insert into public.midia_anuncios (campanha_id, nome) values (${MANUAL}, 'Fora Anúncio Manual');
+               update public.midia_anuncios set campanha_id = ${META} where nome = 'Fora Anúncio Manual'`),
+    ).toContain("row-level security");
+    // O desempenho não se escreve nem se trunca pela sessão.
+    for (const comando of [
+      `update public.midia_diario set investido = 9999 where campanha_id = ${META}`,
+      `delete from public.midia_diario where campanha_id = ${META}`,
+      `insert into public.midia_diario (campanha_id, dia, investido) values (${MANUAL}, '2026-10-15', 1)`,
+      "truncate public.midia_diario",
+      "truncate public.midia_anuncios",
+    ]) {
+      expect(cenario(`${sincronizado}; set local role authenticated; ${comando}`), comando).toContain("permission denied");
+    }
+    // Controle: o anúncio de campanha manual entra, muda e sai pela sessão de staff.
+    expect(
+      vereditos(
+        cenario(
+          `${sincronizado}; set local role authenticated;
+           insert into public.midia_anuncios (campanha_id, nome) values (${MANUAL}, 'Fora Anúncio Manual');
+           with u as (update public.midia_anuncios set nome = 'Fora Anúncio Manual 2' where nome = 'Fora Anúncio Manual' returning 1)
+           select count(*) = 1 as ok from u;
+           with d as (delete from public.midia_anuncios where nome = 'Fora Anúncio Manual 2' returning 1) select count(*) = 1 as ok from d`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+    // Cliente (logado, sem perfil de equipe) não lê o anúncio nem o gasto; anon nem chega.
+    expect(
+      vereditos(
+        cenario(
+          `${sincronizado};
+           select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
+           set local role authenticated;
+           select (count(*) = 0) as ok from public.midia_diario;
+           select (count(*) = 0) as ok from public.midia_anuncios`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+    for (const tabela of ["midia_anuncios", "midia_diario"]) {
+      expect(recusa(`set local role anon; select count(*) from public.${tabela}`), tabela).toContain("permission denied");
+    }
+  });
+
+  it("a sincronização grava conjunto e situação do anúncio, e o lote que não os traz não os apaga", () => {
+    const lote = (plataforma: string, campanha: string, anuncio: object) =>
+      `select public.midia_gravar_lote(${DOLAR}${JSON.stringify({
+        plataforma, de: "2026-10-10", ate: "2026-10-16",
+        campanhas: [{ id_externo: campanha, nome: `Fora ${plataforma}`, situacao: "no_ar", orcamento_diario: 40, dias: [],
+                      anuncios: [anuncio] }],
+      })}${DOLAR}::jsonb)`;
+    expect(
+      vereditos(
+        cenario(
+          `set local role service_role;
+           ${lote("meta", M, { id_externo: AN, nome: "Fora Anúncio", conjunto_id_externo: CJ, conjunto_nome: "Fora Conjunto", situacao: "no_ar", conjunto_situacao: "no_ar" })};
+           ${lote("meta", M, { id_externo: AN, nome: "Fora Anúncio 2", conjunto_situacao: "pausada" })};
+           ${lote("google", G, { id_externo: "77770001", nome: "Fora Anúncio Google" })};
+           reset role;
+           select (nome = 'Fora Anúncio 2' and conjunto_id_externo = '${CJ}' and conjunto_nome = 'Fora Conjunto'
+                   and situacao = 'no_ar' and conjunto_situacao = 'pausada') as ok
+             from public.midia_anuncios where id_externo = '${AN}';
+           select (conjunto_id_externo is null and conjunto_nome is null and situacao is null and conjunto_situacao is null) as ok
+             from public.midia_anuncios where id_externo = '77770001'`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+  });
+
+  it("um retrato do Meta não descarta proposta do Google, e o do Google não descarta a do Meta", () => {
+    expect(
+      vereditos(
+        cenario(
+          `set local role service_role;
+           ${retratoDe(null, [negativa])};
+           ${retratoDe("meta", [anuncio])};
+           reset role;
+           select (situacao = 'proposta' and plataforma = 'google') as ok from public.midia_copiloto_acoes where chave = '${NEGATIVA}';
+           select (plataforma = 'meta') as ok from public.midia_copiloto_diagnosticos
+            where id = (select diagnostico_id from public.midia_copiloto_acoes where chave = '${ANUNCIO}');
+           set local role service_role;
+           ${retratoDe("google", [])};
+           reset role;
+           select (situacao = 'descartada') as ok from public.midia_copiloto_acoes where chave = '${NEGATIVA}';
+           select (situacao = 'proposta' and plataforma = 'meta' and anuncio_id_externo = '${AN}' and grupo_id_externo = '${CJ}') as ok
+             from public.midia_copiloto_acoes where chave = '${ANUNCIO}';
+           set local role service_role;
+           ${retratoDe("meta", [])};
+           reset role;
+           select (situacao = 'descartada') as ok from public.midia_copiloto_acoes where chave = '${ANUNCIO}'`,
+        ),
+      ),
+    ).toEqual(["t", "t", "t", "t", "t"]);
+  });
+
+  it("a reserva do Google não entrega o Meta, e a do Meta não entrega o Google — com a fila da outra cheia", () => {
+    // As duas ordens: quem reserva primeiro encontra a fila da outra plataforma cheia.
+    const doGoogle = `select (count(*) filter (where plataforma <> 'google') = 0 and count(*) filter (where chave = '${NEGATIVA}') = 1) as ok
+                        from public.midia_copiloto_reservar_acoes(50)`;
+    const doMeta = `select (count(*) filter (where plataforma <> 'meta') = 0
+                            and count(*) filter (where chave in ('${ANUNCIO}', '${CONJUNTO}')) = 2) as ok
+                      from public.midia_copiloto_reservar_acoes_meta(20)`;
+    expect(vereditos(cenario(`${DUAS_FILAS}; set local role service_role; ${doGoogle}; ${doMeta}`))).toEqual(["t", "t"]);
+    expect(vereditos(cenario(`${DUAS_FILAS}; set local role service_role; ${doMeta}; ${doGoogle}`))).toEqual(["t", "t"]);
+  });
+
+  it("o limite de cada reserva vale qualquer que seja o plano (estatística de tabela vazia)", () => {
+    // Com a estatística de tabela vazia, o planejador escolhe um Nested Loop
+    // Semi Join que reexecuta o subselect com LIMIT a cada linha: a forma
+    // antiga (`where id in (select ... limit n for update skip locked)`)
+    // entregava 2 com limite 1. O lote materializado entrega o limite.
+    // Cinco propostas de cada plataforma, de um retrato gravado como dono.
+    const cinco = (plataforma: string, tipo: string) =>
+      `insert into public.midia_copiloto_acoes
+         (plataforma, diagnostico_id, chave, tipo, campanha_id_externo, campanha_nome, grupo_id_externo, grupo_nome, motivo)
+       select '${plataforma}', (select id from public.midia_copiloto_diagnosticos where conta = 'fora-limite'),
+              'fora:limite:${plataforma}:' || g, '${tipo}', '${M}', 'Fora', (1000 + g)::text, 'g', 'teste de fora'
+         from generate_series(1, 5) g`;
+    expect(
+      vereditos(
+        cenario(
+          `analyze public.midia_copiloto_acoes;
+           insert into public.midia_copiloto_diagnosticos (conta, de, ate, dados, resumo)
+           values ('fora-limite', '2026-10-10', '2026-10-16', '{}', '{}');
+           ${cinco("meta", "pausar_conjunto")};
+           ${cinco("google", "pausar_grupo")};
+           select public.midia_copiloto_decidir(array(select id from public.midia_copiloto_acoes where chave like 'fora:limite:%'), 'aprovar');
+           set local role service_role;
+           select (count(*) = 1) as ok from public.midia_copiloto_reservar_acoes_meta(1);
+           select (count(*) = 1) as ok from public.midia_copiloto_reservar_acoes(1);
+           select (count(*) = 1) as ok from public.midia_copiloto_reservar_acoes_meta(0);
+           select (count(*) = 3) as ok from public.midia_copiloto_reservar_acoes_meta(500);
+           select (count(*) = 4) as ok from public.midia_copiloto_reservar_acoes(50)`,
+        ),
+      ),
+    ).toEqual(["t", "t", "t", "t", "t"]);
+  });
+
+  it("o resultado do Meta vai à trilha como 'Copiloto (API do Meta)', e o desfazer do anúncio nasce no Meta, no mesmo anúncio", () => {
+    expect(
+      vereditos(
+        cenario(
+          `${DUAS_FILAS};
+           set local role service_role;
+           select count(*) from public.midia_copiloto_reservar_acoes_meta(20);
+           select public.midia_copiloto_registrar_resultado(${idDe(ANUNCIO)}, 'aplicada', '{"status": "PAUSED"}', null);
+           reset role;
+           select exists (select 1 from public.auditoria_admin
+                           where acao = 'copiloto_aplicou' and autor_nome = 'Copiloto (API do Meta)'
+                             and detalhe like 'Pausar o anúncio Fora Anúncio (Fora Conjunto · Fora Meta) (ação %') as ok;
+           select public.midia_copiloto_desfazer(${idDe(ANUNCIO)});
+           select (tipo = 'reativar_anuncio' and situacao = 'aprovada' and plataforma = 'meta'
+                   and anuncio_id_externo = '${AN}' and grupo_id_externo = '${CJ}') as ok
+             from public.midia_copiloto_acoes where desfaz_acao_id = ${idDe(ANUNCIO)}`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+  });
+
+  it("o pedido de verba numa campanha do Meta nasce do Meta; verba nos conjuntos e ID nas duas plataformas são recusados", () => {
+    expect(
+      vereditos(
+        cenario(
+          `select public.midia_copiloto_pedir_verba('${M}', 60, null);
+           select (plataforma = 'meta' and verba_atual = 40 and verba_nova = 60 and chave = 'verba:${M}') as ok
+             from public.midia_copiloto_acoes where chave = 'verba:${M}' and situacao = 'proposta';
+           select public.midia_copiloto_pedir_verba('${G}', 60, null);
+           select (plataforma = 'google' and verba_atual = 50) as ok
+             from public.midia_copiloto_acoes where chave = 'verba:${G}' and situacao = 'proposta'`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+    expect(cenario(`select public.midia_copiloto_pedir_verba('${M_CONJUNTOS}', 60, null)`)).toContain(
+      "A verba desta campanha do Meta fica nos conjuntos de anúncios",
+    );
+    expect(cenario(`select public.midia_copiloto_pedir_verba('${DUPLA}', 30, null)`)).toContain(
+      "é de uma campanha do Google Ads e de uma do Meta",
+    );
+    expect(cenario(`select public.midia_copiloto_pedir_verba('88889999', 30, null)`)).toContain(
+      "não está entre as do Google Ads nem as do Meta sincronizadas",
+    );
+    expect(cenario(`select public.midia_copiloto_pedir_verba('${M}', 401, null)`)).toContain("mude pelo Gerenciador de Anúncios do Meta");
   });
 });
 
