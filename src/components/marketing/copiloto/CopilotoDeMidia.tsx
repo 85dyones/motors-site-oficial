@@ -54,10 +54,17 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
       estado: "impeditivo",
       rotulo: leitura.faltaMigracao ? "Configuração" : "Erro",
       texto: leitura.faltaMigracao ? (
-        <>
-          As tabelas do copiloto ainda não existem no banco. Aplique a migração <code className="font-mono">{migracao}</code> no Supabase
-          e depois cole o script novo na conta do Google Ads.
-        </>
+        leitura.migracao ? (
+          <>
+            O banco ainda não tem o pedido de verba. Aplique a migração <code className="font-mono">{leitura.migracao}</code> no Supabase; o
+            script da conta não muda.
+          </>
+        ) : (
+          <>
+            As tabelas do copiloto ainda não existem no banco. Aplique a migração <code className="font-mono">{migracao}</code> no Supabase
+            e depois cole o script novo na conta do Google Ads.
+          </>
+        )
       ) : (
         <>O copiloto não pôde ser lido: {leitura.motivo}</>
       ),

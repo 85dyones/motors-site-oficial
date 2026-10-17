@@ -127,6 +127,7 @@ const { POST: postDecisao } = await import("../src/app/api/marketing/copiloto/de
 const { POST: postDesfazer } = await import("../src/app/api/marketing/copiloto/desfazer/route");
 const { POST: postRegras } = await import("../src/app/api/marketing/copiloto/regras/route");
 const { POST: postVerba } = await import("../src/app/api/marketing/copiloto/verba/route");
+const { verbaDeAgora } = await import("../src/lib/copilotoDeMidia-servidor");
 
 const SEGREDO = { "x-motors-segredo": "a".repeat(64) };
 const ID = "0c7f3b8e-1d2a-4f5b-9c6d-7e8f9a0b1c2d";
@@ -319,11 +320,11 @@ describe("as rotas do painel", () => {
 
   it("pedido de verba: pela SESSÃO, só com campanha, verba e motivo — a verba de agora o banco lê", async () => {
     estado.usuario = { id: "u1" };
-    const r = await postVerba(req({ campanhaId: "24277346771", verbaNova: 10, motivo: "  única que converte  ", verbaAtual: 1 }));
+    const r = await postVerba(req({ campanhaId: "1234567890", verbaNova: 10, motivo: "  única que converte  ", verbaAtual: 1 }));
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ id: "pedido-id" });
     expect(chamadas.sessao).toEqual([
-      { nome: "midia_copiloto_pedir_verba", args: { p_campanha: "24277346771", p_verba_nova: 10, p_motivo: "única que converte" } },
+      { nome: "midia_copiloto_pedir_verba", args: { p_campanha: "1234567890", p_verba_nova: 10, p_motivo: "única que converte" } },
     ]);
     expect(chamadas.admin).toEqual([]);
   });
@@ -353,5 +354,22 @@ describe("as rotas do painel", () => {
     const semMigracao = await postVerba(req({ campanhaId: "111", verbaNova: 10 }));
     expect(semMigracao.status).toBe(503);
     expect((await semMigracao.json()).error).toContain("20261016200000_copiloto_pedido_de_verba");
+  });
+});
+
+describe("a verba de agora no pedido", () => {
+  const campanha = { id: "111", nome: "Pesquisa", verba: 50, situacao: "no_ar", sincronizadoEm: "2026-10-16T19:30:48Z" };
+  const aplicada = (concluidaEm: string, verba: number, campanhaId = "111") =>
+    ({ tipo: "mudar_verba", situacao: "aplicada", campanhaId, concluidaEm, lidoDeVolta: { verba } }) as never;
+
+  it("o script sincroniza antes de aplicar: a verba lida de volta depois da sincronização é a que vale", () => {
+    expect(verbaDeAgora(campanha, [aplicada("2026-10-16T19:30:52Z", 80)])).toMatchObject({ verba: 80, sincronizadoEm: "2026-10-16T19:30:52Z" });
+  });
+
+  it("sincronização mais nova, outra campanha ou ação que não aplicou: fica a da sincronização", () => {
+    expect(verbaDeAgora(campanha, [aplicada("2026-10-16T18:30:52Z", 80)]).verba).toBe(50);
+    expect(verbaDeAgora(campanha, [aplicada("2026-10-16T19:30:52Z", 80, "222")]).verba).toBe(50);
+    const falhou = { ...(aplicada("2026-10-16T19:30:52Z", 80) as object), situacao: "falhou" } as never;
+    expect(verbaDeAgora(campanha, [falhou]).verba).toBe(50);
   });
 });

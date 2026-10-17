@@ -7,7 +7,7 @@ import type { AcaoNaTela, AchadoNaTela } from "../../../lib/copilotoDeMidia-serv
 import SinalDeEstado from "../../admin/consulta/SinalDeEstado";
 import { useConfirm } from "../../admin/ConfirmDialog";
 import Evidencias from "./Evidencias";
-import { SINAL_DA_SITUACAO, haQuanto, reais } from "./formato";
+import { DIAS_DO_MES_NO_GOOGLE, SINAL_DA_SITUACAO, haQuanto, reais } from "./formato";
 
 /**
  * O que espera decisão, e o que já foi aprovado e espera o script.
@@ -41,6 +41,17 @@ function agrupar(acoes: AcaoNaTela[], achados: AchadoNaTela[]): Grupo[] {
 const soma = (acoes: AcaoNaTela[]) => acoes.reduce((s, a) => s + (a.economia7d ?? 0), 0);
 /** Só corte tem economia estimada; pedido de aumento não. */
 const temEconomia = (acoes: AcaoNaTela[]) => acoes.some((a) => a.economia7d !== null);
+/** Quanto as mudanças de verba do grupo somam por dia (o pedido, que não tem economia, diz o que custa). */
+const variacaoDiaria = (acoes: AcaoNaTela[]) =>
+  acoes.reduce((s, a) => s + (a.tipo === "mudar_verba" && a.verbaAtual !== null && a.verbaNova !== null ? a.verbaNova - a.verbaAtual : 0), 0);
+
+function oQueSoma(acoes: AcaoNaTela[]): string {
+  if (temEconomia(acoes)) return `, somando ${reais(soma(acoes))} de economia estimada em 7 dias`;
+  const dia = Math.round(variacaoDiaria(acoes) * 100) / 100;
+  if (dia === 0) return "";
+  const sinal = dia > 0 ? "+" : "−";
+  return `, somando ${sinal}${reais(Math.abs(dia))} por dia na verba (até ${sinal}${reais(Math.abs(dia) * DIAS_DO_MES_NO_GOOGLE)} por mês)`;
+}
 
 export default function PropostasDoCopiloto({
   abertas,
@@ -100,7 +111,7 @@ export default function PropostasDoCopiloto({
   const aprovarGrupo = async (g: Grupo) => {
     const ok = await confirm({
       title: "Aprovar o grupo inteiro",
-      message: `${g.acoes.length} mudanças na conta do Google Ads (${g.titulo})${temEconomia(g.acoes) ? `, somando ${reais(soma(g.acoes))} de economia estimada em 7 dias` : ""}. O script aplica na próxima rodada; cada uma pode ser desfeita depois.`,
+      message: `${g.acoes.length} mudanças na conta do Google Ads (${g.titulo})${oQueSoma(g.acoes)}. O script aplica na próxima rodada; cada uma pode ser desfeita depois.`,
       confirmLabel: `Aprovar ${g.acoes.length}`,
     });
     if (ok) await decidir(g.acoes.map((a) => a.id), "aprovar", g.chave);

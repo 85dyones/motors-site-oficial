@@ -136,6 +136,23 @@ no painel, em "Para decidir" → **Pedir mudança de verba**.
   descarta pedido; e, depois de aplicado, o diagnóstico não propõe corte na
   mesma campanha por uma janela (7 dias), como na cascata. Pedido recusado não
   segura proposta do diagnóstico.
+- **Uma mudança de verba aberta por campanha** (índice único parcial no
+  banco): pedido, proposta do diagnóstico e desfazer de verba não convivem
+  abertos. O pedido e o desfazer substituem a proposta aberta e são recusados
+  quando já há uma aprovada (ou em aplicação) esperando o script.
+- **Pedido parado não cala o diagnóstico para sempre:** o retrato descarta o
+  pedido sem decisão há mais de uma janela (7 dias).
+- **Verba de agora logo depois de uma aplicação:** o script sincroniza antes de
+  aplicar; por até uma hora a sincronização ainda mostra a verba antiga. O
+  banco e a tela usam a verba que o script leu de volta quando ela é mais nova
+  que a sincronização.
+- **Campanha sincronizada só muda pela sincronização:** `midia_campanhas`
+  deixou de aceitar escrita direta de qualquer pessoa da equipe nas linhas que
+  vêm do Google ou do Meta (só a campanha manual é editável). Antes, um nome
+  trocado à mão faria o aprovador aprovar aumento na campanha errada.
+- **A mesma pessoa pode pedir e aprovar** (a linha da matriz é uma só). Se o
+  dono quiser duas pessoas para aumento, é um CHECK a mais
+  (`decidida_por <> pedida_por` no aumento).
 - **Trilha:** `copiloto_pediu` (quem pediu, carimbado por `auth.uid()`), depois
   `copiloto_aprovou` e `copiloto_aplicou`, como as outras.
 - Migração `20261016200000_copiloto_pedido_de_verba` (aditiva, não aplicada

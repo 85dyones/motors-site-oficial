@@ -23,7 +23,15 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) => createElement("a", { href, ...resto } as never, children as never),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: atualizou }) }));
-vi.mock("../src/components/admin/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: async () => true }) }));
+const confirmacoes: string[] = [];
+vi.mock("../src/components/admin/ConfirmDialog", () => ({
+  useConfirm: () => ({
+    confirm: async (o: { message: string }) => {
+      confirmacoes.push(o.message);
+      return true;
+    },
+  }),
+}));
 
 const { default: CopilotoDeMidia } = await import("../src/components/marketing/copiloto/CopilotoDeMidia");
 
@@ -37,6 +45,7 @@ const V1 = "77777777-7777-4777-8777-777777777777";
 
 const acao = (a: Partial<AcaoNaTela>): AcaoNaTela => ({
   id: P1,
+  campanhaId: "111",
   achadoId: A1,
   desfazAcaoId: null,
   tipo: "negativar",
@@ -166,6 +175,7 @@ const clicar = async (el: Element | null) => {
 
 beforeEach(() => {
   pedidos = [];
+  confirmacoes.length = 0;
   atualizou.mockReset();
   vi.stubGlobal("fetch", async (url: string, init: { body: string }) => {
     pedidos.push({ url, corpo: JSON.parse(init.body) });
@@ -244,6 +254,14 @@ describe("tela do Copiloto de Mídia", () => {
     expect(caixa.querySelector('[data-aviso="script-parado"]')!.textContent).toContain("nunca sincronizou");
   });
 
+  it("site publicado antes da migração do pedido: o aviso diz qual migração falta, e que o script não muda", async () => {
+    await montar({ ok: false, faltaMigracao: true, migracao: "20261016200000_copiloto_pedido_de_verba", motivo: "column does not exist" });
+    const aviso = caixa.querySelector('[data-aviso="migracao"]')!.textContent!;
+    expect(aviso).toContain("20261016200000_copiloto_pedido_de_verba");
+    expect(aviso).toContain("o script da conta não muda");
+    expect(aviso).not.toContain("20261014150000");
+  });
+
   it("sem diagnóstico ainda, a tela diz como mandar o primeiro", async () => {
     await montar(leitura((l) => ((l.diagnostico = null), (l.achados = []), (l.abertas = []), (l.historico = []))));
     expect(caixa.querySelector('[data-aviso="sem-diagnostico"]')!.textContent).toContain("Visualizar");
@@ -296,9 +314,9 @@ describe("tela do Copiloto de Mídia", () => {
       verbaNova: 10,
       economia7d: null,
       evidencias: {},
-      motivo: "Pedido de Dyones: única que converte",
+      motivo: "Pedido de Ana: única que converte",
       pedido: true,
-      pedidaPorNome: "Dyones",
+      pedidaPorNome: "Ana",
     });
     // Perfil sem nome: continua sendo pedido, no mesmo grupo.
     const semNome = { ...pedido, id: H2, campanhaNome: "Repasse", motivo: "Pedido de alguém da equipe.", pedidaPorNome: null };
@@ -312,5 +330,9 @@ describe("tela do Copiloto de Mídia", () => {
     expect(texto).toContain("Verba de Pesquisa: R$ 5,00 → R$ 10,00 por dia");
     await clicar(grupo.querySelector(`[data-proposta="${V1}"] [data-aprovar]`));
     expect(pedidos).toEqual([{ url: "/api/marketing/copiloto/decisao", corpo: { ids: [V1], decisao: "aprovar" } }]);
+    // O grupo inteiro: a confirmação diz quanto a verba soma, já que pedido não tem economia.
+    await clicar(grupo.querySelector("[data-aprovar-grupo]"));
+    expect(confirmacoes.at(-1)!.replace(/\u00a0/g, " ")).toContain("somando +R$ 10,00 por dia na verba (até +R$ 304,00 por mês)");
+    expect(pedidos.at(-1)!.corpo).toEqual({ ids: [V1, H2], decisao: "aprovar" });
   });
 });

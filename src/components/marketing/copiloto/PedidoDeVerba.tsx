@@ -5,7 +5,7 @@ import { useState } from "react";
 import { TETO_DO_PEDIDO_DE_VERBA, descreverAcao } from "../../../lib/copilotoDeMidia";
 import type { CampanhaParaPedido } from "../../../lib/copilotoDeMidia-servidor";
 import { useConfirm } from "../../admin/ConfirmDialog";
-import { quando, reais } from "./formato";
+import { DIAS_DO_MES_NO_GOOGLE, quando, reais } from "./formato";
 
 /**
  * Pedir mudança de verba (16/10/2026, pedido do dono: "aumentos pelo
@@ -17,12 +17,6 @@ import { quando, reais } from "./formato";
  * verba de agora é a que a sincronização gravou — o banco a lê de novo na hora
  * de gravar o pedido, e o script confere a da conta antes de mexer.
  */
-
-/**
- * O Google cobra no mês até a verba diária × 30,4 (a média de dias do mês). É
- * a régua dele, e é ela que diz quanto um real a mais por dia pesa no mês.
- */
-const DIAS_DO_MES_NO_GOOGLE = 30.4;
 
 const centavos = (n: number) => Math.round(n * 100);
 

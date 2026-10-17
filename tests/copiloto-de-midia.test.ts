@@ -499,9 +499,9 @@ describe("as listas fechadas do banco são as do código", () => {
 
 describe("pedido de verba", () => {
   it("só campanha numérica, verba de centavo em centavo até o teto, e motivo aparado", () => {
-    expect(validarPedidoDeVerba({ campanhaId: "24277346771", verbaNova: 10, motivo: "  converte  " })).toEqual({
+    expect(validarPedidoDeVerba({ campanhaId: "1234567890", verbaNova: 10, motivo: "  converte  " })).toEqual({
       ok: true,
-      valor: { campanhaId: "24277346771", verbaNova: 10, motivo: "converte" },
+      valor: { campanhaId: "1234567890", verbaNova: 10, motivo: "converte" },
     });
     expect(validarPedidoDeVerba({ campanhaId: "1", verbaNova: 0.1 + 0.2 })).toMatchObject({ ok: true, valor: { verbaNova: 0.3, motivo: null } });
     for (const ruim of [
