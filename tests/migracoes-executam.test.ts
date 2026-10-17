@@ -279,9 +279,11 @@ const CADEIA = [
   // vice-versa), que cada reserva só entrega a sua plataforma, que a trilha
   // diz quem aplicou, que o desfazer do anúncio nasce no Meta e no mesmo
   // anúncio, o pedido de verba numa campanha do Meta, cada regra nova
-  // tentando gravar o inválido, e que a sessão de staff não reescreve o
-  // anúncio nem o desempenho sincronizados (e cliente não os lê). Pediu ao
-  // andaime o recorte de `midia_anuncios`, `midia_diario` e `midia_gravar_lote`.
+  // tentando gravar o inválido, que a sessão de staff não reescreve o
+  // anúncio nem o desempenho sincronizados (e cliente não os lê), e que as
+  // regras do Meta são parâmetro com vigência numa porta só, de 21 argumentos,
+  // que a chamada de 15 do site de hoje segue usando. Pediu ao andaime o
+  // recorte de `midia_anuncios`, `midia_diario` e `midia_gravar_lote`.
   "20261017150000_copiloto_meta.sql",
 ];
 
@@ -1051,7 +1053,8 @@ describe.skipIf(!temBanco)("o Copiloto no Meta, reaplicado e pelo lado de fora",
    * corpo, privilégio e comentário de toda função `midia_*`; os índices da
    * ação e do retrato; e as contagens — num hash.
    */
-  const TABELAS = ["midia_copiloto_acoes", "midia_copiloto_diagnosticos", "midia_copiloto_achados", "midia_anuncios"]
+  const TABELAS = ["midia_copiloto_acoes", "midia_copiloto_diagnosticos", "midia_copiloto_achados", "midia_anuncios",
+                   "midia_copiloto_parametros"]
     .map((t) => `'public.${t}'::regclass`)
     .join(", ");
   const retrato = (): string => {
@@ -1083,7 +1086,9 @@ describe.skipIf(!temBanco)("o Copiloto no Meta, reaplicado e pelo lado de fora",
          || (select count(*) from public.midia_copiloto_achados)::text
          || (select count(*) from public.auditoria_admin)::text
          || (select count(*) from public.midia_campanhas)::text
-         || (select count(*) from public.midia_anuncios)::text) as h`,
+         || (select count(*) from public.midia_anuncios)::text
+         || (select string_agg(id::text || ':' || coalesce(vigencia_ate::text, 'vigente'), '|' order by id)
+               from public.midia_copiloto_parametros)) as h`,
     );
     return saida.match(/[0-9a-f]{32}/)?.[0] ?? `sem hash: ${saida}`;
   };
@@ -1383,6 +1388,90 @@ describe.skipIf(!temBanco)("o Copiloto no Meta, reaplicado e pelo lado de fora",
     for (const tabela of ["midia_anuncios", "midia_diario"]) {
       expect(recusa(`set local role anon; select count(*) from public.${tabela}`), tabela).toContain("permission denied");
     }
+  });
+
+  /** Os 15 argumentos nomeados da porta das regras — a chamada do site de hoje. */
+  const REGRAS_15 = `p_gasto_minimo_termo => 11, p_gasto_minimo_grupo => 51, p_gasto_minimo_campanha => 101,
+    p_ritmo_alto_pct => 90, p_ritmo_baixo_pct => 50, p_reducao_verba_pct => 30, p_iq_baixo => 3,
+    p_leads_gclid_minimos => 2, p_cliques_minimos_gclid => 30, p_perda_por_verba_pct => 10,
+    p_perda_por_ranking_pct => 30, p_concorrentes => '{}', p_cidades_fora => '{}',
+    p_palavras_informativas => '{}', p_hora_do_diagnostico => 7`;
+  const regrasMeta = (conjunto: number, campanha: number, semLead: number, caro: number, maduros: number, dias: number) =>
+    `p_meta_gasto_minimo_conjunto => ${conjunto}, p_meta_gasto_minimo_campanha => ${campanha},
+     p_meta_vezes_sem_lead => ${semLead}, p_meta_vezes_custo_caro => ${caro},
+     p_meta_leads_maduros_minimos => ${maduros}, p_meta_dias_para_amadurecer => ${dias}`;
+  const vigenteE = (conjunto: number, campanha: number, semLead: number, caro: number, maduros: number, dias: number) =>
+    `select (meta_gasto_minimo_conjunto = ${conjunto} and meta_gasto_minimo_campanha = ${campanha}
+             and meta_vezes_sem_lead = ${semLead} and meta_vezes_custo_caro = ${caro}
+             and meta_leads_maduros_minimos = ${maduros} and meta_dias_para_amadurecer = ${dias}) as ok
+       from public.midia_copiloto_parametros where vigencia_ate is null`;
+
+  it("as regras do Meta são parâmetro com vigência: a vigente ganhou o padrão; 21 argumentos gravam, os 15 nomeados copiam, e a trilha traz os valores", () => {
+    expect(
+      vereditos(
+        cenario(
+          `${vigenteE(100, 200, 2.5, 2, 8, 7)};
+           select public.midia_copiloto_nova_vigencia(${REGRAS_15}, ${regrasMeta(150, 300, 3, 2.5, 10, 5)});
+           ${vigenteE(150, 300, 3, 2.5, 10, 5)};
+           select public.midia_copiloto_nova_vigencia(${REGRAS_15});
+           ${vigenteE(150, 300, 3, 2.5, 10, 5)};
+           select (gasto_minimo_termo = 11 and count(*) over () = 1) as ok
+             from public.midia_copiloto_parametros where vigencia_ate is null;
+           select exists (select 1 from public.auditoria_admin
+                           where acao = 'copiloto_regras' and autor_id = '${PESSOA}'
+                             and detalhe like '%; Meta: gasto mínimo 150.00 no conjunto e 300.00 na campanha em 14 dias, sem lead a partir de 3.00× o custo por lead, caro a partir de 2.50×, qualidade com 10 lead(s) maduro(s) de 5 dia(s)') as ok`,
+        ),
+      ),
+    ).toEqual(["t", "t", "t", "t", "t"]);
+  });
+
+  it("violação falha: cada regra do Meta fora da faixa, pela tabela e pela porta", () => {
+    const vigencia = (coluna: string, valor: string) =>
+      `insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha,
+         ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid,
+         perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, vigencia_ate, ${coluna})
+       values (1, 1, 1, 90, 50, 30, 3, 2, 30, 10, 30, 7, current_date, ${valor})`;
+    // Controles: as bordas de dentro entram.
+    for (const [coluna, valor] of [
+      ["meta_gasto_minimo_conjunto", "100000"], ["meta_gasto_minimo_campanha", "0.01"], ["meta_vezes_sem_lead", "1"],
+      ["meta_vezes_sem_lead", "10"], ["meta_vezes_custo_caro", "1.01"], ["meta_leads_maduros_minimos", "500"],
+      ["meta_dias_para_amadurecer", "1"], ["meta_dias_para_amadurecer", "29"],
+    ]) {
+      expect(recusa(vigencia(coluna, valor)), `${coluna} ${valor}`).toBe("");
+    }
+    for (const [coluna, valor] of [
+      ["meta_gasto_minimo_conjunto", "0"], ["meta_gasto_minimo_campanha", "100000.01"], ["meta_vezes_sem_lead", "0.99"],
+      ["meta_vezes_sem_lead", "10.01"], ["meta_vezes_custo_caro", "1"], ["meta_vezes_custo_caro", "10.01"],
+      ["meta_leads_maduros_minimos", "0"], ["meta_leads_maduros_minimos", "501"],
+      ["meta_dias_para_amadurecer", "0"], ["meta_dias_para_amadurecer", "30"],
+    ]) {
+      expect(recusa(vigencia(coluna, valor)), `${coluna} ${valor}`).toContain("midia_copiloto_parametros_meta_validos");
+    }
+    expect(cenario(`select public.midia_copiloto_nova_vigencia(${REGRAS_15}, p_meta_dias_para_amadurecer => 30)`)).toContain(
+      "midia_copiloto_parametros_meta_validos",
+    );
+  });
+
+  it("a porta das regras é uma só, de 21 argumentos (6 opcionais), de authenticated e não de anon", () => {
+    const VINTE_E_UM =
+      "public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer, numeric, numeric, numeric, numeric, integer, integer)";
+    expect(
+      vereditos(
+        psql!(
+          `select (count(*) = 1) as ok from pg_proc where pronamespace = 'public'::regnamespace and proname = 'midia_copiloto_nova_vigencia';
+           select (pronargs = 21 and pronargdefaults = 6 and prosecdef) as ok from pg_proc where oid = to_regprocedure('${VINTE_E_UM}');
+           select (has_function_privilege('authenticated', '${VINTE_E_UM}', 'execute')
+                   and not has_function_privilege('anon', '${VINTE_E_UM}', 'execute')) as ok`,
+        ),
+      ),
+    ).toEqual(["t", "t", "t"]);
+    expect(recusa(`set local role anon; select public.midia_copiloto_nova_vigencia(${REGRAS_15})`)).toContain("permission denied");
+    expect(
+      recusa(
+        `select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
+         set local role authenticated; select public.midia_copiloto_nova_vigencia(${REGRAS_15})`,
+      ),
+    ).toContain("Só Administrador ou Marketing");
   });
 
   it("a sincronização grava conjunto e situação do anúncio, e o lote que não os traz não os apaga", () => {

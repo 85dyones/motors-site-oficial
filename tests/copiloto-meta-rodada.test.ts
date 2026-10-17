@@ -44,7 +44,8 @@ vi.mock("../src/lib/midiaMeta", () => ({
 }));
 
 vi.mock("../src/lib/copilotoMeta-aplicar", () => ({
-  aplicarAprovadasNoMeta: async () => {
+  aplicarAprovadasNoMeta: async (_admin: unknown, cfg: { conta: string }) => {
+    if (cfg.conta !== "802008949148808") throw new Error("conta errada");
     ordem.push("aplicar");
     if (aplicacaoFalha) throw new Error("reserva falhou");
     return { feito: true, reservadas: 0, aplicadas: 0, semEfeito: 0, falhas: 0, ignoradas: 0 };

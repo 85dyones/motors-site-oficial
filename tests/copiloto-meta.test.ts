@@ -39,6 +39,12 @@ const P: ParametrosDoCopiloto = {
   cidadesFora: [],
   palavrasInformativas: [],
   horaDoDiagnostico: 7,
+  metaGastoMinimoConjunto: 50,
+  metaGastoMinimoCampanha: 100,
+  metaVezesSemLead: 2.5,
+  metaVezesCustoCaro: 2,
+  metaLeadsMadurosMinimos: 8,
+  metaDiasParaAmadurecer: 7,
 };
 
 const JANELA = { de: "2026-10-03", ate: "2026-10-16" };
@@ -89,10 +95,11 @@ function retratoBase(): RetratoDoMeta {
 }
 
 describe("leadQualificado — a régua da qualificação que vai ao Meta", () => {
-  it("visita, negociação, a etapa de ganho e o desfecho ganho qualificam; o resto não", () => {
+  it("visita, negociação e o desfecho ganho qualificam; o resto não", () => {
     expect(leadQualificado("visita", null)).toBe(true);
     expect(leadQualificado("negociacao", null)).toBe(true);
-    expect(leadQualificado("fechado", null)).toBe(true);
+    // A etapa de ganho grava `desfecho = 'ganho'` (gatilho do funil): é o desfecho que conta.
+    expect(leadQualificado("fechado", "ganho")).toBe(true);
     expect(leadQualificado(null, "ganho")).toBe(true);
     expect(leadQualificado("novo", null)).toBe(false);
     expect(leadQualificado("em_contato", null)).toBe(false);
@@ -133,6 +140,13 @@ describe("diagnosticarMeta — o cenário-base", () => {
   it("não corta a verba da campanha que já tem pausa proposta (uma mudança por vez)", () => {
     expect(res.propostas.some((p) => p.tipo === "mudar_verba")).toBe(false);
     expect(res.achados.some((a) => a.regra === "meta_custo_por_lead")).toBe(false);
+  });
+
+  it("campanha no ar com verba e sem gasto nenhum também é verba sobrando", () => {
+    const r = retratoBase();
+    r.campanhas.push(campanha("Z", "05 Parada", 30));
+    const ritmo = diagnosticarMeta(r, P).achados.filter((a) => a.regra === "ritmo_de_verba");
+    expect(ritmo.map((a) => a.titulo)).toContain("05 Parada: gastou 0% da verba nos últimos 7 dias");
   });
 
   it("aponta a verba sobrando, sem propor nada", () => {
@@ -232,6 +246,33 @@ describe("diagnosticarMeta — o que segura a mão", () => {
     r.leads = [...leads(10, "A", "a1", "2026-09-20"), ...leads(1, "B", "c1")];
     const res = diagnosticarMeta(r, P);
     expect(res.resumo.leadsCrm).toBe(1);
+  });
+});
+
+describe("diagnosticarMeta — os limiares são da loja", () => {
+  it("com a régua de gasto sem lead mais alta, o mesmo conjunto vira azar", () => {
+    // Heróis gastou R$ 280: 3× o custo por lead (R$ 92,91) passa disso.
+    const res = diagnosticarMeta(retratoBase(), { ...P, metaVezesSemLead: 3.5 });
+    expect(res.propostas.some((p) => p.tipo === "pausar_conjunto")).toBe(false);
+  });
+
+  it("o mínimo de gasto do conjunto vale mesmo quando o custo por lead é baixo", () => {
+    const res = diagnosticarMeta(retratoBase(), { ...P, metaGastoMinimoConjunto: 300 });
+    expect(res.propostas).toEqual([]);
+  });
+
+  it("os dias para amadurecer mudam quem conta na qualidade", () => {
+    const r = retratoBase();
+    r.leads = leads(3, "A", "a1", "2026-10-12");
+    expect(diagnosticarMeta(r, P).resumo.maduros).toBe(0);
+    expect(diagnosticarMeta(r, { ...P, metaDiasParaAmadurecer: 3 }).resumo.maduros).toBe(3);
+  });
+
+  it("os leads maduros mínimos do achado de qualidade", () => {
+    const r = retratoBase();
+    r.leads.push(...leads(5, "B", "c1", "2026-09-25"));
+    expect(diagnosticarMeta(r, P).achados.some((a) => a.regra === "meta_qualidade" && a.gravidade === "media")).toBe(false);
+    expect(diagnosticarMeta(r, { ...P, metaLeadsMadurosMinimos: 5 }).achados.some((a) => a.regra === "meta_qualidade" && a.gravidade === "media")).toBe(true);
   });
 });
 

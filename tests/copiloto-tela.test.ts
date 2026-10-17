@@ -97,6 +97,12 @@ function leitura(mudar: (l: LeituraDoCopiloto) => void = () => {}): Leitura<Leit
         cidadesFora: [],
         palavrasInformativas: ["como"],
         horaDoDiagnostico: 7,
+        metaGastoMinimoConjunto: 100,
+        metaGastoMinimoCampanha: 200,
+        metaVezesSemLead: 2.5,
+        metaVezesCustoCaro: 2,
+        metaLeadsMadurosMinimos: 8,
+        metaDiasParaAmadurecer: 7,
       },
       vigenciaDesde: "2026-10-14",
       criadoPorNome: null,
@@ -398,6 +404,30 @@ function leituraMeta(mudar: (l: LeituraDoCopiloto) => void = () => {}): Leitura<
     mudar(l);
   });
 }
+
+describe("tela do Copiloto de Mídia — as regras", () => {
+  it("os limiares do Meta ficam num bloco próprio e vão junto na vigência nova", async () => {
+    await montar(leitura());
+    const form = caixa.querySelector("[data-regras-do-copiloto]")!;
+    const meta = form.querySelector("[data-regras-do-meta]")!;
+    expect(meta.textContent).toContain("Meta Ads · 14 dias, pelo lead do CRM");
+    expect((meta.querySelector('input[name="metaVezesSemLead"]') as HTMLInputElement).value).toBe("2.5");
+    await digitar(meta.querySelector('input[name="metaDiasParaAmadurecer"]'), "5");
+    await act(async () => {
+      (form as HTMLFormElement).requestSubmit();
+    });
+    const enviado = pedidos.find((p) => p.url === "/api/marketing/copiloto/regras")!.corpo as Record<string, unknown>;
+    expect(enviado).toMatchObject({
+      metaGastoMinimoConjunto: 100,
+      metaGastoMinimoCampanha: 200,
+      metaVezesSemLead: 2.5,
+      metaVezesCustoCaro: 2,
+      metaLeadsMadurosMinimos: 8,
+      metaDiasParaAmadurecer: 5,
+      gastoMinimoGrupo: 50,
+    });
+  });
+});
 
 describe("tela do Copiloto de Mídia — aba do Meta", () => {
   it("as abas levam a cada plataforma e marcam a aberta", async () => {

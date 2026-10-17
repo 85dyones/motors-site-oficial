@@ -61,6 +61,12 @@ const P: ParametrosDoCopiloto = {
   cidadesFora: ["são tomé"],
   palavrasInformativas: ["como", "emprego", "ficha técnica"],
   horaDoDiagnostico: 7,
+  metaGastoMinimoConjunto: 100,
+  metaGastoMinimoCampanha: 200,
+  metaVezesSemLead: 2.5,
+  metaVezesCustoCaro: 2,
+  metaLeadsMadurosMinimos: 8,
+  metaDiasParaAmadurecer: 7,
 };
 
 const LEADS: LeadsDaJanela = { total: 20, doSite: 14, comGclid: 0, comUtmGoogle: 0 };
@@ -433,6 +439,21 @@ describe("o vaivém com o script e o painel", () => {
     expect(validarRegras({ ...base, reducaoVerbaPct: 95 }).ok).toBe(false);
     expect(validarRegras({ ...base, horaDoDiagnostico: 24 }).ok).toBe(false);
     expect(validarRegras({ ...base, concorrentes: ["x"] }).ok).toBe(false);
+    // Os do Meta, nas faixas do CHECK `midia_copiloto_parametros_meta_validos`.
+    for (const [chave, fora, dentro] of [
+      ["metaGastoMinimoConjunto", 0, 0.01],
+      ["metaGastoMinimoCampanha", 100000.01, 100000],
+      ["metaVezesSemLead", 0.99, 1],
+      ["metaVezesCustoCaro", 1, 1.01],
+      ["metaLeadsMadurosMinimos", 501, 500],
+      ["metaDiasParaAmadurecer", 30, 29],
+    ] as const) {
+      expect(validarRegras({ ...base, [chave]: fora }).ok, `${chave}=${fora}`).toBe(false);
+      expect(validarRegras({ ...base, [chave]: dentro }).ok, `${chave}=${dentro}`).toBe(true);
+    }
+    expect(validarRegras({ ...base, metaDiasParaAmadurecer: 7.5 }).ok).toBe(false);
+    expect(MIGRACAO_META).toContain("meta_vezes_custo_caro > 1 and meta_vezes_custo_caro <= 10");
+    expect(MIGRACAO_META).toContain("meta_dias_para_amadurecer between 1 and 29");
   });
 
   it("a frase da tela é a da trilha no banco (`midia_copiloto_descrever`)", () => {
@@ -532,7 +553,21 @@ describe("as listas fechadas do banco são as do código", () => {
     ]) {
       expect(MIGRACAO, coluna).toMatch(new RegExp(`\\n  ${coluna}\\s+(numeric|smallint|integer)`));
     }
-    expect(Object.keys(P)).toHaveLength(15);
+    // Os do Meta (17/10/2026): colunas da mesma tabela, um parâmetro da porta cada.
+    const doMeta = {
+      meta_gasto_minimo_conjunto: "metaGastoMinimoConjunto",
+      meta_gasto_minimo_campanha: "metaGastoMinimoCampanha",
+      meta_vezes_sem_lead: "metaVezesSemLead",
+      meta_vezes_custo_caro: "metaVezesCustoCaro",
+      meta_leads_maduros_minimos: "metaLeadsMadurosMinimos",
+      meta_dias_para_amadurecer: "metaDiasParaAmadurecer",
+    } as const;
+    for (const [coluna, chave] of Object.entries(doMeta)) {
+      expect(MIGRACAO_META, coluna).toMatch(new RegExp(`add column if not exists ${coluna}\\s+(numeric|smallint|integer)`));
+      expect(MIGRACAO_META, coluna).toMatch(new RegExp(`p_${coluna}\\s+(numeric|integer) default null`));
+      expect(P, chave).toHaveProperty(chave);
+    }
+    expect(Object.keys(P)).toHaveLength(21);
   });
 });
 

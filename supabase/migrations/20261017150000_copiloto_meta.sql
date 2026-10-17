@@ -99,6 +99,16 @@
 --    conjunto ou o nome põe na proposta de pausa uma frase que não é a do
 --    alvo — e qualquer conta logada, cliente inclusive, lia o gasto diário
 --    (`midia_diario_leitura`, using true, 20260924120000).
+-- 13. Os limiares do diagnóstico do Meta viram regra em tabela, com vigência e
+--    trilha, como os do Google: seis colunas `meta_*` em
+--    `midia_copiloto_parametros` (not null, com padrão — a vigente ganha o
+--    padrão sem UPDATE) e o CHECK `midia_copiloto_parametros_meta_validos`.
+--    `midia_copiloto_nova_vigencia` ganha os seis NO FIM, `default null` (nulo
+--    copia o da vigente; sem vigente, o padrão da coluna), e a trilha
+--    `copiloto_regras` os escreve. A assinatura muda: a de 15 argumentos é
+--    DERRUBADA e a de 21 criada — as duas juntas deixariam o PostgREST ambíguo
+--    para a chamada de 15, que é a do site de hoje e continua casando com a
+--    de 21 (os seis novos têm padrão).
 --
 -- Os índices únicos ficam como estão, e continuam certos com duas plataformas:
 --   * `midia_copiloto_acoes_chave_aberta (org_id, chave)` — as chaves do Meta
@@ -154,6 +164,10 @@
 --                                                    anúncio de campanha manual, e a linha não
 --                                                    muda para campanha sincronizada (WITH CHECK)
 --   midia_diario_leitura ........................... staff lê; a sessão não escreve
+--   midia_copiloto_parametros_meta_validos ......... gastos mínimos > 0 e ≤ 100.000; sem lead de
+--                                                    1× a 10×; caro acima de 1× e até 10×; leads
+--                                                    maduros de 1 a 500; amadurecer de 1 a 29 dias
+--   midia_copiloto_nova_vigencia ................... uma função só com esse nome (21 argumentos)
 --
 -- As linhas que já existem passam em tudo: todas são do Google (o padrão),
 -- com anúncio nulo, de um dos cinco tipos de antes e de uma das seis regras;
@@ -188,8 +202,14 @@
 --
 -- ⚠️ Reaplicar a 20261016200000 DEPOIS desta devolve o gatilho, a gravação do
 --    retrato, o pedido e o desfazer à forma de antes (sem plataforma), e o
---    CHECK de origem à forma sem os reativar do Meta. Quem reaplicar aquela
---    reaplica esta em seguida.
+--    CHECK de origem à forma sem os reativar do Meta. Reaplicar a 20261014150000
+--    depois desta recria a `midia_copiloto_nova_vigencia` de 15 argumentos AO
+--    LADO da de 21 (sobrecarga: o aceite dela para em "function ... is not
+--    unique", e o PostgREST também) e devolve os CHECKs da ação à forma de
+--    antes do pedido de verba. Quem reaplicar uma das duas reaplica, na ordem,
+--    as que vêm depois dela (20261016200000 e esta) — esta derruba a de 15 de
+--    novo. Conferido: 20261014150000 → 20261016200000 → esta volta ao estado
+--    de antes, com uma função só.
 --
 -- ⚠️ DESFAZER. Fechar a porta do Meta é o desfazer seguro: sem a reserva do
 --    Meta, nada aprovado do Meta chega à conta; o Google segue como está, e
@@ -242,6 +262,20 @@
 --   alter table public.midia_anuncios
 --     drop column if exists conjunto_situacao, drop column if exists situacao,
 --     drop column if exists conjunto_nome, drop column if exists conjunto_id_externo;
+--   -- as regras do Meta: a porta de 21 argumentos sai, a de 15 volta com o
+--   -- texto e os grants da 20261014150000 (seção 5a e o revoke/grant da 5),
+--   -- e as colunas caem (os valores do Meta das vigências se perdem; a trilha fica):
+--   drop function if exists public.midia_copiloto_nova_vigencia(
+--     numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer,
+--     text[], text[], text[], integer, numeric, numeric, numeric, numeric, integer, integer);
+--   -- create function public.midia_copiloto_nova_vigencia(<os 15 da 20261014150000>) ...;
+--   -- revoke all ... from public, anon;  grant execute ... to authenticated;
+--   alter table public.midia_copiloto_parametros
+--     drop constraint if exists midia_copiloto_parametros_meta_validos;
+--   alter table public.midia_copiloto_parametros
+--     drop column if exists meta_dias_para_amadurecer, drop column if exists meta_leads_maduros_minimos,
+--     drop column if exists meta_vezes_custo_caro, drop column if exists meta_vezes_sem_lead,
+--     drop column if exists meta_gasto_minimo_campanha, drop column if exists meta_gasto_minimo_conjunto;
 --   -- e os comentários de midia_copiloto_acoes, midia_copiloto_diagnosticos,
 --   -- midia_copiloto_achados, da coluna chave, dos dois índices únicos e das
 --   -- funções, com o texto da 20261016200000 (seção 8) e da 20261014150000 (seção 7);
@@ -273,17 +307,20 @@
 --   -- (e, no Postgres 17 da produção, `grant maintain` aos dois, como estava)
 --   commit;
 --
--- Aditiva (oito colunas: duas com o padrão google, seis nulas; quatro CHECKs
--- trocados por versões que, para as linhas que existem — todas do Google —,
--- aceitam o mesmo; o CHECK de regra só alarga; seis CHECKs novos que nada do
--- que existe viola; dois índices comuns; os dois únicos intocados; o gatilho,
--- a frase e seis funções com o mesmo nome e a mesma assinatura, sem sobrecarga
--- nova; uma função nova; a policy de `midia_anuncios` trocada por quatro mais
--- estreitas e a de `midia_diario` estreitada a staff; `auditoria_admin` só
--- recebe linhas; `leads` e `estoque_motors` não são tocadas) e idempotente:
--- `add column if not exists`, `drop constraint if exists` + `add constraint`,
--- `create index if not exists`, `create or replace`, `drop policy if exists` +
--- `create policy`, revoke/grant e comment reaplicáveis.
+-- Aditiva (oito colunas no copiloto: duas com o padrão google, seis nulas; seis
+-- colunas de regra do Meta, com padrão; quatro CHECKs trocados por versões
+-- que, para as linhas que existem — todas do Google —, aceitam o mesmo; o
+-- CHECK de regra só alarga; sete CHECKs novos que nada do que existe viola;
+-- dois índices comuns; os dois únicos intocados; o gatilho, a frase e seis
+-- funções com o mesmo nome e a mesma assinatura; uma função nova; a porta das
+-- regras com seis argumentos NOVOS no fim, opcionais — a de 15 sai para não
+-- haver sobrecarga, e toda chamada de 15 casa com a de 21; a policy de
+-- `midia_anuncios` trocada por quatro mais estreitas e a de `midia_diario`
+-- estreitada a staff; `auditoria_admin` só recebe linhas; `leads` e
+-- `estoque_motors` não são tocadas) e idempotente: `add column if not
+-- exists`, `drop constraint if exists` + `add constraint`, `create index if not
+-- exists`, `drop function if exists` (a de 15) + `create or replace`, `drop
+-- policy if exists` + `create policy`, revoke/grant e comment reaplicáveis.
 -- ============================================================================
 
 
@@ -1340,7 +1377,181 @@ grant select on public.midia_diario to authenticated;
 
 
 -- ----------------------------------------------------------------------------
--- 12. Para quem abrir o banco sem abrir o código
+-- 12. As regras do Meta, como dado com vigência
+-- ----------------------------------------------------------------------------
+-- Os limiares do diagnóstico do Meta moram em `midia_copiloto_parametros`, ao
+-- lado dos do Google: regra em tabela, com vigência (D-T1.7) e trilha. O
+-- `add column ... default` dá o padrão à linha vigente SEM UPDATE (o guarda
+-- `nucleo_so_encerra_vigencia` não dispara) — e também às já encerradas, que
+-- não conheciam o Meta: lá o número é o padrão, não uma decisão de alguém.
+alter table public.midia_copiloto_parametros
+  add column if not exists meta_gasto_minimo_conjunto  numeric(10, 2) not null default 100,
+  add column if not exists meta_gasto_minimo_campanha  numeric(10, 2) not null default 200,
+  add column if not exists meta_vezes_sem_lead         numeric(4, 2)  not null default 2.5,
+  add column if not exists meta_vezes_custo_caro       numeric(4, 2)  not null default 2,
+  add column if not exists meta_leads_maduros_minimos  smallint       not null default 8,
+  add column if not exists meta_dias_para_amadurecer   smallint       not null default 7;
+
+alter table public.midia_copiloto_parametros
+  drop constraint if exists midia_copiloto_parametros_meta_validos;
+alter table public.midia_copiloto_parametros
+  add constraint midia_copiloto_parametros_meta_validos check (
+        meta_gasto_minimo_conjunto > 0 and meta_gasto_minimo_conjunto <= 100000
+    and meta_gasto_minimo_campanha > 0 and meta_gasto_minimo_campanha <= 100000
+    and meta_vezes_sem_lead between 1 and 10
+    and meta_vezes_custo_caro > 1 and meta_vezes_custo_caro <= 10
+    and meta_leads_maduros_minimos between 1 and 500
+    -- A janela de qualidade é de 30 dias: amadurecer em 30 ou mais não deixa lead nenhum.
+    and meta_dias_para_amadurecer between 1 and 29);
+
+-- A porta das regras ganha os seis do Meta NO FIM, todos `default null`: o
+-- nulo copia o valor da vigente que está sendo encerrada (sem vigente, o
+-- padrão da coluna, lido do catálogo — o número mora num lugar só). Assim o
+-- site de hoje, que chama com os 15 argumentos nomeados, segue salvando
+-- regras entre esta migração e o deploy, sem apagar o que o Meta já tem. A
+-- de 15 argumentos SAI: as duas juntas deixariam o PostgREST ambíguo
+-- (PGRST203) para a chamada de 15. O resto do corpo é o da 20261014150000 (5a).
+drop function if exists public.midia_copiloto_nova_vigencia(
+  numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer);
+
+create or replace function public.midia_copiloto_nova_vigencia(
+  p_gasto_minimo_termo          numeric,
+  p_gasto_minimo_grupo          numeric,
+  p_gasto_minimo_campanha       numeric,
+  p_ritmo_alto_pct              integer,
+  p_ritmo_baixo_pct             integer,
+  p_reducao_verba_pct           integer,
+  p_iq_baixo                    integer,
+  p_leads_gclid_minimos         integer,
+  p_cliques_minimos_gclid       integer,
+  p_perda_por_verba_pct         integer,
+  p_perda_por_ranking_pct       integer,
+  p_concorrentes                text[],
+  p_cidades_fora                text[],
+  p_palavras_informativas       text[],
+  p_hora_do_diagnostico         integer,
+  p_meta_gasto_minimo_conjunto  numeric default null,
+  p_meta_gasto_minimo_campanha  numeric default null,
+  p_meta_vezes_sem_lead         numeric default null,
+  p_meta_vezes_custo_caro       numeric default null,
+  p_meta_leads_maduros_minimos  integer default null,
+  p_meta_dias_para_amadurecer   integer default null
+)
+returns public.midia_copiloto_parametros
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+  v_quem     uuid := auth.uid();
+  v_nome     text;
+  v_vigente  public.midia_copiloto_parametros;
+  v_base     jsonb;
+  v_sql      text;
+  v_nova     public.midia_copiloto_parametros;
+begin
+  if v_quem is null then
+    raise exception 'Regras do copiloto sem sessão: a autoria não pode ficar em branco nem ser declarada.'
+      using errcode = '42501';
+  end if;
+  if not (public.tem_papel(v_quem, 'admin') or public.tem_papel(v_quem, 'marketing')) then
+    raise exception 'Só Administrador ou Marketing mudam as regras do copiloto (matriz A17, "Aprovar mudanças do Copiloto de Mídia").'
+      using errcode = '42501';
+  end if;
+  select nullif(btrim(full_name), '') into v_nome from public.profiles where id = v_quem;
+
+  -- Trava a vigente: duas edições ao mesmo tempo não abrem duas vigências.
+  select * into v_vigente
+    from public.midia_copiloto_parametros
+   where org_id = public.org_padrao() and vigencia_ate is null
+   for update;
+  if found then
+    -- O que não veio (os do Meta, na chamada de 15) é o que vigia.
+    v_base := to_jsonb(v_vigente);
+    update public.midia_copiloto_parametros set vigencia_ate = current_date where id = v_vigente.id;
+  else
+    -- Sem vigente: o padrão de cada coluna do Meta, como o catálogo o guarda.
+    select 'select jsonb_build_object(' || string_agg(format('%L, %s', a.attname, pg_get_expr(d.adbin, d.adrelid)), ', ') || ')'
+      into v_sql
+      from pg_attribute a
+      join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+     where a.attrelid = 'public.midia_copiloto_parametros'::regclass
+       and a.attname like 'meta\_%' and not a.attisdropped;
+    if v_sql is not null then
+      execute v_sql into v_base;
+    end if;
+  end if;
+  v_base := coalesce(v_base, '{}'::jsonb);
+
+  -- As listas: minúsculas, aparadas, sem vazio e sem repetido, na ordem em que
+  -- vieram. O que sobrar fora da régua (1 caractere, mais de 60) o CHECK recusa.
+  insert into public.midia_copiloto_parametros
+    (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha,
+     ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo,
+     leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, perda_por_ranking_pct,
+     concorrentes, cidades_fora, palavras_informativas, hora_do_diagnostico,
+     meta_gasto_minimo_conjunto, meta_gasto_minimo_campanha, meta_vezes_sem_lead,
+     meta_vezes_custo_caro, meta_leads_maduros_minimos, meta_dias_para_amadurecer,
+     criado_por, criado_por_nome, vigencia_desde)
+  select p_gasto_minimo_termo, p_gasto_minimo_grupo, p_gasto_minimo_campanha,
+         p_ritmo_alto_pct, p_ritmo_baixo_pct, p_reducao_verba_pct, p_iq_baixo,
+         p_leads_gclid_minimos, p_cliques_minimos_gclid, p_perda_por_verba_pct, p_perda_por_ranking_pct,
+         l.concorrentes, l.cidades_fora, l.palavras_informativas, p_hora_do_diagnostico,
+         coalesce(p_meta_gasto_minimo_conjunto, (v_base->>'meta_gasto_minimo_conjunto')::numeric),
+         coalesce(p_meta_gasto_minimo_campanha, (v_base->>'meta_gasto_minimo_campanha')::numeric),
+         coalesce(p_meta_vezes_sem_lead,        (v_base->>'meta_vezes_sem_lead')::numeric),
+         coalesce(p_meta_vezes_custo_caro,      (v_base->>'meta_vezes_custo_caro')::numeric),
+         coalesce(p_meta_leads_maduros_minimos, (v_base->>'meta_leads_maduros_minimos')::integer),
+         coalesce(p_meta_dias_para_amadurecer,  (v_base->>'meta_dias_para_amadurecer')::integer),
+         v_quem, v_nome, current_date
+    from (select
+            (select coalesce(array_agg(x order by n), '{}') from (
+               select lower(btrim(x, E' \t\r\n')) as x, min(n) as n
+                 from unnest(p_concorrentes) with ordinality as u(x, n)
+                where btrim(coalesce(x, ''), E' \t\r\n') <> ''
+                group by 1) s) as concorrentes,
+            (select coalesce(array_agg(x order by n), '{}') from (
+               select lower(btrim(x, E' \t\r\n')) as x, min(n) as n
+                 from unnest(p_cidades_fora) with ordinality as u(x, n)
+                where btrim(coalesce(x, ''), E' \t\r\n') <> ''
+                group by 1) s) as cidades_fora,
+            (select coalesce(array_agg(x order by n), '{}') from (
+               select lower(btrim(x, E' \t\r\n')) as x, min(n) as n
+                 from unnest(p_palavras_informativas) with ordinality as u(x, n)
+                where btrim(coalesce(x, ''), E' \t\r\n') <> ''
+                group by 1) s) as palavras_informativas) l
+  returning * into v_nova;
+
+  insert into public.auditoria_admin (acao, detalhe, autor_id, autor_nome)
+  values ('copiloto_regras',
+          format('Regras do Copiloto de Mídia: termo %s, grupo %s, campanha %s; ritmo %s–%s%%; corte %s%%; IQ ≤ %s; medição: %s lead(s) com gclid, %s cliques; perda por verba %s%%, por classificação %s%%; %s concorrente(s), %s cidade(s), %s palavra(s) informativa(s); diagnóstico às %sh; Meta: gasto mínimo %s no conjunto e %s na campanha em 14 dias, sem lead a partir de %s× o custo por lead, caro a partir de %s×, qualidade com %s lead(s) maduro(s) de %s dia(s)',
+                 v_nova.gasto_minimo_termo, v_nova.gasto_minimo_grupo, v_nova.gasto_minimo_campanha,
+                 v_nova.ritmo_baixo_pct, v_nova.ritmo_alto_pct, v_nova.reducao_verba_pct, v_nova.iq_baixo,
+                 v_nova.leads_gclid_minimos, v_nova.cliques_minimos_gclid,
+                 v_nova.perda_por_verba_pct, v_nova.perda_por_ranking_pct,
+                 cardinality(v_nova.concorrentes), cardinality(v_nova.cidades_fora),
+                 cardinality(v_nova.palavras_informativas), v_nova.hora_do_diagnostico,
+                 v_nova.meta_gasto_minimo_conjunto, v_nova.meta_gasto_minimo_campanha,
+                 v_nova.meta_vezes_sem_lead, v_nova.meta_vezes_custo_caro,
+                 v_nova.meta_leads_maduros_minimos, v_nova.meta_dias_para_amadurecer),
+          v_quem, v_nome);
+
+  return v_nova;
+end;
+$fn$;
+
+revoke all on function public.midia_copiloto_nova_vigencia(
+  numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer,
+  numeric, numeric, numeric, numeric, integer, integer)
+  from public, anon;
+grant execute on function public.midia_copiloto_nova_vigencia(
+  numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer,
+  numeric, numeric, numeric, numeric, integer, integer)
+  to authenticated;
+
+
+-- ----------------------------------------------------------------------------
+-- 13. Para quem abrir o banco sem abrir o código
 -- ----------------------------------------------------------------------------
 comment on table public.midia_copiloto_diagnosticos is
   'Um retrato por dia de uma conta de anúncios: do Google Ads (mandado pelo '
@@ -1444,6 +1655,42 @@ comment on function public.midia_copiloto_desfazer(uuid) is
   'e um grupo, conjunto ou anúncio pausado pelo copiloto volta ao ar. Com verba: '
   'substitui a proposta aberta de verba da campanha e recusa se há uma aprovada ou '
   'em aplicação.';
+comment on table public.midia_copiloto_parametros is
+  'Regras do Copiloto de Mídia (2026-10-14; Meta em 2026-10-17), como DADO com '
+  'vigência. Google: mínimos de gasto para propor negativa, pausa de grupo e '
+  'corte de verba; ritmo alto e baixo da verba; corte proposto; índice de '
+  'qualidade baixo; medição; impressão perdida; hora do diagnóstico diário; e as '
+  'listas que classificam termo de pesquisa (concorrentes, cidades fora da área, '
+  'palavras informativas). Meta (colunas meta_*): gastos mínimos de conjunto e de '
+  'campanha, os múltiplos do custo por lead e a régua da qualidade dos leads. Uma '
+  'vigente por loja; valor vigente não sofre UPDATE (D-T1.7). A única escrita é '
+  'midia_copiloto_nova_vigencia, de Administrador e Marketing. Ver '
+  '20261014150000 e 20261017150000.';
+comment on column public.midia_copiloto_parametros.meta_gasto_minimo_conjunto is
+  'Meta: R$ gastos em 14 dias a partir dos quais um conjunto ou anúncio sem lead '
+  'no CRM vira proposta de pausa (junto com meta_vezes_sem_lead).';
+comment on column public.midia_copiloto_parametros.meta_gasto_minimo_campanha is
+  'Meta: R$ gastos em 14 dias a partir dos quais uma campanha sem lead, ou cara, '
+  'vira achado; e o gasto sem nenhum lead do Meta no CRM que vira achado de medição.';
+comment on column public.midia_copiloto_parametros.meta_vezes_sem_lead is
+  'Meta: o gasto sem lead só conta a partir de N vezes o custo por lead da conta '
+  '(de 1 a 10).';
+comment on column public.midia_copiloto_parametros.meta_vezes_custo_caro is
+  'Meta: o custo por lead da campanha é caro a partir de N vezes o da conta (acima '
+  'de 1, até 10).';
+comment on column public.midia_copiloto_parametros.meta_leads_maduros_minimos is
+  'Meta: campanha com N leads maduros e nenhum qualificado no funil vira achado '
+  'de qualidade (de 1 a 500).';
+comment on column public.midia_copiloto_parametros.meta_dias_para_amadurecer is
+  'Meta: lead com menos dias que isto ainda não conta na qualidade (de 1 a 29 — a '
+  'janela de qualidade é de 30 dias).';
+comment on function public.midia_copiloto_nova_vigencia(
+  numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer,
+  numeric, numeric, numeric, numeric, integer, integer) is
+  'Regras novas do copiloto: encerra a vigente e abre a nova, junto, com a trilha '
+  'copiloto_regras. Sessão de Administrador ou Marketing; autoria carimbada. Os '
+  'seis do Meta (no fim) são opcionais: nulo copia o valor da vigente (sem vigente, '
+  'o padrão da coluna) — a chamada de 15 argumentos do Google segue valendo.';
 comment on function public.midia_gravar_lote(jsonb) is
   'Grava um lote da sincronização (Meta ou Google): campanhas, anúncios (no Meta, '
   'com conjunto e situações) e o desempenho diário da janela, que é apagado e '
@@ -1451,7 +1698,7 @@ comment on function public.midia_gravar_lote(jsonb) is
 
 
 -- ============================================================================
--- 13. Autoconferência — pelo efeito, dentro de um bloco que se desfaz
+-- 14. Autoconferência — pelo efeito, dentro de um bloco que se desfaz
 -- ============================================================================
 -- Em produção as tabelas já têm retratos, propostas e aprovadas de verdade: a
 -- prova usa campanhas, conjuntos e anúncios de ID impossível (20 dígitos,
@@ -1542,6 +1789,10 @@ declare
   v_regras_certas int := 0;
   v_trilha        text := '';
   v_sessao        text := '';
+  v_par           public.midia_copiloto_parametros;
+  v_par_n         bigint;
+  v_par_vigente   uuid;
+  v_regras_meta   text := '';
 begin
   -- 1 · As colunas: do tipo certo, nulas (ou com o padrão google), comentadas.
   for v_caso in
@@ -1569,6 +1820,36 @@ begin
     end if;
   end loop;
 
+  -- 1b · As regras do Meta: tipo, not null, comentário e o padrão de cada uma
+  --      (a linha que já vigia ganhou o padrão ao nascer a coluna).
+  select string_agg(attname || ':' || format_type(atttypid, atttypmod) || ':' || attnotnull || ':'
+                    || (col_description(attrelid, attnum) is not null), ',' order by attnum)
+    into v_nome
+    from pg_attribute
+   where attrelid = 'public.midia_copiloto_parametros'::regclass and attname like 'meta\_%' and not attisdropped;
+  if v_nome is distinct from 'meta_gasto_minimo_conjunto:numeric(10,2):true:true,meta_gasto_minimo_campanha:numeric(10,2):true:true,'
+                             'meta_vezes_sem_lead:numeric(4,2):true:true,meta_vezes_custo_caro:numeric(4,2):true:true,'
+                             'meta_leads_maduros_minimos:smallint:true:true,meta_dias_para_amadurecer:smallint:true:true' then
+    falhas := falhas + 1; raise warning 'FALHOU: colunas das regras do Meta — %', v_nome;
+  end if;
+  select string_agg(a.attname || '=' || pg_get_expr(d.adbin, d.adrelid), ',' order by a.attnum)
+    into v_nome
+    from pg_attribute a join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+   where a.attrelid = 'public.midia_copiloto_parametros'::regclass and a.attname like 'meta\_%' and not a.attisdropped;
+  if v_nome is distinct from 'meta_gasto_minimo_conjunto=100,meta_gasto_minimo_campanha=200,meta_vezes_sem_lead=2.5,'
+                             'meta_vezes_custo_caro=2,meta_leads_maduros_minimos=8,meta_dias_para_amadurecer=7' then
+    falhas := falhas + 1; raise warning 'FALHOU: padrões das regras do Meta — %', v_nome;
+  end if;
+  -- A porta das regras: uma só, a de 21; a de 15 saiu.
+  if to_regprocedure('public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer)') is not null
+     or (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname = 'midia_copiloto_nova_vigencia') <> 1
+     or not exists (select 1 from pg_proc
+                     where oid = to_regprocedure('public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer, numeric, numeric, numeric, numeric, integer, integer)')
+                       and prosecdef and proconfig @> array['search_path=public'] and pronargdefaults = 6
+                       and obj_description(oid, 'pg_proc') is not null) then
+    falhas := falhas + 1; raise warning 'FALHOU: midia_copiloto_nova_vigencia não é UMA, de 21 argumentos (6 opcionais), SECURITY DEFINER, comentada';
+  end if;
+
   -- 2 · As regras: CHECK validado. Os índices: os dois únicos como estavam, os
   --     dois novos com a forma certa.
   foreach v_nome in array array[
@@ -1577,7 +1858,8 @@ begin
     'midia_copiloto_acoes_plataforma_valida', 'midia_copiloto_acoes_tipo_valido',
     'midia_copiloto_acoes_tipo_da_plataforma', 'midia_copiloto_acoes_ids_validos',
     'midia_copiloto_acoes_alvo_do_tipo', 'midia_copiloto_acoes_origem_do_tipo',
-    'midia_anuncios_conjunto_id_valido', 'midia_anuncios_situacoes_validas'
+    'midia_anuncios_conjunto_id_valido', 'midia_anuncios_situacoes_validas',
+    'midia_copiloto_parametros_meta_validos'
   ] loop
     if not exists (select 1 from pg_constraint where conname = v_nome and contype = 'c' and convalidated) then
       falhas := falhas + 1; raise warning 'FALHOU: regra % ausente, não é CHECK ou não está validada', v_nome;
@@ -1611,7 +1893,7 @@ begin
   select string_agg(proname, ', ' order by proname) into v_nome
     from (select proname from pg_proc
            where pronamespace = 'public'::regnamespace
-             and proname in ('midia_copiloto_descrever', 'midia_copiloto_acoes_transicao',
+             and proname in ('midia_copiloto_descrever', 'midia_copiloto_acoes_transicao', 'midia_copiloto_nova_vigencia',
                              'midia_copiloto_gravar_diagnostico', 'midia_copiloto_reservar_acoes',
                              'midia_copiloto_reservar_acoes_meta', 'midia_copiloto_registrar_resultado',
                              'midia_copiloto_pedir_verba', 'midia_copiloto_desfazer', 'midia_gravar_lote')
@@ -1627,6 +1909,7 @@ begin
       ('public.midia_copiloto_registrar_resultado(uuid, text, jsonb, text)', false, true),
       ('public.midia_gravar_lote(jsonb)',                                    false, true),
       ('public.midia_copiloto_pedir_verba(text, numeric, text)',             true,  false),
+      ('public.midia_copiloto_nova_vigencia(numeric, numeric, numeric, integer, integer, integer, integer, integer, integer, integer, integer, text[], text[], text[], integer, numeric, numeric, numeric, numeric, integer, integer)', true, false),
       ('public.midia_copiloto_desfazer(uuid)',                               true,  false),
       ('public.midia_copiloto_decidir(uuid[], text, text)',                  true,  false)
     ) as t(fn, painel, servico)
@@ -1694,6 +1977,10 @@ begin
            'aco_situacoes', (select jsonb_object_agg(situacao, n)
                                from (select situacao, count(*) as n from public.midia_copiloto_acoes group by 1) s))
     into v_antes;
+  -- E as regras: a sonda abre e encerra vigências na tabela de verdade.
+  select count(*) into v_par_n from public.midia_copiloto_parametros;
+  select id into v_par_vigente from public.midia_copiloto_parametros
+   where org_id = v_padrao and vigencia_ate is null;
 
   -- 4 · Efeito. Tudo daqui até o sentinela é desfeito.
   begin
@@ -2204,6 +2491,27 @@ begin
         ('midia_anuncios_situacoes_validas',
          format('insert into public.midia_anuncios (campanha_id, id_externo, nome, conjunto_situacao) select id, ''99999999999999998199'', ''x'', ''ACTIVE'' from public.midia_campanhas where plataforma = ''meta'' and id_externo = %L', m1))
       ) as t(regra, comando)
+      union all
+      -- As regras do Meta, cada borda de fora (e um controle na borda de dentro),
+      -- numa vigência já encerrada — só o CHECK fala.
+      select r.regra,
+             'insert into public.midia_copiloto_parametros (gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, '
+             'ritmo_alto_pct, ritmo_baixo_pct, reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, '
+             'perda_por_verba_pct, perda_por_ranking_pct, hora_do_diagnostico, vigencia_ate, ' || r.coluna
+             || ') values (1, 1, 1, 90, 50, 30, 3, 2, 30, 10, 30, 7, current_date, ' || r.valor || ')'
+        from (values
+          ('midia_copiloto_parametros_meta_validos', 'meta_gasto_minimo_conjunto', '0'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_gasto_minimo_campanha', '100000.01'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_vezes_sem_lead',        '0.99'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_vezes_sem_lead',        '10.01'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_vezes_custo_caro',      '1'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_vezes_custo_caro',      '10.01'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_leads_maduros_minimos', '0'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_leads_maduros_minimos', '501'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_dias_para_amadurecer',  '0'),
+          ('midia_copiloto_parametros_meta_validos', 'meta_dias_para_amadurecer',  '30'),
+          ('',                                       'meta_dias_para_amadurecer',  '29')
+        ) as r(regra, coluna, valor)
     loop
       v_regras := v_regras + 1;
       begin
@@ -2278,6 +2586,57 @@ begin
              (select sum(investido) from public.midia_diario where campanha_id = v_camp_m1))
       into v_sessao from public.midia_anuncios a where a.id_externo = an;
 
+    -- 4r · As regras do Meta pela porta das regras (sessão de marketing). Com
+    --      os 21 argumentos grava os seis do Meta; com os 15 nomeados (a
+    --      chamada do site de hoje) copia os do Meta da vigente; a trilha
+    --      escreve os valores; sem vigente, vale o padrão da coluna; fora da
+    --      faixa, a regra recusa.
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', (v_ids->>'marketing')::uuid, 'role', 'authenticated')::text, true);
+    set local role authenticated;
+    v_par := public.midia_copiloto_nova_vigencia(15, 60, 120, 85, 40, 25, 4, 3, 40, 15, 35, '{}', '{}', '{}', 6,
+                                                 150, 300, 3, 2.5, 10, 5);
+    v_regras_meta := format('21:%s/%s/%s/%s/%s/%s', v_par.meta_gasto_minimo_conjunto, v_par.meta_gasto_minimo_campanha,
+      v_par.meta_vezes_sem_lead, v_par.meta_vezes_custo_caro, v_par.meta_leads_maduros_minimos, v_par.meta_dias_para_amadurecer);
+    v_par := public.midia_copiloto_nova_vigencia(
+      p_gasto_minimo_termo => 11, p_gasto_minimo_grupo => 51, p_gasto_minimo_campanha => 101,
+      p_ritmo_alto_pct => 90, p_ritmo_baixo_pct => 50, p_reducao_verba_pct => 30, p_iq_baixo => 3,
+      p_leads_gclid_minimos => 2, p_cliques_minimos_gclid => 30, p_perda_por_verba_pct => 10,
+      p_perda_por_ranking_pct => 30, p_concorrentes => '{}', p_cidades_fora => '{}',
+      p_palavras_informativas => '{}', p_hora_do_diagnostico => 7);
+    reset role;
+    v_regras_meta := v_regras_meta || format(' 15:%s/%s/%s/%s/%s/%s/termo:%s', v_par.meta_gasto_minimo_conjunto,
+      v_par.meta_gasto_minimo_campanha, v_par.meta_vezes_sem_lead, v_par.meta_vezes_custo_caro,
+      v_par.meta_leads_maduros_minimos, v_par.meta_dias_para_amadurecer, v_par.gasto_minimo_termo);
+    v_regras_meta := v_regras_meta || ' trilha:' || exists (
+      select 1 from public.auditoria_admin
+       where acao = 'copiloto_regras' and autor_id = (v_ids->>'marketing')::uuid
+         and detalhe like 'Regras do Copiloto de Mídia: termo 15.00, %; Meta: gasto mínimo 150.00 no conjunto e 300.00 '
+                          'na campanha em 14 dias, sem lead a partir de 3.00× o custo por lead, caro a partir de 2.50×, '
+                          'qualidade com 10 lead(s) maduro(s) de 5 dia(s)')
+      || ' vigentes:' || (select count(*) from public.midia_copiloto_parametros where org_id = v_padrao and vigencia_ate is null);
+    -- Sem vigente (como dono, só encerra): o padrão de cada coluna.
+    update public.midia_copiloto_parametros set vigencia_ate = current_date
+     where org_id = v_padrao and vigencia_ate is null;
+    set local role authenticated;
+    v_par := public.midia_copiloto_nova_vigencia(10, 50, 100, 90, 50, 30, 3, 2, 30, 10, 30, '{}', '{}', '{}', 7);
+    reset role;
+    v_regras_meta := v_regras_meta || format(' sem_vigente:%s/%s/%s/%s/%s/%s', v_par.meta_gasto_minimo_conjunto,
+      v_par.meta_gasto_minimo_campanha, v_par.meta_vezes_sem_lead, v_par.meta_vezes_custo_caro,
+      v_par.meta_leads_maduros_minimos, v_par.meta_dias_para_amadurecer);
+    begin
+      set local role authenticated;
+      perform public.midia_copiloto_nova_vigencia(10, 50, 100, 90, 50, 30, 3, 2, 30, 10, 30, '{}', '{}', '{}', 7,
+                                                  p_meta_dias_para_amadurecer => 30);
+      reset role;
+      v_regras_meta := v_regras_meta || ' faixa:aceitou';
+    exception when check_violation then
+      get stacked diagnostics v_msg = constraint_name;
+      v_regras_meta := v_regras_meta || ' faixa:' || v_msg;
+    end;
+    reset role;
+    perform set_config('request.jwt.claims', '', true);
+
     raise exception 'DESFAZER_ACEITE_COPILOTO_META' using errcode = 'PCP04';
   exception
     -- O sentinela, e só ele. Qualquer outro erro sobe e para a migração.
@@ -2335,11 +2694,16 @@ begin
   if v_recusas < 5 or v_recusas_ok <> v_recusas then
     falhas := falhas + 1; raise warning 'FALHOU: recusas do pedido — % de % pelo código e pela frase certos', v_recusas_ok, v_recusas;
   end if;
-  if v_regras < 29 or v_regras_certas <> v_regras then
+  if v_regras < 40 or v_regras_certas <> v_regras then
     falhas := falhas + 1; raise warning 'FALHOU: regras — % de % pela regra certa', v_regras_certas, v_regras;
   end if;
   if v_trilha <> 'meta:1 google:1 pediu_meta:true' then
     falhas := falhas + 1; raise warning 'FALHOU: trilha — %', v_trilha;
+  end if;
+  if v_regras_meta <> '21:150.00/300.00/3.00/2.50/10/5 15:150.00/300.00/3.00/2.50/10/5/termo:11.00 '
+                      'trilha:true vigentes:1 sem_vigente:100.00/200.00/2.50/2.00/8/7 '
+                      'faixa:midia_copiloto_parametros_meta_validos' then
+    falhas := falhas + 1; raise warning 'FALHOU: regras do Meta pela porta das regras — %', v_regras_meta;
   end if;
   if v_sessao <> '0 0 0 42501 1 1 42501 1 42501 42501 42501 42501 42501 1 1 0 0 42501 '
                  'anuncio:Aceite Anúncio Carro v2/t/no_ar diario:12.50' then
@@ -2357,6 +2721,9 @@ begin
     into v_depois;
   select count(*) into v_restou from auth.users where email like 'aceite-copiloto-meta-%@exemplo.invalido';
   if v_depois <> v_antes or v_restou <> 0
+     or (select count(*) from public.midia_copiloto_parametros) <> v_par_n
+     or (select id from public.midia_copiloto_parametros where org_id = v_padrao and vigencia_ate is null)
+          is distinct from v_par_vigente
      or exists (select 1 from public.midia_campanhas
                  where id_externo = any (array[g1, m1, m2, m3, x1, c9, cr]) or nome = 'Aceite Manual Meta')
      or exists (select 1 from public.midia_anuncios
@@ -2400,7 +2767,11 @@ begin
     'midia_anuncios e midia_diario, marketing e admin não alteram nem apagam o anúncio nem '
     'o desempenho sincronizados, não criam anúncio em campanha sincronizada nem levam o '
     'manual para uma, e não truncam; o anúncio de campanha manual entra, muda e sai; staff '
-    'lê, cliente não lê e anon não chega. A prova não deixou rastro.', v_recusas, v_regras - 3;
+    'lê, cliente não lê e anon não chega. As regras do Meta são colunas da tabela de '
+    'parâmetros, com padrão; a porta das regras é uma só, de 21 argumentos: com 21 grava '
+    'os do Meta, com os 15 nomeados copia os da vigente, sem vigente usa o padrão da '
+    'coluna, escreve os valores na trilha e recusa fora da faixa. A prova não deixou '
+    'rastro.', v_recusas, v_regras - 4;
 end $aceite$;
 
 

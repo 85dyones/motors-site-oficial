@@ -39,25 +39,27 @@ import { ETAPAS_QUALIFICADAS } from "./qualificacaoParaMeta";
  *
  * Por que no máximo 20% de corte por vez: no Meta, mudança grande de verba
  * devolve o conjunto à fase de aprendizado. O parâmetro da loja
- * (`reducaoVerbaPct`) vale até esse teto.
+ * (`reducaoVerbaPct`) vale até esse teto — uma trava, como o 10× do pedido.
+ *
+ * Os limiares de negócio são da loja (`midia_copiloto_parametros`, os `meta*`
+ * de `ParametrosDoCopiloto`, com vigência e trilha). Aqui ficam só as janelas
+ * do método e os pisos estatísticos dos achados que não propõem nada.
  */
 
 /** A janela do retrato: 14 dias completos (até ontem). O volume do Meta pede mais que os 7 do Google. */
 export const DIAS_DA_JANELA_META = 14;
 /** A janela da qualidade: o lead leva dias para chegar à visita. */
 export const DIAS_DA_QUALIDADE = 30;
-/** Lead com menos que isto ainda não teve tempo de ser qualificado. */
-export const DIAS_PARA_AMADURECER = 7;
-/** Gasto sem lead a partir de quantas vezes o custo por lead da conta. */
-export const VEZES_SEM_LEAD = 2.5;
-/** Custo por lead a partir de quantas vezes o da conta é "caro". */
-export const VEZES_CUSTO_CARO = 2;
-/** Corte de verba máximo por proposta (fase de aprendizado do Meta). */
+/** Corte de verba máximo por proposta (fase de aprendizado do Meta): trava, não régua. */
 export const CORTE_MAXIMO_META_PCT = 20;
-/** Leads maduros de uma campanha sem nenhum qualificado viram achado a partir disto. */
-export const LEADS_MADUROS_MINIMOS = 8;
-/** Pixel × CRM: abaixo disto de leads de um lado, a diferença é ruído. */
+/**
+ * Pisos estatísticos dos achados que só apontam (não propõem): com menos de 5
+ * leads de um lado, "metade" é ruído; o funil "parado" pede 5 leads e 40% dos
+ * maduros.
+ */
 const LEADS_PARA_COMPARAR = 5;
+const PARADOS_MINIMOS = 5;
+const FRACAO_PARADA = 0.4;
 /** O fuso da conta do Meta (o mesmo calendário do `midia_diario`). */
 export const FUSO_DO_META = "America/Sao_Paulo";
 
@@ -162,13 +164,15 @@ export function somarDias(dia: string, n: number): string {
 
 const dentro = (dia: string, j: Janela) => dia >= j.de && dia <= j.ate;
 
-/** A etapa de ganho do funil padrão (tipo `ganho`). Conta como qualificada, como em `ehEtapaQualificada`. */
-const ETAPA_DE_GANHO = "fechado";
-
-/** O lead do CRM qualificou? A régua é a da qualificação que vai ao Meta (`qualificacaoParaMeta`). */
+/**
+ * O lead do CRM qualificou? A régua é a da qualificação que vai ao Meta
+ * (`qualificacaoParaMeta`): etapa qualificada ou ganho. A etapa de tipo
+ * `ganho`, seja qual for a chave, grava `desfecho = 'ganho'` (gatilho do funil).
+ * É a etapa de AGORA: lead que visitou e depois foi perdido não conta.
+ */
 export function leadQualificado(situacao: string | null | undefined, desfecho: string | null | undefined): boolean {
   if (desfecho === "ganho") return true;
-  return typeof situacao === "string" && (ETAPAS_QUALIFICADAS.includes(situacao) || situacao === ETAPA_DE_GANHO);
+  return typeof situacao === "string" && ETAPAS_QUALIFICADAS.includes(situacao);
 }
 
 interface Totais {
@@ -240,7 +244,7 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
     return s;
   }, zero());
   const custoPorLead = total.leadsCrm > 0 ? total.gasto / total.leadsCrm : null;
-  const limiarSemLead = custoPorLead === null ? Infinity : Math.max(p.gastoMinimoGrupo, VEZES_SEM_LEAD * custoPorLead);
+  const limiarSemLead = custoPorLead === null ? Infinity : Math.max(p.metaGastoMinimoConjunto, p.metaVezesSemLead * custoPorLead);
   const corte = Math.min(p.reducaoVerbaPct, CORTE_MAXIMO_META_PCT);
 
   const evidenciaDaConta = {
@@ -251,7 +255,7 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
   const novoAchado = (a: Achado) => achados.push(a) - 1;
 
   // ── Medição da conta: gastou e nenhum lead do Meta chegou ao CRM ──────────
-  if (total.leadsCrm === 0 && total.gasto >= p.gastoMinimoCampanha) {
+  if (total.leadsCrm === 0 && total.gasto >= p.metaGastoMinimoCampanha) {
     novoAchado({
       regra: "meta_medicao",
       grupo: null,
@@ -269,8 +273,26 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
 
   for (const c of r.campanhas) {
     const tc = porCampanha.get(c.id) ?? zero();
-    if (tc.gasto <= 0) continue;
     const noAr = c.situacao === "no_ar";
+
+    // ── Verba sobrando (também na campanha no ar que não gastou nada) ──────
+    if (noAr && c.verba && c.verba > 0) {
+      const ritmo = (tc.gasto7 / (c.verba * 7)) * 100;
+      if (ritmo < p.ritmoBaixoPct) {
+        novoAchado({
+          regra: "ritmo_de_verba",
+          grupo: null,
+          gravidade: "baixa",
+          titulo: `${c.nome}: gastou ${Math.round(ritmo)}% da verba nos últimos 7 dias`,
+          detalhe:
+            `Verba de ${reais(c.verba)} por dia e ${reais(tc.gasto7)} gastos em 7 dias. O Meta não está achando onde entregar: ` +
+            "público pequeno, anúncio em análise ou lance limitado. Aumentar a verba aqui não traz lead.",
+          evidencias: { ...evidenciaDaConta, campanhaId: c.id, verba: c.verba, gasto7: arred(tc.gasto7), ritmoPct: Math.round(ritmo) },
+        });
+      }
+    }
+
+    if (tc.gasto <= 0) continue;
     let mexeuNaCampanha = false;
 
     // ── Pixel × CRM, por campanha ──────────────────────────────────────────
@@ -374,7 +396,9 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
               verbaNova: null,
               motivo:
                 `Gastou ${reais(t.gasto)} em ${DIAS_DA_JANELA_META} dias sem nenhum lead no CRM (limite: ${reais(limiarSemLead)}). ` +
-                "Com a verba na campanha, o Meta passa o dinheiro para o outro conjunto.",
+                (c.verba !== null
+                  ? "Com a verba na campanha, o Meta passa o dinheiro para os outros conjuntos."
+                  : "A verba deste conjunto fica nele: pausado, ela deixa de ser gasta."),
               economia7d: arred(t.gasto7),
               evidencias: { ...evidenciaDaConta, gasto: arred(t.gasto), leadsPixel: t.leadsPixel },
             });
@@ -438,8 +462,8 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
     // a campanha que já tem pausa proposta espera o efeito dela.
     if (noAr && custoPorLead !== null && campanhasComGasto.length >= 2 && !mexeuNaCampanha) {
       const cpl = tc.leadsCrm > 0 ? tc.gasto / tc.leadsCrm : null;
-      const caro = cpl === null ? tc.gasto >= limiarSemLead : cpl >= VEZES_CUSTO_CARO * custoPorLead;
-      if (caro && tc.gasto >= Math.max(p.gastoMinimoCampanha, VEZES_SEM_LEAD * custoPorLead)) {
+      const caro = cpl === null ? tc.gasto >= limiarSemLead : cpl >= p.metaVezesCustoCaro * custoPorLead;
+      if (caro && tc.gasto >= Math.max(p.metaGastoMinimoCampanha, p.metaVezesSemLead * custoPorLead)) {
         const verbaNova = c.verba ? arred(Math.max(1, c.verba * (1 - corte / 100))) : null;
         const i = novoAchado({
           regra: "meta_custo_por_lead",
@@ -487,26 +511,11 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
       }
     }
 
-    // ── Verba sobrando ─────────────────────────────────────────────────────
-    if (noAr && c.verba && c.verba > 0) {
-      const ritmo = (tc.gasto7 / (c.verba * 7)) * 100;
-      if (ritmo < p.ritmoBaixoPct) {
-        novoAchado({
-          regra: "ritmo_de_verba",
-          grupo: null,
-          gravidade: "baixa",
-          titulo: `${c.nome}: gastou ${Math.round(ritmo)}% da verba nos últimos 7 dias`,
-          detalhe:
-            `Verba de ${reais(c.verba)} por dia e ${reais(tc.gasto7)} gastos em 7 dias. O Meta não está achando onde entregar: ` +
-            "público pequeno, anúncio em análise ou lance limitado. Aumentar a verba aqui não traz lead.",
-          evidencias: { ...evidenciaDaConta, campanhaId: c.id, verba: c.verba, gasto7: arred(tc.gasto7), ritmoPct: Math.round(ritmo) },
-        });
-      }
-    }
   }
 
   // ── Qualidade: os leads maduros dos 30 dias ──────────────────────────────
-  const limiteMaduro = somarDias(r.janelaQualidade.ate, -(DIAS_PARA_AMADURECER - 1));
+  const diasParaAmadurecer = p.metaDiasParaAmadurecer;
+  const limiteMaduro = somarDias(r.janelaQualidade.ate, -(diasParaAmadurecer - 1));
   const maduros = r.leads.filter(
     (l) => dentro(l.dia, r.janelaQualidade) && l.dia < limiteMaduro && l.campanhaId !== null && campanhas.has(l.campanhaId),
   );
@@ -521,27 +530,27 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
     maduroPorCampanha.set(l.campanhaId as string, m);
   }
   for (const [id, m] of maduroPorCampanha) {
-    if (m.n < LEADS_MADUROS_MINIMOS || m.q > 0) continue;
+    if (m.n < p.metaLeadsMadurosMinimos || m.q > 0) continue;
     const c = campanhas.get(id) as CampanhaDoMeta;
     novoAchado({
       regra: "meta_qualidade",
       grupo: null,
       gravidade: "media",
-      titulo: `${c.nome}: ${m.n} leads em ${DIAS_DA_QUALIDADE} dias e nenhum chegou à visita`,
+      titulo: `${c.nome}: ${m.n} leads em ${DIAS_DA_QUALIDADE} dias e nenhum em visita, negociação ou venda`,
       detalhe:
-        `Dos leads com mais de ${DIAS_PARA_AMADURECER} dias, nenhum foi para Visita agendada, Negociação ou Ganho. ` +
+        `Dos leads com mais de ${diasParaAmadurecer} dias, nenhum está hoje em Visita agendada, Negociação ou Ganho. ` +
         "Ou o público não é de comprador, ou o funil não está sendo movido — confira antes de aumentar a verba.",
       evidencias: { janelaQualidade: r.janelaQualidade, campanhaId: id, maduros: m.n, qualificados: 0 },
     });
   }
-  if (abertosParados >= 5 && abertosParados >= 0.4 * maduros.length) {
+  if (abertosParados >= PARADOS_MINIMOS && abertosParados >= FRACAO_PARADA * maduros.length) {
     novoAchado({
       regra: "meta_qualidade",
       grupo: null,
       gravidade: "baixa",
-      titulo: `${abertosParados} leads do Meta parados no funil há mais de ${DIAS_PARA_AMADURECER} dias`,
+      titulo: `${abertosParados} leads do Meta parados no funil há mais de ${diasParaAmadurecer} dias`,
       detalhe:
-        `De ${maduros.length} leads do Meta com mais de ${DIAS_PARA_AMADURECER} dias, ${abertosParados} continuam sem desfecho e sem visita. ` +
+        `De ${maduros.length} leads do Meta com mais de ${diasParaAmadurecer} dias, ${abertosParados} continuam sem desfecho e sem visita. ` +
         "Movê-los no quadro do funil (para Visita, Perdido ou Não é oportunidade) é o que deixa o copiloto julgar qualidade — " +
         "e o que manda o LeadQualificado de volta para o Meta.",
       evidencias: { janelaQualidade: r.janelaQualidade, maduros: maduros.length, abertosParados },

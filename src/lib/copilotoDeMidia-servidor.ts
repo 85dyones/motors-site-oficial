@@ -108,6 +108,10 @@ export async function autorizarScript(cabecalhos: Headers): Promise<PortaDoScrip
 /** A tabela ainda não existe: o script foi colado antes de a migração ser aplicada. */
 export function motivoDoErro(erro: unknown): { status: number; motivo: string } {
   const e = erro as { code?: string; message?: string };
+  // Coluna ausente: a migração mais nova que o código lê (a do Meta) não foi aplicada.
+  if (ehColunaAusente(e)) {
+    return { status: 503, motivo: `O banco ainda não tem o Copiloto do Meta: aplique a migração ${MIGRACAO_DO_COPILOTO_META}.` };
+  }
   if (ehTabelaAusente(e)) {
     return { status: 503, motivo: "O banco ainda não tem as tabelas do copiloto: aplique a migração 20261014150000_copiloto_de_midia." };
   }
@@ -137,7 +141,8 @@ const COLUNAS_DOS_PARAMETROS =
   "id, gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, " +
   "reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, " +
   "perda_por_ranking_pct, concorrentes, cidades_fora, palavras_informativas, hora_do_diagnostico, " +
-  "criado_por_nome, vigencia_desde";
+  "criado_por_nome, vigencia_desde, meta_gasto_minimo_conjunto, meta_gasto_minimo_campanha, meta_vezes_sem_lead, " +
+  "meta_vezes_custo_caro, meta_leads_maduros_minimos, meta_dias_para_amadurecer";
 
 export interface RegrasVigentes {
   parametros: ParametrosDoCopiloto;
@@ -174,6 +179,12 @@ function linhaParaRegras(l: Record<string, unknown>): RegrasVigentes {
       cidadesFora: lista(l.cidades_fora),
       palavrasInformativas: lista(l.palavras_informativas),
       horaDoDiagnostico: Number(l.hora_do_diagnostico),
+      metaGastoMinimoConjunto: Number(l.meta_gasto_minimo_conjunto),
+      metaGastoMinimoCampanha: Number(l.meta_gasto_minimo_campanha),
+      metaVezesSemLead: Number(l.meta_vezes_sem_lead),
+      metaVezesCustoCaro: Number(l.meta_vezes_custo_caro),
+      metaLeadsMadurosMinimos: Number(l.meta_leads_maduros_minimos),
+      metaDiasParaAmadurecer: Number(l.meta_dias_para_amadurecer),
     },
     vigenciaDesde: String(l.vigencia_desde),
     criadoPorNome: typeof l.criado_por_nome === "string" ? l.criado_por_nome : null,
@@ -212,6 +223,12 @@ export async function abrirVigencia(supabase: SupabaseClient, p: ParametrosDoCop
     p_cidades_fora: p.cidadesFora,
     p_palavras_informativas: p.palavrasInformativas,
     p_hora_do_diagnostico: p.horaDoDiagnostico,
+    p_meta_gasto_minimo_conjunto: p.metaGastoMinimoConjunto,
+    p_meta_gasto_minimo_campanha: p.metaGastoMinimoCampanha,
+    p_meta_vezes_sem_lead: p.metaVezesSemLead,
+    p_meta_vezes_custo_caro: p.metaVezesCustoCaro,
+    p_meta_leads_maduros_minimos: p.metaLeadsMadurosMinimos,
+    p_meta_dias_para_amadurecer: p.metaDiasParaAmadurecer,
   });
 }
 
@@ -317,7 +334,23 @@ const paraOScript = (l: LinhaDaAcao): AcaoParaOScript => ({
 export async function reservarAcoes(admin: SupabaseClient): Promise<AcaoParaOScript[]> {
   const { data, error } = await admin.rpc("midia_copiloto_reservar_acoes", { p_limite: 50 });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return ((data ?? []) as LinhaDaAcao[]).map(paraOScript);
+  const linhas = (data ?? []) as Array<LinhaDaAcao & { plataforma?: string }>;
+  // A reserva do banco já filtra o Google. Se uma linha de outra plataforma
+  // escapar (uma migração antiga reaplicada por cima da do Meta), ela não vai
+  // ao script: fecha como falha, com o motivo, e nada muda na conta.
+  const deFora = linhas.filter((l) => l.plataforma !== undefined && l.plataforma !== "google");
+  if (deFora.length > 0) {
+    await registrarResultados(
+      admin,
+      deFora.map((l) => ({
+        id: l.id,
+        situacao: "falhou" as const,
+        lido: {},
+        erro: `A reserva do script entregou uma ação do ${l.plataforma}: ela não vai ao Google. Confira a migração do copiloto no banco.`,
+      })),
+    );
+  }
+  return linhas.filter((l) => l.plataforma === undefined || l.plataforma === "google").map(paraOScript);
 }
 
 /** Na prévia: o que espera a rodada de verdade na loja, sem reservar nada. Só o do Google: o script não conhece o Meta. */

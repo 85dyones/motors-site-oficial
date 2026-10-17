@@ -8,6 +8,9 @@ import type { RegrasVigentes } from "../../../lib/copilotoDeMidia-servidor";
  * As regras do diagnóstico, numa vigência nova a cada gravação (a vigente não
  * é editada; o histórico fica no banco, com quem e quando).
  *
+ * Os números do Meta (17/10/2026) ficam num bloco próprio: o retrato do Meta é
+ * de 14 dias, não 7, e o juiz é o lead que chegou ao CRM.
+ *
  * As três listas são o que a loja sabe e o código não: quem são os
  * concorrentes, que cidades ela não atende, que palavras são de quem pesquisa
  * sem comprar. Uma por linha (ou separadas por vírgula).
@@ -26,6 +29,12 @@ type Campos = {
   perdaPorVerbaPct: string;
   perdaPorRankingPct: string;
   horaDoDiagnostico: string;
+  metaGastoMinimoConjunto: string;
+  metaGastoMinimoCampanha: string;
+  metaVezesSemLead: string;
+  metaVezesCustoCaro: string;
+  metaLeadsMadurosMinimos: string;
+  metaDiasParaAmadurecer: string;
   concorrentes: string;
   cidadesFora: string;
   palavrasInformativas: string;
@@ -43,7 +52,17 @@ const NUMEROS: Array<{ chave: keyof Campos; rotulo: string; ajuda: string; passo
   { chave: "cliquesMinimosGclid", rotulo: "Cliques sem lead com gclid", ajuda: "Cliques pagos a partir dos quais nenhum lead com gclid vira achado de atenção.", passo: "1" },
   { chave: "perdaPorVerbaPct", rotulo: "Perdido por verba (%)", ajuda: "Impressão perdida por verba para dizer que a campanha é limitada pela verba.", passo: "1" },
   { chave: "perdaPorRankingPct", rotulo: "Perdido por classificação (%)", ajuda: "Impressão perdida por classificação para culpar lance e índice de qualidade.", passo: "1" },
-  { chave: "horaDoDiagnostico", rotulo: "Hora do diagnóstico", ajuda: "Hora da conta a partir da qual o script lê o dia anterior.", passo: "1" },
+  { chave: "horaDoDiagnostico", rotulo: "Hora do diagnóstico", ajuda: "Hora da conta a partir da qual o script lê o dia anterior. Vale também para o Meta.", passo: "1" },
+];
+
+/** Os do Meta: o retrato é de 14 dias e o juiz é o lead que chegou ao CRM. */
+const NUMEROS_DO_META: typeof NUMEROS = [
+  { chave: "metaGastoMinimoConjunto", rotulo: "Conjunto ou anúncio (R$)", ajuda: "Gasto em 14 dias, sem lead no CRM, para propor pausa (também precisa passar de N× o custo por lead).", passo: "0.01" },
+  { chave: "metaGastoMinimoCampanha", rotulo: "Campanha (R$)", ajuda: "Gasto em 14 dias para propor corte de verba de campanha cara ou sem lead.", passo: "0.01" },
+  { chave: "metaVezesSemLead", rotulo: "Sem lead a partir de (× CPL)", ajuda: "Gasto sem lead a partir de quantas vezes o custo por lead da conta deixa de ser azar.", passo: "0.1" },
+  { chave: "metaVezesCustoCaro", rotulo: "Caro a partir de (× CPL)", ajuda: "Custo por lead da campanha a partir de quantas vezes o da conta é caro.", passo: "0.1" },
+  { chave: "metaLeadsMadurosMinimos", rotulo: "Leads maduros (qualidade)", ajuda: "Campanha com esses leads maduros e nenhum em visita, negociação ou venda vira achado.", passo: "1" },
+  { chave: "metaDiasParaAmadurecer", rotulo: "Dias para amadurecer", ajuda: "Lead mais novo que isto ainda não teve tempo de chegar à visita.", passo: "1" },
 ];
 
 const LISTAS: Array<{ chave: "concorrentes" | "cidadesFora" | "palavrasInformativas"; rotulo: string; ajuda: string }> = [
@@ -65,6 +84,12 @@ const paraCampos = (r: RegrasVigentes): Campos => ({
   perdaPorVerbaPct: String(r.parametros.perdaPorVerbaPct),
   perdaPorRankingPct: String(r.parametros.perdaPorRankingPct),
   horaDoDiagnostico: String(r.parametros.horaDoDiagnostico),
+  metaGastoMinimoConjunto: String(r.parametros.metaGastoMinimoConjunto),
+  metaGastoMinimoCampanha: String(r.parametros.metaGastoMinimoCampanha),
+  metaVezesSemLead: String(r.parametros.metaVezesSemLead),
+  metaVezesCustoCaro: String(r.parametros.metaVezesCustoCaro),
+  metaLeadsMadurosMinimos: String(r.parametros.metaLeadsMadurosMinimos),
+  metaDiasParaAmadurecer: String(r.parametros.metaDiasParaAmadurecer),
   concorrentes: r.parametros.concorrentes.join("\n"),
   cidadesFora: r.parametros.cidadesFora.join("\n"),
   palavrasInformativas: r.parametros.palavrasInformativas.join("\n"),
@@ -113,23 +138,17 @@ export default function RegrasDoCopiloto({ regras }: { regras: RegrasVigentes })
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {NUMEROS.map((n) => (
-          <label key={n.chave} className="flex flex-col gap-1 text-xs">
-            <span className="font-semibold text-mt-ink">{n.rotulo}</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              step={n.passo}
-              min="0"
-              required
-              value={campos[n.chave]}
-              onChange={(e) => setCampos((c) => ({ ...c, [n.chave]: e.target.value }))}
-              className="mt-campo-caixa mt-foco tabular-nums"
-              name={n.chave}
-            />
-            <span className="text-[11px] leading-snug text-mt-neutral-700">{n.ajuda}</span>
-          </label>
+          <CampoNumerico key={n.chave} n={n} valor={campos[n.chave]} mudar={(v) => setCampos((c) => ({ ...c, [n.chave]: v }))} />
         ))}
       </div>
+      <fieldset className="m-0 flex flex-col gap-3 border-0 border-t border-mt-regua-fina p-0 pt-4" data-regras-do-meta>
+        <legend className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-mt-neutral-700">Meta Ads · 14 dias, pelo lead do CRM</legend>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {NUMEROS_DO_META.map((n) => (
+            <CampoNumerico key={n.chave} n={n} valor={campos[n.chave]} mudar={(v) => setCampos((c) => ({ ...c, [n.chave]: v }))} />
+          ))}
+        </div>
+      </fieldset>
       <div className="grid gap-4 lg:grid-cols-3">
         {LISTAS.map((l) => (
           <label key={l.chave} className="flex flex-col gap-1 text-xs">
@@ -155,5 +174,25 @@ export default function RegrasDoCopiloto({ regras }: { regras: RegrasVigentes })
         {salvando ? "Gravando…" : "Gravar regras"}
       </button>
     </form>
+  );
+}
+
+function CampoNumerico({ n, valor, mudar }: { n: (typeof NUMEROS)[number]; valor: string; mudar: (v: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1 text-xs">
+      <span className="font-semibold text-mt-ink">{n.rotulo}</span>
+      <input
+        type="number"
+        inputMode="decimal"
+        step={n.passo}
+        min="0"
+        required
+        value={valor}
+        onChange={(e) => mudar(e.target.value)}
+        className="mt-campo-caixa mt-foco tabular-nums"
+        name={n.chave}
+      />
+      <span className="text-[11px] leading-snug text-mt-neutral-700">{n.ajuda}</span>
+    </label>
   );
 }

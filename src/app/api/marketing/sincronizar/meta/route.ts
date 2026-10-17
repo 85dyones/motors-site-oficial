@@ -59,7 +59,8 @@ export async function POST(request: NextRequest) {
   const copiloto: Record<string, unknown> = {};
   if (gatilho === "agendado") {
     try {
-      copiloto.aplicacao = await aplicarAprovadasNoMeta(admin);
+      // A conta e a versão da sincronização: o executor muda a conta de onde vieram os IDs.
+      copiloto.aplicacao = await aplicarAprovadasNoMeta(admin, cfg);
     } catch (err) {
       const motivo = err instanceof Error ? err.message : String(err);
       console.error(`[Copiloto do Meta] aplicação: ${motivo}`);

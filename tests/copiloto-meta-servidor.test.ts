@@ -26,8 +26,14 @@ function bancoFalso(responder: (c: Consulta) => Resultado, rpcs: Record<string, 
         else c.filtros.push([nome, ...args]);
         return b;
       };
-    for (const m of ["select", "eq", "not", "in", "gte", "lte", "lt", "is", "order", "limit"]) b[m] = anotar(m);
-    b.then = (ok: (r: Resultado) => unknown, erro?: (e: unknown) => unknown) => Promise.resolve(responder(c)).then(ok, erro);
+    for (const m of ["select", "eq", "not", "in", "gte", "lte", "lt", "is", "order", "limit", "range"]) b[m] = anotar(m);
+    // `range(de, ate)` recorta a resposta, como o PostgREST.
+    const recortar = (r: Resultado): Resultado => {
+      const faixa = c.filtros.find((f) => f[0] === "range");
+      if (!faixa || !Array.isArray(r.data)) return r;
+      return { ...r, data: r.data.slice(Number(faixa[1]), Number(faixa[2]) + 1) };
+    };
+    b.then = (ok: (r: Resultado) => unknown, erro?: (e: unknown) => unknown) => Promise.resolve(recortar(responder(c))).then(ok, erro);
     return b;
   };
   const rpc = async (nome: string, args: unknown) => {
@@ -53,6 +59,12 @@ const PARAMETROS = {
   cidades_fora: [],
   palavras_informativas: [],
   hora_do_diagnostico: 7,
+  meta_gasto_minimo_conjunto: "100.00",
+  meta_gasto_minimo_campanha: "200.00",
+  meta_vezes_sem_lead: "2.50",
+  meta_vezes_custo_caro: "2.00",
+  meta_leads_maduros_minimos: 8,
+  meta_dias_para_amadurecer: 7,
   vigencia_desde: "2026-10-14",
   criado_por_nome: null,
 };
@@ -151,6 +163,28 @@ describe("montarRetratoMeta", () => {
     expect(r.leads.filter((l) => l.qualificado)).toHaveLength(2);
     expect(r.leads.at(-1)).toEqual({ campanhaId: "A", anuncioId: "a1", dia: "2026-10-10", qualificado: true, aberto: false });
     expect(r.leads[0]).toMatchObject({ qualificado: false, aberto: true });
+  });
+
+  it("lê tudo em páginas de 1000, na ordem do id (o PostgREST corta em 1000 em silêncio)", async () => {
+    const muitos = Array.from({ length: 2500 }, (_, i) => ({
+      utm_campaign: "A",
+      utm_content: "a1",
+      created_at: "2026-10-10T15:00:00Z",
+      situacao: i < 10 ? "visita" : "novo",
+      desfecho: null,
+    }));
+    const { admin, consultas } = bancoFalso((c) => (c.tabela === "leads" ? { data: muitos, error: null } : tabelas()(c)));
+    const r = await montarRetratoMeta(admin, "act_1", AGORA);
+    expect(r.leads).toHaveLength(2500);
+    const paginas = consultas.filter((c) => c.tabela === "leads");
+    expect(paginas.map((c) => c.filtros.find((f) => f[0] === "range"))).toEqual([
+      ["range", 0, 999],
+      ["range", 1000, 1999],
+      ["range", 2000, 2999],
+    ]);
+    for (const c of [...paginas, ...consultas.filter((x) => x.tabela === "midia_anuncios" || x.tabela === "midia_diario")]) {
+      expect(c.filtros).toContainEqual(["order", "id", { ascending: true }]);
+    }
   });
 
   it("sem campanha do Meta, não consulta mais nada", async () => {

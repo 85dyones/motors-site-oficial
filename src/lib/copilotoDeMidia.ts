@@ -241,6 +241,19 @@ export interface ParametrosDoCopiloto {
   palavrasInformativas: string[];
   /** Hora local a partir da qual o diagnóstico do dia é pedido ao script. */
   horaDoDiagnostico: number;
+  // ── Meta (17/10/2026): o retrato é de 14 dias, e o juiz é o lead do CRM ──
+  /** R$ em 14 dias: conjunto ou anúncio sem lead no CRM só vira proposta a partir disto (e de N× o custo por lead). */
+  metaGastoMinimoConjunto: number;
+  /** R$ em 14 dias: campanha sem lead ou cara só vira proposta a partir disto; também o gasto que, sem nenhum lead do Meta no CRM, acusa a medição. */
+  metaGastoMinimoCampanha: number;
+  /** Gasto sem lead a partir de N× o custo por lead da conta. */
+  metaVezesSemLead: number;
+  /** Custo por lead da campanha a partir de N× o da conta é "caro". */
+  metaVezesCustoCaro: number;
+  /** Campanha com N leads maduros e nenhum qualificado vira achado. */
+  metaLeadsMadurosMinimos: number;
+  /** Lead com menos dias que isto ainda não teve tempo de chegar à visita. */
+  metaDiasParaAmadurecer: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1410,6 +1423,12 @@ export function validarRegras(corpo: unknown): Validacao<ParametrosDoCopiloto> {
     cidadesFora: normalizarLista(c.cidadesFora),
     palavrasInformativas: normalizarLista(c.palavrasInformativas),
     horaDoDiagnostico: n("horaDoDiagnostico"),
+    metaGastoMinimoConjunto: n("metaGastoMinimoConjunto"),
+    metaGastoMinimoCampanha: n("metaGastoMinimoCampanha"),
+    metaVezesSemLead: n("metaVezesSemLead"),
+    metaVezesCustoCaro: n("metaVezesCustoCaro"),
+    metaLeadsMadurosMinimos: n("metaLeadsMadurosMinimos"),
+    metaDiasParaAmadurecer: n("metaDiasParaAmadurecer"),
   };
   const inteiro = (x: number, de: number, ate: number) => Number.isInteger(x) && x >= de && x <= ate;
   for (const chave of ["gastoMinimoTermo", "gastoMinimoGrupo", "gastoMinimoCampanha"] as const) {
@@ -1426,6 +1445,18 @@ export function validarRegras(corpo: unknown): Validacao<ParametrosDoCopiloto> {
   if (!inteiro(p.perdaPorVerbaPct, 1, 100) || !inteiro(p.perdaPorRankingPct, 1, 100)) {
     return { ok: false, erro: "A impressão perdida por verba e por classificação vai de 1% a 100%." };
   }
+  // As mesmas faixas do CHECK `midia_copiloto_parametros_meta_validos`.
+  for (const chave of ["metaGastoMinimoConjunto", "metaGastoMinimoCampanha"] as const) {
+    if (!(p[chave] > 0 && p[chave] <= 100000)) return { ok: false, erro: "Os mínimos de gasto do Meta vão de R$ 0,01 a R$ 100.000." };
+  }
+  if (!(p.metaVezesSemLead >= 1 && p.metaVezesSemLead <= 10)) {
+    return { ok: false, erro: "O gasto sem lead do Meta vai de 1× a 10× o custo por lead da conta." };
+  }
+  if (!(p.metaVezesCustoCaro > 1 && p.metaVezesCustoCaro <= 10)) {
+    return { ok: false, erro: "O custo por lead caro do Meta vai de mais de 1× a 10× o da conta." };
+  }
+  if (!inteiro(p.metaLeadsMadurosMinimos, 1, 500)) return { ok: false, erro: "Os leads maduros do achado de qualidade vão de 1 a 500." };
+  if (!inteiro(p.metaDiasParaAmadurecer, 1, 29)) return { ok: false, erro: "Os dias para o lead amadurecer vão de 1 a 29." };
   for (const [nome, l] of [
     ["concorrentes", p.concorrentes],
     ["cidades fora da área", p.cidadesFora],
