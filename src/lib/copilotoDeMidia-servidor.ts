@@ -22,6 +22,7 @@ import { ehStaff, perfisDe, podeFazer } from "./permissoes";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "./supabase-server";
 import {
   ACAO_COPILOTO_DE_MIDIA,
+  MIGRACAO_DO_PEDIDO_DE_VERBA,
   diagnosticoParaBanco,
   type AcaoParaOScript,
   type Correspondencia,
@@ -142,7 +143,14 @@ export interface RegrasVigentes {
   criadoPorNome: string | null;
 }
 
-export type Leitura<T> = { ok: true; valor: T } | { ok: false; faltaMigracao: boolean; motivo: string };
+export type Leitura<T> =
+  | { ok: true; valor: T }
+  /** `migracao`: a que falta, quando não é a do copiloto (a coluna nova chegou depois). */
+  | { ok: false; faltaMigracao: boolean; motivo: string; migracao?: string };
+
+/** A coluna não existe: o site saiu antes da migração que a cria. */
+const ehColunaAusente = (e: { code?: string; message?: string }) =>
+  e.code === "42703" || /column .* does not exist/i.test(e.message ?? "");
 
 // O `numeric` do Postgres chega como string pelo PostgREST; daí o `Number`.
 function linhaParaRegras(l: Record<string, unknown>): RegrasVigentes {
@@ -370,6 +378,8 @@ export interface AchadoNaTela {
 
 export interface AcaoNaTela {
   id: string;
+  /** O ID da campanha no Google Ads. */
+  campanhaId: string;
   achadoId: string | null;
   desfazAcaoId: string | null;
   tipo: TipoDeAcao;
@@ -391,8 +401,26 @@ export interface AcaoNaTela {
   lidoDeVolta: Record<string, unknown> | null;
   erro: string | null;
   descartadaMotivo: string | null;
+  /** É um pedido de verba feito no painel por uma pessoa, e não uma proposta do diagnóstico. */
+  pedido: boolean;
+  /** O nome de quem pediu; nulo quando o perfil não tem nome (o pedido continua sendo pedido). */
+  pedidaPorNome: string | null;
   /** Já tem um desfazer a caminho ou feito: a tela não oferece de novo. */
   desfeita: boolean;
+}
+
+/**
+ * Uma campanha do Google que pode receber pedido de verba: a verba é a que a
+ * sincronização de hora em hora gravou (`midia_campanhas.orcamento_diario`) —
+ * a mesma que o banco usa como "verba de agora" no pedido.
+ */
+export interface CampanhaParaPedido {
+  /** O ID da campanha no Google Ads. */
+  id: string;
+  nome: string;
+  verba: number;
+  situacao: string;
+  sincronizadoEm: string | null;
 }
 
 export interface DiagnosticoNaTela {
@@ -413,6 +441,8 @@ export interface LeituraDoCopiloto {
   abertas: AcaoNaTela[];
   /** O que já tem desfecho, dos últimos 30 dias. */
   historico: AcaoNaTela[];
+  /** As campanhas do Google para o pedido de verba (vazia quando a leitura falha: o resto da tela segue). */
+  campanhas: CampanhaParaPedido[];
   /** A última sincronização de hora em hora que deu certo — o pulso do script. */
   ultimaSincronizacao: string | null;
   /** Sem sincronizar há mais de `HORAS_PARADA`: nada aprovado está sendo aplicado. */
@@ -422,15 +452,16 @@ export interface LeituraDoCopiloto {
 }
 
 const COLUNAS_DA_ACAO =
-  "id, achado_id, desfaz_acao_id, tipo, situacao, campanha_nome, grupo_nome, texto, correspondencia, " +
+  "id, achado_id, desfaz_acao_id, tipo, situacao, campanha_id_externo, campanha_nome, grupo_nome, texto, correspondencia, " +
   "verba_atual, verba_nova, motivo, economia_7d, evidencias, proposta_em, decidida_por_nome, decidida_em, nota, " +
-  "concluida_em, lido_de_volta, erro, descartada_motivo";
+  "concluida_em, lido_de_volta, erro, descartada_motivo, pedida_por, pedida_por_nome";
 
 const numeroOuNulo = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 function linhaParaAcao(l: Record<string, unknown>, desfeitas: Set<string>): AcaoNaTela {
   return {
     id: String(l.id),
+    campanhaId: String(l.campanha_id_externo),
     achadoId: (l.achado_id as string | null) ?? null,
     desfazAcaoId: (l.desfaz_acao_id as string | null) ?? null,
     tipo: l.tipo as TipoDeAcao,
@@ -452,13 +483,34 @@ function linhaParaAcao(l: Record<string, unknown>, desfeitas: Set<string>): Acao
     lidoDeVolta: (l.lido_de_volta as Record<string, unknown> | null) ?? null,
     erro: (l.erro as string | null) ?? null,
     descartadaMotivo: (l.descartada_motivo as string | null) ?? null,
+    pedido: l.pedida_por !== null && l.pedida_por !== undefined,
+    pedidaPorNome: (l.pedida_por_nome as string | null) ?? null,
     desfeita: desfeitas.has(String(l.id)),
   };
 }
 
+/**
+ * A verba de agora de uma campanha. O script sincroniza ANTES de aplicar: por
+ * até uma hora depois de uma mudança de verba aplicada, `midia_campanhas` ainda
+ * mostra a antiga. Quando o script leu de volta uma verba depois da última
+ * sincronização, é ela que vale — a mesma regra de `midia_copiloto_pedir_verba`
+ * no banco, para a tela e o pedido mostrarem o mesmo número.
+ */
+export function verbaDeAgora(c: CampanhaParaPedido, historico: AcaoNaTela[]): CampanhaParaPedido {
+  const sincronizada = c.sincronizadoEm ? Date.parse(c.sincronizadoEm) : -Infinity;
+  let melhor: { verba: number; em: string } | null = null;
+  for (const a of historico) {
+    const verba = a.lidoDeVolta?.verba;
+    if (a.tipo !== "mudar_verba" || a.situacao !== "aplicada" || a.campanhaId !== c.id || !a.concluidaEm) continue;
+    if (typeof verba !== "number" || !(verba > 0) || Date.parse(a.concluidaEm) <= sincronizada) continue;
+    if (!melhor || Date.parse(a.concluidaEm) > Date.parse(melhor.em)) melhor = { verba, em: a.concluidaEm };
+  }
+  return melhor ? { ...c, verba: melhor.verba, sincronizadoEm: melhor.em } : c;
+}
+
 export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Date()): Promise<Leitura<LeituraDoCopiloto>> {
   const desde = new Date(agora.getTime() - 30 * 24 * 3600 * 1000).toISOString();
-  const [regras, diag, abertas, historico, sinc] = await Promise.all([
+  const [regras, diag, abertas, historico, sinc, camp] = await Promise.all([
     lerRegras(supabase),
     supabase
       .from("midia_copiloto_diagnosticos")
@@ -485,10 +537,22 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
       .eq("ok", true)
       .order("iniciada_em", { ascending: false })
       .limit(1),
+    // Só as que o script sincroniza (têm ID) e que ainda existem na conta.
+    supabase
+      .from("midia_campanhas")
+      .select("id_externo, nome, orcamento_diario, situacao, sincronizado_em")
+      .eq("plataforma", "google")
+      .in("situacao", ["no_ar", "pausada"])
+      .not("id_externo", "is", null)
+      .order("nome", { ascending: true })
+      .limit(200),
   ]);
 
   if (!regras.ok && regras.faltaMigracao) return regras;
   for (const r of [diag, abertas, historico]) {
+    if (r.error && ehColunaAusente(r.error)) {
+      return { ok: false, faltaMigracao: true, migracao: MIGRACAO_DO_PEDIDO_DE_VERBA, motivo: r.error.message };
+    }
     if (r.error) return { ok: false, faltaMigracao: ehTabelaAusente(r.error), motivo: r.error.message };
   }
 
@@ -525,14 +589,35 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
   }
 
   const ultimaSincronizacao = (sinc.data?.[0]?.iniciada_em as string | undefined) ?? null;
+  const acoesDaTela = {
+    abertas: ((abertas.data ?? []) as unknown as Record<string, unknown>[]).map((l) => linhaParaAcao(l, desfeitas)),
+    historico: ((historico.data ?? []) as unknown as Record<string, unknown>[]).map((l) => linhaParaAcao(l, desfeitas)),
+  };
+  const campanhas: CampanhaParaPedido[] = camp.error
+    ? []
+    : ((camp.data ?? []) as Array<Record<string, unknown>>)
+        .filter((c) => Number(c.orcamento_diario) > 0)
+        .map((c) =>
+          verbaDeAgora(
+            {
+              id: String(c.id_externo),
+              nome: String(c.nome),
+              verba: Number(c.orcamento_diario),
+              situacao: String(c.situacao),
+              sincronizadoEm: (c.sincronizado_em as string | null) ?? null,
+            },
+            acoesDaTela.historico,
+          ),
+        );
   return {
     ok: true,
     valor: {
       regras: regras.ok ? regras.valor : null,
       diagnostico,
       achados,
-      abertas: ((abertas.data ?? []) as unknown as Record<string, unknown>[]).map((l) => linhaParaAcao(l, desfeitas)),
-      historico: ((historico.data ?? []) as unknown as Record<string, unknown>[]).map((l) => linhaParaAcao(l, desfeitas)),
+      abertas: acoesDaTela.abertas,
+      historico: acoesDaTela.historico,
+      campanhas,
       ultimaSincronizacao,
       scriptParado: !ultimaSincronizacao || agora.getTime() - new Date(ultimaSincronizacao).getTime() > HORAS_PARADA * 36e5,
       lidoEm: agora.toISOString(),

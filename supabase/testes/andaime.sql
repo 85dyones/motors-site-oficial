@@ -529,3 +529,58 @@ create policy auditoria_admin_leitura on public.auditoria_admin
   for select to authenticated using (public.is_staff(auth.uid()));
 create policy auditoria_admin_insercao on public.auditoria_admin
   for insert to authenticated with check (public.is_staff(auth.uid()));
+
+
+-- ---------------------------------------------------------------------------
+-- Recorte de `midia_campanhas`: as campanhas que a sincronização grava
+-- ---------------------------------------------------------------------------
+-- Entra pela `20261016200000_copiloto_pedido_de_verba.sql`: o pedido de verba
+-- lê daqui a verba de hoje e o nome da campanha (nunca de quem pede). As
+-- migrações que a criam e a sincronizam (20260807120000, 20260924120000) não
+-- entram na CADEIA: trazem junto `midia_anuncios`, `midia_diario`, o Vault e o
+-- pg_cron, que nada aqui lê.
+--
+-- Copiado fielmente, na forma de produção (supabase/base/esquema_da_producao.sql):
+--   * tabela e os CHECKs de plataforma e situação .. 20260807120000_midia_paga_e_auditoria.sql:27-46
+--   * origem, id_externo, alcance, sincronizado_em,
+--     origem coerente e a unicidade por plataforma . 20260924120000_midia_paga_sincronizada.sql:30-58
+--   * RLS e a policy (staff) ....................... 20260813120000_role_cliente_e_is_staff.sql:165-169
+-- Sem `org_id`, como em produção: a loja da campanha chega com a S1.
+--
+-- ⚠️ A policy abaixo (for all, qualquer staff escreve em qualquer linha) é a
+-- de produção ANTES da 20261016200000, copiada de propósito: é ela que aquela
+-- migração derruba, trocando-a por leitura de staff e escrita só na campanha
+-- manual (`midia_campanhas_leitura`, `midia_campanhas_manual_*`). Com a forma
+-- nova aqui, o aceite provaria a porta fechada num banco onde ela nunca esteve
+-- aberta — a mesma regra do recorte de `leads`. O GRANT a anon também é o de
+-- produção (a default ACL do topo), e a 20261016200000 o revoga.
+--
+-- ⚠️ Mesma regra dos outros recortes: se a 20260807120000 entrar na cadeia um
+-- dia, este sai daqui.
+create table public.midia_campanhas (
+  id                uuid primary key default gen_random_uuid(),
+  nome              text not null,
+  plataforma        text not null check (plataforma in ('meta', 'google')),
+  objetivo          text,
+  orcamento_diario  numeric(12, 2),
+  publico           text,
+  atribuicao        text,
+  situacao          text not null default 'no_ar'
+                      check (situacao in ('no_ar', 'pausada', 'planejada', 'encerrada')),
+  no_ar_desde       timestamptz,
+  criada_em         timestamptz not null default now(),
+  origem            text not null default 'manual',
+  id_externo        text,
+  alcance_total     integer,
+  sincronizado_em   timestamptz,
+  constraint midia_campanhas_origem_check check (origem in ('manual', 'meta', 'google')),
+  constraint midia_campanhas_origem_coerente check (
+    (origem = 'manual' and id_externo is null)
+    or (origem = plataforma and id_externo is not null)),
+  constraint midia_campanhas_plataforma_id_externo_key unique (plataforma, id_externo)
+);
+alter table public.midia_campanhas enable row level security;
+create policy midia_campanhas_autenticados on public.midia_campanhas
+  for all to authenticated
+  using (public.is_staff(auth.uid()))
+  with check (public.is_staff(auth.uid()));

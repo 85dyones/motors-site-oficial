@@ -261,6 +261,16 @@ const CADEIA = [
   // se prova num banco de verdade. Pediu ao recorte de `leads` as colunas de
   // mídia que a view lê.
   "20261014160000_gbraid_e_wbraid_no_lead.sql",
+  // O pedido de verba do Copiloto (2026-10-16): uma pessoa pede a verba nova
+  // de uma campanha, inclusive AUMENTO, e o pedido passa pela mesma aprovação.
+  // Entra na cadeia porque o aceite veste admin, marketing, comercial, um
+  // marketing desativado, um sem nome, cliente, anon e a chave de serviço para
+  // provar quem pede, que a verba de hoje vem da sincronização, que o retrato
+  // não descarta pedido e pula a verba com pedido aberto, que o diagnóstico
+  // segue sem poder aumentar, o teto de 10× do script, a janela que pedido
+  // recusado não segura, e que outra loja com a mesma chave não é tocada.
+  // Pediu ao andaime o recorte de `midia_campanhas`.
+  "20261016200000_copiloto_pedido_de_verba.sql",
 ];
 
 /**
@@ -669,6 +679,328 @@ describe.skipIf(!temBanco)("as campanhas de SMS e a base de marketing, pelo lado
       recusa(`set local role service_role; select * from public.marketing_importar_lote(gen_random_uuid(), '[]'::jsonb)`),
     ).toContain("não existe");
     expect(recusa(`set local role service_role; select public.marketing_resumo_da_base()`)).toBe("");
+  });
+});
+
+/**
+ * O pedido de verba do Copiloto (20261016200000), pelo lado de fora. O aceite
+ * da migração prova o efeito com sonda; aqui ficam a reaplicação (o catálogo
+ * e as linhas não mudam), cada violação falhando pelo NOME da regra (com um
+ * controle que tem de entrar), a campanha sincronizada que a sessão não
+ * reescreve, e "uma mudança de verba aberta por campanha" passando pelas
+ * portas de verdade (pedido, desfazer, retrato). Toda escrita é desfeita.
+ */
+describe.skipIf(!temBanco)("o pedido de verba do Copiloto, reaplicado e pelo lado de fora", () => {
+  const MIGRACAO = "20261016200000_copiloto_pedido_de_verba.sql";
+
+  /** A mensagem do erro, ou "" se o comando passou. Sempre desfeito. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(`begin; ${sql}; rollback;`);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  /** Regras, índices, colunas, corpo e privilégio das quatro funções, policies, comentário e contagens, num hash. */
+  const retrato = (): string => {
+    const saida = psql!(
+      `select md5(
+         (select string_agg(conname || ':' || pg_get_constraintdef(oid), '|' order by conname)
+            from pg_constraint where conrelid = 'public.midia_copiloto_acoes'::regclass)
+         || (select string_agg(attname || ':' || format_type(atttypid, atttypmod), '|' order by attnum)
+               from pg_attribute where attrelid = 'public.midia_copiloto_acoes'::regclass and attnum > 0 and not attisdropped)
+         || (select string_agg(proname || ':' || md5(prosrc) || ':' || coalesce(array_to_string(proacl, ','), ''), '|' order by proname)
+               from pg_proc where pronamespace = 'public'::regnamespace
+                 and proname in ('midia_copiloto_pedir_verba', 'midia_copiloto_gravar_diagnostico',
+                                 'midia_copiloto_acoes_transicao', 'midia_copiloto_desfazer'))
+         || (select string_agg(indexrelid::regclass::text || ':' || pg_get_indexdef(indexrelid), '|' order by indexrelid::regclass::text)
+               from pg_index where indrelid = 'public.midia_copiloto_acoes'::regclass)
+         || (select string_agg(policyname || ':' || cmd || ':' || coalesce(qual, '') || ':' || coalesce(with_check, ''), '|' order by policyname)
+               from pg_policies where schemaname = 'public' and tablename = 'midia_campanhas')
+         || coalesce(array_to_string((select relacl from pg_class where oid = 'public.midia_campanhas'::regclass), ','), '')
+         || coalesce(obj_description('public.midia_copiloto_acoes'::regclass, 'pg_class'), '')
+         || (select count(*) from public.midia_copiloto_acoes)::text
+         || (select count(*) from public.auditoria_admin)::text
+         || (select count(*) from public.midia_campanhas)::text) as h`,
+    );
+    return saida.match(/[0-9a-f]{32}/)?.[0] ?? `sem hash: ${saida}`;
+  };
+
+  /** Uma ação gravada como dono: só o gatilho e os CHECKs falam. */
+  const acao = (colunas: string, valores: string) =>
+    `insert into public.midia_copiloto_acoes
+       (chave, tipo, campanha_id_externo, campanha_nome, motivo, ${colunas})
+     values ('fora:' || gen_random_uuid(), 'mudar_verba', '111', 'Pesquisa', 'teste de fora', ${valores})`;
+  const doDiagnostico = (colunas: string, valores: string) =>
+    `with d as (insert into public.midia_copiloto_diagnosticos (conta, de, ate, dados, resumo)
+                values ('1', '2026-10-08', '2026-10-14', '{}', '{}') returning id)
+     insert into public.midia_copiloto_acoes
+       (diagnostico_id, chave, tipo, campanha_id_externo, campanha_nome, motivo, ${colunas})
+     select d.id, 'fora:' || gen_random_uuid(), 'mudar_verba', '111', 'Pesquisa', 'teste de fora', ${valores} from d`;
+  const PESSOA = "'00000000-0000-0000-0000-0000000000a1'";
+
+  it("reaplicar levanta o aceite de novo e não muda regra, coluna, função, privilégio nem linha", () => {
+    const antes = retrato();
+    // Um hash nulo seria igual a ele mesmo: a comparação só vale com um md5 de verdade.
+    expect(antes).toMatch(/^[0-9a-f]{32}$/);
+    const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+    expect(saida).toContain("Aceite verificado");
+    expect(saida).not.toMatch(/^psql.*ERROR:/m);
+    expect(retrato()).toBe(antes);
+  });
+
+  it("violação falha: o diagnóstico não aumenta, o pedido não passa de 10× nem é de negativa, e o nome não vem sem quem pediu", () => {
+    // Controles: o corte do diagnóstico e o pedido de 10× exatos entram.
+    expect(recusa(doDiagnostico("verba_atual, verba_nova", "50, 35"))).toBe("");
+    expect(recusa(acao("verba_atual, verba_nova, pedida_por, pedida_por_nome", `10, 100, ${PESSOA}, 'Fora'`))).toBe("");
+    expect(recusa(doDiagnostico("verba_atual, verba_nova", "50, 80"))).toContain("midia_copiloto_acoes_proposta_so_corta");
+    expect(recusa(acao("verba_atual, verba_nova, pedida_por", `10, 100.01, ${PESSOA}`))).toContain(
+      "midia_copiloto_acoes_pedido_na_faixa",
+    );
+    expect(
+      recusa(
+        `insert into public.midia_copiloto_acoes
+           (chave, tipo, campanha_id_externo, campanha_nome, texto, correspondencia, motivo, pedida_por)
+         values ('fora:negativa', 'negativar', '111', 'Pesquisa', 'x', 'exata', 'teste de fora', ${PESSOA})`,
+      ),
+    ).toContain("midia_copiloto_acoes_origem_do_tipo");
+    expect(recusa(doDiagnostico("verba_atual, verba_nova, pedida_por", `50, 80, ${PESSOA}`))).toContain(
+      "midia_copiloto_acoes_origem_do_tipo",
+    );
+    expect(recusa(doDiagnostico("verba_atual, verba_nova, pedida_por_nome", "50, 35, 'Ninguém'"))).toContain(
+      "midia_copiloto_acoes_pedido_carimbado",
+    );
+    // O pedido nasce proposta, e quem pediu não muda depois.
+    expect(
+      recusa(acao("verba_atual, verba_nova, pedida_por, situacao, decidida_por, decidida_em", `10, 20, ${PESSOA}, 'aprovada', ${PESSOA}, now()`)),
+    ).toContain("nasce proposta");
+    expect(
+      recusa(
+        `${acao("verba_atual, verba_nova, pedida_por", `10, 20, ${PESSOA}`)};
+         update public.midia_copiloto_acoes set situacao = 'descartada', pedida_por = gen_random_uuid()
+          where motivo = 'teste de fora'`,
+      ),
+    ).toContain("não muda depois de proposto");
+    expect(psql!("select count(*) from public.midia_copiloto_acoes where motivo = 'teste de fora'")).toMatch(/^\s*0\s*$/m);
+  });
+
+  it("violação falha: anônimo não chama a porta; sessão sem o papel e chamada sem sessão levam 42501", () => {
+    expect(recusa("set local role anon; select public.midia_copiloto_pedir_verba('111', 80, null)")).toContain("permission denied");
+    expect(
+      recusa(
+        `select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
+         set local role authenticated; select public.midia_copiloto_pedir_verba('111', 80, null)`,
+      ),
+    ).toContain("Só Administrador ou Marketing");
+    expect(recusa("select public.midia_copiloto_pedir_verba('111', 80, null)")).toContain("sem sessão");
+  });
+
+  /**
+   * Um cenário inteiro numa transação desfeita: uma pessoa com o papel dado,
+   * uma campanha sincronizada (R$ 50, há uma hora) e, depois, o `sql` — na
+   * sessão dela (claims), como dono. Devolve a saída (as linhas `t`/`f` são
+   * os vereditos) ou a mensagem do erro.
+   */
+  const PESSOA_DE_FORA = "00000000-0000-0000-0000-0000000000b1";
+  const CAMPANHA = "88880001";
+  const cenario = (papel: string, sql: string): string => {
+    try {
+      return psql!(
+        `begin;
+         insert into auth.users (id, instance_id, aud, role, email)
+         values ('${PESSOA_DE_FORA}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'fora-verba@exemplo.invalido');
+         update public.profiles set full_name = 'Fora ${papel}', papeis = array['${papel}'], role = '${papel}', is_active = true
+          where id = '${PESSOA_DE_FORA}';
+         insert into public.midia_campanhas (nome, plataforma, origem, id_externo, orcamento_diario, situacao, sincronizado_em)
+         values ('Fora Pesquisa', 'google', 'google', '${CAMPANHA}', 50, 'no_ar', now() - interval '1 hour');
+         select set_config('request.jwt.claims', json_build_object('sub', '${PESSOA_DE_FORA}', 'role', 'authenticated')::text, true);
+         create temp table fora (nome text primary key, id uuid) on commit drop;
+         ${sql};
+         rollback;`,
+      );
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+  /** Os vereditos (`t`/`f`) que a saída trouxe, em ordem. */
+  const vereditos = (saida: string): string[] => (saida.match(/^\s*[tf]\s*$/gm) ?? []).map((v) => v.trim());
+  const id = (nome: string) => `(select id from fora where nome = '${nome}')`;
+  /** O pedido p1 (50 → 80) aprovado e aplicado há 10 dias — fora da janela do retrato. */
+  const P1_APLICADO_HA_10_DIAS = `
+    insert into fora select 'p1', public.midia_copiloto_pedir_verba('${CAMPANHA}', 80, null);
+    select public.midia_copiloto_decidir(array[${id("p1")}], 'aprovar');
+    update public.midia_copiloto_acoes set situacao = 'em_aplicacao', reservada_em = now() - interval '10 days', tentativas = 1
+     where id = ${id("p1")};
+    update public.midia_copiloto_acoes set situacao = 'aplicada', concluida_em = now() - interval '10 days', lido_de_volta = '{"verba": 80}'
+     where id = ${id("p1")};
+    update public.midia_campanhas set orcamento_diario = 80 where id_externo = '${CAMPANHA}'`;
+  const DESFAZER_P1 = `insert into fora select 'd1', public.midia_copiloto_desfazer(${id("p1")})`;
+  /** O retrato (não prévia) com as propostas dadas, como a chave de serviço o grava. */
+  const DOLAR = "$j$";
+  const retratoCom = (propostas: string) =>
+    `select public.midia_copiloto_gravar_diagnostico(${DOLAR}{"conta": "1", "de": "2026-10-08", "ate": "2026-10-14", "previa": false,
+       "achados": [{"regra": "ritmo_de_verba", "gravidade": "media", "titulo": "t", "detalhe": "d"}],
+       "propostas": [${propostas}]}${DOLAR}::jsonb)`;
+
+  it("violação falha: a sessão não reescreve nem apaga a campanha sincronizada; a manual segue de staff", () => {
+    const sincronizada = `where id_externo = '${CAMPANHA}'`;
+    for (const papel of ["comercial", "marketing", "admin"]) {
+      expect(
+        vereditos(
+          cenario(
+            papel,
+            `set local role authenticated;
+             with u as (update public.midia_campanhas set nome = 'Forjada', orcamento_diario = 5 ${sincronizada} returning 1)
+             select count(*) = 0 as ok from u;
+             with d as (delete from public.midia_campanhas ${sincronizada} returning 1) select count(*) = 0 as ok from d;
+             select (select count(*) = 1 from public.midia_campanhas ${sincronizada}) as ok`,
+          ),
+        ),
+        papel,
+      ).toEqual(["t", "t", "t"]);
+    }
+    // Ninguém cria uma sincronizada, nem transforma a manual numa.
+    expect(
+      cenario(
+        "comercial",
+        `set local role authenticated;
+         insert into public.midia_campanhas (nome, plataforma, origem, id_externo, orcamento_diario)
+         values ('Forjada', 'google', 'google', '88880999', 5)`,
+      ),
+    ).toContain("row-level security");
+    expect(
+      cenario(
+        "comercial",
+        `set local role authenticated;
+         insert into public.midia_campanhas (nome, plataforma, orcamento_diario) values ('Fora Manual', 'meta', 30);
+         update public.midia_campanhas set origem = 'google', plataforma = 'google', id_externo = '88880999' where nome = 'Fora Manual'`,
+      ),
+    ).toContain("row-level security");
+    // Controle: a manual entra, muda e sai pela sessão de staff.
+    expect(
+      vereditos(
+        cenario(
+          "comercial",
+          `set local role authenticated;
+           insert into public.midia_campanhas (nome, plataforma, orcamento_diario) values ('Fora Manual', 'meta', 30);
+           with u as (update public.midia_campanhas set orcamento_diario = 35 where nome = 'Fora Manual' returning 1)
+           select count(*) = 1 as ok from u;
+           with d as (delete from public.midia_campanhas where nome = 'Fora Manual' returning 1) select count(*) = 1 as ok from d`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+    // E o pedido continua lendo o nome e a verba de lá, não da sessão.
+    expect(
+      vereditos(
+        cenario(
+          "marketing",
+          `insert into fora select 'p', public.midia_copiloto_pedir_verba('${CAMPANHA}', 80, null);
+           select (campanha_nome = 'Fora Pesquisa' and verba_atual = 50 and evidencias->>'verbaLidaDe' = 'sincronizacao') as ok
+             from public.midia_copiloto_acoes where id = ${id("p")}`,
+        ),
+      ),
+    ).toEqual(["t"]);
+    expect(recusa("set local role anon; select count(*) from public.midia_campanhas")).toContain("permission denied");
+    expect(recusa("set local role authenticated; truncate public.midia_campanhas")).toContain("permission denied");
+  });
+
+  it("violação falha: uma mudança de verba aberta por campanha — pedido, desfazer, índice e retrato", () => {
+    // Pedido com um desfazer aprovado na campanha: recusado, e a frase diz que é um desfazer.
+    expect(
+      cenario("marketing", `${P1_APLICADO_HA_10_DIAS}; ${DESFAZER_P1};
+                            select public.midia_copiloto_pedir_verba('${CAMPANHA}', 200, null)`),
+    ).toContain("desfazer de verba aprovado");
+    // Desfazer com um pedido PROPOSTO: o pedido sai de cena com o nome de quem desfez.
+    expect(
+      vereditos(
+        cenario(
+          "marketing",
+          `${P1_APLICADO_HA_10_DIAS};
+           insert into fora select 'p2', public.midia_copiloto_pedir_verba('${CAMPANHA}', 120, null);
+           ${DESFAZER_P1};
+           select (situacao = 'descartada' and descartada_motivo = 'Substituída pelo desfazer de Fora marketing.') as ok
+             from public.midia_copiloto_acoes where id = ${id("p2")};
+           select (situacao = 'aprovada' and verba_atual = 80 and verba_nova = 50) as ok
+             from public.midia_copiloto_acoes where id = ${id("d1")}`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+    // Desfazer com um pedido APROVADO: recusado.
+    expect(
+      cenario(
+        "marketing",
+        `${P1_APLICADO_HA_10_DIAS};
+         insert into fora select 'p2', public.midia_copiloto_pedir_verba('${CAMPANHA}', 120, null);
+         select public.midia_copiloto_decidir(array[${id("p2")}], 'aprovar');
+         ${DESFAZER_P1}`,
+      ),
+    ).toContain("antes de desfazer");
+    // O índice, sem função no meio: a segunda aberta, de outra chave, é recusada pelo nome.
+    expect(
+      cenario(
+        "marketing",
+        `${P1_APLICADO_HA_10_DIAS}; ${DESFAZER_P1};
+         insert into public.midia_copiloto_acoes
+           (chave, tipo, campanha_id_externo, campanha_nome, verba_atual, verba_nova, motivo, pedida_por)
+         values ('fora:outra', 'mudar_verba', '${CAMPANHA}', 'Fora Pesquisa', 80, 120, 'teste de fora', '${PESSOA_DE_FORA}')`,
+      ),
+    ).toContain("midia_copiloto_acoes_uma_verba_aberta");
+    // O retrato com a verba aberta por um desfazer (outra chave) pula a proposta, sem erro.
+    expect(
+      vereditos(
+        cenario(
+          "marketing",
+          `${P1_APLICADO_HA_10_DIAS}; ${DESFAZER_P1};
+           select (r->>'propostas' = '0' and r->>'puladas' = '1') as ok
+             from (${retratoCom(`{"achado": 0, "chave": "verba:${CAMPANHA}", "tipo": "mudar_verba", "campanha_id_externo": "${CAMPANHA}",
+                                 "campanha_nome": "Fora Pesquisa", "verba_atual": 80, "verba_nova": 56, "motivo": "corte"}`)} as r) s;
+           select (situacao = 'aprovada') as ok from public.midia_copiloto_acoes where id = ${id("d1")}`,
+        ),
+      ),
+    ).toEqual(["t", "t"]);
+  });
+
+  it("a verba de agora vem do que o script leu de volta quando é mais nova que a sincronização", () => {
+    expect(
+      vereditos(
+        cenario(
+          "marketing",
+          `insert into fora select 'p1', public.midia_copiloto_pedir_verba('${CAMPANHA}', 80, null);
+           select public.midia_copiloto_decidir(array[${id("p1")}], 'aprovar');
+           update public.midia_copiloto_acoes set situacao = 'em_aplicacao', reservada_em = now(), tentativas = 1 where id = ${id("p1")};
+           select public.midia_copiloto_registrar_resultado(${id("p1")}, 'aplicada', '{"verba": 80}', null);
+           insert into fora select 'p2', public.midia_copiloto_pedir_verba('${CAMPANHA}', 120, null);
+           select (verba_atual = 80 and evidencias->>'verbaLidaDe' = 'aplicacao') as ok
+             from public.midia_copiloto_acoes where id = ${id("p2")}`,
+        ),
+      ),
+    ).toEqual(["t"]);
+  });
+
+  it("o retrato tira de cena o pedido parado há mais de uma janela, e volta a propor para a campanha", () => {
+    expect(
+      vereditos(
+        cenario(
+          "marketing",
+          `with i as (
+             insert into public.midia_copiloto_acoes
+               (chave, tipo, campanha_id_externo, campanha_nome, verba_atual, verba_nova, motivo, pedida_por, proposta_em)
+             values ('verba:${CAMPANHA}', 'mudar_verba', '${CAMPANHA}', 'Fora Pesquisa', 50, 70, 'teste de fora',
+                     '${PESSOA_DE_FORA}', now() - interval '8 days')
+             returning id)
+           insert into fora select 'parado', id from i;
+           select (r->>'propostas' = '1') as ok
+             from (${retratoCom(`{"achado": 0, "chave": "verba:${CAMPANHA}", "tipo": "mudar_verba", "campanha_id_externo": "${CAMPANHA}",
+                                 "campanha_nome": "Fora Pesquisa", "verba_atual": 50, "verba_nova": 35, "motivo": "corte"}`)} as r) s;
+           select (situacao = 'descartada' and descartada_motivo like 'Pedido sem decisão por 8 dias;%') as ok
+             from public.midia_copiloto_acoes where id = ${id("parado")};
+           select (count(*) = 1) as ok from public.midia_copiloto_acoes
+            where campanha_id_externo = '${CAMPANHA}' and situacao = 'proposta' and diagnostico_id is not null`,
+        ),
+      ),
+    ).toEqual(["t", "t", "t"]);
   });
 });
 

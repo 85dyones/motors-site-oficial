@@ -2,12 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ROTULO_DA_SITUACAO, ROTULO_DO_TIPO, descreverAcao } from "../../../lib/copilotoDeMidia";
+import { QUEM_PEDIU_SEM_NOME, ROTULO_DA_SITUACAO, ROTULO_DO_TIPO, descreverAcao } from "../../../lib/copilotoDeMidia";
 import type { AcaoNaTela, AchadoNaTela } from "../../../lib/copilotoDeMidia-servidor";
 import SinalDeEstado from "../../admin/consulta/SinalDeEstado";
 import { useConfirm } from "../../admin/ConfirmDialog";
 import Evidencias from "./Evidencias";
-import { SINAL_DA_SITUACAO, haQuanto, reais } from "./formato";
+import { DIAS_DO_MES_NO_GOOGLE, SINAL_DA_SITUACAO, haQuanto, reais } from "./formato";
 
 /**
  * O que espera decisão, e o que já foi aprovado e espera o script.
@@ -15,16 +15,22 @@ import { SINAL_DA_SITUACAO, haQuanto, reais } from "./formato";
  * Aprovar é mexer na conta do Google Ads na próxima rodada do script (até uma
  * hora). Por isso cada linha diz O QUE muda, em uma frase, e POR QUÊ, com o
  * número; e aprovar um grupo inteiro pede confirmação com o total.
+ *
+ * Os pedidos de verba feitos no painel (`PedidoDeVerba`) entram aqui como as
+ * propostas do diagnóstico, num grupo deles: a aprovação é a mesma.
  */
 
 type Grupo = { chave: string; titulo: string; acoes: AcaoNaTela[] };
+
+/** Os pedidos de verba feitos no painel não vêm de achado: ficam num grupo deles. */
+const GRUPO_DOS_PEDIDOS = "pedidos";
 
 function agrupar(acoes: AcaoNaTela[], achados: AchadoNaTela[]): Grupo[] {
   const titulos = new Map(achados.map((a) => [a.id, a.titulo]));
   const grupos = new Map<string, Grupo>();
   for (const a of acoes) {
-    const titulo = (a.achadoId && titulos.get(a.achadoId)) || ROTULO_DO_TIPO[a.tipo];
-    const chave = a.achadoId && titulos.has(a.achadoId) ? a.achadoId : `tipo:${a.tipo}`;
+    const titulo = a.pedido ? "Pedidos de verba" : (a.achadoId && titulos.get(a.achadoId)) || ROTULO_DO_TIPO[a.tipo];
+    const chave = a.pedido ? GRUPO_DOS_PEDIDOS : a.achadoId && titulos.has(a.achadoId) ? a.achadoId : `tipo:${a.tipo}`;
     const g = grupos.get(chave) ?? { chave, titulo, acoes: [] };
     g.acoes.push(a);
     grupos.set(chave, g);
@@ -33,6 +39,19 @@ function agrupar(acoes: AcaoNaTela[], achados: AchadoNaTela[]): Grupo[] {
 }
 
 const soma = (acoes: AcaoNaTela[]) => acoes.reduce((s, a) => s + (a.economia7d ?? 0), 0);
+/** Só corte tem economia estimada; pedido de aumento não. */
+const temEconomia = (acoes: AcaoNaTela[]) => acoes.some((a) => a.economia7d !== null);
+/** Quanto as mudanças de verba do grupo somam por dia (o pedido, que não tem economia, diz o que custa). */
+const variacaoDiaria = (acoes: AcaoNaTela[]) =>
+  acoes.reduce((s, a) => s + (a.tipo === "mudar_verba" && a.verbaAtual !== null && a.verbaNova !== null ? a.verbaNova - a.verbaAtual : 0), 0);
+
+function oQueSoma(acoes: AcaoNaTela[]): string {
+  if (temEconomia(acoes)) return `, somando ${reais(soma(acoes))} de economia estimada em 7 dias`;
+  const dia = Math.round(variacaoDiaria(acoes) * 100) / 100;
+  if (dia === 0) return "";
+  const sinal = dia > 0 ? "+" : "−";
+  return `, somando ${sinal}${reais(Math.abs(dia))} por dia na verba (até ${sinal}${reais(Math.abs(dia) * DIAS_DO_MES_NO_GOOGLE)} por mês)`;
+}
 
 export default function PropostasDoCopiloto({
   abertas,
@@ -92,7 +111,7 @@ export default function PropostasDoCopiloto({
   const aprovarGrupo = async (g: Grupo) => {
     const ok = await confirm({
       title: "Aprovar o grupo inteiro",
-      message: `${g.acoes.length} mudanças na conta do Google Ads (${g.titulo}), somando ${reais(soma(g.acoes))} de economia estimada em 7 dias. O script aplica na próxima rodada; cada uma pode ser desfeita depois.`,
+      message: `${g.acoes.length} mudanças na conta do Google Ads (${g.titulo})${oQueSoma(g.acoes)}. O script aplica na próxima rodada; cada uma pode ser desfeita depois.`,
       confirmLabel: `Aprovar ${g.acoes.length}`,
     });
     if (ok) await decidir(g.acoes.map((a) => a.id), "aprovar", g.chave);
@@ -124,7 +143,8 @@ export default function PropostasDoCopiloto({
               <h3 className="m-0 text-sm font-extrabold text-mt-ink">{g.titulo}</h3>
               <div className="flex items-center gap-3">
                 <span className="text-xs tabular-nums text-mt-neutral-700">
-                  {g.acoes.length} {g.acoes.length === 1 ? "proposta" : "propostas"} · {reais(soma(g.acoes))} em 7 dias
+                  {g.acoes.length} {g.acoes.length === 1 ? (g.chave === GRUPO_DOS_PEDIDOS ? "pedido" : "proposta") : g.chave === GRUPO_DOS_PEDIDOS ? "pedidos" : "propostas"}
+                  {temEconomia(g.acoes) ? ` · ${reais(soma(g.acoes))} em 7 dias` : ""}
                 </span>
                 {g.acoes.length > 1 && (
                   <button
@@ -197,6 +217,7 @@ export default function PropostasDoCopiloto({
                 </span>
                 <span className="inline-flex items-center gap-3 text-mt-neutral-700">
                   {ROTULO_DA_SITUACAO[a.situacao]}
+                  {a.pedido ? ` · pedido de ${a.pedidaPorNome ?? QUEM_PEDIU_SEM_NOME}` : ""}
                   {a.decididaPorNome ? ` · ${a.decididaPorNome}` : ""}
                   {a.decididaEm ? ` · ${haQuanto(a.decididaEm, agora)}` : ""}
                   {a.situacao === "aprovada" && (

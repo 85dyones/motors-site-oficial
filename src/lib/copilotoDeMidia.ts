@@ -1257,6 +1257,53 @@ export function validarDecisao(corpo: unknown): Validacao<PedidoDeDecisao> {
   return { ok: true, valor: { ids: [...new Set(c.ids as string[])], decisao: c.decisao, nota: textoOuNulo(c.nota, 500) } };
 }
 
+/**
+ * Pedido de verba (16/10/2026, pedido do dono): a mudança de verba que uma
+ * PESSOA pede no painel — o aumento, que o diagnóstico nunca propõe, porque
+ * aumento é decisão de quem paga. Nasce proposta e passa pela mesma aprovação;
+ * o script aplica e lê de volta. A verba de agora e o nome da campanha não vêm
+ * daqui: o banco lê da sincronização (`midia_copiloto_pedir_verba`).
+ */
+export const MIGRACAO_DO_PEDIDO_DE_VERBA = "20261016200000_copiloto_pedido_de_verba";
+
+/**
+ * Teto do pedido: a verba nova vai até 10× a de agora. É o teto do script
+ * (`mudarVerba`: acima disso, `falhou` sem mexer) e o do CHECK
+ * `midia_copiloto_acoes_pedido_na_faixa` — o teste confere que os três batem.
+ * Um zero a mais digitado não chega à conta.
+ */
+export const TETO_DO_PEDIDO_DE_VERBA = 10;
+
+/** Quem pediu, quando o perfil não tem nome — a mesma frase do banco. */
+export const QUEM_PEDIU_SEM_NOME = "alguém da equipe";
+
+/** O teto de verba diária do CHECK `midia_copiloto_acoes_verba_na_faixa`. */
+export const VERBA_DIARIA_MAXIMA = 100_000;
+
+export interface PedidoDeVerba {
+  /** O ID da campanha no Google Ads (`midia_campanhas.id_externo`). */
+  campanhaId: string;
+  /** Por dia, em reais, com até dois centavos. */
+  verbaNova: number;
+  motivo: string | null;
+}
+
+export function validarPedidoDeVerba(corpo: unknown): Validacao<PedidoDeVerba> {
+  if (!corpo || typeof corpo !== "object") return { ok: false, erro: "corpo não é um objeto JSON" };
+  const c = corpo as Record<string, unknown>;
+  if (typeof c.campanhaId !== "string" || !/^[0-9]{1,20}$/.test(c.campanhaId)) {
+    return { ok: false, erro: "campanhaId precisa ser o ID numérico da campanha no Google Ads" };
+  }
+  const v = c.verbaNova;
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0 || v > VERBA_DIARIA_MAXIMA) {
+    return { ok: false, erro: `a verba nova precisa ser maior que zero e até ${reais(VERBA_DIARIA_MAXIMA)} por dia` };
+  }
+  if (Math.abs(Math.round(v * 100) - v * 100) > 1e-6) return { ok: false, erro: "a verba vai até os centavos" };
+  if (c.motivo !== undefined && c.motivo !== null && typeof c.motivo !== "string") return { ok: false, erro: "motivo precisa ser texto" };
+  if (typeof c.motivo === "string" && c.motivo.trim().length > 500) return { ok: false, erro: "o motivo vai até 500 caracteres" };
+  return { ok: true, valor: { campanhaId: c.campanhaId, verbaNova: Math.round(v * 100) / 100, motivo: textoOuNulo(c.motivo, 500) } };
+}
+
 /** Uma lista digitada (vírgula ou linha), como o banco a guarda: minúscula, aparada, sem repetir. */
 export function normalizarLista(v: unknown): string[] {
   const bruto = Array.isArray(v) ? v.map(String) : typeof v === "string" ? v.split(/[\n,;]/) : [];

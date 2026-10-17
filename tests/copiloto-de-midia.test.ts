@@ -6,9 +6,12 @@ import {
   GRAVIDADES,
   GRUPOS_DE_TERMO,
   MAX_PROPOSTAS,
+  MIGRACAO_DO_PEDIDO_DE_VERBA,
   PAPEIS_DO_COPILOTO,
+  QUEM_PEDIU_SEM_NOME,
   REGRAS,
   SITUACOES_DA_ACAO,
+  TETO_DO_PEDIDO_DE_VERBA,
   TIPOS_DE_ACAO,
   acharNoTermo,
   classificarTermo,
@@ -19,6 +22,7 @@ import {
   normalizarLista,
   validarDecisao,
   validarDiagnostico,
+  validarPedidoDeVerba,
   validarRegras,
   validarResultados,
   type DiagnosticoDaConta,
@@ -492,3 +496,48 @@ describe("as listas fechadas do banco são as do código", () => {
     expect(Object.keys(P)).toHaveLength(15);
   });
 });
+
+describe("pedido de verba", () => {
+  it("só campanha numérica, verba de centavo em centavo até o teto, e motivo aparado", () => {
+    expect(validarPedidoDeVerba({ campanhaId: "1234567890", verbaNova: 10, motivo: "  converte  " })).toEqual({
+      ok: true,
+      valor: { campanhaId: "1234567890", verbaNova: 10, motivo: "converte" },
+    });
+    expect(validarPedidoDeVerba({ campanhaId: "1", verbaNova: 0.1 + 0.2 })).toMatchObject({ ok: true, valor: { verbaNova: 0.3, motivo: null } });
+    for (const ruim of [
+      null,
+      { campanhaId: 111, verbaNova: 10 },
+      { campanhaId: "1e3", verbaNova: 10 },
+      { campanhaId: "111", verbaNova: -1 },
+      { campanhaId: "111", verbaNova: Number.NaN },
+      { campanhaId: "111", verbaNova: 12.345 },
+      { campanhaId: "111", verbaNova: 100_000.01 },
+      { campanhaId: "111", verbaNova: 10, motivo: 5 },
+    ]) {
+      expect(validarPedidoDeVerba(ruim).ok, JSON.stringify(ruim)).toBe(false);
+    }
+  });
+
+  const PEDIDO = readFileSync(join(__dirname, "..", "supabase", "migrations", `${MIGRACAO_DO_PEDIDO_DE_VERBA}.sql`), "utf8");
+
+  it("o teto do pedido é um só: o do código, o do script e o do banco", () => {
+    const script = readFileSync(join(__dirname, "..", "scripts", "google-ads-script.js"), "utf8");
+    expect(script).toContain(`nova > esperada * ${TETO_DO_PEDIDO_DE_VERBA}`);
+    expect(PEDIDO).toMatch(new RegExp(`pedida_por is null or verba_nova <= verba_atual \\* ${TETO_DO_PEDIDO_DE_VERBA}\\)`));
+    expect(PEDIDO).toContain(`p_verba_nova > v_atual * ${TETO_DO_PEDIDO_DE_VERBA}`);
+  });
+
+  it("o pedido divide a chave de verba com o diagnóstico, e o banco fala a mesma frase de quem pediu sem nome", () => {
+    const fonte = readFileSync(join(__dirname, "..", "src", "lib", "copilotoDeMidia.ts"), "utf8");
+    expect(fonte).toContain("chave: `verba:${c.id}`");
+    expect(PEDIDO).toContain("v_chave := 'verba:' || p_campanha;");
+    expect(PEDIDO).toContain(`coalesce(v_nome, '${QUEM_PEDIU_SEM_NOME}')`);
+  });
+
+  it("a porta do pedido confere o papel de novo, como as outras do painel", () => {
+    expect(PEDIDO).toMatch(/public\.tem_papel\(v_quem, 'admin'\) or public\.tem_papel\(v_quem, 'marketing'\)/);
+    expect(PEDIDO).toContain("grant execute on function public.midia_copiloto_pedir_verba(text, numeric, text) to authenticated;");
+    expect(PEDIDO).toMatch(/revoke all on function public\.midia_copiloto_pedir_verba\(text, numeric, text\) from public, anon;/);
+  });
+});
+

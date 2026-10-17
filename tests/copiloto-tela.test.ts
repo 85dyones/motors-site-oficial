@@ -9,7 +9,9 @@ import type { AcaoNaTela, Leitura, LeituraDoCopiloto } from "../src/lib/copiloto
  *   - aprovar e recusar mandam à rota o id da proposta e a decisão certa;
  *   - o grupo inteiro se aprova de uma vez, com confirmação;
  *   - "Desfazer" só aparece no que foi aplicado e ainda não foi desfeito;
- *   - medição com problema, migração ausente e script parado viram aviso.
+ *   - medição com problema, migração ausente e script parado viram aviso;
+ *   - o pedido de verba mostra a verba de agora e o impacto, segura o teto e
+ *     manda campanha, verba e motivo; o pedido aberto se aprova como proposta.
  *
  * Componentes de verdade; dublê só do `fetch`, do roteador e da confirmação.
  */
@@ -21,7 +23,15 @@ vi.mock("next/link", () => ({
   default: ({ href, children, ...resto }: { href: string; children?: unknown }) => createElement("a", { href, ...resto } as never, children as never),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: atualizou }) }));
-vi.mock("../src/components/admin/ConfirmDialog", () => ({ useConfirm: () => ({ confirm: async () => true }) }));
+const confirmacoes: string[] = [];
+vi.mock("../src/components/admin/ConfirmDialog", () => ({
+  useConfirm: () => ({
+    confirm: async (o: { message: string }) => {
+      confirmacoes.push(o.message);
+      return true;
+    },
+  }),
+}));
 
 const { default: CopilotoDeMidia } = await import("../src/components/marketing/copiloto/CopilotoDeMidia");
 
@@ -31,9 +41,11 @@ const P2 = "33333333-3333-4333-8333-333333333333";
 const P3 = "44444444-4444-4444-8444-444444444444";
 const H1 = "55555555-5555-4555-8555-555555555555";
 const H2 = "66666666-6666-4666-8666-666666666666";
+const V1 = "77777777-7777-4777-8777-777777777777";
 
 const acao = (a: Partial<AcaoNaTela>): AcaoNaTela => ({
   id: P1,
+  campanhaId: "111",
   achadoId: A1,
   desfazAcaoId: null,
   tipo: "negativar",
@@ -55,6 +67,8 @@ const acao = (a: Partial<AcaoNaTela>): AcaoNaTela => ({
   lidoDeVolta: null,
   erro: null,
   descartadaMotivo: null,
+  pedido: false,
+  pedidaPorNome: null,
   desfeita: false,
   ...a,
 });
@@ -117,6 +131,10 @@ function leitura(mudar: (l: LeituraDoCopiloto) => void = () => {}): Leitura<Leit
       acao({ id: H1, situacao: "aplicada", texto: "emprego", correspondencia: "exata", concluidaEm: "2026-10-13T12:00:00Z", lidoDeVolta: { negativa: true }, decididaPorNome: "Ana" }),
       acao({ id: H2, situacao: "falhou", tipo: "mudar_verba", texto: null, correspondencia: null, verbaAtual: 50, verbaNova: 35, erro: "a verba mudou desde a proposta", concluidaEm: "2026-10-13T12:00:00Z" }),
     ],
+    campanhas: [
+      { id: "111", nome: "Pesquisa", verba: 50, situacao: "no_ar", sincronizadoEm: "2026-10-14T11:30:00Z" },
+      { id: "333", nome: "Vender meu carro", verba: 5, situacao: "no_ar", sincronizadoEm: "2026-10-14T11:30:00Z" },
+    ],
     ultimaSincronizacao: "2026-10-14T11:30:00Z",
     scriptParado: false,
     lidoEm: "2026-10-14T12:00:00Z",
@@ -138,6 +156,16 @@ async function montar(l: Leitura<LeituraDoCopiloto>) {
   });
 }
 
+async function digitar(campo: Element | null, valor: string) {
+  expect(campo).not.toBeNull();
+  await act(async () => {
+    const el = campo as HTMLInputElement | HTMLSelectElement;
+    const prototipo = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototipo, "value")!.set!.call(el, valor);
+    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+  });
+}
+
 const clicar = async (el: Element | null) => {
   expect(el).not.toBeNull();
   await act(async () => {
@@ -147,6 +175,7 @@ const clicar = async (el: Element | null) => {
 
 beforeEach(() => {
   pedidos = [];
+  confirmacoes.length = 0;
   atualizou.mockReset();
   vi.stubGlobal("fetch", async (url: string, init: { body: string }) => {
     pedidos.push({ url, corpo: JSON.parse(init.body) });
@@ -225,9 +254,85 @@ describe("tela do Copiloto de Mídia", () => {
     expect(caixa.querySelector('[data-aviso="script-parado"]')!.textContent).toContain("nunca sincronizou");
   });
 
+  it("site publicado antes da migração do pedido: o aviso diz qual migração falta, e que o script não muda", async () => {
+    await montar({ ok: false, faltaMigracao: true, migracao: "20261016200000_copiloto_pedido_de_verba", motivo: "column does not exist" });
+    const aviso = caixa.querySelector('[data-aviso="migracao"]')!.textContent!;
+    expect(aviso).toContain("20261016200000_copiloto_pedido_de_verba");
+    expect(aviso).toContain("o script da conta não muda");
+    expect(aviso).not.toContain("20261014150000");
+  });
+
   it("sem diagnóstico ainda, a tela diz como mandar o primeiro", async () => {
     await montar(leitura((l) => ((l.diagnostico = null), (l.achados = []), (l.abertas = []), (l.historico = []))));
     expect(caixa.querySelector('[data-aviso="sem-diagnostico"]')!.textContent).toContain("Visualizar");
     expect(caixa.querySelector("[data-sem-propostas]")).not.toBeNull();
+  });
+
+  it("pedido de verba: mostra a verba de agora e o impacto, e manda campanha, verba e motivo", async () => {
+    await montar(leitura());
+    const form = caixa.querySelector("[data-pedido-de-verba]")!;
+    expect(form.textContent!.replace(/\u00a0/g, " ")).toContain("Vender meu carro — R$ 5,00 por dia");
+    await digitar(form.querySelector('select[name="campanhaId"]'), "333");
+    await digitar(form.querySelector('input[name="verbaNova"]'), "10");
+    await digitar(form.querySelector('input[name="motivo"]'), "única que converte");
+    // +R$ 5,00 por dia; o Google cobra no mês até 30,4 dias de verba.
+    expect(form.querySelector("[data-impacto]")!.textContent!.replace(/\u00a0/g, " ")).toBe(
+      "R$ 5,00 → R$ 10,00 por dia: +R$ 5,00 por dia, até +R$ 152,00 por mês.",
+    );
+    await clicar(form.querySelector("[data-pedir-verba]"));
+    expect(pedidos).toEqual([
+      { url: "/api/marketing/copiloto/verba", corpo: { campanhaId: "333", verbaNova: 10, motivo: "única que converte" } },
+    ]);
+    expect(atualizou).toHaveBeenCalled();
+  });
+
+  it("pedido de verba: igual à de agora ou acima de 10× não sai da tela", async () => {
+    await montar(leitura());
+    const form = caixa.querySelector("[data-pedido-de-verba]")!;
+    await digitar(form.querySelector('input[name="verbaNova"]'), "500.01");
+    expect(form.querySelector('[role="alert"]')!.textContent).toContain("10×");
+    expect((form.querySelector("[data-pedir-verba]") as HTMLButtonElement).disabled).toBe(true);
+    await digitar(form.querySelector('input[name="verbaNova"]'), "50");
+    expect(form.querySelector('[role="alert"]')!.textContent).toContain("já é a verba");
+    await clicar(form.querySelector("[data-pedir-verba]"));
+    expect(pedidos).toEqual([]);
+  });
+
+  it("sem campanha sincronizada, não há formulário de pedido", async () => {
+    await montar(leitura((l) => (l.campanhas = [])));
+    expect(caixa.querySelector("[data-pedido-de-verba]")).toBeNull();
+  });
+
+  it("o pedido aberto fica em 'Pedidos de verba', sem economia, e se aprova como proposta", async () => {
+    const pedido = acao({
+      id: V1,
+      achadoId: null,
+      tipo: "mudar_verba",
+      texto: null,
+      correspondencia: null,
+      verbaAtual: 5,
+      verbaNova: 10,
+      economia7d: null,
+      evidencias: {},
+      motivo: "Pedido de Ana: única que converte",
+      pedido: true,
+      pedidaPorNome: "Ana",
+    });
+    // Perfil sem nome: continua sendo pedido, no mesmo grupo.
+    const semNome = { ...pedido, id: H2, campanhaNome: "Repasse", motivo: "Pedido de alguém da equipe.", pedidaPorNome: null };
+    await montar(leitura((l) => l.abertas.push(pedido, semNome)));
+    const grupo = caixa.querySelector('[data-grupo-de-propostas="pedidos"]')!;
+    const texto = grupo.textContent!.replace(/\u00a0/g, " ");
+    expect(texto).toContain("Pedidos de verba");
+    expect(texto).toContain("2 pedidos");
+    expect(texto).toContain("Verba de Repasse");
+    expect(texto).not.toContain("em 7 dias");
+    expect(texto).toContain("Verba de Pesquisa: R$ 5,00 → R$ 10,00 por dia");
+    await clicar(grupo.querySelector(`[data-proposta="${V1}"] [data-aprovar]`));
+    expect(pedidos).toEqual([{ url: "/api/marketing/copiloto/decisao", corpo: { ids: [V1], decisao: "aprovar" } }]);
+    // O grupo inteiro: a confirmação diz quanto a verba soma, já que pedido não tem economia.
+    await clicar(grupo.querySelector("[data-aprovar-grupo]"));
+    expect(confirmacoes.at(-1)!.replace(/\u00a0/g, " ")).toContain("somando +R$ 10,00 por dia na verba (até +R$ 304,00 por mês)");
+    expect(pedidos.at(-1)!.corpo).toEqual({ ids: [V1, H2], decisao: "aprovar" });
   });
 });

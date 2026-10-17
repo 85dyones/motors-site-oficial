@@ -342,6 +342,18 @@ describe("scripts/google-ads-script.js — Copiloto de Mídia", () => {
     expect(resultadoDe(r)).toMatchObject({ situacao: "aplicada", lido: { verba: 35 } });
   });
 
+  it("mudar verba: o aumento pedido no painel aplica e lê de volta, sem script novo", () => {
+    const r = rodarScript({ acoes: [acao({ tipo: "mudar_verba", texto: null, correspondencia: null, verbaAtual: 50, verbaNova: 100 })] });
+    expect(r.mudancas).toEqual(["verba 100"]);
+    expect(resultadoDe(r)).toMatchObject({ situacao: "aplicada", lido: { verba: 100 } });
+  });
+
+  it("mudar verba: acima de 10× a verba de agora, falha sem mexer (o mesmo teto do pedido)", () => {
+    const r = rodarScript({ acoes: [acao({ tipo: "mudar_verba", texto: null, correspondencia: null, verbaAtual: 50, verbaNova: 500.01 })] });
+    expect(r.mudancas).toEqual([]);
+    expect(resultadoDe(r)?.erro).toMatch(/fora da faixa/);
+  });
+
   it("mudar verba: se alguém mudou a verba depois da proposta, não mexe", () => {
     const r = rodarScript({
       acoes: [acao({ tipo: "mudar_verba", texto: null, correspondencia: null, verbaAtual: 50, verbaNova: 35 })],

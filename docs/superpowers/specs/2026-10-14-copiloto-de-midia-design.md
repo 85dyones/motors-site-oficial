@@ -112,6 +112,53 @@ O script, antes de mexer, confere o estado: negativa que já existe →
 feito; verba compartilhada → `falhou`; grupo de outra campanha → `falhou`.
 Depois de mexer, lê de volta e devolve o que leu.
 
+## Pedido de verba (16/10/2026)
+
+Pedido do dono: "aumentos pelo copiloto". O diagnóstico continua só cortando
+— aumento é decisão de quem paga —, e quem paga (ou o Marketing) agora o pede
+no painel, em "Para decidir" → **Pedir mudança de verba**.
+
+- **Quem:** a mesma linha da matriz A17 (Administrador e Marketing).
+- **Fluxo:** escolhe a campanha e a verba nova (com o motivo, opcional) →
+  `/api/marketing/copiloto/verba` → `midia_copiloto_pedir_verba`. O pedido
+  nasce **proposta**, no grupo "Pedidos de verba", e passa pela mesma
+  aprovação (`midia_copiloto_decidir`); o script aplica na rodada seguinte e lê
+  de volta. O script não muda: `mudarVerba` já aceitava aumento.
+- **A verba de agora não vem da tela:** o banco lê `midia_campanhas.orcamento_diario`
+  (gravada pela sincronização de hora em hora). Se alguém mudou a verba no
+  Google Ads depois, o script devolve `falhou` sem mexer, como em qualquer
+  mudança de verba.
+- **Teto:** até 10× a verba de agora — o mesmo do script e do CHECK
+  `midia_copiloto_acoes_pedido_na_faixa`. Igual à de agora é recusado.
+- **Com o diagnóstico:** o pedido usa a chave dele (`verba:<campanha>`).
+  Proposta do diagnóstico aberta para a campanha é substituída pelo pedido;
+  mudança já aprovada esperando o script recusa o pedido. O retrato novo não
+  descarta pedido; e, depois de aplicado, o diagnóstico não propõe corte na
+  mesma campanha por uma janela (7 dias), como na cascata. Pedido recusado não
+  segura proposta do diagnóstico.
+- **Uma mudança de verba aberta por campanha** (índice único parcial no
+  banco): pedido, proposta do diagnóstico e desfazer de verba não convivem
+  abertos. O pedido e o desfazer substituem a proposta aberta e são recusados
+  quando já há uma aprovada (ou em aplicação) esperando o script.
+- **Pedido parado não cala o diagnóstico para sempre:** o retrato descarta o
+  pedido sem decisão há mais de uma janela (7 dias).
+- **Verba de agora logo depois de uma aplicação:** o script sincroniza antes de
+  aplicar; por até uma hora a sincronização ainda mostra a verba antiga. O
+  banco e a tela usam a verba que o script leu de volta quando ela é mais nova
+  que a sincronização.
+- **Campanha sincronizada só muda pela sincronização:** `midia_campanhas`
+  deixou de aceitar escrita direta de qualquer pessoa da equipe nas linhas que
+  vêm do Google ou do Meta (só a campanha manual é editável). Antes, um nome
+  trocado à mão faria o aprovador aprovar aumento na campanha errada.
+- **A mesma pessoa pode pedir e aprovar** (a linha da matriz é uma só). Se o
+  dono quiser duas pessoas para aumento, é um CHECK a mais
+  (`decidida_por <> pedida_por` no aumento).
+- **Trilha:** `copiloto_pediu` (quem pediu, carimbado por `auth.uid()`), depois
+  `copiloto_aprovou` e `copiloto_aplicou`, como as outras.
+- Migração `20261016200000_copiloto_pedido_de_verba` (aditiva, não aplicada
+  em produção pelo PR): `pedida_por`/`pedida_por_nome`, a terceira origem da
+  ação, o corte obrigatório só para o que vem do diagnóstico, e a função.
+
 ## Dados (`20261014150000_copiloto_de_midia.sql`)
 
 - `midia_copiloto_parametros` — regras com vigência (D-T1.7), uma vigente por loja.
