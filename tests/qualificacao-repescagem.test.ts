@@ -67,7 +67,11 @@ const MAX_ROWS = 1000;
  * as colunas do `select`, corta em 1000 linhas como o PostgREST e deixa o
  * teste mexer no banco no meio da rodada (`aoReler`): é o painel gravando.
  */
-function bancoFalso(leads: Lead[], eventos: Evento[], ganchos: { aoReler?: (leadId: string, vez: number) => void } = {}) {
+function bancoFalso(
+  leads: Lead[],
+  eventos: Evento[],
+  ganchos: { aoReler?: (leadId: string, vez: number) => void; releituraFalha?: (leadId: string) => boolean } = {},
+) {
   const gravacoes: Array<{ id: unknown; campos: Record<string, unknown> }> = [];
   const relidas = new Map<string, number>();
   const from = (tabela: string) => {
@@ -101,6 +105,7 @@ function bancoFalso(leads: Lead[], eventos: Evento[], ganchos: { aoReler?: (lead
         const vez = (relidas.get(id) ?? 0) + 1;
         relidas.set(id, vez);
         ganchos.aoReler?.(id, vez);
+        if (ganchos.releituraFalha?.(id)) return Promise.resolve({ data: null, error: { message: "timeout" } }).then(ok);
       }
       if (ordem) {
         const o = ordem;
@@ -187,19 +192,31 @@ describe("repescarQualificacoes", () => {
     expect(capi.chamadas.map((c) => c.eventId)).toEqual(["rede:qualificado", "meta-fora:qualificado"]);
   });
 
-  it("recusa 4xx do Meta espera um dia antes de voltar (é o evento, não a hora)", async () => {
-    const recusa = (horasAtras: number) => ({
-      qualificado: { evento: "LeadQualificado", resultado: "recusado", http: 400, em: new Date(AGORA.getTime() - horasAtras * 3600_000).toISOString() },
+  it("evento recusado por inválido (code 100) espera um dia antes de voltar: é o evento, não a hora", async () => {
+    const recusa = (horasAtras: number, code: number) => ({
+      qualificado: {
+        evento: "LeadQualificado",
+        resultado: "recusado",
+        http: 400,
+        em: new Date(AGORA.getTime() - horasAtras * 3600_000).toISOString(),
+        resposta: { error: { message: "x", code } },
+      },
     });
     const { cliente } = bancoFalso(
-      [lead("recente", { situacao: "visita", capi_meta_response: recusa(2) }), lead("antiga", { situacao: "visita", capi_meta_response: recusa(25) })],
-      [ev("recente", "visita", "2026-10-16T10:00:00Z"), ev("antiga", "visita", "2026-10-16T10:00:00Z")],
+      [
+        lead("recente", { situacao: "visita", capi_meta_response: recusa(2, 100) }),
+        lead("antiga", { situacao: "visita", capi_meta_response: recusa(25, 100) }),
+        // Token expirado (190) e limite de chamadas (17) não são o evento: voltam já.
+        lead("token", { situacao: "visita", capi_meta_response: recusa(1, 190) }),
+        lead("limite", { situacao: "visita", capi_meta_response: recusa(1, 17) }),
+      ],
+      ["recente", "antiga", "token", "limite"].map((id) => ev(id, "visita", "2026-10-16T10:00:00Z")),
     );
     const r = await repescarQualificacoes(cliente, PIXEL, AGORA);
     expect(ESPERA_DEPOIS_DE_RECUSA_MS).toBe(24 * 3600_000);
-    expect(capi.chamadas.map((c) => c.eventId)).toEqual(["antiga:qualificado"]);
+    expect(capi.chamadas.map((c) => c.eventId).sort()).toEqual(["antiga:qualificado", "limite:qualificado", "token:qualificado"]);
     // A que espera continua pendente.
-    expect(r).toEqual({ pendentes: 2, enviados: 1, naoAceitos: 0 });
+    expect(r).toEqual({ pendentes: 4, enviados: 3, naoAceitos: 0 });
   });
 
   it("qualificou há mais de 7 dias e não voltou: o Meta recusaria, não vai", async () => {
@@ -255,7 +272,7 @@ describe("repescarQualificacoes", () => {
     const a = lead("a", { situacao: "visita" });
     const { cliente } = bancoFalso([a], [ev("a", "visita", "2026-10-16T10:00:00Z")]);
     expect(await repescarQualificacoes(cliente, PIXEL, AGORA)).toEqual({ pendentes: 1, enviados: 0, naoAceitos: 1 });
-    expect(registroDe(a).qualificado).toMatchObject({ resultado: "recusado", http: 400, repescado: true });
+    expect(registroDe(a).qualificado).toMatchObject({ resultado: "recusado", http: 400, repescado: true, em: AGORA.toISOString() });
   });
 
   it(`no máximo ${REPESCAGEM_POR_RODADA} envios por rodada: primeiro quem nunca foi tentado, depois quem sai dos 7 dias antes`, async () => {
@@ -298,15 +315,31 @@ describe("repescarQualificacoes", () => {
     expect(registroDe(a).qualificado.resultado).toBe("enviado");
   });
 
-  it("se o painel já mandou entre a leitura e o envio, não manda de novo", async () => {
-    const a = lead("a", { situacao: "visita" });
-    const { cliente } = bancoFalso([a], [ev("a", "visita", "2026-10-16T10:00:00Z")], {
-      aoReler: (_id, vez) => {
-        if (vez === 1) a.capi_meta_response = { qualificado: { evento: "LeadQualificado", resultado: "enviado", em: "2026-10-17T20:00:00Z" } };
+  it("se o painel já mandou entre a leitura e o envio, não manda de novo, não conta e não gasta vaga", async () => {
+    const ids = ["d10", "d11", "d12", "d13", "d14", "d15"];
+    const leads = ids.map((id) => lead(id, { situacao: "visita" }));
+    const { cliente } = bancoFalso(
+      leads,
+      ids.map((id) => ev(id, "visita", `2026-10-${id.slice(1)}T21:00:00Z`)),
+      {
+        aoReler: (id, vez) => {
+          if (id === "d10" && vez === 1) leads[0].capi_meta_response = { qualificado: { evento: "LeadQualificado", resultado: "enviado", em: "2026-10-17T20:00:00Z" } };
+        },
       },
+    );
+    const r = await repescarQualificacoes(cliente, PIXEL, AGORA);
+    expect(capi.chamadas.map((c) => c.eventId)).toEqual(["d11", "d12", "d13", "d14", "d15"].map((id) => `${id}:qualificado`));
+    expect(r).toEqual({ pendentes: 5, enviados: 5, naoAceitos: 0 });
+  });
+
+  it("a linha que não deu para reler fica para a próxima rodada, com a falha registrada", async () => {
+    const { cliente, gravacoes } = bancoFalso([lead("a", { situacao: "visita" })], [ev("a", "visita", "2026-10-16T10:00:00Z")], {
+      releituraFalha: () => true,
     });
     await repescarQualificacoes(cliente, PIXEL, AGORA);
     expect(capi.chamadas).toEqual([]);
+    expect(gravacoes).toEqual([]);
+    expect(falhas[0]).toEqual(["quebra", "meta-capi-repescagem", "timeout", { extra: { lead_id: "a" } }]);
   });
 
   it("rastro com mais de 1000 linhas é lido inteiro: a saída da Visita no fim não se perde", async () => {

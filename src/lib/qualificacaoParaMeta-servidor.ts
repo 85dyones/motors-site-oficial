@@ -255,10 +255,13 @@ export const JANELA_DA_REPESCAGEM_MS = 7 * 24 * 3600 * 1000 - 3600 * 1000;
 /** Envios por rodada: cada um pode levar até 5 s, e a rota agendada tem 60 s. */
 export const REPESCAGEM_POR_RODADA = 5;
 /**
- * Recusa do Meta com 4xx é o evento que está errado, não a hora: tentar de
+ * Recusa do Meta por erro NO EVENTO (code 100, parâmetro inválido): tentar de
  * hora em hora só repetiria a recusa (e o alerta). Volta uma vez por dia.
+ * Token, permissão e limite de chamadas também chegam como 4xx, mas passam:
+ * esses voltam na hora seguinte, e esperar um dia tiraria o lead dos 7 dias.
  */
 export const ESPERA_DEPOIS_DE_RECUSA_MS = 24 * 3600 * 1000;
+const CODIGO_DE_EVENTO_INVALIDO = 100;
 
 export interface RodadaDaRepescagem {
   /** Leads que qualificaram na janela e ainda não têm o LeadQualificado aceito. */
@@ -270,17 +273,26 @@ export interface RodadaDaRepescagem {
 
 type LinhaDaRepescagem = LeadParaOMeta & { situacao?: string | null; desfecho?: string | null; desfecho_em?: string | null };
 
-/** Já foi tentado e recusado com 4xx há menos de um dia: fica para depois. */
+/** Já foi tentado e o Meta disse, há menos de um dia, que o evento está errado: fica para depois. */
 function emEspera(anterior: RegistroDaCapi | undefined, agora: number): boolean {
-  if (anterior?.resultado !== "recusado" || anterior.http === undefined || anterior.http < 400 || anterior.http >= 500) return false;
+  if (anterior?.resultado !== "recusado") return false;
+  const codigo = (anterior.resposta as { error?: { code?: unknown } } | undefined)?.error?.code;
+  if (codigo !== CODIGO_DE_EVENTO_INVALIDO) return false;
   const em = Date.parse(anterior.em);
   return Number.isFinite(em) && agora - em < ESPERA_DEPOIS_DE_RECUSA_MS;
 }
 
-/** Os registros da linha AGORA — relidos para não gravar por cima do que outro envio gravou. */
+/**
+ * Os registros da linha AGORA — relidos para não gravar por cima do que outro
+ * envio gravou. Nulo quando a linha sumiu ou não deu para ler (aí registrado).
+ */
 async function registrosDaLinha(cliente: ClienteDeLeads, leadId: string): Promise<RegistrosDaCapi | null> {
   const { data, error } = await cliente.from("leads").select("capi_meta_response").eq("id", leadId).maybeSingle();
-  if (error || !data) return null;
+  if (error) {
+    await registrarFalha("quebra", "meta-capi-repescagem", error.message, { extra: { lead_id: leadId } });
+    return null;
+  }
+  if (!data) return null;
   return lerRegistros((data as { capi_meta_response?: unknown }).capi_meta_response);
 }
 
@@ -298,7 +310,7 @@ async function registrosDaLinha(cliente: ClienteDeLeads, leadId: string): Promis
  *     dobro é o registro da linha: relido logo antes de mandar e logo antes de
  *     gravar, para não pisar no que o painel gravou no meio (o Purchase).
  *   - Na fila, primeiro quem nunca foi tentado, depois quem está mais perto de
- *     sair dos 7 dias. Recusa 4xx espera um dia.
+ *     sair dos 7 dias. Evento recusado por inválido espera um dia.
  *   - Só o LeadQualificado: o Purchase depende do valor, que chega pelo
  *     painel. Lead sem correspondência não é tentado nem registrado.
  *
@@ -376,18 +388,27 @@ export async function repescarQualificacoes(
     fila.sort((a, b) => Number(a.anterior !== undefined) - Number(b.anterior !== undefined) || Date.parse(a.quando) - Date.parse(b.quando));
 
     let pixelId: string | null | undefined;
-    for (const { lead, quando, devido } of fila.slice(0, REPESCAGEM_POR_RODADA)) {
-      if (Date.now() >= prazo) break;
+    let tentados = 0;
+    for (const { lead, quando, devido } of fila) {
+      if (tentados >= REPESCAGEM_POR_RODADA || Date.now() >= prazo) break;
       if (pixelId === undefined) pixelId = await fontes.lerPixelId().catch(() => null);
       if (!pixelId) return rodada;
 
-      // O painel pode ter mandado desde a primeira leitura.
+      // O painel pode ter mandado desde a primeira leitura: aí não está mais pendente.
       const antes = await registrosDaLinha(cliente, lead.id);
-      if (!antes || antes.qualificado?.resultado === "enviado") continue;
+      if (!antes) continue;
+      if (antes.qualificado?.resultado === "enviado") {
+        rodada.pendentes--;
+        continue;
+      }
+      tentados++;
 
       const evento = { ...devido.evento, pixelId, eventTime: Math.floor(Date.parse(quando) / 1000) };
       const entrega = await sendCapiEvent(evento);
-      const registro: RegistroDaCapi = { ...registroDaEntrega(evento.eventName, evento.eventId, entrega, devido.extra), repescado: true };
+      const registro: RegistroDaCapi = {
+        ...registroDaEntrega(evento.eventName, evento.eventId, entrega, devido.extra, agoraMs),
+        repescado: true,
+      };
       if (registro.resultado === "enviado") rodada.enviados++;
       else rodada.naoAceitos++;
 

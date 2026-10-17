@@ -890,9 +890,10 @@ chama `repescarQualificacoes`:
   janela, a mais recente (a volta à Visita, o ganho), o horário que o envio
   em tempo real teria usado.
 - **Quantos:** até 5 por rodada; primeiro quem nunca foi tentado, depois quem
-  sai da janela antes. Recusa 4xx espera 24 h (é o evento que está errado, e
-  cada recusa dispara alerta); rede e 5xx voltam na hora seguinte. Tudo para
-  aos 45 s da rodada (a rota tem 60 s).
+  sai da janela antes. Evento recusado por inválido (code 100) espera 24 h —
+  repetir só repetiria a recusa e o alerta; token, permissão, limite de
+  chamadas, rede e 5xx voltam na hora seguinte. Tudo para aos 45 s da rodada
+  (a rota tem 60 s).
 - **Sem pisar no painel:** o Meta só junta repetidos dentro de 48 h; quem
   evita o envio em dobro é o registro da linha, relido logo antes de mandar e
   logo antes de gravar — o Purchase gravado pelo painel no meio da rodada
