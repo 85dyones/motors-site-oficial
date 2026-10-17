@@ -39,8 +39,21 @@ export interface CampanhaNormalizada {
   noArDesde: string | null;
   /** Alcance da vida inteira — não soma entre dias nem anúncios. Só Meta. */
   alcanceTotal: number | null;
-  anuncios: Array<{ idExterno: string; nome: string }>;
+  anuncios: AnuncioNormalizado[];
   dias: DiaNormalizado[];
+}
+
+/**
+ * Um anúncio da campanha. Conjunto e situações só o Meta manda (a lista de
+ * `/ads`); o Google grava a campanha inteira e não tem anúncio aqui.
+ */
+export interface AnuncioNormalizado {
+  idExterno: string;
+  nome: string;
+  conjuntoIdExterno?: string;
+  conjuntoNome?: string;
+  situacao?: Situacao;
+  conjuntoSituacao?: Situacao;
 }
 
 export interface LoteNormalizado {
@@ -125,6 +138,16 @@ export interface MetaAlcance {
   reach?: string;
 }
 
+/** Um anúncio da lista `/ads`: de que conjunto é, e se está entregando. */
+export interface MetaAnuncio {
+  id: string;
+  name: string;
+  campaign_id: string;
+  adset_id?: string;
+  effective_status?: string;
+  adset?: { id?: string; name?: string; effective_status?: string };
+}
+
 /** O Meta escreve o fuso como `-0300`; `Date` só aceita `-03:00` em todo motor. */
 function isoDoMeta(t: string | undefined): string | null {
   if (!t) return null;
@@ -137,6 +160,8 @@ export function normalizarMeta(entrada: {
   campanhas: MetaCampanha[];
   insights: MetaInsightAnuncio[];
   alcances: MetaAlcance[];
+  /** A lista `/ads` (conjunto e situação). Sem ela, o anúncio vai só com nome. */
+  anuncios?: MetaAnuncio[];
 }): LoteNormalizado {
   const porId = new Map<string, CampanhaNormalizada>();
   const alcance = new Map(entrada.alcances.map((a) => [a.campaign_id, num(a.reach)]));
@@ -184,6 +209,36 @@ export function normalizarMeta(entrada: {
       cliques: Math.round(num(i.inline_link_clicks)),
       conversoes: contarLeadsMeta(i.actions),
     });
+  }
+
+  // Conjunto e situação de cada anúncio, para o copiloto saber o que está no
+  // ar e de que conjunto é. Anúncio sem gasto na janela também entra (o
+  // copiloto precisa saber que ele existe); anúncio de campanha que não está
+  // na lista nem gastou fica de fora — não há onde pendurá-lo.
+  for (const a of entrada.anuncios ?? []) {
+    const c = porId.get(a.campaign_id);
+    if (!c) continue;
+    let an = c.anuncios.find((x) => x.idExterno === a.id);
+    if (!an) {
+      an = { idExterno: a.id, nome: a.name };
+      c.anuncios.push(an);
+    }
+    an.nome = a.name;
+    const conjunto = a.adset_id ?? a.adset?.id;
+    if (conjunto) an.conjuntoIdExterno = conjunto;
+    if (a.adset?.name) an.conjuntoNome = a.adset.name;
+    if (a.effective_status) an.situacao = situacaoMeta(a.effective_status);
+    if (a.adset?.effective_status) an.conjuntoSituacao = situacaoMeta(a.adset.effective_status);
+  }
+
+  // A lista `/ads` traz toda situação que não seja arquivada ou apagada. O
+  // anúncio que gastou na janela e não veio nela acabou: sem isto, o banco
+  // guardaria a situação velha ("no ar") e o copiloto contaria com ele.
+  if (entrada.anuncios) {
+    const listados = new Set(entrada.anuncios.map((a) => a.id));
+    for (const c of porId.values()) {
+      for (const an of c.anuncios) if (!listados.has(an.idExterno)) an.situacao = "encerrada";
+    }
   }
 
   return { plataforma: "meta", janela: entrada.janela, campanhas: [...porId.values()] };
@@ -292,7 +347,16 @@ export function loteParaBanco(lote: LoteNormalizado) {
       orcamento_diario: c.orcamentoDiario,
       no_ar_desde: c.noArDesde,
       alcance_total: c.alcanceTotal,
-      anuncios: c.anuncios.map((a) => ({ id_externo: a.idExterno, nome: a.nome })),
+      anuncios: c.anuncios.map((a) => ({
+        id_externo: a.idExterno,
+        nome: a.nome,
+        // Só o Meta preenche. O que não veio fica fora do JSON, e o banco
+        // mantém o que tinha (`coalesce` em `midia_gravar_lote`).
+        ...(a.conjuntoIdExterno ? { conjunto_id_externo: a.conjuntoIdExterno } : {}),
+        ...(a.conjuntoNome ? { conjunto_nome: a.conjuntoNome } : {}),
+        ...(a.situacao ? { situacao: a.situacao } : {}),
+        ...(a.conjuntoSituacao ? { conjunto_situacao: a.conjuntoSituacao } : {}),
+      })),
       dias: c.dias.map((d) => ({
         anuncio_id_externo: d.anuncioIdExterno,
         dia: d.dia,

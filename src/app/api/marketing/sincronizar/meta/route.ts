@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabaseClient } from "../../../../../lib/supabase-server";
 import { janelaDeDias } from "../../../../../lib/midiaSync";
+import { aplicarAprovadasNoMeta } from "../../../../../lib/copilotoMeta-aplicar";
+import { rodarDiagnosticoMeta } from "../../../../../lib/copilotoMeta-servidor";
 import { buscarMeta, configMeta } from "../../../../../lib/midiaMeta";
 import {
   gravarLote,
@@ -23,6 +25,16 @@ export const maxDuration = 60;
  *
  * Toda rodada autenticada vira uma linha em `midia_sincronizacoes`, deu certo
  * ou não: é o que o painel mostra como "última sincronização".
+ *
+ * A rodada AGENDADA é também a do Copiloto do Meta (17/10/2026), no papel que
+ * o script da conta faz no Google:
+ *   1. aplica o que foi aprovado (`aplicarAprovadasNoMeta`) — ANTES de
+ *      sincronizar, para a sincronização logo depois já ler a conta mudada;
+ *   2. sincroniza;
+ *   3. faz o diagnóstico do dia, uma vez, a partir da hora das regras
+ *      (`rodarDiagnosticoMeta`).
+ * O copiloto nunca derruba a sincronização: o erro dele vai no log e na
+ * resposta, e a rodada segue. O botão do painel só sincroniza.
  */
 export async function POST(request: NextRequest) {
   const iniciadaEm = new Date();
@@ -44,12 +56,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: cfg.erro }, { status: 500 });
   }
 
+  const copiloto: Record<string, unknown> = {};
+  if (gatilho === "agendado") {
+    try {
+      copiloto.aplicacao = await aplicarAprovadasNoMeta(admin);
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      console.error(`[Copiloto do Meta] aplicação: ${motivo}`);
+      copiloto.aplicacao = { feito: false, motivo };
+    }
+  }
+
   const janela = janelaDeDias(gatilho === "painel" ? 30 : 7);
   try {
     const lote = await buscarMeta(janela, cfg);
     const r = await gravarLote(admin, lote);
     await registrarRodada(admin, { plataforma: "meta", gatilho, iniciadaEm, ok: true, ...r });
-    return NextResponse.json({ ok: true, janela, ...r });
+    if (gatilho === "agendado") {
+      try {
+        copiloto.diagnostico = await rodarDiagnosticoMeta(admin, `act_${cfg.conta}`);
+      } catch (err) {
+        const motivo = err instanceof Error ? err.message : String(err);
+        console.error(`[Copiloto do Meta] diagnóstico: ${motivo}`);
+        copiloto.diagnostico = { feito: false, motivo };
+      }
+    }
+    return NextResponse.json({ ok: true, janela, ...r, ...(gatilho === "agendado" ? { copiloto } : {}) });
   } catch (err) {
     const erro = err instanceof Error ? err.message : String(err);
     await registrarRodada(admin, { plataforma: "meta", gatilho, iniciadaEm, ok: false, erro });

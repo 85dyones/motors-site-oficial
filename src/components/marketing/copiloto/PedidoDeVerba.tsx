@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { TETO_DO_PEDIDO_DE_VERBA, descreverAcao } from "../../../lib/copilotoDeMidia";
+import { QUEM_APLICA, TETO_DO_PEDIDO_DE_VERBA, descreverAcao, type PlataformaDoCopiloto } from "../../../lib/copilotoDeMidia";
 import type { CampanhaParaPedido } from "../../../lib/copilotoDeMidia-servidor";
 import { useConfirm } from "../../admin/ConfirmDialog";
 import { DIAS_DO_MES_NO_GOOGLE, quando, reais } from "./formato";
@@ -20,7 +20,14 @@ import { DIAS_DO_MES_NO_GOOGLE, quando, reais } from "./formato";
 
 const centavos = (n: number) => Math.round(n * 100);
 
-export default function PedidoDeVerba({ campanhas }: { campanhas: CampanhaParaPedido[] }) {
+export default function PedidoDeVerba({
+  campanhas,
+  plataforma = "google",
+}: {
+  campanhas: CampanhaParaPedido[];
+  plataforma?: PlataformaDoCopiloto;
+}) {
+  const quem = QUEM_APLICA[plataforma];
   const router = useRouter();
   const { confirm } = useConfirm();
   const [campanhaId, setCampanhaId] = useState(campanhas[0]?.id ?? "");
@@ -71,7 +78,7 @@ export default function PedidoDeVerba({ campanhas }: { campanhas: CampanhaParaPe
         setErro(r.error || "O pedido não foi gravado.");
         return;
       }
-      setAviso("Pedido gravado. Aprove em “Para decidir” e o script aplica na próxima rodada.");
+      setAviso(`Pedido gravado. Aprove em “Para decidir” e ${quem} aplica na próxima rodada.`);
       setValor("");
       setMotivo("");
       router.refresh();
@@ -87,8 +94,9 @@ export default function PedidoDeVerba({ campanhas }: { campanhas: CampanhaParaPe
       <div className="flex flex-col gap-1">
         <h3 className="m-0 text-sm font-extrabold text-mt-ink">Pedir mudança de verba</h3>
         <span className="text-xs leading-relaxed text-mt-neutral-800">
-          O diagnóstico só propõe corte. Aumento é decisão de quem paga e se pede aqui: o pedido passa pela mesma aprovação, e o script
+          O diagnóstico só propõe corte. Aumento é decisão de quem paga e se pede aqui: o pedido passa pela mesma aprovação, e {quem}{" "}
           aplica na rodada seguinte e lê de volta.
+          {plataforma === "meta" && " Só aparecem as campanhas com verba na campanha; a verba que fica nos conjuntos se muda no Meta."}
         </span>
       </div>
       <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">

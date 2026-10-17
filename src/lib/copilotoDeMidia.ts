@@ -34,17 +34,66 @@ export const PAPEIS_DO_COPILOTO = ["admin", "marketing"] as const;
 
 export const MIGRACAO_DO_COPILOTO = "20261014150000_copiloto_de_midia";
 
+/** A migração que traz o Meta para o copiloto (17/10/2026). */
+export const MIGRACAO_DO_COPILOTO_META = "20261017150000_copiloto_meta";
+
+/** As contas que o copiloto conhece. Cada ação e cada retrato é de uma. */
+export const PLATAFORMAS_DO_COPILOTO = ["google", "meta"] as const;
+export type PlataformaDoCopiloto = (typeof PLATAFORMAS_DO_COPILOTO)[number];
+
+export const ROTULO_DA_PLATAFORMA: Record<PlataformaDoCopiloto, string> = {
+  google: "Google Ads",
+  meta: "Meta Ads",
+};
+
+export const ehPlataformaDoCopiloto = (v: unknown): v is PlataformaDoCopiloto =>
+  typeof v === "string" && (PLATAFORMAS_DO_COPILOTO as readonly string[]).includes(v);
+
+/**
+ * Quem aplica o aprovado em cada conta, para as frases da tela: no Google, o
+ * script colado na conta; no Meta, a rodada agendada da sincronização (de
+ * hora em hora), com o token de gestão.
+ */
+export const QUEM_APLICA: Record<PlataformaDoCopiloto, string> = {
+  google: "o script",
+  meta: "a rodada do Meta",
+};
+
+export const NOME_DA_CONTA: Record<PlataformaDoCopiloto, string> = {
+  google: "conta do Google Ads",
+  meta: "conta do Meta",
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Vocabulário — as listas fechadas do banco são estas (o teste confere)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * O que o script sabe fazer. A única exclusão é `remover_negativa`, e ela só
+ * O que o copiloto sabe fazer. A única exclusão é `remover_negativa`, e ela só
  * nasce como o desfazer de uma negativa: o copiloto nunca apaga palavra-chave,
- * anúncio, grupo nem campanha.
+ * anúncio, grupo, conjunto nem campanha.
+ *
+ * Os quatro do fim são do Meta (17/10/2026): no Meta não há negativa, e o
+ * "grupo" é o conjunto de anúncios. `mudar_verba` é das duas plataformas.
  */
-export const TIPOS_DE_ACAO = ["negativar", "remover_negativa", "pausar_grupo", "reativar_grupo", "mudar_verba"] as const;
+export const TIPOS_DE_ACAO = [
+  "negativar",
+  "remover_negativa",
+  "pausar_grupo",
+  "reativar_grupo",
+  "mudar_verba",
+  "pausar_conjunto",
+  "reativar_conjunto",
+  "pausar_anuncio",
+  "reativar_anuncio",
+] as const;
 export type TipoDeAcao = (typeof TIPOS_DE_ACAO)[number];
+
+/** O que cada plataforma aceita — o CHECK `midia_copiloto_acoes_tipo_da_plataforma`. */
+export const TIPOS_DA_PLATAFORMA: Record<PlataformaDoCopiloto, readonly TipoDeAcao[]> = {
+  google: ["negativar", "remover_negativa", "pausar_grupo", "reativar_grupo", "mudar_verba"],
+  meta: ["pausar_conjunto", "reativar_conjunto", "pausar_anuncio", "reativar_anuncio", "mudar_verba"],
+};
 
 export const SITUACOES_DA_ACAO = [
   "proposta",
@@ -68,7 +117,19 @@ export type SituacaoDoResultado = (typeof SITUACOES_DO_RESULTADO)[number];
 export const CORRESPONDENCIAS = ["exata", "frase"] as const;
 export type Correspondencia = (typeof CORRESPONDENCIAS)[number];
 
-export const REGRAS = ["termos_sem_conversao", "ritmo_de_verba", "anuncios_parados", "medicao", "cliques_e_leads", "qualidade"] as const;
+export const REGRAS = [
+  "termos_sem_conversao",
+  "ritmo_de_verba",
+  "anuncios_parados",
+  "medicao",
+  "cliques_e_leads",
+  "qualidade",
+  // Meta (17/10/2026). `ritmo_de_verba` serve às duas.
+  "meta_sem_lead",
+  "meta_custo_por_lead",
+  "meta_qualidade",
+  "meta_medicao",
+] as const;
 export type Regra = (typeof REGRAS)[number];
 
 export const GRUPOS_DE_TERMO = ["concorrente", "cidade", "informativo", "outros"] as const;
@@ -84,6 +145,10 @@ export const DESFAZ: Record<TipoDeAcao, TipoDeAcao> = {
   pausar_grupo: "reativar_grupo",
   reativar_grupo: "pausar_grupo",
   mudar_verba: "mudar_verba",
+  pausar_conjunto: "reativar_conjunto",
+  reativar_conjunto: "pausar_conjunto",
+  pausar_anuncio: "reativar_anuncio",
+  reativar_anuncio: "pausar_anuncio",
 };
 
 export const ROTULO_DO_TIPO: Record<TipoDeAcao, string> = {
@@ -92,6 +157,10 @@ export const ROTULO_DO_TIPO: Record<TipoDeAcao, string> = {
   pausar_grupo: "Pausar grupo",
   reativar_grupo: "Reativar grupo",
   mudar_verba: "Mudar verba",
+  pausar_conjunto: "Pausar conjunto",
+  reativar_conjunto: "Reativar conjunto",
+  pausar_anuncio: "Pausar anúncio",
+  reativar_anuncio: "Reativar anúncio",
 };
 
 export const ROTULO_DA_SITUACAO: Record<SituacaoDaAcao, string> = {
@@ -112,6 +181,10 @@ export const ROTULO_DA_REGRA: Record<Regra, string> = {
   medicao: "Medição",
   cliques_e_leads: "Cliques × leads com gclid",
   qualidade: "Índice de qualidade",
+  meta_sem_lead: "Gasto sem lead no CRM",
+  meta_custo_por_lead: "Custo por lead",
+  meta_qualidade: "Leads sem qualificação",
+  meta_medicao: "Pixel × CRM",
 };
 
 export const ROTULO_DO_GRUPO: Record<GrupoDeTermo, string> = {
@@ -601,6 +674,9 @@ export interface Proposta {
   campanhaNome: string;
   grupoId: string | null;
   grupoNome: string | null;
+  /** Só no Meta: o anúncio (de `pausar_anuncio`). O "grupo" do Meta é o conjunto. */
+  anuncioId?: string | null;
+  anuncioNome?: string | null;
   texto: string | null;
   correspondencia: Correspondencia | null;
   verbaAtual: number | null;
@@ -1397,6 +1473,7 @@ export function descreverAcao(a: {
   tipo: TipoDeAcao;
   campanhaNome: string;
   grupoNome?: string | null;
+  anuncioNome?: string | null;
   texto?: string | null;
   correspondencia?: Correspondencia | null;
   verbaAtual?: number | null;
@@ -1414,5 +1491,13 @@ export function descreverAcao(a: {
       return `Reativar o grupo ${a.grupoNome ?? "?"} (${a.campanhaNome})`;
     case "mudar_verba":
       return `Verba de ${a.campanhaNome}: ${reais(a.verbaAtual ?? 0)} → ${reais(a.verbaNova ?? 0)} por dia`;
+    case "pausar_conjunto":
+      return `Pausar o conjunto ${a.grupoNome ?? "?"} (${a.campanhaNome})`;
+    case "reativar_conjunto":
+      return `Reativar o conjunto ${a.grupoNome ?? "?"} (${a.campanhaNome})`;
+    case "pausar_anuncio":
+      return `Pausar o anúncio ${a.anuncioNome ?? "?"} (${a.grupoNome ?? "?"} · ${a.campanhaNome})`;
+    case "reativar_anuncio":
+      return `Reativar o anúncio ${a.anuncioNome ?? "?"} (${a.grupoNome ?? "?"} · ${a.campanhaNome})`;
   }
 }

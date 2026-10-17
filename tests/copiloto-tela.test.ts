@@ -11,7 +11,9 @@ import type { AcaoNaTela, Leitura, LeituraDoCopiloto } from "../src/lib/copiloto
  *   - "Desfazer" só aparece no que foi aplicado e ainda não foi desfeito;
  *   - medição com problema, migração ausente e script parado viram aviso;
  *   - o pedido de verba mostra a verba de agora e o impacto, segura o teto e
- *     manda campanha, verba e motivo; o pedido aberto se aprova como proposta.
+ *     manda campanha, verba e motivo; o pedido aberto se aprova como proposta;
+ *   - a aba do Meta tem o resumo pelo CRM, diz quem aplica (a rodada do Meta,
+ *     não o script) e avisa quando falta o token de gestão.
  *
  * Componentes de verdade; dublê só do `fetch`, do roteador e da confirmação.
  */
@@ -45,6 +47,7 @@ const V1 = "77777777-7777-4777-8777-777777777777";
 
 const acao = (a: Partial<AcaoNaTela>): AcaoNaTela => ({
   id: P1,
+  plataforma: "google",
   campanhaId: "111",
   achadoId: A1,
   desfazAcaoId: null,
@@ -52,6 +55,7 @@ const acao = (a: Partial<AcaoNaTela>): AcaoNaTela => ({
   situacao: "proposta",
   campanhaNome: "Pesquisa",
   grupoNome: null,
+  anuncioNome: null,
   texto: "loja rival",
   correspondencia: "frase",
   verbaAtual: null,
@@ -75,6 +79,7 @@ const acao = (a: Partial<AcaoNaTela>): AcaoNaTela => ({
 
 function leitura(mudar: (l: LeituraDoCopiloto) => void = () => {}): Leitura<LeituraDoCopiloto> {
   const l: LeituraDoCopiloto = {
+    plataforma: "google",
     regras: {
       parametros: {
         gastoMinimoTermo: 10,
@@ -113,6 +118,7 @@ function leitura(mudar: (l: LeituraDoCopiloto) => void = () => {}): Leitura<Leit
         propostas: 2,
         secoesComErro: [],
       },
+      resumoMeta: null,
       erros: {},
       termos: [
         { termo: "loja rival seminovos", status: "NONE", campanhaId: "111", campanha: "Pesquisa", grupoId: "222", grupo: "G", custo: 40, cliques: 12, impressoes: 90, conversoes: 0 },
@@ -147,12 +153,12 @@ let raiz: Root;
 let caixa: HTMLDivElement;
 let pedidos: Array<{ url: string; corpo: unknown }>;
 
-async function montar(l: Leitura<LeituraDoCopiloto>) {
+async function montar(l: Leitura<LeituraDoCopiloto>, extra: { plataforma?: "google" | "meta"; metaConfigurado?: boolean } = {}) {
   caixa = document.createElement("div");
   document.body.appendChild(caixa);
   raiz = createRoot(caixa);
   await act(async () => {
-    raiz.render(createElement(CopilotoDeMidia, { leitura: l, migracao: "20261014150000_copiloto_de_midia" }));
+    raiz.render(createElement(CopilotoDeMidia, { leitura: l, migracao: "20261014150000_copiloto_de_midia", ...extra }));
   });
 }
 
@@ -334,5 +340,131 @@ describe("tela do Copiloto de Mídia", () => {
     await clicar(grupo.querySelector("[data-aprovar-grupo]"));
     expect(confirmacoes.at(-1)!.replace(/\u00a0/g, " ")).toContain("somando +R$ 10,00 por dia na verba (até +R$ 304,00 por mês)");
     expect(pedidos.at(-1)!.corpo).toEqual({ ids: [V1, H2], decisao: "aprovar" });
+  });
+});
+
+/** A leitura da aba do Meta: o retrato de 14 dias, um anúncio para pausar e um conjunto já pausado. */
+function leituraMeta(mudar: (l: LeituraDoCopiloto) => void = () => {}): Leitura<LeituraDoCopiloto> {
+  return leitura((l) => {
+    l.plataforma = "meta";
+    l.diagnostico = {
+      id: "dm",
+      recebidoEm: "2026-10-17T10:10:00Z",
+      janela: { de: "2026-10-03", ate: "2026-10-16" },
+      previa: false,
+      resumo: null,
+      resumoMeta: {
+        plataforma: "meta",
+        gasto: 1022,
+        impressoes: 56000,
+        cliques: 1120,
+        leadsPixel: 15,
+        leadsCrm: 11,
+        custoPorLead: 92.91,
+        maduros: 9,
+        qualificados: 2,
+        abertosParados: 5,
+        achados: { alta: 1, media: 1, baixa: 0 },
+        propostas: 1,
+      },
+      erros: {},
+      termos: [],
+    };
+    l.achados = [
+      { id: A1, regra: "meta_sem_lead", grupo: null, gravidade: "media", titulo: "Anúncio Carrossel SUV: R$ 252,00 sem nenhum lead no CRM", detalhe: "No conjunto Broad...", evidencias: {} },
+    ];
+    l.abertas = [
+      acao({ plataforma: "meta", tipo: "pausar_anuncio", campanhaId: "C1", campanhaNome: "01 Leads", grupoNome: "Broad", anuncioNome: "Carrossel SUV", texto: null, correspondencia: null, economia7d: 126 }),
+      acao({ id: P2, plataforma: "meta", tipo: "pausar_anuncio", campanhaId: "C1", campanhaNome: "01 Leads", grupoNome: "Broad", anuncioNome: "Vídeo Hilux", texto: null, correspondencia: null, economia7d: 90 }),
+    ];
+    l.historico = [
+      acao({
+        id: H1,
+        plataforma: "meta",
+        tipo: "pausar_conjunto",
+        campanhaId: "C1",
+        campanhaNome: "01 Leads",
+        grupoNome: "Heróis",
+        texto: null,
+        correspondencia: null,
+        situacao: "aplicada",
+        concluidaEm: "2026-10-16T12:00:00Z",
+        lidoDeVolta: { status: "PAUSED", situacaoEfetiva: "ADSET_PAUSED" },
+      }),
+    ];
+    l.campanhas = [{ id: "C1", nome: "01 Leads", verba: 100, situacao: "no_ar", sincronizadoEm: "2026-10-17T10:00:00Z" }];
+    l.ultimaSincronizacao = "2026-10-17T10:00:00Z";
+    l.lidoEm = "2026-10-17T12:00:00Z";
+    mudar(l);
+  });
+}
+
+describe("tela do Copiloto de Mídia — aba do Meta", () => {
+  it("as abas levam a cada plataforma e marcam a aberta", async () => {
+    await montar(leituraMeta(), { plataforma: "meta", metaConfigurado: true });
+    const google = caixa.querySelector('[data-aba="google"]')!;
+    const meta = caixa.querySelector('[data-aba="meta"]')!;
+    expect(google.getAttribute("href")).toBe("/admin/marketing/copiloto");
+    expect(meta.getAttribute("href")).toBe("/admin/marketing/copiloto?plataforma=meta");
+    expect(meta.getAttribute("aria-current")).toBe("page");
+    expect(google.getAttribute("aria-current")).toBeNull();
+  });
+
+  it("o resumo é pelo lead do CRM, com o pixel ao lado e a qualificação do funil", async () => {
+    await montar(leituraMeta(), { plataforma: "meta", metaConfigurado: true });
+    const resumo = caixa.querySelector("[data-resumo]")!.textContent!.replace(/\u00a0/g, " ");
+    expect(resumo).toContain("Gasto no Meta");
+    expect(resumo).toContain("R$ 1.022,00");
+    expect(resumo).toContain("o pixel do Meta contou 15");
+    expect(resumo).toContain("R$ 92,91");
+    expect(resumo).toContain("2 de 9");
+    expect(resumo).not.toContain("gclid");
+  });
+
+  it("aprovar diz que quem aplica é a rodada do Meta, na conta do Meta", async () => {
+    await montar(leituraMeta(), { plataforma: "meta", metaConfigurado: true });
+    const linha = caixa.querySelector(`[data-proposta="${P1}"]`)!;
+    expect(linha.textContent).toContain("Pausar o anúncio Carrossel SUV (Broad · 01 Leads)");
+    await clicar(caixa.querySelector(`[data-grupo-de-propostas="${A1}"] [data-aprovar-grupo]`));
+    expect(confirmacoes.at(-1)).toContain("conta do Meta");
+    expect(confirmacoes.at(-1)).toContain("A rodada do Meta aplica");
+    expect(confirmacoes.at(-1)).not.toContain("Google");
+  });
+
+  it("o histórico diz o que o Meta leu de volta, e o desfazer quem faz o inverso", async () => {
+    await montar(leituraMeta(), { plataforma: "meta", metaConfigurado: true });
+    const linha = caixa.querySelector(`[data-historico-acao="${H1}"]`)!;
+    expect(linha.textContent).toContain("Pausar o conjunto Heróis (01 Leads)");
+    expect(linha.textContent).toContain("está pausado na conta");
+    await clicar(linha.querySelector("[data-desfazer]"));
+    expect(confirmacoes.at(-1)).toContain("a rodada do Meta faz o inverso");
+  });
+
+  it("sem o token de gestão, avisa que nada aprovado vai para a conta", async () => {
+    await montar(leituraMeta(), { plataforma: "meta", metaConfigurado: false });
+    expect(caixa.querySelector('[data-aviso="meta-sem-token"]')!.textContent).toContain("META_ADS_MANAGEMENT_TOKEN");
+    act(() => raiz.unmount());
+    caixa.remove();
+    await montar(leituraMeta(), { plataforma: "meta", metaConfigurado: true });
+    expect(caixa.querySelector('[data-aviso="meta-sem-token"]')).toBeNull();
+  });
+
+  it("sem diagnóstico do Meta, diz quando ele sai; sem rodada agendada, que nada é aplicado", async () => {
+    await montar(
+      leituraMeta((l) => ((l.diagnostico = null), (l.achados = []), (l.scriptParado = true), (l.ultimaSincronizacao = null))),
+      { plataforma: "meta", metaConfigurado: true },
+    );
+    const sem = caixa.querySelector('[data-aviso="sem-diagnostico"]')!.textContent!;
+    expect(sem).toContain("rodada agendada da sincronização do Meta");
+    expect(sem).toContain("7h");
+    expect(sem).not.toContain("Visualizar");
+    expect(caixa.querySelector('[data-aviso="script-parado"]')!.textContent).toContain("A rodada agendada do Meta nunca deu certo");
+  });
+
+  it("site publicado antes da migração do Meta: o aviso diz qual falta, e que o script do Google não muda", async () => {
+    await montar({ ok: false, faltaMigracao: true, migracao: "20261017150000_copiloto_meta", motivo: "column does not exist" }, { plataforma: "meta" });
+    const aviso = caixa.querySelector('[data-aviso="migracao"]')!.textContent!;
+    expect(aviso).toContain("20261017150000_copiloto_meta");
+    expect(aviso).toContain("o script do Google não muda");
   });
 });

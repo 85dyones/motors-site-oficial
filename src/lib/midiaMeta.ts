@@ -3,6 +3,7 @@ import {
   type Janela,
   type LoteNormalizado,
   type MetaAlcance,
+  type MetaAnuncio,
   type MetaCampanha,
   type MetaInsightAnuncio,
 } from "./midiaSync";
@@ -10,11 +11,13 @@ import {
 /**
  * Leitura do Meta Ads pela Graph API (spec 2026-09-24).
  *
- * Três chamadas, todas na conta de anúncio:
+ * Quatro chamadas, todas na conta de anúncio:
  *   1. /campaigns — nome, objetivo, situação, orçamento, início;
  *   2. /insights por ANÚNCIO e por DIA na janela — gasto, impressões,
  *      cliques no link e ações (de onde saem os leads);
- *   3. /insights por campanha, vida inteira — só o alcance, que não soma.
+ *   3. /insights por campanha, vida inteira — só o alcance, que não soma;
+ *   4. /ads — o conjunto de cada anúncio e a situação dos dois, que o
+ *      Copiloto do Meta usa para saber o que está no ar (17/10/2026).
  *
  * O token vai no cabeçalho `Authorization`, nunca na URL: URL aparece em log
  * de proxy, e cabeçalho não.
@@ -27,6 +30,19 @@ const TEMPO_LIMITE_MS = 20000;
 const MAX_PAGINAS = 20;
 
 const SITUACOES_LISTADAS = ["ACTIVE", "PAUSED", "IN_PROCESS", "WITH_ISSUES", "PENDING_REVIEW"];
+/**
+ * Anúncio parado pelo pai, reprovado ou esperando também interessa: é o que
+ * não entrega. Só arquivado e apagado ficam de fora — e o anúncio que gastou na
+ * janela e não veio na lista é marcado encerrado (`normalizarMeta`).
+ */
+const SITUACOES_DE_ANUNCIO = [
+  ...SITUACOES_LISTADAS,
+  "ADSET_PAUSED",
+  "CAMPAIGN_PAUSED",
+  "DISAPPROVED",
+  "PREAPPROVED",
+  "PENDING_BILLING_INFO",
+];
 
 export interface ConfigMeta {
   token: string;
@@ -97,7 +113,7 @@ export async function buscarMeta(
   const base = `https://graph.facebook.com/${cfg.versao}/act_${cfg.conta}`;
   const q = (p: Record<string, string>) => new URLSearchParams(p).toString();
 
-  const [campanhas, insights, alcances] = await Promise.all([
+  const [campanhas, insights, alcances, anuncios] = await Promise.all([
     paginar<MetaCampanha>(
       `${base}/campaigns?${q({
         fields: "id,name,objective,effective_status,daily_budget,start_time",
@@ -128,7 +144,16 @@ export async function buscarMeta(
       cfg,
       buscar,
     ),
+    paginar<MetaAnuncio>(
+      `${base}/ads?${q({
+        fields: "id,name,campaign_id,adset_id,effective_status,adset{name,effective_status}",
+        effective_status: JSON.stringify(SITUACOES_DE_ANUNCIO),
+        limit: "500",
+      })}`,
+      cfg,
+      buscar,
+    ),
   ]);
 
-  return normalizarMeta({ janela, campanhas, insights, alcances });
+  return normalizarMeta({ janela, campanhas, insights, alcances, anuncios });
 }
