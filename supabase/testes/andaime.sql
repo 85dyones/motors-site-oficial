@@ -547,6 +547,14 @@ create policy auditoria_admin_insercao on public.auditoria_admin
 --   * RLS e a policy (staff) ....................... 20260813120000_role_cliente_e_is_staff.sql:165-169
 -- Sem `org_id`, como em produção: a loja da campanha chega com a S1.
 --
+-- ⚠️ A policy abaixo (for all, qualquer staff escreve em qualquer linha) é a
+-- de produção ANTES da 20261016200000, copiada de propósito: é ela que aquela
+-- migração derruba, trocando-a por leitura de staff e escrita só na campanha
+-- manual (`midia_campanhas_leitura`, `midia_campanhas_manual_*`). Com a forma
+-- nova aqui, o aceite provaria a porta fechada num banco onde ela nunca esteve
+-- aberta — a mesma regra do recorte de `leads`. O GRANT a anon também é o de
+-- produção (a default ACL do topo), e a 20261016200000 o revoga.
+--
 -- ⚠️ Mesma regra dos outros recortes: se a 20260807120000 entrar na cadeia um
 -- dia, este sai daqui.
 create table public.midia_campanhas (
