@@ -109,13 +109,21 @@ export async function autorizarScript(cabecalhos: Headers): Promise<PortaDoScrip
 export function motivoDoErro(erro: unknown): { status: number; motivo: string } {
   const e = erro as { code?: string; message?: string };
   // Coluna ausente: a migração mais nova que o código lê (a do Meta) não foi aplicada.
-  if (ehColunaAusente(e)) {
-    return { status: 503, motivo: `O banco ainda não tem o Copiloto do Meta: aplique a migração ${MIGRACAO_DO_COPILOTO_META}.` };
-  }
+  if (ehColunaAusente(e)) return { status: 503, motivo: FALTA_A_DO_META };
   if (ehTabelaAusente(e)) {
     return { status: 503, motivo: "O banco ainda não tem as tabelas do copiloto: aplique a migração 20261014150000_copiloto_de_midia." };
   }
   return { status: statusDoErro(e), motivo: e?.message ?? String(erro) };
+}
+
+const FALTA_A_DO_META = `O banco ainda não tem o Copiloto do Meta: aplique a migração ${MIGRACAO_DO_COPILOTO_META}.`;
+
+/** Uma leitura que falhou, como resposta HTTP: a migração ausente diz QUAL falta. */
+export function motivoDaLeitura(l: { faltaMigracao: boolean; motivo: string; migracao?: string }): { status: number; motivo: string } {
+  if (!l.faltaMigracao) return { status: 500, motivo: l.motivo };
+  if (l.migracao === MIGRACAO_DO_COPILOTO_META) return { status: 503, motivo: FALTA_A_DO_META };
+  if (l.migracao) return { status: 503, motivo: `O banco ainda não tem o que o site lê: aplique a migração ${l.migracao}.` };
+  return motivoDoErro({ code: "42P01" });
 }
 
 /** Erro do banco → status HTTP: papel (42501), pedido torto (22023), não achou (P0002). */
@@ -200,6 +208,9 @@ export async function lerRegras(cliente: SupabaseClient, org?: string): Promise<
   let consulta = cliente.from("midia_copiloto_parametros").select(COLUNAS_DOS_PARAMETROS).is("vigencia_ate", null);
   if (org) consulta = consulta.eq("org_id", org);
   const { data, error } = await consulta.order("vigencia_desde", { ascending: false }).limit(1);
+  // Coluna ausente antes de tabela ausente: "does not exist" casa as duas, e
+  // quem falta aqui é a migração do Meta (os limiares `meta_*`), não a do copiloto.
+  if (error && ehColunaAusente(error)) return { ok: false, faltaMigracao: true, migracao: MIGRACAO_DO_COPILOTO_META, motivo: error.message };
   if (error) return { ok: false, faltaMigracao: ehTabelaAusente(error), motivo: error.message };
   const linha = (data as unknown as Record<string, unknown>[] | null)?.[0];
   if (!linha) return { ok: false, faltaMigracao: false, motivo: "Nenhuma regra vigente para o copiloto." };

@@ -196,6 +196,16 @@ describe("POST /api/marketing/copiloto/acoes (script)", () => {
     expect(chamou("midia_copiloto_reservar_acoes")).toBe(true);
   });
 
+  it("site antes da migração do Meta: as regras caem, o 503 nomeia a migração do Meta e nada é reservado", async () => {
+    estado.regras = { data: null, error: { message: "column midia_copiloto_parametros.meta_vezes_sem_lead does not exist", code: "42703" } };
+    const r = await postAcoes(req({ previa: false, fuso: "America/Sao_Paulo" }, SEGREDO));
+    expect(r.status).toBe(503);
+    const erro = (await r.json()).error as string;
+    expect(erro).toContain("20261017150000_copiloto_meta");
+    expect(erro).not.toContain("20261014150000");
+    expect(chamou("midia_copiloto_reservar_acoes")).toBe(false);
+  });
+
   it("ação do Meta que escape da reserva não vai ao script: fecha como falha", async () => {
     estado.reservadas = [
       { id: ID, plataforma: "google", tipo: "negativar", campanha_id_externo: "111", grupo_id_externo: null, texto: "x", correspondencia: "exata", verba_atual: null, verba_nova: null },
@@ -261,6 +271,14 @@ describe("POST /api/marketing/copiloto/diagnostico (script)", () => {
   it("sem segredo: 401 e nada é gravado", async () => {
     const r = await postDiagnostico(req(RETRATO));
     expect(r.status).toBe(401);
+    expect(chamou("midia_copiloto_gravar_diagnostico")).toBe(false);
+  });
+
+  it("site antes da migração do Meta: 503 nomeando a migração do Meta, e nada é gravado", async () => {
+    estado.regras = { data: null, error: { message: "column midia_copiloto_parametros.meta_vezes_sem_lead does not exist", code: "42703" } };
+    const r = await postDiagnostico(req(RETRATO, SEGREDO));
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toContain("20261017150000_copiloto_meta");
     expect(chamou("midia_copiloto_gravar_diagnostico")).toBe(false);
   });
 

@@ -281,7 +281,9 @@ export async function aplicarAcaoNoMeta(
 
 /**
  * Aplica e lê de volta. Se o POST falhar, lê a conta antes de concluir: um
- * POST que estourou o tempo pode ter sido aplicado.
+ * POST que estourou o tempo pode ter sido aplicado. Erro passageiro no POST
+ * com a conta como antes adia (nada mudou; a reentrega tenta de novo). A
+ * leitura de volta tenta duas vezes.
  */
 async function mudarELerDeVolta(
   acaoId: string,
@@ -291,32 +293,38 @@ async function mudarELerDeVolta(
   mudanca: Record<string, string>,
   camposDeVolta: string,
   conferir: (d: Record<string, unknown>) => Conferencia,
-): Promise<ResultadoDaAcao> {
-  let erroDoPost: string | null = null;
+): Promise<ResultadoDaAcao | AdiadaNoMeta> {
+  let erroDoPost: ErroDeGestao | null = null;
   try {
     await graph(cfg, buscar, id, mudanca);
   } catch (e) {
-    erroDoPost = e instanceof Error ? e.message : String(e);
+    erroDoPost = e instanceof ErroDeGestao ? e : new ErroDeGestao(String(e), true);
   }
 
-  let depois: Record<string, unknown>;
-  try {
-    depois = await graph(cfg, buscar, `${id}?fields=${camposDeVolta}`);
-  } catch (e) {
-    const motivo = e instanceof Error ? e.message : String(e);
+  let depois: Record<string, unknown> | null = null;
+  let motivoDaLeitura = "";
+  for (let tentativa = 0; tentativa < 2 && !depois; tentativa++) {
+    try {
+      depois = await graph(cfg, buscar, `${id}?fields=${camposDeVolta}`);
+    } catch (e) {
+      motivoDaLeitura = e instanceof Error ? e.message : String(e);
+    }
+  }
+  if (!depois) {
     const erro = erroDoPost
-      ? `O Meta não confirmou a mudança (${erroDoPost}) e a conta não pôde ser lida de volta (${motivo}). Ela pode ter sido aplicada: confira no Gerenciador de Anúncios.`
-      : `O Meta aceitou a mudança, mas a conta não pôde ser lida de volta (${motivo}). Confira no Gerenciador de Anúncios.`;
+      ? `O Meta não confirmou a mudança (${erroDoPost.message}) e a conta não pôde ser lida de volta (${motivoDaLeitura}). Ela pode ter sido aplicada: confira no Gerenciador de Anúncios.`
+      : `O Meta aceitou a mudança, mas a conta não pôde ser lida de volta (${motivoDaLeitura}). Confira no Gerenciador de Anúncios.`;
     return { id: acaoId, situacao: "falhou", lido: {}, erro: erro.slice(0, 400) };
   }
 
   const c = conferir(depois);
   if (c.pronto === true) return { id: acaoId, situacao: "aplicada", lido: c.lido, erro: null };
+  if (erroDoPost?.passageiro && c.pronto === false) return { id: acaoId, adiada: true, motivo: erroDoPost.message };
   const erro =
     erroDoPost && c.pronto === false
-      ? `${erroDoPost}. Nada foi mudado.`
+      ? `${erroDoPost.message}. Nada foi mudado.`
       : erroDoPost
-        ? `${erroDoPost}; ${c.frase ?? "a conta não mudou"}.`
+        ? `${erroDoPost.message}; ${c.frase ?? "a conta não mudou"}.`
         : `O Meta aceitou a mudança, mas ${c.frase ?? "a conta não mudou"}.`;
   return { id: acaoId, situacao: "falhou", lido: c.lido, erro: erro.slice(0, 400) };
 }

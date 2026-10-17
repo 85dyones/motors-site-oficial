@@ -255,10 +255,23 @@ describe("aplicarAcaoNoMeta — quando o Meta não responde", () => {
   });
 
   it("o POST falha e a conta não pode ser lida: falha avisando que pode ter sido aplicada", async () => {
-    const { buscar } = graphFalso({ ...VIZINHOS, S1: conjunto() }, { roteiro: { 2: "rede", 3: "rede" } });
+    // POST e as duas leituras de volta caem.
+    const { buscar } = graphFalso({ ...VIZINHOS, S1: conjunto() }, { roteiro: { 2: "rede", 3: "rede", 4: "rede" } });
     const r = await aplicarAcaoNoMeta(pausarConjunto, CFG, buscar);
     expect(r).toMatchObject({ situacao: "falhou" });
     expect(erroDe(r)).toContain("pode ter sido aplicada: confira no Gerenciador de Anúncios");
+  });
+});
+
+describe("aplicarAcaoNoMeta — o POST que esbarra no limite", () => {
+  it("limite de chamadas no POST e a conta como antes: adia, não falha", async () => {
+    const { buscar } = graphFalso({ ...VIZINHOS, S1: conjunto() }, { roteiro: { 2: { status: 400, corpo: { error: { code: 17 } } } } });
+    expect(await aplicarAcaoNoMeta(pausarConjunto, CFG, buscar)).toMatchObject({ id: "acao-1", adiada: true });
+  });
+
+  it("a primeira leitura de volta cai e a segunda confirma: aplicada", async () => {
+    const { buscar } = graphFalso({ ...VIZINHOS, S1: conjunto() }, { roteiro: { 3: "rede" } });
+    expect(await aplicarAcaoNoMeta(pausarConjunto, CFG, buscar)).toMatchObject({ situacao: "aplicada", lido: { status: "PAUSED" } });
   });
 });
 

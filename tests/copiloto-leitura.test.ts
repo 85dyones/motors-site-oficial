@@ -72,7 +72,14 @@ describe("lerCopiloto — cada aba lê só a sua plataforma", () => {
     expect(r.ok && r.valor.diagnostico).toMatchObject({ resumo: null, resumoMeta: { plataforma: "meta", gasto: 10 } });
   });
 
-  it("site publicado antes da migração do Meta: diz qual migração falta", async () => {
+  it("site publicado antes da migração do Meta: as regras (colunas meta_*) são as primeiras a cair, e dizem qual migração falta", async () => {
+    const { cliente } = bancoFalso({
+      midia_copiloto_parametros: { data: null, error: { message: "column midia_copiloto_parametros.meta_gasto_minimo_conjunto does not exist", code: "42703" } },
+    });
+    expect(await lerCopiloto(cliente, AGORA, "meta")).toMatchObject({ ok: false, faltaMigracao: true, migracao: "20261017150000_copiloto_meta" });
+  });
+
+  it("site publicado antes da migração do Meta: o retrato também diz qual migração falta", async () => {
     const { cliente } = bancoFalso({
       midia_copiloto_diagnosticos: { data: null, error: { message: "column midia_copiloto_diagnosticos.plataforma does not exist", code: "42703" } },
     });
