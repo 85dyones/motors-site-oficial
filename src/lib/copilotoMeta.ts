@@ -542,7 +542,7 @@ export function diagnosticarMeta(r: RetratoDoMeta, p: ParametrosDoCopiloto): Res
       gravidade: "baixa",
       titulo: `${abertosParados} leads do Meta sem avanço no funil há mais de ${diasParaAmadurecer} dias`,
       detalhe:
-        `De ${maduros.length} leads do Meta com mais de ${diasParaAmadurecer} dias, ${abertosParados} seguem em contato, sem desfecho, e nunca chegaram a Visita agendada. ` +
+        `De ${maduros.length} leads do Meta com mais de ${diasParaAmadurecer} dias, ${abertosParados} seguem abertos, sem desfecho, e nunca chegaram a Visita agendada. ` +
         "Se a visita foi marcada, mova para Visita agendada — é isso que manda o lead qualificado ao Meta; " +
         "se não há negócio, marque Perdido ou Não é oportunidade.",
       evidencias: { janelaQualidade: r.janelaQualidade, maduros: maduros.length, abertosParados },

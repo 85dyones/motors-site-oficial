@@ -15,7 +15,8 @@ import {
   type RetratoDoMeta,
 } from "./copilotoMeta";
 import { janelaDeDias, type Situacao } from "./midiaSync";
-import { quandoQualificou, type PassagemDeEtapa } from "./qualificacaoParaMeta";
+import { quandoQualificou } from "./qualificacaoParaMeta";
+import { lerRastroDeEtapas } from "./qualificacaoParaMeta-servidor";
 
 /**
  * O Copiloto do Meta no servidor (17/10/2026): monta o retrato com a chave de
@@ -34,8 +35,6 @@ const situacaoOuNula = (v: unknown): Situacao | null => (typeof v === "string" &
 
 /** O PostgREST corta cada resposta em 1000 linhas, em silêncio. */
 const PAGINA = 1000;
-/** Ids por `in(...)`: a lista vai na URL do PostgREST. */
-const IDS_POR_CONSULTA = 100;
 /** Mais que isto é outra conta, não a da loja: melhor parar do que julgar pela metade. */
 const MAX_LINHAS = 50000;
 
@@ -144,27 +143,7 @@ export async function montarRetratoMeta(admin: SupabaseClient, conta: string, ag
 
   // "Qualificou" é CHEGAR a Visita ou Negociação (e ficar), não estar lá hoje:
   // quem visitou e depois foi perdido qualificou. Vem do rastro do funil.
-  const passagensDe = new Map<string, PassagemDeEtapa[]>();
-  const idsDosLeads = linhasLeads.map((l) => String(l.id));
-  for (let i = 0; i < idsDosLeads.length; i += IDS_POR_CONSULTA) {
-    const lote = idsDosLeads.slice(i, i + IDS_POR_CONSULTA);
-    const linhasEv = await todasAsLinhas((de, fim) =>
-      admin
-        .from("leads_eventos")
-        .select("lead_id, para, criado_em")
-        .eq("tipo", "etapa")
-        .in("lead_id", lote)
-        .order("id", { ascending: true })
-        .range(de, fim),
-    );
-    for (const e of linhasEv) {
-      if (typeof e.para !== "string") continue;
-      const id = String(e.lead_id);
-      const lista = passagensDe.get(id) ?? [];
-      lista.push({ para: e.para, em: String(e.criado_em) });
-      passagensDe.set(id, lista);
-    }
-  }
+  const passagensDe = await lerRastroDeEtapas(admin, linhasLeads.map((l) => String(l.id)));
 
   const leads: LeadDoMeta[] = linhasLeads.map((l) => {
     const qualificado = quandoQualificou(passagensDe.get(String(l.id)) ?? [], {

@@ -14,6 +14,8 @@ let aplicacaoFalha = false;
 let diagnosticoFalha = false;
 let buscaFalha = false;
 let repescagemFalha = false;
+let configFalha = false;
+let prazoRecebido: number | undefined;
 
 vi.mock("../src/lib/supabase-server", () => ({
   createAdminSupabaseClient: () => ({
@@ -36,7 +38,7 @@ vi.mock("../src/lib/supabase-server", () => ({
 }));
 
 vi.mock("../src/lib/midiaMeta", () => ({
-  configMeta: () => ({ token: "leitura", versao: "v21.0", conta: "802008949148808" }),
+  configMeta: () => (configFalha ? { erro: "META_ADS_TOKEN ausente" } : { token: "leitura", versao: "v21.0", conta: "802008949148808" }),
   buscarMeta: async () => {
     ordem.push("buscar");
     if (buscaFalha) throw new Error("Meta fora do ar");
@@ -62,8 +64,9 @@ vi.mock("../src/lib/copilotoMeta-servidor", () => ({
 }));
 
 vi.mock("../src/lib/qualificacaoParaMeta-servidor", () => ({
-  repescarQualificacoes: async () => {
+  repescarQualificacoes: async (_admin: unknown, _fontes: unknown, _agora: unknown, prazo: number) => {
     ordem.push("repescar");
+    prazoRecebido = prazo;
     if (repescagemFalha) throw new Error("Meta recusou");
     return { pendentes: 0, enviados: 0, naoAceitos: 0 };
   },
@@ -84,6 +87,8 @@ beforeEach(() => {
   diagnosticoFalha = false;
   buscaFalha = false;
   repescagemFalha = false;
+  configFalha = false;
+  prazoRecebido = undefined;
 });
 
 describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
@@ -91,18 +96,22 @@ describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
     const r = await POST(agendado());
     expect(r.status).toBe(200);
     expect(ordem).toEqual(["aplicar", "buscar", "gravar", "diagnosticar:act_802008949148808", "repescar"]);
-    const corpo = (await r.json()) as { copiloto: Record<string, { feito: boolean }> };
+    const corpo = (await r.json()) as { copiloto: Record<string, { feito: boolean }>; repescagem: unknown };
     expect(corpo.copiloto.aplicacao.feito).toBe(true);
     expect(corpo.copiloto.diagnostico.feito).toBe(false);
-    expect(corpo.copiloto.repescagem).toEqual({ pendentes: 0, enviados: 0, naoAceitos: 0 });
+    // A repescagem não é do copiloto: vai fora dele, com prazo dentro dos 60 s da rota.
+    expect(corpo.copiloto).not.toHaveProperty("repescagem");
+    expect(corpo.repescagem).toEqual({ pendentes: 0, enviados: 0, naoAceitos: 0 });
+    expect(prazoRecebido! - Date.now()).toBeLessThanOrEqual(45_000);
+    expect(prazoRecebido! - Date.now()).toBeGreaterThan(30_000);
   });
 
   it("a repescagem falhando não derruba a sincronização", async () => {
     repescagemFalha = true;
     const r = await POST(agendado());
     expect(r.status).toBe(200);
-    const corpo = (await r.json()) as { copiloto: Record<string, { feito: boolean; motivo?: string }> };
-    expect(corpo.copiloto.repescagem).toEqual({ feito: false, motivo: "Meta recusou" });
+    const corpo = (await r.json()) as { repescagem: unknown };
+    expect(corpo.repescagem).toEqual({ feito: false, motivo: "Meta recusou" });
   });
 
   it("painel: só sincroniza", async () => {
@@ -110,8 +119,9 @@ describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
     const r = await POST(painel());
     expect(r.status).toBe(200);
     expect(ordem).toEqual(["buscar", "gravar"]);
-    expect(ordem).not.toContain("repescar");
-    expect(await r.json()).not.toHaveProperty("copiloto");
+    const corpo = await r.json();
+    expect(corpo).not.toHaveProperty("copiloto");
+    expect(corpo).not.toHaveProperty("repescagem");
   });
 
   it("a aplicação falhando não derruba a sincronização", async () => {
@@ -131,10 +141,26 @@ describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
     expect(corpo.copiloto.diagnostico).toEqual({ feito: false, motivo: "gravação falhou" });
   });
 
-  it("sem sincronizar, não diagnostica (o retrato seria velho)", async () => {
+  it("sem sincronizar, não diagnostica (o retrato seria velho) — mas repesca, que vai pela CAPI", async () => {
     buscaFalha = true;
     const r = await POST(agendado());
     expect(r.status).toBe(502);
-    expect(ordem).toEqual(["aplicar", "buscar"]);
+    expect(ordem).toEqual(["aplicar", "buscar", "repescar"]);
+    expect(await r.json()).toMatchObject({ error: "Meta fora do ar", repescagem: { enviados: 0 } });
+  });
+
+  it("sem a configuração dos anúncios, a repescagem roda do mesmo jeito", async () => {
+    configFalha = true;
+    const r = await POST(agendado());
+    expect(r.status).toBe(500);
+    expect(ordem).toEqual(["repescar"]);
+  });
+
+  it("painel sem a configuração dos anúncios: não repesca", async () => {
+    staff = true;
+    configFalha = true;
+    const r = await POST(painel());
+    expect(r.status).toBe(500);
+    expect(ordem).toEqual([]);
   });
 });
