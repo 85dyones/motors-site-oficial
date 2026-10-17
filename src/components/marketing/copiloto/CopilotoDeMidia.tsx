@@ -5,14 +5,19 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { EstadoDaChecagem } from "../../../lib/consultaDePlaca";
 import {
+  MIGRACAO_DO_PEDIDO_DE_VERBA,
+  PLATAFORMAS_DO_COPILOTO,
+  QUEM_APLICA,
   QUEM_PEDIU_SEM_NOME,
   ROTULO_DA_GRAVIDADE,
+  ROTULO_DA_PLATAFORMA,
   ROTULO_DA_REGRA,
   ROTULO_DA_SITUACAO,
   ROTULO_DO_GRUPO,
   classificarTermo,
   descreverAcao,
   type Gravidade,
+  type PlataformaDoCopiloto,
 } from "../../../lib/copilotoDeMidia";
 import type { AcaoNaTela, Leitura, LeituraDoCopiloto } from "../../../lib/copilotoDeMidia-servidor";
 import SinalDeEstado, { COR_DO_ESTADO } from "../../admin/consulta/SinalDeEstado";
@@ -37,15 +42,34 @@ import { SINAL_DA_GRAVIDADE, SINAL_DA_SITUACAO, diaMes, haQuanto, numero, quando
  *
  * O script aplica o que foi aprovado na rodada seguinte (de hora em hora), lê
  * de volta da conta e devolve o resultado; o histórico mostra o que ele leu.
+ *
+ * A aba do Meta (17/10/2026) é o mesmo fluxo com outro executor: o diagnóstico
+ * sai da rodada agendada da sincronização do Meta (14 dias de gasto, leads e
+ * etapa do funil do CRM), e quem aplica é essa mesma rodada, com o token de
+ * gestão. Cada aba lê só a sua plataforma.
  */
 
 const PAREDE_DE_TERMOS = 60;
 
-export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitura<LeituraDoCopiloto>; migracao: string }) {
+export default function CopilotoDeMidia({
+  leitura,
+  migracao,
+  plataforma = "google",
+  metaConfigurado = false,
+}: {
+  leitura: Leitura<LeituraDoCopiloto>;
+  migracao: string;
+  plataforma?: PlataformaDoCopiloto;
+  /** O token de gestão do Meta existe no servidor (só o fato, nunca o valor). */
+  metaConfigurado?: boolean;
+}) {
   const [todosOsTermos, setTodosOsTermos] = useState(false);
   const dados = leitura.ok ? leitura.valor : null;
   const diag = dados?.diagnostico ?? null;
   const resumo = diag?.resumo ?? null;
+  const resumoMeta = diag?.resumoMeta ?? null;
+  const doMeta = plataforma === "meta";
+  const quem = QUEM_APLICA[plataforma];
 
   const avisos: Array<{ chave: string; estado: EstadoDaChecagem; rotulo: string; texto: ReactNode }> = [];
   if (!leitura.ok) {
@@ -54,10 +78,15 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
       estado: "impeditivo",
       rotulo: leitura.faltaMigracao ? "Configuração" : "Erro",
       texto: leitura.faltaMigracao ? (
-        leitura.migracao ? (
+        leitura.migracao === MIGRACAO_DO_PEDIDO_DE_VERBA ? (
           <>
             O banco ainda não tem o pedido de verba. Aplique a migração <code className="font-mono">{leitura.migracao}</code> no Supabase; o
             script da conta não muda.
+          </>
+        ) : leitura.migracao ? (
+          <>
+            O banco ainda não tem o Copiloto do Meta. Aplique a migração <code className="font-mono">{leitura.migracao}</code> no Supabase; o
+            script do Google não muda.
           </>
         ) : (
           <>
@@ -74,10 +103,28 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
       chave: "sem-diagnostico",
       estado: "atencao",
       rotulo: "Atenção",
-      texto: (
+      texto: doMeta ? (
+        <>
+          Nenhum diagnóstico do Meta ainda. Ele sai na rodada agendada da sincronização do Meta, uma vez por dia, a partir das{" "}
+          {dados?.regras?.parametros.horaDoDiagnostico ?? 7}h (horário de Brasília).
+        </>
+      ) : (
         <>
           Nenhum diagnóstico chegou ainda. Cole a versão nova de <code className="font-mono">scripts/google-ads-script.js</code> na conta do
           Google Ads (Ferramentas → Ações em massa → Scripts) e clique em “Visualizar”: a prévia manda o primeiro diagnóstico na hora.
+        </>
+      ),
+    });
+  }
+  if (dados && doMeta && !metaConfigurado) {
+    avisos.push({
+      chave: "meta-sem-token",
+      estado: "impeditivo",
+      rotulo: "Configuração",
+      texto: (
+        <>
+          O servidor não tem o token de gestão do Meta (<code className="font-mono">META_ADS_MANAGEMENT_TOKEN</code>, na Vercel). O
+          diagnóstico sai e dá para decidir, mas nada aprovado vai para a conta até o token existir.
         </>
       ),
     });
@@ -87,8 +134,17 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
       avisos.push({
         chave: "script-parado",
         estado: "impeditivo",
-        rotulo: "Script",
-        texto: dados.ultimaSincronizacao ? (
+        rotulo: doMeta ? "Sincronização" : "Script",
+        texto: doMeta ? (
+          dados.ultimaSincronizacao ? (
+            <>
+              A rodada agendada do Meta não roda desde {quando(dados.ultimaSincronizacao)}. Enquanto ela não rodar, nada aprovado é aplicado
+              e não sai diagnóstico.
+            </>
+          ) : (
+            <>A rodada agendada do Meta nunca deu certo. Enquanto ela não rodar, nada aprovado é aplicado e não sai diagnóstico.</>
+          )
+        ) : dados.ultimaSincronizacao ? (
           <>O script da conta não sincroniza desde {quando(dados.ultimaSincronizacao)}. Enquanto ele não rodar, nada aprovado é aplicado.</>
         ) : (
           <>O script da conta nunca sincronizou. Enquanto ele não rodar, nada aprovado é aplicado.</>
@@ -128,18 +184,46 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
       <header className="flex flex-col gap-3">
         <span className="mt-rotulo">MARKETING</span>
         <h1 className="mt-titulo m-0 text-3xl md:text-4xl">Copiloto de Mídia</h1>
+        <nav aria-label="Plataforma" className="flex gap-2" data-abas>
+          {PLATAFORMAS_DO_COPILOTO.map((p) => (
+            <Link
+              key={p}
+              href={p === "google" ? "/admin/marketing/copiloto" : `/admin/marketing/copiloto?plataforma=${p}`}
+              aria-current={p === plataforma ? "page" : undefined}
+              className={`mt-btn mt-foco px-4 py-2 text-[10px] ${p === plataforma ? "" : "mt-btn-contorno"}`}
+              data-aba={p}
+            >
+              {ROTULO_DA_PLATAFORMA[p]}
+            </Link>
+          ))}
+        </nav>
         <p className="m-0 max-w-3xl text-sm leading-relaxed text-mt-neutral-800">
-          Todo dia o script da conta do Google Ads manda o retrato dos últimos 7 dias: termos de pesquisa, verba, anúncios parados e
-          medição. As regras viram propostas — negativar termo, pausar grupo, cortar verba —, e nada muda na conta sem aprovação aqui.
-          Aumento de verba se pede aqui e passa pela mesma aprovação. O script aplica na rodada seguinte, lê de volta e registra.
+          {doMeta ? (
+            <>
+              Todo dia a rodada agendada da sincronização do Meta faz o retrato dos últimos 14 dias: gasto por campanha, conjunto e
+              anúncio, e os leads que cada um trouxe ao CRM, com a etapa do funil. As regras viram propostas — pausar conjunto ou anúncio,
+              cortar verba —, e nada muda na conta sem aprovação aqui. Aumento de verba se pede aqui e passa pela mesma aprovação. A rodada
+              seguinte aplica pela API do Meta, lê de volta e registra.
+            </>
+          ) : (
+            <>
+              Todo dia o script da conta do Google Ads manda o retrato dos últimos 7 dias: termos de pesquisa, verba, anúncios parados e
+              medição. As regras viram propostas — negativar termo, pausar grupo, cortar verba —, e nada muda na conta sem aprovação aqui.
+              Aumento de verba se pede aqui e passa pela mesma aprovação. O script aplica na rodada seguinte, lê de volta e registra.
+            </>
+          )}
         </p>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs tabular-nums text-mt-neutral-700" data-pulso>
           {diag && (
             <span>
-              Diagnóstico de {diaMes(diag.janela.de)} a {diaMes(diag.janela.ate)}, recebido {haQuanto(diag.recebidoEm, agora)}
+              Diagnóstico de {diaMes(diag.janela.de)} a {diaMes(diag.janela.ate)}, {doMeta ? "feito" : "recebido"} {haQuanto(diag.recebidoEm, agora)}
             </span>
           )}
-          {dados?.ultimaSincronizacao && <span>Script: última rodada {haQuanto(dados.ultimaSincronizacao, agora)}</span>}
+          {dados?.ultimaSincronizacao && (
+            <span>
+              {doMeta ? "Rodada do Meta" : "Script"}: última rodada {haQuanto(dados.ultimaSincronizacao, agora)}
+            </span>
+          )}
           <Link href="/admin/marketing/midia-paga" className="mt-foco underline underline-offset-2">
             Mídia paga
           </Link>
@@ -163,6 +247,31 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
             </div>
           ))}
         </div>
+      )}
+
+      {resumoMeta && (
+        <section aria-label="Resumo dos 14 dias" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-resumo>
+          <Numero
+            rotulo="Gasto no Meta"
+            valor={reais(resumoMeta.gasto)}
+            detalhe={`${numero(resumoMeta.impressoes)} impressões · ${numero(resumoMeta.cliques)} cliques`}
+          />
+          <Numero
+            rotulo="Leads no CRM"
+            valor={numero(resumoMeta.leadsCrm)}
+            detalhe={`o pixel do Meta contou ${numero(resumoMeta.leadsPixel)} no mesmo período`}
+          />
+          <Numero
+            rotulo="Custo por lead"
+            valor={resumoMeta.custoPorLead === null ? "—" : reais(resumoMeta.custoPorLead)}
+            detalhe="gasto dividido pelos leads do CRM, não pelos do pixel"
+          />
+          <Numero
+            rotulo="Qualificados · 30 dias"
+            valor={`${numero(resumoMeta.qualificados)} de ${numero(resumoMeta.maduros)}`}
+            detalhe={`leads com mais de 7 dias que chegaram a visita, negociação ou venda; ${numero(resumoMeta.abertosParados)} ainda sem andar no funil`}
+          />
+        </section>
       )}
 
       {resumo && (
@@ -191,10 +300,12 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
         <section aria-label="Para decidir" className="flex flex-col gap-4 border-t-2 border-mt-regua pt-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="mt-titulo m-0 text-xl">Para decidir</h2>
-            <span className="text-xs text-mt-neutral-700">O aprovado vai para a conta na próxima rodada do script, e pode ser desfeito.</span>
+            <span className="text-xs text-mt-neutral-700">
+              O aprovado vai para a conta na próxima {doMeta ? "rodada do Meta" : "rodada do script"}, e pode ser desfeito.
+            </span>
           </div>
-          <PropostasDoCopiloto abertas={dados.abertas} achados={dados.achados} agora={agora} />
-          <PedidoDeVerba campanhas={dados.campanhas} />
+          <PropostasDoCopiloto abertas={dados.abertas} achados={dados.achados} agora={agora} plataforma={plataforma} />
+          <PedidoDeVerba campanhas={dados.campanhas} plataforma={plataforma} />
         </section>
       )}
 
@@ -282,7 +393,7 @@ export default function CopilotoDeMidia({ leitura, migracao }: { leitura: Leitur
       {dados && dados.historico.length > 0 && (
         <section aria-label="Histórico" className="flex flex-col gap-3 border-t-2 border-mt-regua pt-6">
           <h2 className="mt-titulo m-0 text-xl">Histórico · 30 dias</h2>
-          <Historico acoes={dados.historico} />
+          <Historico acoes={dados.historico} quem={quem} />
         </section>
       )}
 
@@ -318,7 +429,7 @@ function Numero({ rotulo, valor, detalhe, estado }: { rotulo: string; valor: str
   );
 }
 
-function Historico({ acoes }: { acoes: AcaoNaTela[] }) {
+function Historico({ acoes, quem }: { acoes: AcaoNaTela[]; quem: string }) {
   const router = useRouter();
   const { confirm } = useConfirm();
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -327,7 +438,7 @@ function Historico({ acoes }: { acoes: AcaoNaTela[] }) {
   const desfazer = async (a: AcaoNaTela) => {
     const ok = await confirm({
       title: "Desfazer na conta",
-      message: `${descreverAcao(a)} — o script faz o inverso na próxima rodada e lê de volta.`,
+      message: `${descreverAcao(a)} — ${quem} faz o inverso na próxima rodada e lê de volta.`,
       confirmLabel: "Desfazer",
     });
     if (!ok) return;
@@ -363,7 +474,7 @@ function Historico({ acoes }: { acoes: AcaoNaTela[] }) {
               <th scope="col">Mudança</th>
               <th scope="col">Situação</th>
               <th scope="col">Quem decidiu</th>
-              <th scope="col">O script leu de volta</th>
+              <th scope="col">{quem.charAt(0).toUpperCase() + quem.slice(1)} leu de volta</th>
               <th scope="col">
                 <span className="sr-only">Ação</span>
               </th>
@@ -420,5 +531,8 @@ function lido(l: Record<string, unknown>): string {
   if (l.negativa === false) return "a negativa não está mais na campanha";
   if (l.situacao === "PAUSED") return "o grupo está pausado";
   if (l.situacao === "ENABLED") return "o grupo está ativo";
+  // O executor do Meta lê `status` (o que a conta guarda) e o efetivo.
+  if (l.status === "PAUSED") return "está pausado na conta";
+  if (l.status === "ACTIVE") return l.situacaoEfetiva && l.situacaoEfetiva !== "ACTIVE" ? `está ativo (no Meta: ${String(l.situacaoEfetiva)})` : "está ativo na conta";
   return JSON.stringify(l);
 }

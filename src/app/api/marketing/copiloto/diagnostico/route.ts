@@ -5,6 +5,7 @@ import {
   contarLeadsDaJanela,
   gravarDiagnostico,
   lerRegras,
+  motivoDaLeitura,
   motivoDoErro,
 } from "../../../../../lib/copilotoDeMidia-servidor";
 
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   try {
     const regras = await lerRegras(porta.admin, porta.org);
     if (!regras.ok) {
-      const { status, motivo } = regras.faltaMigracao ? motivoDoErro({ code: "42P01" }) : { status: 500, motivo: regras.motivo };
+      const { status, motivo } = motivoDaLeitura(regras);
       return NextResponse.json({ error: motivo }, { status, headers: SEM_CACHE });
     }
     // O calendário dos leads é o da conta: o "ontem" do Google é o ontem dela.

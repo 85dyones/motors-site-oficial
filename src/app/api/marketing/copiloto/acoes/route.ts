@@ -4,6 +4,7 @@ import {
   acoesAprovadas,
   autorizarScript,
   lerRegras,
+  motivoDaLeitura,
   motivoDoErro,
   reservarAcoes,
   ultimoDiagnostico,
@@ -36,13 +37,14 @@ export async function POST(request: NextRequest) {
   try {
     const regras = await lerRegras(porta.admin, porta.org);
     if (!regras.ok) {
-      const { status, motivo } = regras.faltaMigracao ? motivoDoErro({ code: "42P01" }) : { status: 500, motivo: regras.motivo };
+      const { status, motivo } = motivoDaLeitura(regras);
       return NextResponse.json({ error: motivo }, { status, headers: SEM_CACHE });
     }
-    const [ultimo, acoes] = await Promise.all([
-      ultimoDiagnostico(porta.admin, porta.org),
-      previa ? acoesAprovadas(porta.admin, porta.org) : reservarAcoes(porta.admin),
-    ]);
+    // Primeiro a leitura, depois a reserva: se a leitura falhar (site novo
+    // antes da migração), nada fica reservado sem chegar ao script — a ação
+    // reservada e não entregue viraria falha depois de três rodadas.
+    const ultimo = await ultimoDiagnostico(porta.admin, porta.org);
+    const acoes = previa ? await acoesAprovadas(porta.admin, porta.org) : await reservarAcoes(porta.admin);
     return NextResponse.json(
       { diagnosticoDevido: diagnosticoDevido(ultimo, new Date(), corpo.fuso, regras.valor.parametros.horaDoDiagnostico), acoes },
       { headers: SEM_CACHE },

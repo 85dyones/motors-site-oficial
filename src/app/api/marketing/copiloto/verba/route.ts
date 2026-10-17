@@ -8,7 +8,8 @@ const SEM_CACHE = { "Cache-Control": "no-store" };
 
 /**
  * `POST /api/marketing/copiloto/verba` — pedir a mudança de verba de uma
- * campanha do Google (16/10/2026, pedido do dono: "aumentos pelo copiloto").
+ * campanha do Google (16/10/2026, pedido do dono: "aumentos pelo copiloto") ou,
+ * desde 17/10/2026, do Meta (só a que tem verba na campanha).
  *
  * Corpo: `{ campanhaId, verbaNova, motivo? }`. O diagnóstico só corta verba;
  * o aumento é decisão de quem paga, e é por aqui que uma pessoa o pede. O

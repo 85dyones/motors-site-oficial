@@ -2,7 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { QUEM_PEDIU_SEM_NOME, ROTULO_DA_SITUACAO, ROTULO_DO_TIPO, descreverAcao } from "../../../lib/copilotoDeMidia";
+import {
+  NOME_DA_CONTA,
+  QUEM_APLICA,
+  QUEM_PEDIU_SEM_NOME,
+  ROTULO_DA_SITUACAO,
+  ROTULO_DO_TIPO,
+  descreverAcao,
+  type PlataformaDoCopiloto,
+} from "../../../lib/copilotoDeMidia";
 import type { AcaoNaTela, AchadoNaTela } from "../../../lib/copilotoDeMidia-servidor";
 import SinalDeEstado from "../../admin/consulta/SinalDeEstado";
 import { useConfirm } from "../../admin/ConfirmDialog";
@@ -13,7 +21,7 @@ import { DIAS_DO_MES_NO_GOOGLE, SINAL_DA_SITUACAO, haQuanto, reais } from "./for
  * O que espera decisão, e o que já foi aprovado e espera o script.
  *
  * Aprovar é mexer na conta do Google Ads na próxima rodada do script (até uma
- * hora). Por isso cada linha diz O QUE muda, em uma frase, e POR QUÊ, com o
+ * hora) — ou na do Meta, na próxima rodada agendada da sincronização. Por isso cada linha diz O QUE muda, em uma frase, e POR QUÊ, com o
  * número; e aprovar um grupo inteiro pede confirmação com o total.
  *
  * Os pedidos de verba feitos no painel (`PedidoDeVerba`) entram aqui como as
@@ -41,6 +49,8 @@ function agrupar(acoes: AcaoNaTela[], achados: AchadoNaTela[]): Grupo[] {
 const soma = (acoes: AcaoNaTela[]) => acoes.reduce((s, a) => s + (a.economia7d ?? 0), 0);
 /** Só corte tem economia estimada; pedido de aumento não. */
 const temEconomia = (acoes: AcaoNaTela[]) => acoes.some((a) => a.economia7d !== null);
+const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
 /** Quanto as mudanças de verba do grupo somam por dia (o pedido, que não tem economia, diz o que custa). */
 const variacaoDiaria = (acoes: AcaoNaTela[]) =>
   acoes.reduce((s, a) => s + (a.tipo === "mudar_verba" && a.verbaAtual !== null && a.verbaNova !== null ? a.verbaNova - a.verbaAtual : 0), 0);
@@ -57,12 +67,15 @@ export default function PropostasDoCopiloto({
   abertas,
   achados,
   agora,
+  plataforma = "google",
 }: {
   abertas: AcaoNaTela[];
   achados: AchadoNaTela[];
   /** O instante da leitura (ver `LeituraDoCopiloto.lidoEm`). */
   agora: number;
+  plataforma?: PlataformaDoCopiloto;
 }) {
+  const quem = QUEM_APLICA[plataforma];
   const router = useRouter();
   const { confirm } = useConfirm();
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -96,7 +109,7 @@ export default function PropostasDoCopiloto({
       } else {
         setAviso(
           decisao === "aprovar"
-            ? `${mudaram === 1 ? "Aprovada" : `${mudaram} aprovadas`}. O script aplica na próxima rodada e lê de volta.`
+            ? `${mudaram === 1 ? "Aprovada" : `${mudaram} aprovadas`}. ${maiuscula(quem)} aplica na próxima rodada e lê de volta.`
             : `${mudaram === 1 ? "Recusada" : `${mudaram} recusadas`}. Não volta a ser proposta nos próximos 7 dias.`,
         );
       }
@@ -111,7 +124,7 @@ export default function PropostasDoCopiloto({
   const aprovarGrupo = async (g: Grupo) => {
     const ok = await confirm({
       title: "Aprovar o grupo inteiro",
-      message: `${g.acoes.length} mudanças na conta do Google Ads (${g.titulo})${oQueSoma(g.acoes)}. O script aplica na próxima rodada; cada uma pode ser desfeita depois.`,
+      message: `${g.acoes.length} mudanças na ${NOME_DA_CONTA[plataforma]} (${g.titulo})${oQueSoma(g.acoes)}. ${maiuscula(quem)} aplica na próxima rodada; cada uma pode ser desfeita depois.`,
       confirmLabel: `Aprovar ${g.acoes.length}`,
     });
     if (ok) await decidir(g.acoes.map((a) => a.id), "aprovar", g.chave);
@@ -206,8 +219,8 @@ export default function PropostasDoCopiloto({
       )}
 
       {aCaminho.length > 0 && (
-        <section aria-label="Aprovadas, esperando o script" className="flex flex-col gap-2" data-a-caminho>
-          <h3 className="m-0 text-sm font-extrabold text-mt-ink">Aprovadas, esperando o script</h3>
+        <section aria-label={`Aprovadas, esperando ${quem}`} className="flex flex-col gap-2" data-a-caminho>
+          <h3 className="m-0 text-sm font-extrabold text-mt-ink">Aprovadas, esperando {quem}</h3>
           <ul className="m-0 flex list-none flex-col p-0">
             {aCaminho.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-mt-regua-fina py-2 text-xs" data-a-caminho={a.id}>

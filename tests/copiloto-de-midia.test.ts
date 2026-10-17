@@ -8,10 +8,12 @@ import {
   MAX_PROPOSTAS,
   MIGRACAO_DO_PEDIDO_DE_VERBA,
   PAPEIS_DO_COPILOTO,
+  PLATAFORMAS_DO_COPILOTO,
   QUEM_PEDIU_SEM_NOME,
   REGRAS,
   SITUACOES_DA_ACAO,
   TETO_DO_PEDIDO_DE_VERBA,
+  TIPOS_DA_PLATAFORMA,
   TIPOS_DE_ACAO,
   acharNoTermo,
   classificarTermo,
@@ -40,6 +42,8 @@ import { ACAO_COPILOTO_DE_MIDIA, PERFIS, podeFazer } from "../src/lib/permissoes
  */
 
 const MIGRACAO = readFileSync(join(__dirname, "..", "supabase", "migrations", "20261014150000_copiloto_de_midia.sql"), "utf8");
+/** A do Meta reescreve o tipo, a regra e `midia_copiloto_descrever`: a forma de hoje é a dela. */
+const MIGRACAO_META = readFileSync(join(__dirname, "..", "supabase", "migrations", "20261017150000_copiloto_meta.sql"), "utf8");
 
 const P: ParametrosDoCopiloto = {
   gastoMinimoTermo: 10,
@@ -57,6 +61,12 @@ const P: ParametrosDoCopiloto = {
   cidadesFora: ["são tomé"],
   palavrasInformativas: ["como", "emprego", "ficha técnica"],
   horaDoDiagnostico: 7,
+  metaGastoMinimoConjunto: 100,
+  metaGastoMinimoCampanha: 200,
+  metaVezesSemLead: 2.5,
+  metaVezesCustoCaro: 2,
+  metaLeadsMadurosMinimos: 8,
+  metaDiasParaAmadurecer: 7,
 };
 
 const LEADS: LeadsDaJanela = { total: 20, doSite: 14, comGclid: 0, comUtmGoogle: 0 };
@@ -429,6 +439,21 @@ describe("o vaivém com o script e o painel", () => {
     expect(validarRegras({ ...base, reducaoVerbaPct: 95 }).ok).toBe(false);
     expect(validarRegras({ ...base, horaDoDiagnostico: 24 }).ok).toBe(false);
     expect(validarRegras({ ...base, concorrentes: ["x"] }).ok).toBe(false);
+    // Os do Meta, nas faixas do CHECK `midia_copiloto_parametros_meta_validos`.
+    for (const [chave, fora, dentro] of [
+      ["metaGastoMinimoConjunto", 0, 0.01],
+      ["metaGastoMinimoCampanha", 100000.01, 100000],
+      ["metaVezesSemLead", 0.99, 1],
+      ["metaVezesCustoCaro", 1, 1.01],
+      ["metaLeadsMadurosMinimos", 501, 500],
+      ["metaDiasParaAmadurecer", 30, 29],
+    ] as const) {
+      expect(validarRegras({ ...base, [chave]: fora }).ok, `${chave}=${fora}`).toBe(false);
+      expect(validarRegras({ ...base, [chave]: dentro }).ok, `${chave}=${dentro}`).toBe(true);
+    }
+    expect(validarRegras({ ...base, metaDiasParaAmadurecer: 7.5 }).ok).toBe(false);
+    expect(MIGRACAO_META).toContain("meta_vezes_custo_caro > 1 and meta_vezes_custo_caro <= 10");
+    expect(MIGRACAO_META).toContain("meta_dias_para_amadurecer between 1 and 29");
   });
 
   it("a frase da tela é a da trilha no banco (`midia_copiloto_descrever`)", () => {
@@ -445,24 +470,59 @@ describe("o vaivém com o script e o painel", () => {
     expect(MIGRACAO).toContain("format('Reativar o grupo %s (%s)'");
     expect(MIGRACAO).toContain("format('Verba de %s: R$ %s → R$ %s por dia'");
   });
+
+  it("as frases do Meta são as da trilha no banco, e a função reescrita guarda as do Google", () => {
+    const base = { campanhaNome: "01 Leads", grupoNome: "Broad", anuncioNome: "Carrossel SUV" };
+    expect(descreverAcao({ ...base, tipo: "pausar_conjunto" })).toBe("Pausar o conjunto Broad (01 Leads)");
+    expect(descreverAcao({ ...base, tipo: "reativar_conjunto" })).toBe("Reativar o conjunto Broad (01 Leads)");
+    expect(descreverAcao({ ...base, tipo: "pausar_anuncio" })).toBe("Pausar o anúncio Carrossel SUV (Broad · 01 Leads)");
+    expect(descreverAcao({ ...base, tipo: "reativar_anuncio" })).toBe("Reativar o anúncio Carrossel SUV (Broad · 01 Leads)");
+    expect(MIGRACAO_META).toContain("format('Pausar o conjunto %s (%s)', a.grupo_nome, a.campanha_nome)");
+    expect(MIGRACAO_META).toContain("format('Reativar o conjunto %s (%s)', a.grupo_nome, a.campanha_nome)");
+    expect(MIGRACAO_META).toContain("format('Pausar o anúncio %s (%s · %s)', a.anuncio_nome, a.grupo_nome, a.campanha_nome)");
+    expect(MIGRACAO_META).toContain("format('Reativar o anúncio %s (%s · %s)', a.anuncio_nome, a.grupo_nome, a.campanha_nome)");
+    for (const frase of [
+      "format('Negativar %s na campanha %s'",
+      "format('Remover a negativa %s da campanha %s'",
+      "format('Pausar o grupo %s (%s)'",
+      "format('Reativar o grupo %s (%s)'",
+      "format('Verba de %s: R$ %s → R$ %s por dia'",
+    ]) {
+      expect(MIGRACAO_META, frase).toContain(frase);
+    }
+  });
 });
 
 describe("as listas fechadas do banco são as do código", () => {
-  /** Os valores entre aspas de um CHECK nomeado da migração. */
-  function valoresDoCheck(nome: string): string[] {
-    const i = MIGRACAO.indexOf(`add constraint ${nome}`);
+  /** Os valores entre aspas de um CHECK nomeado da migração (a última que o define). */
+  function valoresDoCheck(nome: string, migracao = MIGRACAO): string[] {
+    const i = migracao.indexOf(`add constraint ${nome}`);
     expect(i, nome).toBeGreaterThan(0);
-    const corpo = MIGRACAO.slice(i, MIGRACAO.indexOf("),\n", i) + 1);
+    const corpo = migracao.slice(i, migracao.indexOf("),\n", i) + 1);
     return [...corpo.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
   }
 
   it("tipo, situação, regra, grupo e gravidade", () => {
-    expect(valoresDoCheck("midia_copiloto_acoes_tipo_valido")).toEqual([...TIPOS_DE_ACAO]);
+    // Tipo e regra: os da migração do Meta, que os trocou.
+    expect(valoresDoCheck("midia_copiloto_acoes_tipo_valido", MIGRACAO_META)).toEqual([...TIPOS_DE_ACAO]);
     expect(valoresDoCheck("midia_copiloto_acoes_situacao_valida")).toEqual([...SITUACOES_DA_ACAO]);
-    expect(valoresDoCheck("midia_copiloto_achados_regra_valida")).toEqual([...REGRAS]);
+    expect(valoresDoCheck("midia_copiloto_achados_regra_valida", MIGRACAO_META)).toEqual([...REGRAS]);
     expect(valoresDoCheck("midia_copiloto_achados_grupo_valido")).toEqual([...GRUPOS_DE_TERMO]);
     expect(valoresDoCheck("midia_copiloto_achados_gravidade_valida")).toEqual([...GRAVIDADES]);
     expect(MIGRACAO).toContain(`correspondencia in (${CORRESPONDENCIAS.map((c) => `'${c}'`).join(", ")})`);
+  });
+
+  it("plataforma, e os verbos de cada uma (o banco escreve pela exclusão)", () => {
+    const lista = (xs: readonly string[]) => xs.map((x) => `'${x}'`).join(", ");
+    expect(valoresDoCheck("midia_copiloto_acoes_plataforma_valida", MIGRACAO_META)).toEqual([...PLATAFORMAS_DO_COPILOTO]);
+    expect(MIGRACAO_META).toContain(
+      `add constraint midia_copiloto_diagnosticos_plataforma_valida check (\n    plataforma in (${lista(PLATAFORMAS_DO_COPILOTO)}));`,
+    );
+    // O que uma plataforma NÃO faz é o que só a outra faz.
+    const so = (p: "google" | "meta", outra: "google" | "meta") => TIPOS_DA_PLATAFORMA[outra].filter((t) => !TIPOS_DA_PLATAFORMA[p].includes(t));
+    expect(MIGRACAO_META).toContain(`when 'google' then tipo not in (${lista(so("google", "meta"))})`);
+    expect(MIGRACAO_META).toContain(`when 'meta'   then tipo not in (${lista(so("meta", "google"))})`);
+    expect(new Set([...TIPOS_DA_PLATAFORMA.google, ...TIPOS_DA_PLATAFORMA.meta])).toEqual(new Set(TIPOS_DE_ACAO));
   });
 
   it("quem aprova: a matriz, a RLS e as funções dizem os mesmos papéis", () => {
@@ -493,7 +553,21 @@ describe("as listas fechadas do banco são as do código", () => {
     ]) {
       expect(MIGRACAO, coluna).toMatch(new RegExp(`\\n  ${coluna}\\s+(numeric|smallint|integer)`));
     }
-    expect(Object.keys(P)).toHaveLength(15);
+    // Os do Meta (17/10/2026): colunas da mesma tabela, um parâmetro da porta cada.
+    const doMeta = {
+      meta_gasto_minimo_conjunto: "metaGastoMinimoConjunto",
+      meta_gasto_minimo_campanha: "metaGastoMinimoCampanha",
+      meta_vezes_sem_lead: "metaVezesSemLead",
+      meta_vezes_custo_caro: "metaVezesCustoCaro",
+      meta_leads_maduros_minimos: "metaLeadsMadurosMinimos",
+      meta_dias_para_amadurecer: "metaDiasParaAmadurecer",
+    } as const;
+    for (const [coluna, chave] of Object.entries(doMeta)) {
+      expect(MIGRACAO_META, coluna).toMatch(new RegExp(`add column if not exists ${coluna}\\s+(numeric|smallint|integer)`));
+      expect(MIGRACAO_META, coluna).toMatch(new RegExp(`p_${coluna}\\s+(numeric|integer) default null`));
+      expect(P, chave).toHaveProperty(chave);
+    }
+    expect(Object.keys(P)).toHaveLength(21);
   });
 });
 

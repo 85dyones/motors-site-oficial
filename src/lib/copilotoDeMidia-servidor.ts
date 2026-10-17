@@ -20,10 +20,12 @@ import { HORAS_PARADA } from "./midiaSync";
 import { segredoConfere } from "./midiaSyncServidor";
 import { ehStaff, perfisDe, podeFazer } from "./permissoes";
 import { createAdminSupabaseClient, createServerSupabaseClient } from "./supabase-server";
+import type { ResumoDoMeta } from "./copilotoMeta";
 import {
   ACAO_COPILOTO_DE_MIDIA,
-  MIGRACAO_DO_PEDIDO_DE_VERBA,
+  MIGRACAO_DO_COPILOTO_META,
   diagnosticoParaBanco,
+  type PlataformaDoCopiloto,
   type AcaoParaOScript,
   type Correspondencia,
   type DiagnosticoDaConta,
@@ -106,10 +108,22 @@ export async function autorizarScript(cabecalhos: Headers): Promise<PortaDoScrip
 /** A tabela ainda não existe: o script foi colado antes de a migração ser aplicada. */
 export function motivoDoErro(erro: unknown): { status: number; motivo: string } {
   const e = erro as { code?: string; message?: string };
+  // Coluna ausente: a migração mais nova que o código lê (a do Meta) não foi aplicada.
+  if (ehColunaAusente(e)) return { status: 503, motivo: FALTA_A_DO_META };
   if (ehTabelaAusente(e)) {
     return { status: 503, motivo: "O banco ainda não tem as tabelas do copiloto: aplique a migração 20261014150000_copiloto_de_midia." };
   }
   return { status: statusDoErro(e), motivo: e?.message ?? String(erro) };
+}
+
+const FALTA_A_DO_META = `O banco ainda não tem o Copiloto do Meta: aplique a migração ${MIGRACAO_DO_COPILOTO_META}.`;
+
+/** Uma leitura que falhou, como resposta HTTP: a migração ausente diz QUAL falta. */
+export function motivoDaLeitura(l: { faltaMigracao: boolean; motivo: string; migracao?: string }): { status: number; motivo: string } {
+  if (!l.faltaMigracao) return { status: 500, motivo: l.motivo };
+  if (l.migracao === MIGRACAO_DO_COPILOTO_META) return { status: 503, motivo: FALTA_A_DO_META };
+  if (l.migracao) return { status: 503, motivo: `O banco ainda não tem o que o site lê: aplique a migração ${l.migracao}.` };
+  return motivoDoErro({ code: "42P01" });
 }
 
 /** Erro do banco → status HTTP: papel (42501), pedido torto (22023), não achou (P0002). */
@@ -135,7 +149,8 @@ const COLUNAS_DOS_PARAMETROS =
   "id, gasto_minimo_termo, gasto_minimo_grupo, gasto_minimo_campanha, ritmo_alto_pct, ritmo_baixo_pct, " +
   "reducao_verba_pct, iq_baixo, leads_gclid_minimos, cliques_minimos_gclid, perda_por_verba_pct, " +
   "perda_por_ranking_pct, concorrentes, cidades_fora, palavras_informativas, hora_do_diagnostico, " +
-  "criado_por_nome, vigencia_desde";
+  "criado_por_nome, vigencia_desde, meta_gasto_minimo_conjunto, meta_gasto_minimo_campanha, meta_vezes_sem_lead, " +
+  "meta_vezes_custo_caro, meta_leads_maduros_minimos, meta_dias_para_amadurecer";
 
 export interface RegrasVigentes {
   parametros: ParametrosDoCopiloto;
@@ -172,6 +187,12 @@ function linhaParaRegras(l: Record<string, unknown>): RegrasVigentes {
       cidadesFora: lista(l.cidades_fora),
       palavrasInformativas: lista(l.palavras_informativas),
       horaDoDiagnostico: Number(l.hora_do_diagnostico),
+      metaGastoMinimoConjunto: Number(l.meta_gasto_minimo_conjunto),
+      metaGastoMinimoCampanha: Number(l.meta_gasto_minimo_campanha),
+      metaVezesSemLead: Number(l.meta_vezes_sem_lead),
+      metaVezesCustoCaro: Number(l.meta_vezes_custo_caro),
+      metaLeadsMadurosMinimos: Number(l.meta_leads_maduros_minimos),
+      metaDiasParaAmadurecer: Number(l.meta_dias_para_amadurecer),
     },
     vigenciaDesde: String(l.vigencia_desde),
     criadoPorNome: typeof l.criado_por_nome === "string" ? l.criado_por_nome : null,
@@ -187,6 +208,9 @@ export async function lerRegras(cliente: SupabaseClient, org?: string): Promise<
   let consulta = cliente.from("midia_copiloto_parametros").select(COLUNAS_DOS_PARAMETROS).is("vigencia_ate", null);
   if (org) consulta = consulta.eq("org_id", org);
   const { data, error } = await consulta.order("vigencia_desde", { ascending: false }).limit(1);
+  // Coluna ausente antes de tabela ausente: "does not exist" casa as duas, e
+  // quem falta aqui é a migração do Meta (os limiares `meta_*`), não a do copiloto.
+  if (error && ehColunaAusente(error)) return { ok: false, faltaMigracao: true, migracao: MIGRACAO_DO_COPILOTO_META, motivo: error.message };
   if (error) return { ok: false, faltaMigracao: ehTabelaAusente(error), motivo: error.message };
   const linha = (data as unknown as Record<string, unknown>[] | null)?.[0];
   if (!linha) return { ok: false, faltaMigracao: false, motivo: "Nenhuma regra vigente para o copiloto." };
@@ -210,6 +234,12 @@ export async function abrirVigencia(supabase: SupabaseClient, p: ParametrosDoCop
     p_cidades_fora: p.cidadesFora,
     p_palavras_informativas: p.palavrasInformativas,
     p_hora_do_diagnostico: p.horaDoDiagnostico,
+    p_meta_gasto_minimo_conjunto: p.metaGastoMinimoConjunto,
+    p_meta_gasto_minimo_campanha: p.metaGastoMinimoCampanha,
+    p_meta_vezes_sem_lead: p.metaVezesSemLead,
+    p_meta_vezes_custo_caro: p.metaVezesCustoCaro,
+    p_meta_leads_maduros_minimos: p.metaLeadsMadurosMinimos,
+    p_meta_dias_para_amadurecer: p.metaDiasParaAmadurecer,
   });
 }
 
@@ -275,12 +305,13 @@ export async function contarLeadsDaJanela(admin: SupabaseClient, janela: Janela,
 // O lado do script (chave de serviço)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Quando chegou o último diagnóstico de verdade da loja (a prévia não conta). */
+/** Quando chegou o último diagnóstico de verdade do Google na loja (a prévia não conta; o do Meta é outro relógio). */
 export async function ultimoDiagnostico(admin: SupabaseClient, org: string): Promise<string | null> {
   const { data, error } = await admin
     .from("midia_copiloto_diagnosticos")
     .select("recebido_em")
     .eq("org_id", org)
+    .eq("plataforma", "google")
     .eq("previa", false)
     .order("recebido_em", { ascending: false })
     .limit(1);
@@ -314,15 +345,32 @@ const paraOScript = (l: LinhaDaAcao): AcaoParaOScript => ({
 export async function reservarAcoes(admin: SupabaseClient): Promise<AcaoParaOScript[]> {
   const { data, error } = await admin.rpc("midia_copiloto_reservar_acoes", { p_limite: 50 });
   if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return ((data ?? []) as LinhaDaAcao[]).map(paraOScript);
+  const linhas = (data ?? []) as Array<LinhaDaAcao & { plataforma?: string }>;
+  // A reserva do banco já filtra o Google. Se uma linha de outra plataforma
+  // escapar (uma migração antiga reaplicada por cima da do Meta), ela não vai
+  // ao script: fecha como falha, com o motivo, e nada muda na conta.
+  const deFora = linhas.filter((l) => l.plataforma !== undefined && l.plataforma !== "google");
+  if (deFora.length > 0) {
+    await registrarResultados(
+      admin,
+      deFora.map((l) => ({
+        id: l.id,
+        situacao: "falhou" as const,
+        lido: {},
+        erro: `A reserva do script entregou uma ação do ${l.plataforma}: ela não vai ao Google. Confira a migração do copiloto no banco.`,
+      })),
+    );
+  }
+  return linhas.filter((l) => l.plataforma === undefined || l.plataforma === "google").map(paraOScript);
 }
 
-/** Na prévia: o que espera a rodada de verdade na loja, sem reservar nada. */
+/** Na prévia: o que espera a rodada de verdade na loja, sem reservar nada. Só o do Google: o script não conhece o Meta. */
 export async function acoesAprovadas(admin: SupabaseClient, org: string): Promise<AcaoParaOScript[]> {
   const { data, error } = await admin
     .from("midia_copiloto_acoes")
     .select("id, tipo, campanha_id_externo, grupo_id_externo, texto, correspondencia, verba_atual, verba_nova")
     .eq("org_id", org)
+    .eq("plataforma", "google")
     .eq("situacao", "aprovada")
     .order("decidida_em", { ascending: true })
     .limit(50);
@@ -378,14 +426,18 @@ export interface AchadoNaTela {
 
 export interface AcaoNaTela {
   id: string;
-  /** O ID da campanha no Google Ads. */
+  plataforma: PlataformaDoCopiloto;
+  /** O ID da campanha na plataforma (Google Ads ou Meta). */
   campanhaId: string;
   achadoId: string | null;
   desfazAcaoId: string | null;
   tipo: TipoDeAcao;
   situacao: SituacaoDaAcao;
   campanhaNome: string;
+  /** No Meta, o conjunto de anúncios. */
   grupoNome: string | null;
+  /** Só no Meta (pausar/reativar anúncio). */
+  anuncioNome: string | null;
   texto: string | null;
   correspondencia: Correspondencia | null;
   verbaAtual: number | null;
@@ -410,12 +462,13 @@ export interface AcaoNaTela {
 }
 
 /**
- * Uma campanha do Google que pode receber pedido de verba: a verba é a que a
+ * Uma campanha que pode receber pedido de verba: a verba é a que a
  * sincronização de hora em hora gravou (`midia_campanhas.orcamento_diario`) —
- * a mesma que o banco usa como "verba de agora" no pedido.
+ * a mesma que o banco usa como "verba de agora" no pedido. No Meta, só a
+ * campanha com verba na campanha (orçamento de campanha) entra.
  */
 export interface CampanhaParaPedido {
-  /** O ID da campanha no Google Ads. */
+  /** O ID da campanha na plataforma. */
   id: string;
   nome: string;
   verba: number;
@@ -428,12 +481,17 @@ export interface DiagnosticoNaTela {
   recebidoEm: string;
   janela: Janela;
   previa: boolean;
+  /** O resumo do Google (nulo no retrato do Meta). */
   resumo: ResumoDoDiagnostico | null;
+  /** O resumo do Meta (nulo no retrato do Google). */
+  resumoMeta: ResumoDoMeta | null;
   erros: Partial<Record<Secao, string>>;
   termos: TermoDePesquisa[];
 }
 
 export interface LeituraDoCopiloto {
+  /** A aba: cada plataforma tem o seu retrato, as suas propostas e o seu pulso. */
+  plataforma: PlataformaDoCopiloto;
   regras: RegrasVigentes | null;
   diagnostico: DiagnosticoNaTela | null;
   achados: AchadoNaTela[];
@@ -441,9 +499,9 @@ export interface LeituraDoCopiloto {
   abertas: AcaoNaTela[];
   /** O que já tem desfecho, dos últimos 30 dias. */
   historico: AcaoNaTela[];
-  /** As campanhas do Google para o pedido de verba (vazia quando a leitura falha: o resto da tela segue). */
+  /** As campanhas da plataforma para o pedido de verba (vazia quando a leitura falha: o resto da tela segue). */
   campanhas: CampanhaParaPedido[];
-  /** A última sincronização de hora em hora que deu certo — o pulso do script. */
+  /** A última sincronização de hora em hora que deu certo — o pulso do script (Google) ou da rodada agendada (Meta). */
   ultimaSincronizacao: string | null;
   /** Sem sincronizar há mais de `HORAS_PARADA`: nada aprovado está sendo aplicado. */
   scriptParado: boolean;
@@ -452,7 +510,7 @@ export interface LeituraDoCopiloto {
 }
 
 const COLUNAS_DA_ACAO =
-  "id, achado_id, desfaz_acao_id, tipo, situacao, campanha_id_externo, campanha_nome, grupo_nome, texto, correspondencia, " +
+  "id, plataforma, achado_id, desfaz_acao_id, tipo, situacao, campanha_id_externo, campanha_nome, grupo_nome, anuncio_nome, texto, correspondencia, " +
   "verba_atual, verba_nova, motivo, economia_7d, evidencias, proposta_em, decidida_por_nome, decidida_em, nota, " +
   "concluida_em, lido_de_volta, erro, descartada_motivo, pedida_por, pedida_por_nome";
 
@@ -461,6 +519,7 @@ const numeroOuNulo = (v: unknown) => (v === null || v === undefined ? null : Num
 function linhaParaAcao(l: Record<string, unknown>, desfeitas: Set<string>): AcaoNaTela {
   return {
     id: String(l.id),
+    plataforma: l.plataforma === "meta" ? "meta" : "google",
     campanhaId: String(l.campanha_id_externo),
     achadoId: (l.achado_id as string | null) ?? null,
     desfazAcaoId: (l.desfaz_acao_id as string | null) ?? null,
@@ -468,6 +527,7 @@ function linhaParaAcao(l: Record<string, unknown>, desfeitas: Set<string>): Acao
     situacao: l.situacao as SituacaoDaAcao,
     campanhaNome: String(l.campanha_nome),
     grupoNome: (l.grupo_nome as string | null) ?? null,
+    anuncioNome: (l.anuncio_nome as string | null) ?? null,
     texto: (l.texto as string | null) ?? null,
     correspondencia: (l.correspondencia as Correspondencia | null) ?? null,
     verbaAtual: numeroOuNulo(l.verba_atual),
@@ -508,40 +568,49 @@ export function verbaDeAgora(c: CampanhaParaPedido, historico: AcaoNaTela[]): Ca
   return melhor ? { ...c, verba: melhor.verba, sincronizadoEm: melhor.em } : c;
 }
 
-export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Date()): Promise<Leitura<LeituraDoCopiloto>> {
+export async function lerCopiloto(
+  supabase: SupabaseClient,
+  agora: Date = new Date(),
+  plataforma: PlataformaDoCopiloto = "google",
+): Promise<Leitura<LeituraDoCopiloto>> {
   const desde = new Date(agora.getTime() - 30 * 24 * 3600 * 1000).toISOString();
   const [regras, diag, abertas, historico, sinc, camp] = await Promise.all([
     lerRegras(supabase),
     supabase
       .from("midia_copiloto_diagnosticos")
       .select("id, recebido_em, de, ate, previa, resumo, erros, dados")
+      .eq("plataforma", plataforma)
       .order("recebido_em", { ascending: false })
       .limit(1),
     supabase
       .from("midia_copiloto_acoes")
       .select(COLUNAS_DA_ACAO)
+      .eq("plataforma", plataforma)
       .in("situacao", ["proposta", "aprovada", "em_aplicacao"])
       .order("economia_7d", { ascending: false, nullsFirst: false })
       .limit(300),
     supabase
       .from("midia_copiloto_acoes")
       .select(COLUNAS_DA_ACAO)
+      .eq("plataforma", plataforma)
       .in("situacao", ["aplicada", "sem_efeito", "falhou", "recusada"])
       .gte("proposta_em", desde)
       .order("proposta_em", { ascending: false })
       .limit(100),
-    supabase
-      .from("midia_sincronizacoes")
-      .select("iniciada_em")
-      .eq("plataforma", "google")
+    // O pulso de quem APLICA: no Google, o script; no Meta, só a rodada
+    // agendada (o botão do painel sincroniza, mas não aplica nada).
+    (plataforma === "meta"
+      ? supabase.from("midia_sincronizacoes").select("iniciada_em").eq("plataforma", plataforma).eq("gatilho", "agendado")
+      : supabase.from("midia_sincronizacoes").select("iniciada_em").eq("plataforma", plataforma)
+    )
       .eq("ok", true)
       .order("iniciada_em", { ascending: false })
       .limit(1),
-    // Só as que o script sincroniza (têm ID) e que ainda existem na conta.
+    // Só as que a sincronização grava (têm ID) e que ainda existem na conta.
     supabase
       .from("midia_campanhas")
       .select("id_externo, nome, orcamento_diario, situacao, sincronizado_em")
-      .eq("plataforma", "google")
+      .eq("plataforma", plataforma)
       .in("situacao", ["no_ar", "pausada"])
       .not("id_externo", "is", null)
       .order("nome", { ascending: true })
@@ -550,8 +619,10 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
 
   if (!regras.ok && regras.faltaMigracao) return regras;
   for (const r of [diag, abertas, historico]) {
+    // Coluna ausente: o site saiu antes da migração mais nova que a tela lê
+    // (`plataforma`, `anuncio_nome` — a do Meta; a do pedido de verba já foi aplicada).
     if (r.error && ehColunaAusente(r.error)) {
-      return { ok: false, faltaMigracao: true, migracao: MIGRACAO_DO_PEDIDO_DE_VERBA, motivo: r.error.message };
+      return { ok: false, faltaMigracao: true, migracao: MIGRACAO_DO_COPILOTO_META, motivo: r.error.message };
     }
     if (r.error) return { ok: false, faltaMigracao: ehTabelaAusente(r.error), motivo: r.error.message };
   }
@@ -569,12 +640,15 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
   let achados: AchadoNaTela[] = [];
   if (linhaDiag) {
     const dados = (linhaDiag.dados ?? {}) as Partial<DiagnosticoDaConta>;
+    const resumo = (linhaDiag.resumo ?? null) as (ResumoDoDiagnostico & { plataforma?: string }) | null;
+    const doMeta = resumo?.plataforma === "meta";
     diagnostico = {
       id: String(linhaDiag.id),
       recebidoEm: String(linhaDiag.recebido_em),
       janela: { de: String(linhaDiag.de), ate: String(linhaDiag.ate) },
       previa: linhaDiag.previa === true,
-      resumo: (linhaDiag.resumo as ResumoDoDiagnostico | null) ?? null,
+      resumo: doMeta ? null : resumo,
+      resumoMeta: doMeta ? (resumo as unknown as ResumoDoMeta) : null,
       erros: (linhaDiag.erros ?? {}) as Partial<Record<Secao, string>>,
       // Os 500 de maior gasto bastam para a tabela; o retrato inteiro fica no banco.
       termos: (Array.isArray(dados.termos) ? [...dados.termos] : []).sort((a, b) => b.custo - a.custo).slice(0, 500),
@@ -612,6 +686,7 @@ export async function lerCopiloto(supabase: SupabaseClient, agora: Date = new Da
   return {
     ok: true,
     valor: {
+      plataforma,
       regras: regras.ok ? regras.valor : null,
       diagnostico,
       achados,

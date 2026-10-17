@@ -18,6 +18,7 @@ const estado = {
   papeis: ["marketing"] as string[],
   regras: { data: [linhaDeRegras()], error: null } as Resultado,
   ultimoDiagnostico: [] as Array<{ recebido_em: string }>,
+  erroDoDiagnostico: null as { message: string; code: string } | null,
   aprovadas: [] as unknown[],
   reservadas: [] as unknown[],
   contagens: { total: 9, doSite: 7, comGclid: 2, comUtmGoogle: 3 },
@@ -57,6 +58,12 @@ function linhaDeRegras(hora = 0) {
     hora_do_diagnostico: hora,
     criado_por_nome: null,
     vigencia_desde: "2026-10-14",
+    meta_gasto_minimo_conjunto: "100.00",
+    meta_gasto_minimo_campanha: "200.00",
+    meta_vezes_sem_lead: "2.50",
+    meta_vezes_custo_caro: "2.00",
+    meta_leads_maduros_minimos: 8,
+    meta_dias_para_amadurecer: 7,
   };
 }
 
@@ -76,7 +83,7 @@ function consulta(tabela: string) {
     chamadas.consultas.push(`${tabela} ${tudo}`);
     let r: Resultado = { data: [], error: null };
     if (tabela === "midia_copiloto_parametros") r = estado.regras;
-    else if (tabela === "midia_copiloto_diagnosticos") r = { data: estado.ultimoDiagnostico, error: null };
+    else if (tabela === "midia_copiloto_diagnosticos") r = estado.erroDoDiagnostico ? { data: null, error: estado.erroDoDiagnostico } : { data: estado.ultimoDiagnostico, error: null };
     else if (tabela === "midia_copiloto_acoes") r = { data: estado.aprovadas, error: null };
     else if (tabela === "leads") {
       const n = tudo.includes("gclid") ? estado.contagens.comGclid : tudo.includes("utm_source") ? estado.contagens.comUtmGoogle : tudo.includes("canal") ? estado.contagens.doSite : estado.contagens.total;
@@ -159,6 +166,7 @@ beforeEach(() => {
   estado.papeis = ["marketing"];
   estado.regras = { data: [linhaDeRegras()], error: null };
   estado.ultimoDiagnostico = [];
+  estado.erroDoDiagnostico = null;
   estado.aprovadas = [];
   estado.reservadas = [];
   estado.erroDaSessao = null;
@@ -186,6 +194,47 @@ describe("POST /api/marketing/copiloto/acoes (script)", () => {
     expect(corpo.diagnosticoDevido).toBe(true);
     expect(corpo.acoes).toEqual([{ id: ID, tipo: "mudar_verba", campanhaId: "111", grupoId: null, texto: null, correspondencia: null, verbaAtual: 50, verbaNova: 35 }]);
     expect(chamou("midia_copiloto_reservar_acoes")).toBe(true);
+  });
+
+  it("site antes da migração do Meta: as regras caem, o 503 nomeia a migração do Meta e nada é reservado", async () => {
+    estado.regras = { data: null, error: { message: "column midia_copiloto_parametros.meta_vezes_sem_lead does not exist", code: "42703" } };
+    const r = await postAcoes(req({ previa: false, fuso: "America/Sao_Paulo" }, SEGREDO));
+    expect(r.status).toBe(503);
+    const erro = (await r.json()).error as string;
+    expect(erro).toContain("20261017150000_copiloto_meta");
+    expect(erro).not.toContain("20261014150000");
+    expect(chamou("midia_copiloto_reservar_acoes")).toBe(false);
+  });
+
+  it("ação do Meta que escape da reserva não vai ao script: fecha como falha", async () => {
+    estado.reservadas = [
+      { id: ID, plataforma: "google", tipo: "negativar", campanha_id_externo: "111", grupo_id_externo: null, texto: "x", correspondencia: "exata", verba_atual: null, verba_nova: null },
+      { id: "99999999-9999-4999-8999-999999999999", plataforma: "meta", tipo: "mudar_verba", campanha_id_externo: "222", grupo_id_externo: null, texto: null, correspondencia: null, verba_atual: "100", verba_nova: "80" },
+    ];
+    const r = await postAcoes(req({ previa: false, fuso: "America/Sao_Paulo" }, SEGREDO));
+    expect((await r.json()).acoes.map((a: { id: string }) => a.id)).toEqual([ID]);
+    const registro = chamadas.admin.find((c) => c.nome === "midia_copiloto_registrar_resultado")!;
+    expect(registro.args).toMatchObject({ p_acao: "99999999-9999-4999-8999-999999999999", p_situacao: "falhou" });
+  });
+
+  it("o retrato do Google é o da plataforma google, e a leitura vem antes da reserva", async () => {
+    await postAcoes(req({ previa: false, fuso: "America/Sao_Paulo" }, SEGREDO));
+    const diag = chamadas.consultas.find((c) => c.startsWith("midia_copiloto_diagnosticos "))!;
+    expect(diag).toContain('eq:["plataforma","google"]');
+
+    // Site novo antes da migração: a leitura falha e nada fica reservado sem chegar ao script.
+    chamadas.admin = [];
+    estado.erroDoDiagnostico = { message: "column midia_copiloto_diagnosticos.plataforma does not exist", code: "42703" };
+    const r = await postAcoes(req({ previa: false, fuso: "America/Sao_Paulo" }, SEGREDO));
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toContain("20261017150000_copiloto_meta");
+    expect(chamou("midia_copiloto_reservar_acoes")).toBe(false);
+  });
+
+  it("prévia: lista só o aprovado do Google, sem reservar nada", async () => {
+    await postAcoes(req({ previa: true, fuso: "America/Sao_Paulo" }, SEGREDO));
+    const acoes = chamadas.consultas.find((c) => c.startsWith("midia_copiloto_acoes "))!;
+    expect(acoes).toContain('eq:["plataforma","google"]');
   });
 
   it("prévia: lista o aprovado sem reservar nada", async () => {
@@ -222,6 +271,14 @@ describe("POST /api/marketing/copiloto/diagnostico (script)", () => {
   it("sem segredo: 401 e nada é gravado", async () => {
     const r = await postDiagnostico(req(RETRATO));
     expect(r.status).toBe(401);
+    expect(chamou("midia_copiloto_gravar_diagnostico")).toBe(false);
+  });
+
+  it("site antes da migração do Meta: 503 nomeando a migração do Meta, e nada é gravado", async () => {
+    estado.regras = { data: null, error: { message: "column midia_copiloto_parametros.meta_vezes_sem_lead does not exist", code: "42703" } };
+    const r = await postDiagnostico(req(RETRATO, SEGREDO));
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toContain("20261017150000_copiloto_meta");
     expect(chamou("midia_copiloto_gravar_diagnostico")).toBe(false);
   });
 
@@ -308,14 +365,31 @@ describe("as rotas do painel", () => {
       perdaPorVerbaPct: 10,
       perdaPorRankingPct: 30,
       horaDoDiagnostico: 7,
+      metaGastoMinimoConjunto: 120,
+      metaGastoMinimoCampanha: 250,
+      metaVezesSemLead: 3,
+      metaVezesCustoCaro: 2.5,
+      metaLeadsMadurosMinimos: 10,
+      metaDiasParaAmadurecer: 5,
       concorrentes: " Loja Rival \n loja rival",
       cidadesFora: "",
       palavrasInformativas: "como",
     };
     expect((await postRegras(req({ ...corpo, ritmoBaixoPct: 95 }))).status).toBe(400);
+    expect((await postRegras(req({ ...corpo, metaVezesCustoCaro: 1 }))).status).toBe(400);
+    expect((await postRegras(req({ ...corpo, metaDiasParaAmadurecer: 30 }))).status).toBe(400);
     expect((await postRegras(req(corpo))).status).toBe(200);
     const rpc = chamadas.sessao.find((c) => c.nome === "midia_copiloto_nova_vigencia")!;
     expect(rpc.args).toMatchObject({ p_concorrentes: ["loja rival"], p_cidades_fora: [], p_palavras_informativas: ["como"], p_hora_do_diagnostico: 7 });
+    // Os do Meta vão com os nomes que a função do banco espera.
+    expect(rpc.args).toMatchObject({
+      p_meta_gasto_minimo_conjunto: 120,
+      p_meta_gasto_minimo_campanha: 250,
+      p_meta_vezes_sem_lead: 3,
+      p_meta_vezes_custo_caro: 2.5,
+      p_meta_leads_maduros_minimos: 10,
+      p_meta_dias_para_amadurecer: 5,
+    });
   });
 
   it("pedido de verba: pela SESSÃO, só com campanha, verba e motivo — a verba de agora o banco lê", async () => {
