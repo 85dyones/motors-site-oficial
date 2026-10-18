@@ -781,11 +781,13 @@ export async function PATCH(request: NextRequest) {
     // métrica de lead qualificado; sim, envie o Purchase com o valor real"*.
     // As regras (quais etapas, uma vez por lead, sem valor não há Purchase)
     // moram em `lib/qualificacaoParaMeta`; aqui só se diz em que etapa o lead
-    // FICOU e qual desfecho este pedido gravou. DEPOIS do `update`, e só se
-    // ele alcançou o lead: evento de etapa que não houve é o pior dado
-    // possível para uma campanha. Falhar não desfaz o movimento — o resultado
-    // fica na linha (`capi_meta_*`), e o que não foi vai no próximo movimento.
-    // O ganho sem valor avisa a tela: é o vendedor quem tem o número.
+    // FICOU e qual desfecho este pedido gravou. Daqui sai só o Purchase do
+    // ganho: o LeadQualificado vai pela rodada de hora em hora (18/10/2026),
+    // que só conta quem ficou na etapa — o cartão arrastado não vai. DEPOIS
+    // do `update`, e só se ele alcançou o lead: evento que não houve é o pior
+    // dado possível para uma campanha. Falhar não desfaz o movimento — o
+    // resultado fica na linha (`capi_meta_*`), e o que não foi vai no próximo
+    // movimento. O ganho sem valor avisa a tela: é o vendedor quem tem o número.
     if (alcancouOLead && situacao !== undefined) {
       const meta = await qualificarNoMeta(
         supabase,

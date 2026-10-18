@@ -7,10 +7,9 @@ import {
   COLUNAS_PARA_O_META,
   EVENTO_DE_COMPRA,
   ETAPAS_QUALIFICADAS,
-  EVENTO_DE_QUALIFICACAO,
+  PERMANENCIA_MINIMA_MS,
   SEM_VALOR,
   colunasDaCapi,
-  ehEtapaQualificada,
   eventosDevidos,
   lerRegistros,
   quandoQualificou,
@@ -32,8 +31,8 @@ import {
  * Nunca lança e nunca muda a resposta de quem chamou: o movimento no funil já
  * valeu, e o Meta fora do ar não o desfaz. O que não foi fica registrado na
  * linha (`capi_meta_status`, `capi_meta_response`, `capi_meta_sent_at`) e é
- * tentado de novo no próximo movimento que o justifique — e, o
- * LeadQualificado, também pela repescagem de hora em hora (no fim do arquivo).
+ * tentado de novo: o Purchase no próximo movimento que o justifique, o
+ * LeadQualificado na próxima rodada de hora em hora (no fim do arquivo).
  *
  * O cliente é o de quem chama — a sessão do painel nas rotas de gestão, a
  * chave de serviço na captura. A RLS de `leads` decide o que cada um alcança,
@@ -102,11 +101,17 @@ async function gravarRegistros(
 }
 
 /**
- * Depois de um movimento GRAVADO: manda ao Meta o que a etapa (e o desfecho)
- * devem, e grava o resultado na linha.
+ * Depois de um movimento GRAVADO: manda ao Meta o Purchase do ganho, e grava
+ * o resultado na linha.
  *
- * Chamar só depois do `update`, e só quando ele alcançou o lead: evento de
- * etapa que não houve é o pior dado possível para uma campanha.
+ * Só o Purchase (18/10/2026, decisão do dono: *"envie de hora em hora"*): o
+ * LeadQualificado não vai mais no movimento, porque o cartão arrastado pela
+ * coluna o mandaria sem volta. Vai pela rodada de hora em hora
+ * (`repescarQualificacoes`), que só conta quem ficou na etapa. Fechar como
+ * ganho é uma decisão, não um arrasto — e o valor está nas mãos de quem fechou.
+ *
+ * Chamar só depois do `update`, e só quando ele alcançou o lead: evento que
+ * não houve é o pior dado possível para uma campanha.
  */
 export async function qualificarNoMeta(
   supabase: ClienteDeLeads,
@@ -114,10 +119,10 @@ export async function qualificarNoMeta(
   movimento: MovimentoDoLead,
   fontes: FontesDaQualificacao,
 ): Promise<ResultadoDaQualificacao> {
-  // Etapa que não qualifica não custa nem a leitura da linha: mover entre
-  // colunas em andamento continua gravando direto, sem ler lead nenhum (é o
-  // que `leads-gerenciar-desfecho` trava para o PATCH).
-  if (!ehEtapaQualificada(movimento.etapa, movimento.desfecho)) return NADA;
+  // Sem ganho não há Purchase, e não custa nem a leitura da linha: mover entre
+  // colunas continua gravando direto, sem ler lead nenhum (é o que
+  // `leads-gerenciar-desfecho` trava para o PATCH).
+  if (movimento.desfecho !== "ganho") return NADA;
   try {
     const { data, error } = await supabase
       .from("leads")
@@ -129,7 +134,8 @@ export async function qualificarNoMeta(
       return NADA;
     }
     const lead = data as unknown as LeadParaOMeta;
-    const devidos = eventosDevidos(lead, movimento);
+    // O LeadQualificado do ganho vai pela rodada de hora em hora.
+    const devidos = eventosDevidos(lead, movimento).filter((d) => d.chave === "purchase");
     if (devidos.length === 0) return NADA;
 
     // O pixel só é lido quando há o que mandar — e sem ele a CAPI inteira
@@ -150,8 +156,7 @@ export async function qualificarNoMeta(
     let aviso: string | null = null;
     for (const devido of devidos) {
       if (!devido.evento) {
-        const nome = devido.chave === "purchase" ? EVENTO_DE_COMPRA : EVENTO_DE_QUALIFICACAO;
-        novos[devido.chave] = registroPulado(nome, null, devido.motivo);
+        novos[devido.chave] = registroPulado(EVENTO_DE_COMPRA, null, devido.motivo);
         if (devido.motivo === SEM_VALOR) aviso = AVISO_DE_GANHO_SEM_VALOR;
         continue;
       }
@@ -297,11 +302,15 @@ async function registrosDaLinha(cliente: ClienteDeLeads, leadId: string): Promis
 }
 
 /**
- * O LeadQualificado que ficou para trás: o lead qualificou (pelo rastro,
- * `quandoQualificou`) nos últimos 7 dias e o Meta ainda não aceitou o evento
- * — porque qualificou antes de 16/10, quando o envio não existia, ou porque a
- * entrega falhou e o lead não se mexeu de novo.
+ * O envio do LeadQualificado: o lead qualificou (pelo rastro,
+ * `quandoQualificou`) nos últimos 7 dias e o Meta ainda não aceitou o evento.
+ * Nasceu (17/10/2026) para repescar o que ficou para trás; desde 18/10 é o
+ * ÚNICO envio do LeadQualificado — o movimento no painel não manda mais.
  *
+ *   - Só quem FICOU: a permanência em Visita/Negociação que ainda está
+ *     correndo só conta depois de `PERMANENCIA_MINIMA_MS` (10 min). O cartão
+ *     arrastado para a Visita um minuto antes da rodada espera a próxima — e,
+ *     se sair dela antes, não vai.
  *   - `event_time` = quando qualificou; se a primeira vez já passou dos 7
  *     dias, a mais recente (a volta à Visita, o ganho) — o horário que o envio
  *     em tempo real teria usado.
@@ -372,6 +381,8 @@ export async function repescarQualificacoes(
       if (!q.qualificou) continue;
       const quando = [q.desde, q.ultima].find(naJanela);
       if (!quando) continue;
+      // Ainda não ficou 10 min: a próxima rodada decide.
+      if (Date.parse(quando) > agoraMs - PERMANENCIA_MINIMA_MS) continue;
       // A etapa em que qualificou; no ganho, a etapa do ganho.
       const etapa = passagens.find((p) => p.em === quando)?.para ?? lead.situacao ?? null;
       const ganho = lead.desfecho === "ganho";

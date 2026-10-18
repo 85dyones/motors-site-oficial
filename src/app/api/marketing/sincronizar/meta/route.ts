@@ -40,8 +40,9 @@ const PRAZO_DA_REPESCAGEM_MS = 45_000;
  * O copiloto nunca derruba a sincronização: o erro dele vai no log e na
  * resposta, e a rodada segue. O botão do painel só sincroniza.
  *
- * A rodada agendada também manda ao Meta o LeadQualificado que ficou para trás
- * (`repescarQualificacoes`, 17/10/2026). Não é do copiloto nem depende da
+ * A rodada agendada também manda ao Meta o LeadQualificado
+ * (`repescarQualificacoes`, 17/10/2026) — desde 18/10, o único envio dele:
+ * o movimento no painel não manda mais. Não é do copiloto nem depende da
  * sincronização: vai pela CAPI, com outro token, e roda mesmo quando a
  * leitura dos anúncios falha — até `PRAZO_DA_REPESCAGEM_MS` do início.
  */
@@ -59,8 +60,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
-  // O LeadQualificado que ficou para trás (qualificou antes do envio existir,
-  // ou a entrega falhou): até 5 por rodada, dentro dos 7 dias.
+  // O LeadQualificado de quem ficou na etapa qualificada (ou fechou ganho) e
+  // ainda não foi aceito pelo Meta: até 5 por rodada, dentro dos 7 dias.
   const repescar = async (): Promise<{ repescagem?: unknown }> => {
     if (gatilho !== "agendado") return {};
     try {

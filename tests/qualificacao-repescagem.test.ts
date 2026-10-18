@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ClienteDeLeads } from "../src/lib/qualificacaoParaMeta-servidor";
 
 /**
- * A repescagem do LeadQualificado (17/10/2026): o lead que qualificou nos
- * últimos 7 dias e ainda não tem o evento aceito pelo Meta vai agora, com
- * `event_time` = quando qualificou. O cartão só arrastado pela coluna não vai,
+ * O envio do LeadQualificado, de hora em hora (17/10/2026; o único desde
+ * 18/10): o lead que qualificou nos últimos 7 dias e ainda não tem o evento
+ * aceito pelo Meta vai agora, com `event_time` = quando qualificou — se já
+ * ficou 10 min na etapa. O cartão só arrastado pela coluna não vai,
  * "Não é oportunidade" não vai, o que já foi não vai de novo, e o que passou
  * dos 7 dias o Meta recusaria — não vai. Rastro longo é lido inteiro, e o que
  * o painel grava no meio da rodada não é apagado.
@@ -152,6 +153,18 @@ describe("repescarQualificacoes", () => {
     });
     expect(registroDe(a).qualificado).toMatchObject({ evento: "LeadQualificado", resultado: "enviado", etapa: "visita", repescado: true });
     expect(a.capi_meta_status).toBe("LeadQualificado:enviado");
+  });
+
+  it("é o único envio do LeadQualificado: quem entrou na Visita há menos de 10 min espera a próxima rodada", async () => {
+    const { cliente } = bancoFalso(
+      [lead("agora-ha-pouco", { situacao: "visita" }), lead("ha-15-min", { situacao: "negociacao" })],
+      [ev("agora-ha-pouco", "visita", "2026-10-17T19:55:00Z"), ev("ha-15-min", "negociacao", "2026-10-17T19:45:00Z")],
+    );
+    const r = await repescarQualificacoes(cliente, PIXEL, AGORA);
+    expect(capi.chamadas.map((c) => c.eventId)).toEqual(["ha-15-min:qualificado"]);
+    expect(capi.chamadas[0]).toMatchObject({ eventTime: Math.floor(Date.parse("2026-10-17T19:45:00Z") / 1000), customData: { etapa: "negociacao" } });
+    // O de 5 min ainda não é pendente: a próxima rodada decide se ele ficou.
+    expect(r).toEqual({ pendentes: 1, enviados: 1, naoAceitos: 0 });
   });
 
   it("quem visitou e depois foi perdido também vai; o cartão só arrastado e o 'Não é oportunidade' não", async () => {

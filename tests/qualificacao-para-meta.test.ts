@@ -406,95 +406,97 @@ beforeEach(() => {
   colunasLidas = [];
 });
 
-describe("qualificarNoMeta — lê a linha, manda, grava o resultado", () => {
-  it("visita: lê as colunas do Meta, manda com o pixel das settings e grava as três colunas", async () => {
-    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("visita"), desfecho: null }, pixel);
+describe("qualificarNoMeta — no movimento, só o Purchase do ganho: lê a linha, manda, grava o resultado", () => {
+  const GANHO = { etapa: etapa("fechado"), desfecho: "ganho" as const };
+  const comValor = () => (linha = { ...LEAD_COMPLETO, desfecho_valor: 55000 });
+
+  it("Visita e Negociação não mandam nada daqui nem custam a leitura da linha: o LeadQualificado vai de hora em hora", async () => {
+    for (const chave of ["visita", "negociacao", "em_contato"]) {
+      const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa(chave), desfecho: null }, pixel);
+      expect(r).toEqual({ enviados: [], aviso: null });
+    }
+    expect(colunasLidas).toEqual([]);
+    expect(capi.chamadas).toEqual([]);
+    expect(gravacoes).toEqual([]);
+  });
+
+  it("ganho com valor: lê as colunas do Meta, manda SÓ o Purchase com o pixel das settings e grava as três colunas", async () => {
+    comValor();
+    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, pixel);
 
     expect(colunasLidas).toEqual([COLUNAS_PARA_O_META]);
-    expect(capi.chamadas).toHaveLength(1);
-    expect(capi.chamadas[0]).toMatchObject({ eventName: "LeadQualificado", eventId: "lead-1:qualificado", pixelId: "px-1" });
+    expect(capi.chamadas.map((c) => c.eventName)).toEqual(["Purchase"]);
+    expect(capi.chamadas[0]).toMatchObject({ eventId: "lead-1:purchase", pixelId: "px-1", customData: { value: 55000, currency: "BRL" } });
 
     expect(gravacoes).toHaveLength(1);
     expect(gravacoes[0].filtros).toEqual([["id", "lead-1"]]);
     const { campos } = gravacoes[0];
-    expect(campos.capi_meta_status).toBe("LeadQualificado:enviado");
+    expect(campos.capi_meta_status).toBe("Purchase:enviado");
     expect(campos.capi_meta_response).toMatchObject({
-      qualificado: { evento: "LeadQualificado", event_id: "lead-1:qualificado", resultado: "enviado", http: 200, etapa: "visita", resposta: { events_received: 1, fbtrace_id: "tr-1" } },
+      purchase: { evento: "Purchase", event_id: "lead-1:purchase", resultado: "enviado", http: 200, valor: 55000, resposta: { events_received: 1, fbtrace_id: "tr-1" } },
     });
+    expect(campos.capi_meta_response).not.toHaveProperty("qualificado");
     expect(typeof campos.capi_meta_sent_at).toBe("string");
-    expect(r).toEqual({ enviados: ["LeadQualificado"], aviso: null });
+    expect(r).toEqual({ enviados: ["Purchase"], aviso: null });
   });
 
-  it("etapa que não qualifica não custa nem a leitura da linha", async () => {
-    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("em_contato"), desfecho: null }, pixel);
-    expect(colunasLidas).toEqual([]);
-    expect(capi.chamadas).toEqual([]);
-    expect(gravacoes).toEqual([]);
-    expect(r).toEqual({ enviados: [], aviso: null });
-  });
-
-  it("junta ao que a linha já tinha: o Lead da captura fica, e o status passa a ser o mais recente", async () => {
+  it("junta ao que a linha já tinha: o Lead da captura e o LeadQualificado ficam, e o status passa a ser o mais recente", async () => {
     linha = {
       ...LEAD_COMPLETO,
-      capi_meta_response: { lead: { evento: "Lead", event_id: "evt-1", resultado: "enviado", em: "2026-10-01T10:00:00.000Z", http: 200 } },
+      desfecho_valor: 55000,
+      capi_meta_response: {
+        lead: { evento: "Lead", event_id: "evt-1", resultado: "enviado", em: "2026-10-01T10:00:00.000Z", http: 200 },
+        qualificado: registro("enviado"),
+      },
     };
-    await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("negociacao"), desfecho: null }, pixel);
+    await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, pixel);
     const { campos } = gravacoes[0];
-    expect(Object.keys(campos.capi_meta_response as object)).toEqual(["lead", "qualificado"]);
-    expect(campos.capi_meta_status).toBe("LeadQualificado:enviado");
+    expect(Object.keys(campos.capi_meta_response as object)).toEqual(["lead", "qualificado", "purchase"]);
+    expect(campos.capi_meta_status).toBe("Purchase:enviado");
   });
 
-  it("ganho sem valor: o LeadQualificado vai, o Purchase fica pulado na linha, e a tela recebe o aviso", async () => {
-    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("fechado"), desfecho: "ganho" }, pixel);
-    expect(capi.chamadas.map((c) => c.eventName)).toEqual(["LeadQualificado"]);
+  it("ganho sem valor: nada vai, o Purchase fica pulado na linha, e a tela recebe o aviso", async () => {
+    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, pixel);
+    expect(capi.chamadas).toEqual([]);
     const { campos } = gravacoes[0];
-    expect(campos.capi_meta_response).toMatchObject({
-      qualificado: { resultado: "enviado", etapa: "fechado" },
-      purchase: { evento: "Purchase", resultado: "pulado", motivo: SEM_VALOR },
-    });
+    expect(campos.capi_meta_response).toEqual({ purchase: expect.objectContaining({ evento: "Purchase", resultado: "pulado", motivo: SEM_VALOR }) });
     expect(campos.capi_meta_status).toBe("Purchase:pulado");
-    expect(r).toEqual({ enviados: ["LeadQualificado"], aviso: AVISO_DE_GANHO_SEM_VALOR });
-  });
-
-  it("ganho com valor: os dois vão, nesta ordem, e o Purchase leva o valor", async () => {
-    linha = { ...LEAD_COMPLETO, desfecho_valor: 55000 };
-    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("fechado"), desfecho: "ganho" }, pixel);
-    expect(capi.chamadas.map((c) => c.eventName)).toEqual(["LeadQualificado", "Purchase"]);
-    expect(capi.chamadas[1]).toMatchObject({ customData: { value: 55000, currency: "BRL" } });
-    expect(gravacoes[0].campos.capi_meta_response).toMatchObject({ purchase: { resultado: "enviado", valor: 55000 } });
-    expect(r).toEqual({ enviados: ["LeadQualificado", "Purchase"], aviso: null });
+    expect(r).toEqual({ enviados: [], aviso: AVISO_DE_GANHO_SEM_VALOR });
   });
 
   it("o Meta recusou: fica 'recusado' com o erro resumido, e nada conta como enviado", async () => {
+    comValor();
     capi.resposta = { ok: false, status: 400, corpo: { error: { message: "Invalid parameter", code: 100 } } };
-    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("visita"), desfecho: null }, pixel);
-    expect(gravacoes[0].campos.capi_meta_status).toBe("LeadQualificado:recusado");
+    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, pixel);
+    expect(gravacoes[0].campos.capi_meta_status).toBe("Purchase:recusado");
     expect(gravacoes[0].campos.capi_meta_sent_at).toBeNull();
     expect(gravacoes[0].campos.capi_meta_response).toMatchObject({
-      qualificado: { resultado: "recusado", http: 400, resposta: { error: { message: "Invalid parameter", code: 100 } } },
+      purchase: { resultado: "recusado", http: 400, resposta: { error: { message: "Invalid parameter", code: 100 } } },
     });
     expect(r.enviados).toEqual([]);
   });
 
   it("sem pixel a CAPI está desligada: nada vai, nada se grava — e o pixel só é lido quando há o que mandar", async () => {
+    comValor();
     settings.pixel = null;
     let lido = 0;
     const fontes = { lerPixelId: async () => (lido += 1, settings.pixel) };
-    await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("visita"), desfecho: null }, fontes);
+    await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, fontes);
     expect(lido).toBe(1);
     expect(capi.chamadas).toEqual([]);
     expect(gravacoes).toEqual([]);
 
-    // Lead já qualificado: nada devido, e o pixel nem é lido.
-    linha = { ...LEAD_COMPLETO, capi_meta_response: { qualificado: registro("enviado") } };
-    await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("negociacao"), desfecho: null }, fontes);
+    // Purchase já aceito: nada devido, e o pixel nem é lido.
+    linha = { ...LEAD_COMPLETO, desfecho_valor: 55000, capi_meta_response: { purchase: { evento: "Purchase", resultado: "enviado", em: "2026-10-16T10:00:00.000Z" } } };
+    await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, fontes);
     expect(lido).toBe(1);
   });
 
   it("a leitura do pixel que LANÇA (o unstable_cache fora de requisição) é engolida: nada vai, nada lança", async () => {
+    comValor();
     const fontes = { lerPixelId: async () => { throw new Error("Invariant: incrementalCache missing"); } };
     const calado = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("visita"), desfecho: null }, fontes);
+    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, fontes);
     calado.mockRestore();
     expect(r).toEqual({ enviados: [], aviso: null });
     expect(capi.chamadas).toEqual([]);
@@ -504,20 +506,21 @@ describe("qualificarNoMeta — lê a linha, manda, grava o resultado", () => {
   it("linha ilegível ou ausente: nada vai, nada lança", async () => {
     erroDaLeitura = { message: "permission denied" };
     const calado = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("visita"), desfecho: null }, pixel)).toEqual({ enviados: [], aviso: null });
+    expect(await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, pixel)).toEqual({ enviados: [], aviso: null });
     erroDaLeitura = null;
     linha = null;
-    expect(await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("visita"), desfecho: null }, pixel)).toEqual({ enviados: [], aviso: null });
+    expect(await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, pixel)).toEqual({ enviados: [], aviso: null });
     calado.mockRestore();
     expect(capi.chamadas).toEqual([]);
   });
 
   it("a gravação que falha vai para a triagem, e o evento que já foi continua contando como enviado", async () => {
+    comValor();
     erroDaGravacao = { message: "permission denied for table leads" };
     const calado = vi.spyOn(console, "error").mockImplementation(() => {});
-    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", { etapa: etapa("visita"), desfecho: null }, pixel);
+    const r = await servidor.qualificarNoMeta(CLIENTE, "lead-1", GANHO, pixel);
     calado.mockRestore();
-    expect(r.enviados).toEqual(["LeadQualificado"]);
+    expect(r.enviados).toEqual(["Purchase"]);
     expect(falhas).toHaveLength(1);
     expect(falhas[0].slice(0, 3)).toEqual(["quebra", "meta-capi-registro", "permission denied for table leads"]);
   });
@@ -525,7 +528,7 @@ describe("qualificarNoMeta — lê a linha, manda, grava o resultado", () => {
   it("o cliente que LANÇA (dublê sem update, banco fora) também não derruba quem chamou", async () => {
     const quebrado = { from: () => { throw new Error("rede caiu"); } };
     const calado = vi.spyOn(console, "error").mockImplementation(() => {});
-    const r = await servidor.qualificarNoMeta(quebrado as never, "lead-1", { etapa: etapa("visita"), desfecho: null }, pixel);
+    const r = await servidor.qualificarNoMeta(quebrado as never, "lead-1", GANHO, pixel);
     calado.mockRestore();
     expect(r).toEqual({ enviados: [], aviso: null });
     expect(falhas[0]?.slice(0, 2)).toEqual(["quebra", "meta-capi-qualificacao"]);
@@ -642,50 +645,48 @@ beforeEach(() => {
   alcanca = true;
 });
 
-describe("PATCH /api/leads/gerenciar — a qualificação acontece depois do update, e só se ele alcançou o lead", () => {
-  it("mover para a visita grava a etapa e, DEPOIS, manda o LeadQualificado e grava o resultado na linha", async () => {
+describe("PATCH /api/leads/gerenciar — o Purchase vai depois do update, e só se ele alcançou o lead; o LeadQualificado, de hora em hora", () => {
+  it("mover para a visita só grava a etapa: o LeadQualificado vai pela rodada de hora em hora", async () => {
     const r = await mover({ situacao: "visita" });
-    expect(r.status).toBe(200);
-
-    expect(capi.chamadas).toHaveLength(1);
-    expect(capi.chamadas[0]).toMatchObject({
-      eventName: "LeadQualificado",
-      eventId: "lead-1:qualificado",
-      actionSource: "system_generated",
-      pixelId: "px-1",
-      userData: { phone: "41999990000", email: "ana@exemplo.com", externalId: "ag-1" },
-    });
-
-    // Duas gravações, nesta ordem: a etapa, depois o resultado da CAPI.
-    expect(gravacoesDoPainel).toHaveLength(2);
-    expect(gravacoesDoPainel[0]).toMatchObject({ situacao: "visita" });
-    expect(gravacoesDoPainel[0]).not.toHaveProperty("capi_meta_status");
-    expect(gravacoesDoPainel[1]).toMatchObject({ capi_meta_status: "LeadQualificado:enviado" });
-    expect(leadNoBanco.capi_meta_status).toBe("LeadQualificado:enviado");
-  });
-
-  it("mover entre etapas em andamento não manda nada e grava uma vez só", async () => {
-    const r = await mover({ situacao: "em_contato" });
     expect(r.status).toBe(200);
     expect(capi.chamadas).toEqual([]);
     expect(gravacoesDoPainel).toHaveLength(1);
+    expect(gravacoesDoPainel[0]).toMatchObject({ situacao: "visita" });
+    expect(gravacoesDoPainel[0]).not.toHaveProperty("capi_meta_status");
+  });
+
+  it("mover entre etapas em andamento, ou para a negociação, não manda nada e grava uma vez só", async () => {
+    for (const situacao of ["em_contato", "negociacao"]) {
+      gravacoesDoPainel = [];
+      const r = await mover({ situacao });
+      expect(r.status).toBe(200);
+      expect(gravacoesDoPainel).toHaveLength(1);
+    }
+    expect(capi.chamadas).toEqual([]);
   });
 
   it("o update que não alcançou o lead não manda evento nenhum", async () => {
     alcanca = false;
-    await mover({ situacao: "visita" });
+    await mover({ situacao: "fechado", desfecho_motivo: "a_vista", desfecho_valor: "55.000,50" });
     expect(capi.chamadas).toEqual([]);
     expect(gravacoesDoPainel).toHaveLength(1);
   });
 
-  it("fechar como ganho com valor manda LeadQualificado e Purchase com o valor que a rota acabou de gravar", async () => {
+  it("fechar como ganho com valor manda o Purchase com o valor que a rota acabou de gravar, DEPOIS do update", async () => {
     const r = await mover({ situacao: "fechado", desfecho_motivo: "a_vista", desfecho_valor: "55.000,50" });
     expect(r.status).toBe(200);
-    expect(capi.chamadas.map((c) => c.eventName)).toEqual(["LeadQualificado", "Purchase"]);
-    expect(capi.chamadas[1]).toMatchObject({
+    expect(capi.chamadas.map((c) => c.eventName)).toEqual(["Purchase"]);
+    expect(capi.chamadas[0]).toMatchObject({
       eventId: "lead-1:purchase",
+      actionSource: "system_generated",
+      pixelId: "px-1",
+      userData: { phone: "41999990000", email: "ana@exemplo.com", externalId: "ag-1" },
       customData: { value: 55000.5, currency: "BRL", content_ids: ["123"], content_type: "product" },
     });
+    // Duas gravações, nesta ordem: a etapa, depois o resultado da CAPI.
+    expect(gravacoesDoPainel).toHaveLength(2);
+    expect(gravacoesDoPainel[0]).toMatchObject({ situacao: "fechado" });
+    expect(gravacoesDoPainel[0]).not.toHaveProperty("capi_meta_status");
     const corpo = await r.json();
     expect(corpo.ok).toBe(true);
     expect(String(corpo.aviso ?? "")).not.toContain(AVISO_DE_GANHO_SEM_VALOR);
@@ -695,13 +696,12 @@ describe("PATCH /api/leads/gerenciar — a qualificação acontece depois do upd
   it("fechar como ganho SEM valor: o Purchase não vai, fica pulado na linha, e a resposta avisa a tela", async () => {
     const r = await mover({ situacao: "fechado", desfecho_motivo: "a_vista" });
     expect(r.status).toBe(200);
-    expect(capi.chamadas.map((c) => c.eventName)).toEqual(["LeadQualificado"]);
+    expect(capi.chamadas).toEqual([]);
     const corpo = await r.json();
     expect(corpo.aviso).toContain(AVISO_DE_GANHO_SEM_VALOR);
     expect(leadNoBanco.capi_meta_status).toBe("Purchase:pulado");
 
     // O vendedor volta e informa o valor, com o motivo de novo: agora o Purchase vai.
-    capi.chamadas = [];
     const depois = await mover({ situacao: "fechado", desfecho_motivo: "a_vista", desfecho_valor: "48000" });
     expect(depois.status).toBe(200);
     expect(capi.chamadas.map((c) => c.eventName)).toEqual(["Purchase"]);
@@ -715,20 +715,13 @@ describe("PATCH /api/leads/gerenciar — a qualificação acontece depois do upd
     expect(capi.chamadas).toEqual([]);
   });
 
-  it("quem já foi qualificado não é qualificado de novo ao ir para a negociação", async () => {
-    leadNoBanco.capi_meta_response = { qualificado: registro("enviado") };
-    await mover({ situacao: "negociacao" });
-    expect(capi.chamadas).toEqual([]);
-    expect(gravacoesDoPainel).toHaveLength(1);
-  });
-
   it("a CAPI dublada que devolve NADA não derruba o movimento", async () => {
     capi.resposta = undefined;
     const calado = vi.spyOn(console, "error").mockImplementation(() => {});
-    const r = await mover({ situacao: "visita" });
+    const r = await mover({ situacao: "fechado", desfecho_motivo: "a_vista", desfecho_valor: "48000" });
     calado.mockRestore();
     expect(r.status).toBe(200);
-    expect(gravacoesDoPainel[0]).toMatchObject({ situacao: "visita" });
+    expect(gravacoesDoPainel[0]).toMatchObject({ situacao: "fechado" });
   });
 });
 
@@ -737,14 +730,15 @@ describe("PATCH /api/leads/gerenciar — a qualificação acontece depois do upd
 // ---------------------------------------------------------------------------
 
 describe("os outros caminhos para a etapa qualificada e para a linha", () => {
-  it("o 'Chegou na loja' manda o mesmo LeadQualificado, depois do update da visita", () => {
+  it("o 'Chegou na loja' move para a visita e não manda nada: o LeadQualificado vai de hora em hora", () => {
     const rota = lerCodigo("src/app/api/leads/[id]/chegou/route.ts");
-    const update = rota.indexOf("update({ situacao: visita.chave");
-    const qualifica = rota.indexOf("qualificarNoMeta(");
-    expect(update).toBeGreaterThan(-1);
-    expect(qualifica, "a visita pelo pátio não qualifica no Meta").toBeGreaterThan(update);
-    expect(rota).toContain("{ etapa: { chave: visita.chave, tipo: visita.tipo }, desfecho: null }");
-    expect(rota).toContain("lerPixelId: pixelIdDasSettings");
+    expect(rota).toContain("update({ situacao: visita.chave");
+    expect(rota, "a visita pelo pátio voltou a mandar na hora").not.toContain("qualificarNoMeta(");
+  });
+
+  it("a rodada agendada do Meta é quem manda o LeadQualificado", () => {
+    const rota = lerCodigo("src/app/api/marketing/sincronizar/meta/route.ts");
+    expect(rota).toContain("repescarQualificacoes(admin");
   });
 
   it("o PATCH do quadro diz em que etapa o lead FICOU e qual desfecho gravou, depois de alcançar o lead", () => {
