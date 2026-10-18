@@ -7,7 +7,6 @@ import {
   FUSO_DO_META,
   diagnosticarMeta,
   diagnosticoMetaParaBanco,
-  leadQualificado,
   somarDias,
   type AnuncioDoMeta,
   type CampanhaDoMeta,
@@ -16,6 +15,8 @@ import {
   type RetratoDoMeta,
 } from "./copilotoMeta";
 import { janelaDeDias, type Situacao } from "./midiaSync";
+import { quandoQualificou } from "./qualificacaoParaMeta";
+import { lerRastroDeEtapas } from "./qualificacaoParaMeta-servidor";
 
 /**
  * O Copiloto do Meta no servidor (17/10/2026): monta o retrato com a chave de
@@ -132,15 +133,23 @@ export async function montarRetratoMeta(admin: SupabaseClient, conta: string, ag
   const linhasLeads = await todasAsLinhas((de, fim) =>
     admin
       .from("leads")
-      .select("utm_campaign, utm_content, created_at, situacao, desfecho")
+      .select("id, utm_campaign, utm_content, created_at, situacao, desfecho")
       .in("utm_campaign", ids)
       .gte("created_at", desde)
       .lt("created_at", ate)
       .order("id", { ascending: true })
       .range(de, fim),
   );
+
+  // "Qualificou" é CHEGAR a Visita ou Negociação (e ficar), não estar lá hoje:
+  // quem visitou e depois foi perdido qualificou. Vem do rastro do funil.
+  const passagensDe = await lerRastroDeEtapas(admin, linhasLeads.map((l) => String(l.id)));
+
   const leads: LeadDoMeta[] = linhasLeads.map((l) => {
-    const qualificado = leadQualificado(l.situacao as string | null, l.desfecho as string | null);
+    const qualificado = quandoQualificou(passagensDe.get(String(l.id)) ?? [], {
+      situacao: l.situacao as string | null,
+      desfecho: l.desfecho as string | null,
+    }).qualificou;
     return {
       campanhaId: (l.utm_campaign as string | null) ?? null,
       anuncioId: (l.utm_content as string | null) ?? null,

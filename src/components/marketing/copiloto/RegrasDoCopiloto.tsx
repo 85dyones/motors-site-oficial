@@ -61,7 +61,7 @@ const NUMEROS_DO_META: typeof NUMEROS = [
   { chave: "metaGastoMinimoCampanha", rotulo: "Campanha (R$)", ajuda: "Gasto em 14 dias para propor corte de verba de campanha cara ou sem lead.", passo: "0.01" },
   { chave: "metaVezesSemLead", rotulo: "Sem lead a partir de (× CPL)", ajuda: "Gasto sem lead a partir de quantas vezes o custo por lead da conta deixa de ser azar.", passo: "0.1" },
   { chave: "metaVezesCustoCaro", rotulo: "Caro a partir de (× CPL)", ajuda: "Custo por lead da campanha a partir de quantas vezes o da conta é caro.", passo: "0.1" },
-  { chave: "metaLeadsMadurosMinimos", rotulo: "Leads maduros (qualidade)", ajuda: "Campanha com esses leads maduros e nenhum em visita, negociação ou venda vira achado.", passo: "1" },
+  { chave: "metaLeadsMadurosMinimos", rotulo: "Leads maduros (qualidade)", ajuda: "Campanha com esses leads maduros e nenhum que chegou a visita, negociação ou venda vira achado.", passo: "1" },
   { chave: "metaDiasParaAmadurecer", rotulo: "Dias para amadurecer", ajuda: "Lead mais novo que isto ainda não teve tempo de chegar à visita.", passo: "1" },
 ];
 

@@ -836,7 +836,8 @@ correspondência do `Lead`. É o que esta fase faz.
 - **Uma vez por lead, cada um.** O `event_id` é fixo e o resultado fica na
   linha (abaixo): visita → negociação não conta duas vezes, nem o lead reaberto
   e fechado de novo. Recusa do Meta e rede voltam a tentar no próximo
-  movimento que justifique, com o mesmo `event_id`.
+  movimento que justifique, com o mesmo `event_id` — e o `LeadQualificado`
+  também sozinho, pela repescagem de hora em hora (abaixo).
 - **Sem valor não há Purchase.** Um Purchase de R$ 0 ensinaria o algoritmo a
   otimizar para vendas de zero. O ganho sem valor fica `Purchase:pulado` na
   linha e a tela recebe o aviso; o vendedor informa o valor (o PATCH com o
@@ -867,13 +868,56 @@ Sem pixel em `site_settings`, a CAPI inteira está desligada: nada vai e nada
 se registra, como na captura. O `Lead` sem `event_id` (formulário sem sessão
 de rastreio) fica `Lead:pulado` com o motivo.
 
+### A repescagem (2026-10-17)
+
+O envio acima só acontece no movimento do quadro. O lead que qualificou antes
+dele existir (até 16/10), ou cuja entrega falhou e que não se mexeu de novo,
+ficava sem `LeadQualificado` para sempre. A rodada agendada da sincronização
+do Meta (`/api/marketing/sincronizar/meta`, pg_cron de hora em hora) agora
+chama `repescarQualificacoes`:
+
+- **Quem:** o lead que **chegou a qualificar** pelo rastro do funil
+  (`leads_eventos`, tipo `etapa`; regra `quandoQualificou`) e cuja entrada
+  `qualificado` na linha não está `enviado`.
+- **Chegou a qualificar** é ficar em `visita`/`negociacao` por **10 minutos**
+  ou mais (ou estar lá agora), ou fechar ganho. O rastro de produção mostra
+  cartões arrastados coluna a coluna em segundos: isso não é visita. "Não é
+  oportunidade" nunca conta. Os 10 min (`PERMANENCIA_MINIMA_MS`) são
+  anti-ruído da tela, não régua de negócio. O envio em tempo real não espera
+  os 10 min: o cartão arrastado continua indo ao Meta na hora.
+- **Janela:** 7 dias menos 1 hora — o Meta recusa evento mais velho que 7 dias.
+  `event_time` é a primeira vez que o lead qualificou; se ela já saiu da
+  janela, a mais recente (a volta à Visita, o ganho), o horário que o envio
+  em tempo real teria usado.
+- **Quantos:** até 5 por rodada; primeiro quem nunca foi tentado, depois quem
+  sai da janela antes. Evento recusado por inválido (code 100) espera 24 h —
+  repetir só repetiria a recusa e o alerta; token, permissão, limite de
+  chamadas, rede e 5xx voltam na hora seguinte. Tudo para aos 45 s da rodada
+  (a rota tem 60 s).
+- **Sem pisar no painel:** o Meta só junta repetidos dentro de 48 h; quem
+  evita o envio em dobro é o registro da linha, relido logo antes de mandar e
+  logo antes de gravar — o Purchase gravado pelo painel no meio da rodada
+  fica.
+- **Independe dos anúncios:** vai pela CAPI, com outro token; roda mesmo
+  quando a leitura dos anúncios falha. O resultado sai em `repescagem` na
+  resposta da rota, e o registro do lead leva `repescado: true`.
+- **Loja:** a chave de serviço não filtra loja (`leads` e `leads_eventos` ainda
+  sem `org_id`; pixel único em `site_settings`). Na S1, vai por loja, com o
+  pixel de cada uma.
+
+O mesmo rastro (`lerRastroDeEtapas`, paginado) decide o "qualificado" do
+Copiloto do Meta: quem visitou e depois foi perdido conta como qualificado.
+
 ### Onde mora
 
-- `src/lib/qualificacaoParaMeta.ts` — as regras, puras.
-- `src/lib/qualificacaoParaMeta-servidor.ts` — lê a linha, manda, grava.
+- `src/lib/qualificacaoParaMeta.ts` — as regras, puras (`quandoQualificou`).
+- `src/lib/qualificacaoParaMeta-servidor.ts` — lê a linha, manda, grava; o
+  rastro do funil (`lerRastroDeEtapas`) e a repescagem.
 - `src/lib/meta-capi.ts` — `CapiEvent` ganhou os dois nomes e a origem
   `system_generated`; `sendCapiEvent` passou a devolver o corpo do Graph.
-- Travado por `tests/qualificacao-para-meta.test.ts`.
+- Travado por `tests/qualificacao-para-meta.test.ts` (regras),
+  `tests/qualificacao-repescagem.test.ts` (repescagem) e
+  `tests/copiloto-meta-rodada.test.ts` (quando a rota chama).
 
 ### No Events Manager
 
@@ -881,9 +925,10 @@ Os dois eventos aparecem com origem **Servidor** e sem par do navegador (não
 há "Desduplicado" aqui: eles só existem no servidor). Para a campanha usar:
 
 1. Em **Eventos personalizados**, `LeadQualificado` aparece sozinho depois do
-   primeiro envio. Para otimizar por ele, crie uma **conversão personalizada**
-   a partir dele (ou use-o direto como evento de otimização, onde o objetivo
-   permitir).
+   primeiro envio. Crie a **conversão personalizada** "Lead qualificado" a
+   partir dele (categoria "Outro", para não somar aos Leads do formulário):
+   vira coluna no Gerenciador de Anúncios e alvo possível de otimização
+   quando o volume permitir.
 2. `Purchase` é padrão: entra em "Vendas" com o valor, e o ROAS passa a ser
    calculável.
 3. Volume: ~8 leads/semana e 5 em etapa qualificada hoje. Abaixo dos ~50

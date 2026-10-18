@@ -5,7 +5,6 @@ import {
   diagnosticarMeta,
   diagnosticoMetaParaBanco,
   fraseDaProposta,
-  leadQualificado,
   somarDias,
   type AnuncioDoMeta,
   type CampanhaDoMeta,
@@ -93,21 +92,6 @@ function retratoBase(): RetratoDoMeta {
     leads: [...leads(10, "A", "a1"), ...leads(1, "B", "c1")],
   };
 }
-
-describe("leadQualificado — a régua da qualificação que vai ao Meta", () => {
-  it("visita, negociação e o desfecho ganho qualificam; o resto não", () => {
-    expect(leadQualificado("visita", null)).toBe(true);
-    expect(leadQualificado("negociacao", null)).toBe(true);
-    // A etapa de ganho grava `desfecho = 'ganho'` (gatilho do funil): é o desfecho que conta.
-    expect(leadQualificado("fechado", "ganho")).toBe(true);
-    expect(leadQualificado(null, "ganho")).toBe(true);
-    expect(leadQualificado("novo", null)).toBe(false);
-    expect(leadQualificado("em_contato", null)).toBe(false);
-    // "proposta" é o rótulo "Recontato": não é qualificado.
-    expect(leadQualificado("proposta", "perdido")).toBe(false);
-    expect(leadQualificado(undefined, undefined)).toBe(false);
-  });
-});
 
 describe("diagnosticarMeta — o cenário-base", () => {
   const res = diagnosticarMeta(retratoBase(), P);
@@ -328,13 +312,17 @@ describe("diagnosticarMeta — medição e qualidade", () => {
     expect(medicao?.titulo).toBe("04 Remarketing: o pixel contou 14, o CRM recebeu 1");
   });
 
-  it("leads maduros sem nenhum qualificado e funil parado viram achados de qualidade", () => {
+  it("leads maduros sem nenhum qualificado e sem avanço no funil viram achados de qualidade", () => {
     const r = retratoBase();
     r.leads.push(...leads(8, "B", "c1", "2026-09-25"));
     const res = diagnosticarMeta(r, P);
     expect(res.resumo).toMatchObject({ maduros: 8, qualificados: 0, abertosParados: 8 });
     const qualidade = res.achados.filter((a) => a.regra === "meta_qualidade");
     expect(qualidade.map((a) => a.gravidade)).toEqual(["media", "baixa"]);
+    // "Chegou a", não "está hoje em": quem visitou e foi perdido qualificou.
+    expect(qualidade[0].titulo).toBe("04 Remarketing: 8 leads em 30 dias e nenhum chegou a visita, negociação ou venda");
+    expect(qualidade[1].titulo).toBe("8 leads do Meta sem avanço no funil há mais de 7 dias");
+    expect(qualidade[1].detalhe).toContain("mova para Visita agendada");
   });
 
   it("lead com menos de 7 dias não é maduro; o qualificado conta", () => {

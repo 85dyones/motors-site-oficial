@@ -3,6 +3,7 @@ import { createAdminSupabaseClient } from "../../../../../lib/supabase-server";
 import { janelaDeDias } from "../../../../../lib/midiaSync";
 import { aplicarAprovadasNoMeta } from "../../../../../lib/copilotoMeta-aplicar";
 import { rodarDiagnosticoMeta } from "../../../../../lib/copilotoMeta-servidor";
+import { repescarQualificacoes } from "../../../../../lib/qualificacaoParaMeta-servidor";
 import { buscarMeta, configMeta } from "../../../../../lib/midiaMeta";
 import {
   gravarLote,
@@ -13,6 +14,9 @@ import {
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+/** Até quando, contado do início da rodada, a repescagem ainda manda: o teto da rota é 60 s. */
+const PRAZO_DA_REPESCAGEM_MS = 45_000;
 
 /**
  * Puxa o Meta Ads e grava (spec 2026-09-24).
@@ -32,9 +36,14 @@ export const maxDuration = 60;
  *      sincronizar, para a sincronização logo depois já ler a conta mudada;
  *   2. sincroniza;
  *   3. faz o diagnóstico do dia, uma vez, a partir da hora das regras
- *      (`rodarDiagnosticoMeta`).
+ *      (`rodarDiagnosticoMeta`);
  * O copiloto nunca derruba a sincronização: o erro dele vai no log e na
  * resposta, e a rodada segue. O botão do painel só sincroniza.
+ *
+ * A rodada agendada também manda ao Meta o LeadQualificado que ficou para trás
+ * (`repescarQualificacoes`, 17/10/2026). Não é do copiloto nem depende da
+ * sincronização: vai pela CAPI, com outro token, e roda mesmo quando a
+ * leitura dos anúncios falha — até `PRAZO_DA_REPESCAGEM_MS` do início.
  */
 export async function POST(request: NextRequest) {
   const iniciadaEm = new Date();
@@ -50,10 +59,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
+  // O LeadQualificado que ficou para trás (qualificou antes do envio existir,
+  // ou a entrega falhou): até 5 por rodada, dentro dos 7 dias.
+  const repescar = async (): Promise<{ repescagem?: unknown }> => {
+    if (gatilho !== "agendado") return {};
+    try {
+      return { repescagem: await repescarQualificacoes(admin, undefined, new Date(), iniciadaEm.getTime() + PRAZO_DA_REPESCAGEM_MS) };
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      console.error(`[Meta CAPI] repescagem: ${motivo}`);
+      return { repescagem: { feito: false, motivo } };
+    }
+  };
+
   const cfg = configMeta();
   if ("erro" in cfg) {
     await registrarRodada(admin, { plataforma: "meta", gatilho, iniciadaEm, ok: false, erro: cfg.erro });
-    return NextResponse.json({ error: cfg.erro }, { status: 500 });
+    return NextResponse.json({ error: cfg.erro, ...(await repescar()) }, { status: 500 });
   }
 
   const copiloto: Record<string, unknown> = {};
@@ -82,10 +104,10 @@ export async function POST(request: NextRequest) {
         copiloto.diagnostico = { feito: false, motivo };
       }
     }
-    return NextResponse.json({ ok: true, janela, ...r, ...(gatilho === "agendado" ? { copiloto } : {}) });
+    return NextResponse.json({ ok: true, janela, ...r, ...(gatilho === "agendado" ? { copiloto } : {}), ...(await repescar()) });
   } catch (err) {
     const erro = err instanceof Error ? err.message : String(err);
     await registrarRodada(admin, { plataforma: "meta", gatilho, iniciadaEm, ok: false, erro });
-    return NextResponse.json({ error: erro }, { status: 502 });
+    return NextResponse.json({ error: erro, ...(await repescar()) }, { status: 502 });
   }
 }

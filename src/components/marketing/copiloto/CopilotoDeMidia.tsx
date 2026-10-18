@@ -269,7 +269,7 @@ export default function CopilotoDeMidia({
           <Numero
             rotulo="Qualificados · 30 dias"
             valor={`${numero(resumoMeta.qualificados)} de ${numero(resumoMeta.maduros)}`}
-            detalhe={`leads com mais de 7 dias que chegaram a visita, negociação ou venda; ${numero(resumoMeta.abertosParados)} ainda sem andar no funil`}
+            detalhe={`leads com mais de 7 dias que chegaram a visita, negociação ou venda; ${numero(resumoMeta.abertosParados)} ainda sem avanço no funil`}
           />
         </section>
       )}

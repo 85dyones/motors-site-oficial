@@ -28,6 +28,9 @@ import { META_CONTENT_TYPE } from "./telemetry";
  * O que NÃO foi entregue (recusa do Meta, rede, pulado por falta de valor)
  * fica registrado como tal e é tentado de novo no próximo movimento que o
  * justifique — é assim que o valor preenchido depois de fechar vira Purchase.
+ * O LeadQualificado não aceito volta também sozinho, de hora em hora, pela
+ * repescagem (`repescarQualificacoes`, 17/10/2026), enquanto couber nos 7 dias
+ * que o Meta aceita.
  *
  * `action_source` é `system_generated`: o evento nasce no painel, de uma ação
  * da equipe, e não de uma página do site. Por isso não leva IP nem
@@ -87,6 +90,8 @@ export interface RegistroDaCapi {
   valor?: number;
   /** O que o Graph respondeu, resumido (`events_received`, `fbtrace_id`, o erro). */
   resposta?: unknown;
+  /** Mandado pela repescagem (`repescarQualificacoes`), e não no movimento do painel. */
+  repescado?: boolean;
 }
 
 export type RegistrosDaCapi = Partial<Record<ChaveDoRegistro, RegistroDaCapi>>;
@@ -316,6 +321,94 @@ export function ehEtapaQualificada(
   if (desfecho === "ganho") return true;
   if (!etapa) return false;
   return ETAPAS_QUALIFICADAS.includes(etapa.chave) || etapa.tipo === "ganho";
+}
+
+// ---------------------------------------------------------------------------
+// Se o lead CHEGOU a qualificar, pelo rastro (17/10/2026)
+// ---------------------------------------------------------------------------
+
+/** Uma mudança de etapa do rastro do lead (`leads_eventos`, tipo `etapa`). */
+export interface PassagemDeEtapa {
+  /** A chave da etapa para onde o lead foi. */
+  para: string;
+  /** Quando, em ISO. */
+  em: string;
+}
+
+/**
+ * Abaixo disto numa etapa qualificada não é qualificação: é o cartão sendo
+ * arrastado coluna a coluna. O rastro de produção mostra Recontato → Visita
+ * → Negociação em três segundos, e um lead que atravessou até Negociação em
+ * cinco segundos e foi marcado "Não é oportunidade". Anti-ruído da tela, não
+ * régua de negócio.
+ */
+export const PERMANENCIA_MINIMA_MS = 10 * 60 * 1000;
+
+const emMs = (iso: string) => Date.parse(iso);
+
+/** Se o lead chegou a qualificar, e os dois momentos que servem de `event_time`. */
+export interface Qualificacao {
+  qualificou: boolean;
+  /** A primeira vez que qualificou. */
+  desde: string | null;
+  /**
+   * A vez mais recente: a última permanência em Visita/Negociação, ou o ganho.
+   * É o horário que o envio em tempo real teria usado no último movimento
+   * qualificador — e o que a repescagem usa quando `desde` já saiu dos 7 dias.
+   */
+  ultima: string | null;
+}
+
+/**
+ * Se o lead chegou a qualificar, e quando — pelo rastro, e não só pela etapa
+ * de agora: quem visitou e depois foi perdido qualificou.
+ *
+ *   - Ganho qualificou sempre; `desde` é a primeira entrada em etapa
+ *     qualificada, ou a entrada na etapa do ganho; `ultima` é o ganho
+ *     (`desfechoEm`, ou a última passagem).
+ *   - "Não é oportunidade" (descartado) nunca: a equipe disse que não havia
+ *     negócio, e isso vale mais que a passagem pelo funil.
+ *   - Senão, as permanências contínuas em Visita/Negociação que duraram
+ *     `PERMANENCIA_MINIMA_MS`, ou que duram até agora: `desde` é o começo da
+ *     primeira, `ultima` o da mais recente.
+ *   - Sem rastro (lead de antes dele), vale a etapa de agora, sem horário.
+ *
+ * `desde` (ou `ultima`, quando `desde` passou dos 7 dias) é o `event_time` do
+ * LeadQualificado que a repescagem manda.
+ */
+export function quandoQualificou(
+  passagens: readonly PassagemDeEtapa[],
+  atual: { situacao: string | null | undefined; desfecho: string | null | undefined; desfechoEm?: string | null },
+): Qualificacao {
+  const nao: Qualificacao = { qualificou: false, desde: null, ultima: null };
+  if (atual.desfecho === "descartado") return nao;
+  const ordenadas = passagens.filter((p) => Number.isFinite(emMs(p.em))).sort((a, b) => emMs(a.em) - emMs(b.em));
+  const qualificada = (chave: string) => ETAPAS_QUALIFICADAS.includes(chave);
+
+  if (atual.desfecho === "ganho") {
+    const desde = (ordenadas.find((p) => qualificada(p.para)) ?? ordenadas.at(-1))?.em ?? atual.desfechoEm ?? null;
+    const ganhoEm = atual.desfechoEm && Number.isFinite(emMs(atual.desfechoEm)) ? atual.desfechoEm : null;
+    return { qualificou: true, desde, ultima: ganhoEm ?? ordenadas.at(-1)?.em ?? desde };
+  }
+
+  // O começo de cada permanência que conta.
+  const comecos: string[] = [];
+  let inicio: string | null = null;
+  for (const p of ordenadas) {
+    if (qualificada(p.para)) {
+      inicio ??= p.em;
+      continue;
+    }
+    if (inicio !== null && emMs(p.em) - emMs(inicio) >= PERMANENCIA_MINIMA_MS) comecos.push(inicio);
+    inicio = null;
+  }
+  // Ainda numa etapa qualificada: conta, dure o que durar.
+  if (inicio !== null) comecos.push(inicio);
+  if (comecos.length > 0) return { qualificou: true, desde: comecos[0], ultima: comecos[comecos.length - 1] };
+  if (ordenadas.length === 0 && typeof atual.situacao === "string" && qualificada(atual.situacao)) {
+    return { qualificou: true, desde: null, ultima: null };
+  }
+  return nao;
 }
 
 export type EventoDevido =
