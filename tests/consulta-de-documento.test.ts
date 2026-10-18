@@ -341,14 +341,14 @@ describe("os leitores, CNPJ", () => {
     expect(resumoDe(LEITORES.cnpj(chamada.dados), "Situação na Receita")).toMatchObject({ valor: "BAIXADA", estado: "atencao" });
   });
 
-  it("CNPJ Cadastral: faixa de faturamento no resumo e os sócios com PEP e óbito, CPF mascarado e sem nascimento (o sócio não declarou ciência)", () => {
+  it("CNPJ Cadastral: faixa de faturamento no resumo e os sócios com PEP e óbito, com CPF inteiro e nascimento", () => {
     const l = ler("cnpj-cadastral");
     expect(l.titular).toBe("ORBITA DADOS DIGITAIS LTDA");
     expect(resumoDe(l, "Faixa de faturamento")?.valor).toMatch(/^R\$\s420\.000,00$/);
     expect(linhaDe(l, "Situação")).toMatchObject({ valor: "ATIVA", estado: "ok" });
     expect(valorDe(l, "Abertura")).toBe("14/09/2021");
     expect(valorDe(l, "Porte")).toBe("EMPRESA DE PEQUENO PORTE");
-    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["CARLOS EDUARDO PEREIRA LIMA", "***.456.789-**", "Não", "Não", "Não"]]);
+    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["CARLOS EDUARDO PEREIRA LIMA", "123.456.789-01", "17/11/1988", "Não", "Não", "Não"]]);
   });
 
   it("CNPJ Cadastral Premium: inscrição estadual, sócio com % e as participações em outras empresas; e-mail omitido não aparece", () => {
@@ -357,7 +357,7 @@ describe("os leitores, CNPJ", () => {
     expect(resumoDe(l, "Sócios com restrição")).toMatchObject({ valor: "Nenhum", estado: "ok" });
     expect(valorDe(l, "Inscrição estadual")).toBe("Para dados de IE tente novamente em alguns instantes.");
     expect(valorDe(l, "E-mails")).toBeNull();
-    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["FULANO FICTICIO DA SILVA", "***.000.001-**", "SOCIO", "30%", "Não"]]);
+    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["FULANO FICTICIO DA SILVA", "000.000.001-91", "SOCIO", "30%", "Não"]]);
     expect(tabelaDe(l, "Telefones")?.linhas).toEqual([["31 37000000", "COMERCIAL"]]);
     expect(tabelaDe(l, "Participações dos sócios em outras empresas")?.linhas).toEqual([["BELTRANO FICTICIO SOUZA", "EMPRESA FICTICIA SECUNDARIA LTDA", null, "100%"]]);
   });
@@ -373,7 +373,7 @@ describe("os leitores, CNPJ", () => {
     expect(valorDe(l, "E-mail")).toBeNull();
     expect(valorDe(l, "Capital social")).toMatch(/^R\$\s850\.000,00$/);
     expect(tabelaDe(l, "CNAEs secundários")?.linhas).toHaveLength(2);
-    expect(tabelaDe(l, "Quadro de sócios")?.linhas).toEqual([["CARLOS EDUARDO FERREIRA", "***.456.789-**", "49", "15/07/2019"]]);
+    expect(tabelaDe(l, "Quadro de sócios")?.linhas).toEqual([["CARLOS EDUARDO FERREIRA", "123.456.789-01", "49", "15/07/2019"]]);
   });
 
   it("Análise de Crédito Basic PJ: negativações e ações zeradas (ok), protestos não informados ficam sem valor, consultas e quadro societário", () => {
@@ -386,7 +386,7 @@ describe("os leitores, CNPJ", () => {
     expect(valorDe(l, "Consultas nos últimos 30 dias")).toBe("1");
     expect(valorDe(l, "Consultas há mais de 90 dias")).toBe("5");
     expect(valorDe(l, "NIRE")).toBe("35200123456");
-    expect(tabelaDe(l, "Quadro societário")?.linhas).toEqual([["JOAO DA SILVA FICTICIO", "***.456.789-**", "SOCIO", "60.0%"]]);
+    expect(tabelaDe(l, "Quadro societário")?.linhas).toEqual([["JOAO DA SILVA FICTICIO", "123.456.789-01", "SOCIO", "60.0%"]]);
   });
 
   it("Dossiê de Crédito PJ: pendências e protestos zerados no resumo, capital em BRL e telefone", () => {
@@ -581,9 +581,9 @@ describe("formato inesperado nunca vira 'nada encontrado' (revisão de 18/10/202
     expect(ocorrencias("")).toBeNull();
   });
 
-  it("documento de sócio: CPF mascarado, CNPJ formatado, o que já vem mascarado fica como veio", () => {
-    expect(documentoDoSocio("12345678901")).toBe("***.456.789-**");
-    expect(documentoDoSocio("123.456.789-01")).toBe("***.456.789-**");
+  it("documento de sócio: CPF e CNPJ inteiros e formatados; o que a Receita já manda mascarado fica como veio", () => {
+    expect(documentoDoSocio("12345678901")).toBe("123.456.789-01");
+    expect(documentoDoSocio("123.456.789-01")).toBe("123.456.789-01");
     expect(documentoDoSocio("12345678000195")).toBe("12.345.678/0001-95");
     expect(documentoDoSocio("***067476**")).toBe("***067476**");
   });

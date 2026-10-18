@@ -29,7 +29,7 @@
  * bruta fica guardada para remontar o relatório sem pagar de novo.
  */
 import { cnpjValido, formatarCnpj, soCaracteresDoCnpj } from "./cnpj";
-import { cpfValido, formatarCpf, mascararCpf, soDigitosDoCpf } from "./cpf";
+import { cpfValido, formatarCpf, soDigitosDoCpf } from "./cpf";
 import type { EstadoDoItem, LinhaDoRelatorio, RelatorioDeDocumento, SecaoDoRelatorio, TabelaDoRelatorio, TipoDeDocumento } from "./relatorioDeDocumento";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -360,15 +360,15 @@ const tabelaDeOcorrencias = (titulo: string, v: unknown): TabelaDoRelatorio[] =>
 };
 
 /**
- * Documento de sócio no relatório: CPF mascarado (o sócio não declarou
- * ciência da consulta; o número inteiro continua na resposta guardada),
- * CNPJ inteiro, e o que já vier mascarado pela Receita, como veio.
+ * Documento de sócio no relatório: CPF e CNPJ inteiros e formatados (o dono
+ * precisa do dado completo, 18/10/2026); o que a Receita já manda mascarado
+ * fica como veio.
  */
 export function documentoDoSocio(v: unknown): string | null {
   const t = texto(v);
   if (!t) return null;
   const digitos = t.replace(/\D/g, "");
-  if (digitos.length === 11 && !/[*xX]/.test(t)) return mascararCpf(digitos);
+  if (digitos.length === 11 && !/[*xX]/.test(t)) return formatarCpf(digitos);
   if (digitos.length === 14) return formatarCnpj(digitos);
   return t;
 }
@@ -741,6 +741,7 @@ function lerCnpjCadastral(d: unknown): LeituraDoProduto {
           tabela("Sócios", lista(pegar(r, "members")), [
             ["Nome", (i) => texto(pegar(i, "nome"))],
             ["Documento", (i) => documentoDoSocio(pegar(i, "documento.numero"))],
+            ["Nascimento", (i) => data(pegar(i, "data_nascimento"))],
             ["PEP", (i) => simNao(pegar(i, "indicadores.pep"))],
             ["Óbito", (i) => simNao(pegar(i, "indicadores.obito"))],
             ["Restrição regulatória", (i) => simNao(pegar(i, "indicadores.restricao_regulatoria"))],
