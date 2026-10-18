@@ -667,26 +667,32 @@ revoke all on function public.relatorios_compartilhados_so_revogar() from public
 -- não "0 linhas" calado. A service_role também não EDITA (sem UPDATE, e o
 -- gatilho da seção 2 recusa até o dono). Ela guarda o DELETE por um motivo
 -- só: atender o pedido de eliminação do titular (LGPD, art. 18, VI) — o
--- link da consulta apagada vai junto, pela FK em cascata. O `revoke update`
--- é explícito porque a versão anterior deste arquivo concedia.
+-- link da consulta apagada vai junto, pela FK em cascata. E é DELETE linha
+-- a linha, nunca TRUNCATE: o TRUNCATE não passa por gatilho de linha e
+-- esvazia o registro inteiro de uma vez — eliminação é de um titular, não de
+-- todos. Os `revoke update, truncate` são explícitos porque a versão anterior
+-- deste arquivo (e o default ACL do Supabase) concediam.
 revoke all on public.consultas_de_documento from public, anon, authenticated;
 grant select on public.consultas_de_documento to authenticated;
-revoke insert, update on public.consultas_de_documento from service_role;
-grant select, delete, truncate, references, trigger
+revoke insert, update, truncate on public.consultas_de_documento from service_role;
+grant select, delete, references, trigger
   on public.consultas_de_documento to service_role;
 
 -- No link, `authenticated` LÊ por coluna — todas menos `token_hash` —,
 -- INSERE (é o único gesto que toca o hash: o servidor manda consulta_id,
 -- token_hash e expira_em pela sessão) e atualiza DUAS colunas: mexer em
 -- `expira_em` ou `acessos` é 42501 antes de qualquer policy. Ler o hash
--- (inclusive por `select *` ou `returning *`) é 42501.
+-- (inclusive por `select *` ou `returning *`) é 42501. A service_role tem o
+-- privilégio das irmãs MENOS o TRUNCATE: o link é registro de algo que saiu
+-- da loja, e some só com a consulta dele (cascata) ou por DELETE de linha.
 revoke all on public.relatorios_compartilhados from public, anon, authenticated;
 grant select (id, org_id, consulta_id, expira_em, revogado_em, revogado_por,
               acessos, ultimo_acesso_em, criado_por, criado_por_nome, criado_em)
   on public.relatorios_compartilhados to authenticated;
 grant insert on public.relatorios_compartilhados to authenticated;
 grant update (revogado_em, revogado_por) on public.relatorios_compartilhados to authenticated;
-grant select, insert, update, delete, truncate, references, trigger
+revoke truncate on public.relatorios_compartilhados from service_role;
+grant select, insert, update, delete, references, trigger
   on public.relatorios_compartilhados to service_role;
 
 alter table public.consultas_de_documento    enable row level security;
@@ -1251,6 +1257,8 @@ declare
   v_srv_edita     text := 'não testado';   -- service_role: UPDATE negado (sem privilégio)
   v_dono_edita    text := 'não testado';   -- dono: UPDATE negado pelo gatilho
   v_srv_apaga     text := 'não testado';   -- service_role: DELETE funciona (eliminação LGPD)
+  v_srv_trunca_c  text := 'não testado';   -- service_role: TRUNCATE da consulta negado
+  v_srv_trunca_l  text := 'não testado';   -- service_role: TRUNCATE do link negado
   v_sem_ciencia   text := 'não testado';
   v_link_forjado  text := 'não testado';
   v_link_alheio   text := 'não testado';
@@ -1455,9 +1463,10 @@ begin
   if has_any_column_privilege('service_role', 'public.consultas_de_documento', 'INSERT')
      or has_any_column_privilege('service_role', 'public.consultas_de_documento', 'UPDATE')
      or not has_table_privilege('service_role', 'public.consultas_de_documento', 'SELECT')
-     or not has_table_privilege('service_role', 'public.consultas_de_documento', 'DELETE') then
+     or not has_table_privilege('service_role', 'public.consultas_de_documento', 'DELETE')
+     or has_table_privilege('service_role', 'public.consultas_de_documento', 'TRUNCATE') then
     falhas := falhas + 1;
-    raise warning 'FALHOU: na consulta, service_role deveria ler, apagar (eliminação LGPD), só inserir pela função e nunca editar';
+    raise warning 'FALHOU: na consulta, service_role deveria ler, apagar linha a linha (eliminação LGPD), só inserir pela função, e nunca editar nem truncar';
   end if;
   if has_table_privilege('authenticated', 'public.relatorios_compartilhados', 'SELECT')
      or has_column_privilege('authenticated', 'public.relatorios_compartilhados', 'token_hash', 'SELECT')
@@ -1477,9 +1486,10 @@ begin
     falhas := falhas + 1;
     raise warning 'FALHOU: no link, authenticated deveria ler as onze colunas sem token_hash, incluir e atualizar só revogado_em/revogado_por';
   end if;
-  if not has_table_privilege('service_role', 'public.relatorios_compartilhados', 'UPDATE') then
+  if not has_table_privilege('service_role', 'public.relatorios_compartilhados', 'UPDATE')
+     or has_table_privilege('service_role', 'public.relatorios_compartilhados', 'TRUNCATE') then
     falhas := falhas + 1;
-    raise warning 'FALHOU: service_role sem o privilégio das irmãs no link';
+    raise warning 'FALHOU: no link, service_role deveria ter o privilégio das irmãs, menos TRUNCATE';
   end if;
   foreach v_nome in array array['INSERT','UPDATE','DELETE','TRUNCATE'] loop
     if has_table_privilege('authenticated', 'public.parametros_consulta_documento', v_nome) then
@@ -1914,6 +1924,27 @@ begin
         else format('apagou %s linha(s)', v_n) end;
     exception when insufficient_privilege then v_srv_apaga := 'negado';
     end;
+    -- …e não esvazia nada de uma vez: sem TRUNCATE, nem na consulta nem no
+    --  link. Se o TRUNCATE passar, o sentinela local (PCD02) o desfaz na hora,
+    --  para as sondas seguintes ainda terem linha e o veredito sair limpo.
+    begin
+      set local role service_role;
+      truncate public.relatorios_compartilhados;
+      raise exception 'TRUNCOU' using errcode = 'PCD02';
+    exception
+      when insufficient_privilege then v_srv_trunca_l := 'negado';
+      when sqlstate 'PCD02' then v_srv_trunca_l := 'truncou';
+    end;
+    reset role;
+    begin
+      set local role service_role;
+      truncate public.consultas_de_documento cascade;
+      raise exception 'TRUNCOU' using errcode = 'PCD02';
+    exception
+      when insufficient_privilege then v_srv_trunca_c := 'negado';
+      when sqlstate 'PCD02' then v_srv_trunca_c := 'truncou';
+    end;
+    reset role;
 
     -- 9l · O financeiro gera o link da consulta do admin, forjando autor, hora,
     --      acessos e revogação: entra com o carimbo da sessão, zero acesso e
@@ -2525,6 +2556,11 @@ begin
     raise warning 'FALHOU: consulta imutável para todos — update service_role %, update dono %, delete service_role % (esperado negado, negado, apagou)',
       v_srv_edita, v_dono_edita, v_srv_apaga;
   end if;
+  if v_srv_trunca_c <> 'negado' or v_srv_trunca_l <> 'negado' then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: TRUNCATE pela service_role — consulta %, link % (esperado negado nos dois)',
+      v_srv_trunca_c, v_srv_trunca_l;
+  end if;
   if v_link_forjado <> 'sobrescrito' or v_link_alheio <> 'negado' then
     falhas := falhas + 1;
     raise warning 'FALHOU: link — carimbo forjado %, link para consulta inexistente %', v_link_forjado, v_link_alheio;
@@ -2627,7 +2663,8 @@ begin
     'admin, gestor, comercial e financeiro leem as consultas de todos; sem a '
     'declaração do titular não entra; a sessão não edita nem apaga consulta (42501), '
     'e ninguém edita — nem a service_role (sem UPDATE), nem o dono (gatilho '
-    'só-inclusão) —, e só a service_role apaga (eliminação a pedido do titular); o '
+    'só-inclusão) —, e só a service_role apaga, linha a linha (eliminação a pedido '
+    'do titular; TRUNCATE negado na consulta e no link); o '
     'link nasce com carimbo da sessão, zero acesso e vivo, e a sessão não lê '
     'token_hash; revogar funciona, carimbado pela sessão; esticar prazo, mexer no '
     'contador, desrevogar, revogar de novo e apagar são negados, e nem a chave de '

@@ -2367,7 +2367,7 @@ describe.skipIf(!temBanco)("as consultas de CPF e CNPJ e o link do relatório, p
     );
   });
 
-  it("violação falha: ninguém edita a consulta — nem a service_role, nem o dono; a service_role apaga (eliminação LGPD)", () => {
+  it("violação falha: ninguém edita a consulta — nem a service_role, nem o dono; a service_role apaga linha a linha (eliminação LGPD), sem TRUNCATE", () => {
     const registrada = `${usuario("comercial")};
        set local role service_role;
        select ${registrar(`'${UID.comercial}'`, "parcial", PARCIAL)}`;
@@ -2404,6 +2404,18 @@ describe.skipIf(!temBanco)("as consultas de CPF e CNPJ e o link do relatório, p
     expect(
       recusa(comoPapel("admin", "delete from public.consultas_de_documento")),
     ).toContain("permission denied for table consultas_de_documento");
+    // Eliminação é linha a linha: a service_role não trunca a consulta nem o link.
+    expect(recusa("set local role service_role; truncate public.consultas_de_documento cascade")).toContain(
+      "permission denied for table consultas_de_documento",
+    );
+    expect(recusa("set local role service_role; truncate public.relatorios_compartilhados")).toContain(
+      "permission denied for table relatorios_compartilhados",
+    );
+    expect(
+      psql!(`select has_table_privilege('service_role', 'public.consultas_de_documento', 'TRUNCATE') || ':'
+                 || has_table_privilege('service_role', 'public.relatorios_compartilhados', 'TRUNCATE') || ':'
+                 || has_table_privilege('service_role', 'public.relatorios_compartilhados', 'DELETE')`),
+    ).toContain("false:false:true");
   });
 
   it("a service_role registra pela função, e a linha sai com a org, o autor e o nome certos", () => {
