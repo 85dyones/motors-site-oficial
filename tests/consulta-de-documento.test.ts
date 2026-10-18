@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   FINALIDADES,
+  documentoDoSocio,
+  ocorrencias,
   LEITORES,
   NIVEIS_DO_CNPJ,
   NIVEIS_DO_CPF,
@@ -196,7 +198,7 @@ describe("o pedido que a tela manda", () => {
   // BUG conhecido (não corrigido aqui, a pedido): `c.finalidade in FINALIDADES` aceita chaves do
   // protótipo ("toString", "constructor"), o pedido passa, a consulta é PAGA e só depois o CHECK
   // `consultas_de_documento_finalidade_valida` recusa o insert. Tirar o `.skip` quando trocar por hasOwnProperty.
-  it.skip("finalidade com nome de propriedade do protótipo ('toString', 'constructor') não passa", () => {
+  it("finalidade com nome de propriedade do protótipo ('toString', 'constructor') não passa", () => {
     for (const finalidade of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
       expect(lerPedidoDeDocumento({ ...CERTO, finalidade }).ok, finalidade).toBe(false);
     }
@@ -339,14 +341,14 @@ describe("os leitores, CNPJ", () => {
     expect(resumoDe(LEITORES.cnpj(chamada.dados), "Situação na Receita")).toMatchObject({ valor: "BAIXADA", estado: "atencao" });
   });
 
-  it("CNPJ Cadastral: faixa de faturamento no resumo e os sócios com PEP e óbito", () => {
+  it("CNPJ Cadastral: faixa de faturamento no resumo e os sócios com PEP e óbito, CPF mascarado e sem nascimento (o sócio não declarou ciência)", () => {
     const l = ler("cnpj-cadastral");
     expect(l.titular).toBe("ORBITA DADOS DIGITAIS LTDA");
     expect(resumoDe(l, "Faixa de faturamento")?.valor).toMatch(/^R\$\s420\.000,00$/);
     expect(linhaDe(l, "Situação")).toMatchObject({ valor: "ATIVA", estado: "ok" });
     expect(valorDe(l, "Abertura")).toBe("14/09/2021");
     expect(valorDe(l, "Porte")).toBe("EMPRESA DE PEQUENO PORTE");
-    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["CARLOS EDUARDO PEREIRA LIMA", "12345678901", "17/11/1988", "Não", "Não", "Não"]]);
+    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["CARLOS EDUARDO PEREIRA LIMA", "***.456.789-**", "Não", "Não", "Não"]]);
   });
 
   it("CNPJ Cadastral Premium: inscrição estadual, sócio com % e as participações em outras empresas; e-mail omitido não aparece", () => {
@@ -355,7 +357,7 @@ describe("os leitores, CNPJ", () => {
     expect(resumoDe(l, "Sócios com restrição")).toMatchObject({ valor: "Nenhum", estado: "ok" });
     expect(valorDe(l, "Inscrição estadual")).toBe("Para dados de IE tente novamente em alguns instantes.");
     expect(valorDe(l, "E-mails")).toBeNull();
-    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["FULANO FICTICIO DA SILVA", "00000000191", "SOCIO", "30%", "Não"]]);
+    expect(tabelaDe(l, "Sócios")?.linhas).toEqual([["FULANO FICTICIO DA SILVA", "***.000.001-**", "SOCIO", "30%", "Não"]]);
     expect(tabelaDe(l, "Telefones")?.linhas).toEqual([["31 37000000", "COMERCIAL"]]);
     expect(tabelaDe(l, "Participações dos sócios em outras empresas")?.linhas).toEqual([["BELTRANO FICTICIO SOUZA", "EMPRESA FICTICIA SECUNDARIA LTDA", null, "100%"]]);
   });
@@ -371,7 +373,7 @@ describe("os leitores, CNPJ", () => {
     expect(valorDe(l, "E-mail")).toBeNull();
     expect(valorDe(l, "Capital social")).toMatch(/^R\$\s850\.000,00$/);
     expect(tabelaDe(l, "CNAEs secundários")?.linhas).toHaveLength(2);
-    expect(tabelaDe(l, "Quadro de sócios")?.linhas).toEqual([["CARLOS EDUARDO FERREIRA", "12345678901", "49", "15/07/2019"]]);
+    expect(tabelaDe(l, "Quadro de sócios")?.linhas).toEqual([["CARLOS EDUARDO FERREIRA", "***.456.789-**", "49", "15/07/2019"]]);
   });
 
   it("Análise de Crédito Basic PJ: negativações e ações zeradas (ok), protestos não informados ficam sem valor, consultas e quadro societário", () => {
@@ -384,7 +386,7 @@ describe("os leitores, CNPJ", () => {
     expect(valorDe(l, "Consultas nos últimos 30 dias")).toBe("1");
     expect(valorDe(l, "Consultas há mais de 90 dias")).toBe("5");
     expect(valorDe(l, "NIRE")).toBe("35200123456");
-    expect(tabelaDe(l, "Quadro societário")?.linhas).toEqual([["JOAO DA SILVA FICTICIO", "12345678901", "SOCIO", "60.0%"]]);
+    expect(tabelaDe(l, "Quadro societário")?.linhas).toEqual([["JOAO DA SILVA FICTICIO", "***.456.789-**", "SOCIO", "60.0%"]]);
   });
 
   it("Dossiê de Crédito PJ: pendências e protestos zerados no resumo, capital em BRL e telefone", () => {
@@ -418,7 +420,7 @@ describe("os leitores, CNPJ", () => {
 const SEM_O_ACERTA = TODOS_OS_PRODUTOS.filter((p) => p !== "acerta-essencial-positivo");
 
 describe("resposta vazia ou de formato desconhecido", () => {
-  it.skip("Acerta Essencial Plus vazio não vira 'nenhum registro' (ok) de pendências e protestos", () => {
+  it("Acerta Essencial Plus vazio não vira 'nenhum registro' (ok) de pendências e protestos", () => {
     const l = LEITORES["acerta-essencial-positivo"]({});
     expect(l.secoes.some(temConteudo)).toBe(false);
   });
@@ -529,5 +531,65 @@ describe("o relatório montado", () => {
     );
     expect(r.faltou).toEqual([{ produto: "CPF Lite", motivo: expect.stringMatching(/formato que o painel não reconheceu/) }]);
     expect(r.titular).toBe("PESSOA DA SILVA HOMOLOG");
+  });
+});
+
+describe("formato inesperado nunca vira 'nada encontrado' (revisão de 18/10/2026)", () => {
+  const cpfDados = (resultado: Record<string, unknown>) => LEITORES["cpf-dados"]({ resultado: { nome: "FULANO", ...resultado } });
+  const linhaDe = (l: ReturnType<typeof cpfDados>, rotulo: string) => l.secoes.flatMap((s) => s.linhas).find((x) => x.rotulo === rotulo);
+
+  it("mandado de prisão como true, 'SIM' ou objeto não sai 'Nenhum registro' em verde", () => {
+    for (const v of [true, "SIM", "S", { total: 2, itens: [] }, { situacao: "ATIVO" }]) {
+      const l = linhaDe(cpfDados({ mandado_prisao: v }), "Mandado de prisão");
+      expect(l?.estado, JSON.stringify(v)).not.toBe("ok");
+      expect(l?.valor).not.toBe("Nenhum registro");
+    }
+  });
+
+  it("PEP e óbito como 'S' entram no resumo como apontamentos, não como 'Nada encontrado'", () => {
+    const l = cpfDados({ indicadores: { pep: "S", obito: "S" }, mandado_prisao: [] });
+    const resumo = l.resumo.find((x) => x.rotulo.startsWith("Compliance"));
+    expect(resumo?.valor).toBe("2 apontamentos");
+    expect(resumo?.estado).toBe("impeditivo");
+  });
+
+  it("sem nada conferido, o resumo de compliance fica 'não informado', e não verde", () => {
+    const resumo = cpfDados({}).resumo.find((x) => x.rotulo.startsWith("Compliance"));
+    expect(resumo?.valor).toBeNull();
+    expect(resumo?.estado).toBeUndefined();
+  });
+
+  it("débitos do Plus PF como objeto viram 'formato não reconhecido' em atenção, e a tabela mostra o objeto", () => {
+    const l = LEITORES["analise-credito-plus-pf"]({ resultado: { identificacao: { nomes: "FULANO" }, debitos: { credor: "BANCO X", valor: "10,00" } } });
+    const debitos = l.secoes.flatMap((s) => s.linhas).find((x) => x.rotulo === "Débitos");
+    expect(debitos?.estado).toBe("atencao");
+    expect(debitos?.valor).toMatch(/^Formato não reconhecido/);
+    expect(l.secoes.flatMap((s) => s.tabelas).some((t) => t.titulo === "Débitos" && t.linhas.length === 1)).toBe(true);
+  });
+
+  it("ocorrencias: só lista vazia, zero e 'não consta' contam como nenhum registro", () => {
+    expect(ocorrencias([])).toBe(0);
+    expect(ocorrencias(0)).toBe(0);
+    expect(ocorrencias("N")).toBe(0);
+    expect(ocorrencias(false)).toBe(0);
+    expect(ocorrencias("3")).toBe(3);
+    expect(ocorrencias({ quantidade_ocorrencia: "2" })).toBe(2);
+    expect(ocorrencias(true)).toBe("consta");
+    expect(ocorrencias("talvez")).toBe("desconhecido");
+    expect(ocorrencias({ a: 1 })).toBe("desconhecido");
+    expect(ocorrencias(null)).toBeNull();
+    expect(ocorrencias("")).toBeNull();
+  });
+
+  it("documento de sócio: CPF mascarado, CNPJ formatado, o que já vem mascarado fica como veio", () => {
+    expect(documentoDoSocio("12345678901")).toBe("***.456.789-**");
+    expect(documentoDoSocio("123.456.789-01")).toBe("***.456.789-**");
+    expect(documentoDoSocio("12345678000195")).toBe("12.345.678/0001-95");
+    expect(documentoDoSocio("***067476**")).toBe("***067476**");
+  });
+
+  it("número inteiro do fornecedor sai sem separador de milhar (ano, código)", () => {
+    const l = LEITORES["cpf-lite"]({ nome: "FULANO", idade: 2019 });
+    expect(l.secoes[0].linhas.find((x) => x.rotulo === "Idade")?.valor).toBe("2019");
   });
 });

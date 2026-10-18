@@ -86,7 +86,9 @@ describe("relatorioEmHtml: o que veio do fornecedor sai escapado", () => {
     expect(pagina).toContain(`<li><strong>Plus PF ${script}</strong>: a APIBrasil recusou: ${img}</li>`);
     expect(pagina).toContain(`<footer>Rodapé ${script}</footer>`);
     // O título da aba leva o documento formatado, também escapado.
-    expect(pagina).toContain("<title>Consulta de CPF · 123.456.789-09 — Motors Store</title>");
+    // O título é genérico: é o que aparece na aba e na pré-visualização de quem recebe o link.
+    expect(pagina).toContain("<title>Relatório confidencial — Motors Store</title>");
+    expect(pagina).not.toMatch(/<title>[^<]*123\.456/);
   });
 
   it("valor nulo ou em branco aparece como 'não informado', e tabela sem linha diz 'nenhum registro'", () => {
@@ -172,5 +174,20 @@ describe("o token do link", () => {
   it("o link vale 7 dias e mora em /relatorio", () => {
     expect(DIAS_DO_LINK).toBe(7);
     expect(CAMINHO_DO_LINK).toBe("/relatorio");
+  });
+});
+
+describe("o script único do botão de imprimir (revisão de 18/10/2026)", () => {
+  it("a CSP libera só o hash do onclick do botão, e nenhum 'unsafe-inline' de script", async () => {
+    const { createHash } = await import("node:crypto");
+    const { SCRIPT_DO_BOTAO, CABECALHOS_DO_RELATORIO: painel, CABECALHOS_DO_LINK: link } = await import("../src/lib/relatorioDeDocumento");
+    const hash = createHash("sha256").update(SCRIPT_DO_BOTAO).digest("base64");
+    for (const c of [painel, link]) {
+      expect(c["Content-Security-Policy"]).toContain(`'sha256-${hash}'`);
+      expect(c["Content-Security-Policy"]).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    }
+    expect(link["X-Frame-Options"]).toBe("DENY");
+    expect(link["Content-Security-Policy"]).toContain("frame-ancestors 'none'");
+    expect(link["Content-Security-Policy"]).toContain("form-action 'self'");
   });
 });

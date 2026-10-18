@@ -89,6 +89,8 @@ function tabelaHtml(t: TabelaDoRelatorio): string {
  * imprimir/salvar PDF (que não sai no papel).
  */
 export function relatorioEmHtml(r: RelatorioDeDocumento, opcoes: { rodape: string; imprimir: boolean }): string {
+  // O `<title>` é genérico de propósito: é ele que aparece na aba, no histórico do navegador e na
+  // pré-visualização de quem recebe o link. O documento fica só no corpo.
   const titulo = `${r.tipo === "cpf" ? "Consulta de CPF" : "Consulta de CNPJ"} · ${r.documento}`;
   const resumo = r.resumo.length
     ? `<section class="resumo"><h2>Resumo</h2><table class="pares">${r.resumo.map(linhaHtml).join("")}</table></section>`
@@ -103,7 +105,7 @@ export function relatorioEmHtml(r: RelatorioDeDocumento, opcoes: { rodape: strin
     ? `<section class="faltou"><h2>Não veio nesta consulta</h2><ul>${r.faltou.map((f) => `<li><strong>${escapar(f.produto)}</strong>: ${escapar(f.motivo)}</li>`).join("")}</ul></section>`
     : "";
   const teste = r.homologacao ? '<p class="teste">MODO DE TESTE DO FORNECEDOR: os dados abaixo são de exemplo e não servem para decidir nada.</p>' : "";
-  const botao = opcoes.imprimir ? '<button type="button" class="imprimir" onclick="window.print()">Imprimir / salvar PDF</button>' : "";
+  const botao = opcoes.imprimir ? `<button type="button" class="imprimir" onclick="${SCRIPT_DO_BOTAO}">Imprimir / salvar PDF</button>` : "";
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -111,7 +113,7 @@ export function relatorioEmHtml(r: RelatorioDeDocumento, opcoes: { rodape: strin
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
-<title>${escapar(titulo)} — Motors Store</title>
+<title>Relatório confidencial — Motors Store</title>
 <style>
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
@@ -157,14 +159,32 @@ ${botao}
 </html>`;
 }
 
-/** Os cabeçalhos de toda resposta que entrega o relatório: nada de cache, índice, referência nem script de fora. */
-export const CABECALHOS_DO_RELATORIO: Record<string, string> = {
+/**
+ * O único script que a página tem: o `onclick` do botão de imprimir. A CSP
+ * libera exatamente ele, pelo hash; qualquer outro script — inclusive um que
+ * escapasse do `escapar` — não roda.
+ */
+export const SCRIPT_DO_BOTAO = "window.print()";
+const HASH_DO_BOTAO = "'sha256-MguIPR6qNR8D3B+eAlK+bIRTZe8t3wkOY4B/56Me9FU='";
+
+const comuns = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "private, no-store",
   "X-Robots-Tag": "noindex, nofollow, noarchive",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
+};
+
+/** O relatório no painel (a aba de imprimir). Pode ser emoldurado só pelo próprio painel. */
+export const CABECALHOS_DO_RELATORIO: Record<string, string> = {
+  ...comuns,
   "X-Frame-Options": "SAMEORIGIN",
-  // Só o próprio estilo e o botão de imprimir; nenhuma origem externa.
-  "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+  "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-hashes' ${HASH_DO_BOTAO}; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
+};
+
+/** O link público: ninguém emoldura, e o único formulário (o "abrir relatório") volta para a mesma página. */
+export const CABECALHOS_DO_LINK: Record<string, string> = {
+  ...comuns,
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-hashes' ${HASH_DO_BOTAO}; img-src data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
 };

@@ -29,7 +29,7 @@
  * bruta fica guardada para remontar o relatório sem pagar de novo.
  */
 import { cnpjValido, formatarCnpj, soCaracteresDoCnpj } from "./cnpj";
-import { cpfValido, formatarCpf, soDigitosDoCpf } from "./cpf";
+import { cpfValido, formatarCpf, mascararCpf, soDigitosDoCpf } from "./cpf";
 import type { EstadoDoItem, LinhaDoRelatorio, RelatorioDeDocumento, SecaoDoRelatorio, TabelaDoRelatorio, TipoDeDocumento } from "./relatorioDeDocumento";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -203,7 +203,9 @@ export function lerPedidoDeDocumento(corpo: unknown): LeituraDoPedido {
   if (tipo === "cpf" ? !cpfValido(documento) : !cnpjValido(documento)) return { ok: false, motivo: tipo === "cpf" ? "CPF inválido: confira os dígitos." : "CNPJ inválido: confira os dígitos." };
   const nivel = (NIVEIS as readonly string[]).includes(String(c.nivel)) ? (c.nivel as Nivel) : null;
   if (!nivel || !nivelDe(tipo, nivel)) return { ok: false, motivo: "Escolha o nível da consulta." };
-  const finalidade = typeof c.finalidade === "string" && c.finalidade in FINALIDADES ? (c.finalidade as Finalidade) : null;
+  // `hasOwnProperty`, e não `in`: "toString" e "constructor" estão no protótipo, passariam aqui e
+  // só o CHECK do banco os recusaria — depois de a consulta já ter sido paga.
+  const finalidade = typeof c.finalidade === "string" && Object.prototype.hasOwnProperty.call(FINALIDADES, c.finalidade) ? (c.finalidade as Finalidade) : null;
   if (!finalidade) return { ok: false, motivo: "Diga a finalidade da consulta (é exigência da LGPD)." };
   if (c.titularCiente !== true) return { ok: false, motivo: "Confirme que o titular está em negociação com a loja." };
   return { ok: true, pedido: { tipo, documento, nivel, finalidade } };
@@ -232,7 +234,8 @@ export function pegar(origem: unknown, caminho: string): unknown {
 export function texto(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "boolean") return v ? "Sim" : "Não";
-  if (typeof v === "number") return Number.isFinite(v) ? v.toLocaleString("pt-BR") : null;
+  // Inteiro sai como veio: é ano, código, CNPJ ou contagem, e "2.019" ou "44.959.669.000.180" confundem.
+  if (typeof v === "number") return !Number.isFinite(v) ? null : Number.isInteger(v) ? String(v) : v.toLocaleString("pt-BR");
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t === "" || t.toLowerCase() === "null" || t === "[omitido]" ? null : t;
@@ -291,17 +294,84 @@ const tabela = (titulo: string, itens: unknown[], colunas: Array<[string, (i: un
   linhas: itens.map((i) => colunas.map(([, f]) => f(i))),
 });
 
-const simNao = (v: unknown): string | null => (v === true ? "Sim" : v === false ? "Não" : texto(v));
+const normal = (v: unknown) =>
+  typeof v === "string"
+    ? v
+        .trim()
+        .toUpperCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+    : null;
+/** "Consta": `true`, "S", "SIM", "TRUE". */
+export const marcado = (v: unknown) => v === true || ["S", "SIM", "TRUE", "Y", "YES"].includes(normal(v) ?? "");
+/** "Não consta": `false`, "N", "NAO", "FALSE". */
+export const desmarcado = (v: unknown) => v === false || ["N", "NAO", "FALSE", "NO"].includes(normal(v) ?? "");
+const simNao = (v: unknown): string | null => (marcado(v) ? "Sim" : desmarcado(v) ? "Não" : texto(v));
 /** Indicador de risco: "Sim" é atenção (ou impeditivo), "Não" é ok, nulo é "não informado". */
 const indicador = (rotulo: string, v: unknown, grave = false): LinhaDoRelatorio =>
-  linha(rotulo, simNao(v), v === true || v === "S" ? (grave ? "impeditivo" : "atencao") : v === false || v === "N" ? "ok" : undefined);
+  linha(rotulo, simNao(v), marcado(v) ? (grave ? "impeditivo" : "atencao") : desmarcado(v) ? "ok" : undefined);
 
-/** Lista de ocorrências: quantos, com estado (zero é ok). */
-const contagem = (rotulo: string, v: unknown, grave = false): LinhaDoRelatorio => {
-  if (v === null || v === undefined) return linha(rotulo, null);
-  const n = Array.isArray(v) ? v.length : (numeroDoFornecedor(v) ?? 0);
-  return linha(rotulo, n === 0 ? "Nenhum registro" : `${n} ${n === 1 ? "registro" : "registros"}`, n === 0 ? "ok" : grave ? "impeditivo" : "atencao");
+/**
+ * Quantas ocorrências um campo diz que há. `null` é "não informado";
+ * "consta" é marcado sem número (`true`, "SIM"); "desconhecido" é um formato
+ * que o painel não reconhece. SÓ lista vazia, zero ou "não consta" contam
+ * como nenhum registro: um formato novo nunca vira um relatório limpo
+ * (revisão de 18/10/2026 — `mandado_prisao: true` saía "Nenhum registro" em verde).
+ */
+export type Ocorrencias = number | "consta" | "desconhecido" | null;
+export function ocorrencias(v: unknown): Ocorrencias {
+  if (v === null || v === undefined) return null;
+  if (Array.isArray(v)) return v.length;
+  if (typeof v === "number") return Number.isFinite(v) && v >= 0 ? Math.round(v) : "desconhecido";
+  if (marcado(v)) return "consta";
+  if (desmarcado(v)) return 0;
+  if (typeof v === "string") {
+    if (texto(v) === null) return null;
+    return /^\s*\d+\s*$/.test(v) ? Number(v) : "desconhecido";
+  }
+  const o = obj(v);
+  if (o) {
+    for (const chave of ["total", "quantidade", "quantidadeTotal", "quantidade_ocorrencia", "quantidade_ocorrencias", "qtd"]) {
+      const n = o[chave];
+      if (typeof n === "number" || (typeof n === "string" && /^\s*\d+\s*$/.test(n))) return ocorrencias(Number(n));
+    }
+    for (const chave of ["ocorrencias", "registros", "itens", "lista", "dados"]) if (Array.isArray(o[chave])) return (o[chave] as unknown[]).length;
+  }
+  return "desconhecido";
+}
+
+/** Há algo a olhar: registro, "consta" ou formato desconhecido. */
+export const temApontamento = (n: Ocorrencias) => n === "consta" || n === "desconhecido" || (typeof n === "number" && n > 0);
+
+const linhaDeOcorrencias = (rotulo: string, n: Ocorrencias, grave: boolean, bruto: unknown, complemento: string | null = null): LinhaDoRelatorio => {
+  if (n === null) return linha(rotulo, null);
+  if (n === "desconhecido") return linha(rotulo, `Formato não reconhecido: ${itemEmTexto(bruto) ?? "conferir a resposta guardada"}`, "atencao");
+  if (n === "consta") return linha(rotulo, `Consta${complemento ? ` · ${complemento}` : ""}`, grave ? "impeditivo" : "atencao");
+  return linha(rotulo, n === 0 ? "Nenhum registro" : `${n} ${n === 1 ? "registro" : "registros"}${complemento ? ` · ${complemento}` : ""}`, n === 0 ? "ok" : grave ? "impeditivo" : "atencao");
 };
+
+/** Lista de ocorrências: quantos, com estado (só zero é ok). */
+const contagem = (rotulo: string, v: unknown, grave = false): LinhaDoRelatorio => linhaDeOcorrencias(rotulo, ocorrencias(v), grave, v);
+
+/** A tabela das ocorrências: a lista, ou o objeto inteiro numa linha quando não é lista. */
+const tabelaDeOcorrencias = (titulo: string, v: unknown): TabelaDoRelatorio[] => {
+  if (Array.isArray(v)) return v.length ? [tabelaGenerica(titulo, v)] : [];
+  return obj(v) && itemEmTexto(v) ? [tabelaGenerica(titulo, [v])] : [];
+};
+
+/**
+ * Documento de sócio no relatório: CPF mascarado (o sócio não declarou
+ * ciência da consulta; o número inteiro continua na resposta guardada),
+ * CNPJ inteiro, e o que já vier mascarado pela Receita, como veio.
+ */
+export function documentoDoSocio(v: unknown): string | null {
+  const t = texto(v);
+  if (!t) return null;
+  const digitos = t.replace(/\D/g, "");
+  if (digitos.length === 11 && !/[*xX]/.test(t)) return mascararCpf(digitos);
+  if (digitos.length === 14) return formatarCnpj(digitos);
+  return t;
+}
 
 const endereco = (partes: unknown[]) => {
   const t = partes.map(texto).filter(Boolean).join(", ");
@@ -386,17 +456,19 @@ function lerCpfDados(d: unknown): LeituraDoProduto {
   const r = pegar(d, "resultado");
   const ind = pegar(r, "indicadores");
   const listas = LISTAS_DE_COMPLIANCE.map(([chave, rotulo, grave]) => contagem(rotulo, pegar(r, chave), grave));
-  const comRegistro = LISTAS_DE_COMPLIANCE.filter(([chave]) => lista(pegar(r, chave)).length > 0);
+  const comRegistro = LISTAS_DE_COMPLIANCE.filter(([chave]) => temApontamento(ocorrencias(pegar(r, chave))));
   const pep = pegar(ind, "pep");
   const obito = pegar(ind, "obito");
-  const alertas = comRegistro.length + (pep === true ? 1 : 0) + (obito === true ? 1 : 0);
+  const alertas = comRegistro.length + (marcado(pep) ? 1 : 0) + (marcado(obito) ? 1 : 0);
+  // "Nada encontrado" só quando alguma coisa foi de fato conferida.
+  const conferido = LISTAS_DE_COMPLIANCE.some(([chave]) => ocorrencias(pegar(r, chave)) !== null) || desmarcado(pep) || desmarcado(obito);
   return {
     titular: texto(pegar(r, "nome")),
     resumo: [
       linha(
         "Compliance (PEP, óbito, sanções, processos)",
-        alertas === 0 ? "Nada encontrado" : `${alertas} ${alertas === 1 ? "apontamento" : "apontamentos"}`,
-        alertas === 0 ? "ok" : comRegistro.some(([, , grave]) => grave) || obito === true ? "impeditivo" : "atencao",
+        alertas === 0 ? (conferido ? "Nada encontrado" : null) : `${alertas} ${alertas === 1 ? "apontamento" : "apontamentos"}`,
+        alertas === 0 ? (conferido ? "ok" : undefined) : comRegistro.some(([, , grave]) => grave) || marcado(obito) ? "impeditivo" : "atencao",
       ),
       linha("Faixa de renda", texto(pegar(r, "financeiro.faixa_renda_descricao"))),
     ],
@@ -438,7 +510,7 @@ function lerCpfDados(d: unknown): LeituraDoProduto {
           indicador("Ligação com paraísos fiscais", pegar(ind, "paraisos_fiscais")),
           ...listas,
         ],
-        comRegistro.map(([chave, rotulo]) => tabelaGenerica(rotulo, lista(pegar(r, chave)))),
+        comRegistro.flatMap(([chave, rotulo]) => tabelaDeOcorrencias(rotulo, pegar(r, chave))),
       ),
     ],
   };
@@ -505,10 +577,10 @@ function lerCreditoPlusPf(d: unknown): LeituraDoProduto {
             ["Classificação", (i) => texto(pegar(i, "classificacao"))],
             ["Leitura", (i) => texto(pegar(i, "texto"))],
           ]),
-          ...(lista(debitos).length ? [tabelaGenerica("Débitos", lista(debitos))] : []),
-          ...(lista(protestos).length ? [tabelaGenerica("Protestos", lista(protestos))] : []),
-          ...(lista(acoes).length ? [tabelaGenerica("Ações cíveis", lista(acoes))] : []),
-          ...(lista(ccf).length ? [tabelaGenerica("Cheques devolvidos", lista(ccf))] : []),
+          ...tabelaDeOcorrencias("Débitos", debitos),
+          ...tabelaDeOcorrencias("Protestos", protestos),
+          ...tabelaDeOcorrencias("Ações cíveis", acoes),
+          ...tabelaDeOcorrencias("Cheques devolvidos", ccf),
           tabela("Consultas anteriores", lista(pegar(r, "consultas_anteriores")), [
             ["Data", (i) => texto(pegar(i, "data"))],
             ["Quem consultou", (i) => texto(pegar(i, "informante"))],
@@ -534,13 +606,17 @@ function lerAcertaPlus(d: unknown): LeituraDoProduto {
   const cc = pegar(raiz, "acertaEssencialPositivo.consultaCredito");
   const dc = pegar(cc, "dadosCadastrais");
   const resumoDe = (chave: string) => pegar(cc, `resumoConsulta.${chave}`);
-  const qtd = (chave: string, lista_: unknown) => numeroDoFornecedor(pegar(resumoDe(chave), "quantidadeTotal")) ?? lista(lista_).length;
+  // Sem o resumo e sem a lista, o fornecedor não informou: é `null` ("não informado"), nunca
+  // "nenhum registro" — senão um envelope de formato novo viraria um relatório de crédito limpo.
+  const qtd = (chave: string, lista_: unknown): Ocorrencias => {
+    const doResumo = pegar(resumoDe(chave), "quantidadeTotal");
+    const n = doResumo === undefined || doResumo === null ? null : ocorrencias(doResumo);
+    return n ?? ocorrencias(lista_);
+  };
   const pend = pegar(cc, "pendenciasFinanceiras");
   const prot = pegar(cc, "protestos");
   const contar = (rotulo: string, chave: string, lista_: unknown, grave = false): LinhaDoRelatorio => {
-    const n = qtd(chave, lista_);
-    const valor = reais(pegar(resumoDe(chave), "valorTotal"));
-    return linha(rotulo, n === 0 ? "Nenhum registro" : `${n} ${n === 1 ? "registro" : "registros"}${valor ? ` · ${valor}` : ""}`, n === 0 ? "ok" : grave ? "impeditivo" : "atencao");
+    return linhaDeOcorrencias(rotulo, qtd(chave, lista_), grave, lista_ ?? pegar(resumoDe(chave), "quantidadeTotal"), reais(pegar(resumoDe(chave), "valorTotal")));
   };
   const listas: Array<[string, unknown]> = [
     ["Pendências financeiras", pend],
@@ -586,7 +662,7 @@ function lerAcertaPlus(d: unknown): LeituraDoProduto {
           contagem("Protesto nacional", pegar(raiz, "protestoNacional.ocorrencias") ?? pegar(d, "protestoNacional.ocorrencias")),
         ],
         [
-          ...listas.filter(([, l]) => lista(l).length > 0).map(([t, l]) => tabelaGenerica(t, lista(l))),
+          ...listas.flatMap(([t, l]) => tabelaDeOcorrencias(t, l)),
           tabela("Consultas anteriores", lista(pegar(cc, "historicoConsultas")), [
             ["Data", (i) => texto(pegar(i, "data"))],
             ["Empresa", (i) => texto(pegar(i, "empresa"))],
@@ -632,7 +708,7 @@ function lerApiCnpj(d: unknown): LeituraDoProduto {
         [
           tabela("Quadro de sócios (Receita)", lista(pegar(c, "socios")), [
             ["Nome", (i) => texto(pegar(i, "nome_socio"))],
-            ["CPF/CNPJ", (i) => texto(pegar(i, "cnpj_cpf_socio"))],
+            ["CPF/CNPJ", (i) => documentoDoSocio(pegar(i, "cnpj_cpf_socio"))],
             ["Qualificação", (i) => texto(pegar(i, "qualificacao.descricao"))],
             ["Entrada", (i) => data(pegar(i, "data_entrada_sociedade"))],
           ]),
@@ -664,8 +740,7 @@ function lerCnpjCadastral(d: unknown): LeituraDoProduto {
         [
           tabela("Sócios", lista(pegar(r, "members")), [
             ["Nome", (i) => texto(pegar(i, "nome"))],
-            ["Documento", (i) => texto(pegar(i, "documento.numero"))],
-            ["Nascimento", (i) => data(pegar(i, "data_nascimento"))],
+            ["Documento", (i) => documentoDoSocio(pegar(i, "documento.numero"))],
             ["PEP", (i) => simNao(pegar(i, "indicadores.pep"))],
             ["Óbito", (i) => simNao(pegar(i, "indicadores.obito"))],
             ["Restrição regulatória", (i) => simNao(pegar(i, "indicadores.restricao_regulatoria"))],
@@ -680,7 +755,7 @@ function lerCnpjPremium(d: unknown): LeituraDoProduto {
   const p = pegar(d, "cadastralPremiumPJ");
   const dc = pegar(p, "dadosCadastrais");
   const socios = lista(pegar(p, "socios"));
-  const comRestricao = socios.filter((s) => pegar(s, "temRestricoes") === true).length;
+  const comRestricao = socios.filter((s) => marcado(pegar(s, "temRestricoes"))).length;
   return {
     titular: texto(pegar(dc, "razaoSocial")),
     resumo: socios.length ? [linha("Sócios com restrição", comRestricao === 0 ? "Nenhum" : String(comRestricao), comRestricao === 0 ? "ok" : "atencao")] : [],
@@ -709,7 +784,7 @@ function lerCnpjPremium(d: unknown): LeituraDoProduto {
           ]),
           tabela("Sócios", socios, [
             ["Nome", (i) => texto(pegar(i, "nome"))],
-            ["CPF", (i) => texto(pegar(i, "cpf"))],
+            ["CPF", (i) => documentoDoSocio(pegar(i, "cpf"))],
             ["Cargo", (i) => texto(pegar(i, "cargo"))],
             ["Participação", (i) => (texto(pegar(i, "percentualParticipacao")) ? `${texto(pegar(i, "percentualParticipacao"))}%` : null)],
             ["Restrições", (i) => simNao(pegar(i, "temRestricoes"))],
@@ -768,7 +843,7 @@ function lerReceitaPjV3(d: unknown): LeituraDoProduto {
           ]),
           tabela("Quadro de sócios", lista(pegar(r, "socios")), [
             ["Nome", (i) => texto(pegar(i, "nome"))],
-            ["Documento", (i) => texto(pegar(i, "documento"))],
+            ["Documento", (i) => documentoDoSocio(pegar(i, "documento"))],
             ["Qualificação", (i) => texto(pegar(i, "qualificacao"))],
             ["Desde", (i) => data(pegar(i, "data_inclusao"))],
           ]),
@@ -806,11 +881,11 @@ function lerCreditoBasicPj(d: unknown): LeituraDoProduto {
           linha("Consultas há mais de 90 dias", texto(pegar(r, "consultas.contagem_consultas_mais_90_dias"))),
         ],
         [
-          ...(lista(pegar(neg, "apontamentos")).length ? [tabelaGenerica("Negativações", lista(pegar(neg, "apontamentos")))] : []),
-          ...(lista(pegar(neg, "acoes_judiciais_apontamentos")).length ? [tabelaGenerica("Ações judiciais", lista(pegar(neg, "acoes_judiciais_apontamentos")))] : []),
+          ...tabelaDeOcorrencias("Negativações", pegar(neg, "apontamentos")),
+          ...tabelaDeOcorrencias("Ações judiciais", pegar(neg, "acoes_judiciais_apontamentos")),
           tabela("Quadro societário", lista(pegar(r, "quadro_societario.socios")), [
             ["Nome", (i) => texto(pegar(i, "nomes"))],
-            ["CPF/CNPJ", (i) => texto(pegar(i, "cpf_cnpj"))],
+            ["CPF/CNPJ", (i) => documentoDoSocio(pegar(i, "cpf_cnpj"))],
             ["Relação", (i) => texto(pegar(i, "descricao_relacionamento"))],
             ["Participação", (i) => (texto(pegar(i, "percentual_participacao")) ? `${texto(pegar(i, "percentual_participacao"))}%` : null)],
           ]),
@@ -837,16 +912,12 @@ function lerDossiePj(d: unknown): LeituraDoProduto {
   const emp = pegar(c, "informacoes_da_empresa");
   const qtd = (bloco: string) => numeroDoFornecedor(pegar(c, `${bloco}.quantidade_ocorrencia`) ?? pegar(c, `${bloco}.quantidade_ocorrencias`));
   const linhaDoBloco = ([bloco, rotulo, grave]: [string, string, boolean]): LinhaDoRelatorio | null => {
-    if (pegar(c, bloco) === undefined) return null;
-    const n = qtd(bloco);
-    const valor = reais(pegar(c, `${bloco}.valor_total`));
-    if (n === null) return linha(rotulo, null);
-    return linha(rotulo, n === 0 ? "Nenhum registro" : `${n} ${n === 1 ? "registro" : "registros"}${valor ? ` · ${valor}` : ""}`, n === 0 ? "ok" : grave ? "impeditivo" : "atencao");
+    const bruto = pegar(c, bloco);
+    if (bruto === undefined) return null;
+    const n: Ocorrencias = qtd(bloco) ?? ocorrencias(pegar(c, `${bloco}.ocorrencias`) ?? bruto);
+    return linhaDeOcorrencias(rotulo, n, grave, bruto, reais(pegar(c, `${bloco}.valor_total`)));
   };
-  const ocorrencias = BLOCOS_DO_DOSSIE.flatMap(([bloco, rotulo]) => {
-    const l = lista(pegar(c, `${bloco}.ocorrencias`));
-    return l.length ? [tabelaGenerica(rotulo, l)] : [];
-  });
+  const tabelasDosBlocos = BLOCOS_DO_DOSSIE.flatMap(([bloco, rotulo]) => tabelaDeOcorrencias(rotulo, pegar(c, `${bloco}.ocorrencias`)));
   const quadro = lista(pegar(c, "quadro_societario.ocorrencias") ?? pegar(c, "quadro_societario.socios") ?? pegar(c, "quadro_societario"));
   const adm = lista(pegar(c, "administradores_da_empresa.ocorrencias") ?? pegar(c, "administradores_da_empresa"));
   const linhasDeCredito = BLOCOS_DO_DOSSIE.map(linhaDoBloco).filter((l): l is LinhaDoRelatorio => l !== null);
@@ -869,7 +940,7 @@ function lerDossiePj(d: unknown): LeituraDoProduto {
           linha("Telefones", lista(pegar(c, "somente_telefone.dados")).map((t) => [texto(pegar(t, "ddd")), texto(pegar(t, "num_telefone"))].filter(Boolean).join(" ")).filter(Boolean).join(" · ") || null),
         ],
         [
-          ...ocorrencias,
+          ...tabelasDosBlocos,
           ...(quadro.length ? [tabelaGenerica("Quadro societário", quadro)] : []),
           ...(adm.length ? [tabelaGenerica("Administradores", adm)] : []),
         ],
