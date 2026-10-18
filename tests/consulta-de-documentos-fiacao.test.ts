@@ -318,13 +318,9 @@ describe("o caminho do dinheiro", () => {
     expect(no<HTMLInputElement>("[data-ciente]")?.checked).toBe(true);
   });
 
-  // BUG (não corrigido aqui, a pedido): na falha com `id` ou sem corpo, `enviar` sobe `rodada`
-  // (ConsultaDeDocumentos.tsx, no ramo `if (json.id || semResposta)`), o efeito do `estimar` roda
-  // de novo e, quando ele volta, faz `setErro(null)` — o aviso "Ela PODE ter sido cobrada" some da
-  // tela logo depois de aparecer, e o consultor fica sem saber que pode ter pago. Os três testes
-  // acima só leem o aviso porque seguram esse `estimar` no ar. Tirar o `.skip` quando o `estimar`
-  // disparado pela falha não apagar o erro da consulta.
-  it.skip("o aviso de que a consulta PODE ter sido cobrada continua na tela depois que o histórico recarrega", async () => {
+  // Regressão: o `estimar` que a falha dispara (para o histórico) tinha `setErro(null)` e apagava o
+  // aviso de cobrança. O erro dos níveis agora é outro estado.
+  it("o aviso de que a consulta PODE ter sido cobrada continua na tela depois que o histórico recarrega", async () => {
     respostasDaConsulta = [{ status: 504 }];
     await montar();
     await preencher();

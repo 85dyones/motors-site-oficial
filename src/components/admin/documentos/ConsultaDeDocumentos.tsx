@@ -170,6 +170,8 @@ function FormularioDeDocumento({
   const [ciente, setCiente] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  /** O erro de carregar os níveis fica separado: um `estimar` que volta bem não pode apagar o aviso de que a consulta pode ter sido cobrada. */
+  const [erroDosNiveis, setErroDosNiveis] = useState<string | null>(null);
   const [tabelaDePrecosEm, setTabelaDePrecosEm] = useState<string | null>(null);
   const [diasRecentes, setDiasRecentes] = useState<number | null>(null);
   /** Sobe depois de cada consulta: o `estimar` roda de novo e traz a recém-feita em "já consultado". */
@@ -185,7 +187,13 @@ function FormularioDeDocumento({
     if (!valido) return;
     const meu = ++pedido.current;
     void (async () => {
-      const res = await fetch("/api/consulta-documento", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ acao: "estimar", tipo, documento: normalizado }) });
+      let res: Response;
+      try {
+        res = await fetch("/api/consulta-documento", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ acao: "estimar", tipo, documento: normalizado }) });
+      } catch {
+        if (meu === pedido.current) setErroDosNiveis("Sem conexão com o servidor: não deu para carregar os níveis.");
+        return;
+      }
       const json = (await res.json().catch(() => ({}))) as {
         niveis?: NivelComPreco[];
         recentes?: ConsultaDeDocumentoNaLista[];
@@ -195,10 +203,10 @@ function FormularioDeDocumento({
       };
       if (meu !== pedido.current) return;
       if (!res.ok || !json.niveis) {
-        setErro(json.error || "Não deu para carregar os níveis.");
+        setErroDosNiveis(json.error || "Não deu para carregar os níveis.");
         return;
       }
-      setErro(null);
+      setErroDosNiveis(null);
       setNiveis(json.niveis);
       setRecentes(json.recentes ?? []);
       setTabelaDePrecosEm(json.tabelaDePrecosEm ?? null);
@@ -384,6 +392,11 @@ function FormularioDeDocumento({
         </div>
       )}
 
+      {erroDosNiveis && (
+        <div role="alert" className={aviso} style={{ borderColor: "var(--cp-impeditivo)" }}>
+          {erroDosNiveis}
+        </div>
+      )}
       {erro && (
         <div role="alert" className={aviso} style={{ borderColor: "var(--cp-impeditivo)" }}>
           {erro}
