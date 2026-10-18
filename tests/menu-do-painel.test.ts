@@ -92,6 +92,24 @@ describe("o menu do painel", () => {
     expect(fonte).toContain("const aberto = temAtivo || (escolhas[group.title] ?? false);");
   });
 
+  it("as duas consultas pagas moram no grupo Consultas, cada uma com os papéis da sua linha da matriz (dono, 18/10/2026)", async () => {
+    const admin = await menu(["admin"], "/admin/consulta-veiculos");
+    const consultas = admin.slice(admin.indexOf('id="grupo-consultas"'));
+    expect(consultas).toContain('href="/admin/consulta-veiculos"');
+    expect(consultas).toContain('href="/admin/consulta-documentos"');
+    expect(grupo(admin, "consultas")).not.toContain("hidden");
+    // Saiu de Estoque.
+    const estoque = admin.slice(admin.indexOf('id="grupo-estoque"'), admin.indexOf('id="grupo-consultas"'));
+    expect(estoque).not.toContain("/admin/consulta-veiculos");
+    // O Financeiro consulta CPF e CNPJ, e não placa; o Marketing não vê o grupo.
+    const financeiro = await menu(["financeiro"], "/admin/consulta-documentos");
+    expect(financeiro).toContain('href="/admin/consulta-documentos"');
+    expect(financeiro).not.toContain('href="/admin/consulta-veiculos"');
+    const marketing = await menu(["marketing"]);
+    expect(marketing).not.toContain("/admin/consulta-veiculos");
+    expect(marketing).not.toContain("/admin/consulta-documentos");
+  });
+
   it("a lista de abas do site é a mesma para o menu e para a tela", () => {
     expect(ABAS_DO_SITE.map((a) => a.id)).toEqual(["destaques", "aparencia", "sobre", "compartilhamento", "procedencia", "instagram"]);
     expect(ehAbaDoSite("aparencia")).toBe(true);

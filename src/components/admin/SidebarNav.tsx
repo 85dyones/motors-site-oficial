@@ -131,25 +131,26 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       roles: ["admin", "gestor", "comercial", "marketing"],
       items: [
         { name: "Veículos", href: "/admin/estoque" },
-        // A consulta de placa (2026-10-06): o retrato do carro oferecido à
-        // loja, antes de ele ser estoque. Mora aqui porque é a porta de
-        // ENTRADA do estoque. `roles` estreita o grupo: Marketing não avalia
-        // compra, e a consulta é paga — a linha "Consultar placa de veículo
-        // (consulta paga)" da matriz, a mesma que a página, a rota e a RLS
-        // cobram.
-        // Virou "Consulta de veículos" em 08/10/2026: FIPE grátis, modelo pago e placa paga, numa tela só.
-        { name: "Consulta de veículos", href: "/admin/consulta-veiculos", roles: ["admin", "gestor", "comercial"] },
       ],
     },
     {
-      // A consulta de CPF e CNPJ (2026-10-18): crédito, cadastro e compliance
-      // de quem compra, vende ou financia com a loja. Paga por consulta, dado
-      // pessoal (LGPD): a linha "Consultar CPF e CNPJ (consulta paga)" da
-      // matriz — Administrador, Gestor, Comercial e Financeiro —, a mesma que
-      // a página, as rotas e a RLS cobram.
+      // As consultas pagas num grupo só (dono, 18/10/2026: "já que foi criada
+      // uma aba de consultas, faz sentido trazer a de veículos"). Cada item
+      // leva os papéis da SUA linha da matriz — as mesmas que a página, as
+      // rotas e a RLS cobram:
+      // - "Consultar placa de veículo (consulta paga)": Administrador, Gestor e
+      //   Comercial. A consulta de veículos (06/10/2026; FIPE grátis, modelo
+      //   pago e placa paga numa tela só desde 08/10) morava em Estoque.
+      // - "Consultar CPF e CNPJ (consulta paga)": os três e o Financeiro.
+      //   Crédito, cadastro e compliance de quem compra, vende ou financia;
+      //   dado pessoal (LGPD).
+      // O grupo é a união: o Financeiro vê só o CPF e CNPJ; o Marketing, nada.
       title: "Consultas",
       roles: ["admin", "gestor", "comercial", "financeiro"],
-      items: [{ name: "CPF e CNPJ", href: "/admin/consulta-documentos" }],
+      items: [
+        { name: "Veículos (FIPE e placa)", href: "/admin/consulta-veiculos", roles: ["admin", "gestor", "comercial"] },
+        { name: "CPF e CNPJ", href: "/admin/consulta-documentos" },
+      ],
     },
     {
       // Repasse Motors (2026-09-24): carros vendidos no estado, sem a
