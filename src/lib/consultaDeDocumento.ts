@@ -366,7 +366,7 @@ export const temApontamento = (n: Ocorrencias) => n === "consta" || n === "desco
 
 const linhaDeOcorrencias = (rotulo: string, n: Ocorrencias, grave: boolean, bruto: unknown, complemento: string | null = null): LinhaDoRelatorio => {
   if (n === null) return linha(rotulo, null);
-  if (n === "desconhecido") return linha(rotulo, `Formato não reconhecido: ${itemEmTexto(bruto) ?? "conferir a resposta guardada"}`, "atencao");
+  if (n === "desconhecido") return linha(rotulo, `Consta (verificar): ${itemEmTexto(bruto) ?? "o fornecedor não detalhou"}`, "atencao");
   if (n === "consta") return linha(rotulo, `Consta${complemento ? ` · ${complemento}` : ""}`, grave ? "impeditivo" : "atencao");
   return linha(rotulo, n === 0 ? "Nenhum registro" : `${n} ${n === 1 ? "registro" : "registros"}${complemento ? ` · ${complemento}` : ""}`, n === 0 ? "ok" : grave ? "impeditivo" : "atencao");
 };
@@ -1050,12 +1050,12 @@ export function montarRelatorio(
     try {
       leitura = LEITORES[r.produto](r.dados);
     } catch {
-      faltou.push({ produto: nome, motivo: "a resposta veio num formato que o painel não reconheceu; ela ficou guardada." });
+      faltou.push({ produto: nome, motivo: "respondeu, mas a resposta não pôde ser lida." });
       continue;
     }
     const comConteudo = leitura.secoes.filter(temConteudo);
     if (comConteudo.length === 0) {
-      faltou.push({ produto: nome, motivo: "respondeu sem os dados esperados (titular não encontrado, ou formato diferente; a resposta ficou guardada)." });
+      faltou.push({ produto: nome, motivo: "respondeu sem dados deste documento." });
       continue;
     }
     titular ??= leitura.titular;

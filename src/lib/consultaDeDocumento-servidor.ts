@@ -173,11 +173,15 @@ const NAO_RESPONDEU = "não respondeu nesta consulta.";
  */
 export function custoDaResposta(c: Record<string, unknown> | null): number | null {
   if (!c) return null;
-  if (typeof c.valor_consulta === "number" && Number.isFinite(c.valor_consulta)) return c.valor_consulta;
+  // Negativo não é custo (e o CHECK do banco recusaria o registro de uma consulta já paga).
+  if (typeof c.valor_consulta === "number" && Number.isFinite(c.valor_consulta)) return c.valor_consulta >= 0 ? c.valor_consulta : null;
   const mensagens = [c.message, pegar(c, "response.message")].filter((m): m is string => typeof m === "string");
   for (const m of mensagens) {
     const achou = m.match(/tarifad[oa][^0-9]*R?\$?\s*([0-9]+(?:[.,][0-9]+)?)/i);
-    if (achou) return numeroDoFornecedor(achou[1]);
+    if (achou) {
+      const n = numeroDoFornecedor(achou[1]);
+      return n !== null && n >= 0 ? n : null;
+    }
   }
   return null;
 }
@@ -204,7 +208,7 @@ export function lerChamadaDoProduto(status: number, corpo: unknown, produto: IdD
   if (status >= 400 || c.error === true || interno?.error === true) {
     const mensagem = typeof c.message === "string" && c.message.trim() ? c.message.trim() : typeof interno?.message === "string" ? interno.message.trim() : "";
     const texto = mensagem.slice(0, 200) || null;
-    if (texto && /saldo|cr[ée]dito insuficiente/i.test(texto)) return falha("a conta da APIBrasil está sem saldo", { daConta: true, podeTerCobrado: false });
+    if (texto && /saldo insuficiente|sem saldo|cr[ée]dito insuficiente/i.test(texto)) return falha("a conta da APIBrasil está sem saldo", { daConta: true, podeTerCobrado: false, custo });
     const naoEncontrado = texto !== null && /n[aã]o encontrad|sem informa/i.test(texto);
     return falha(texto ? `a APIBrasil recusou: ${texto}` : `a APIBrasil recusou a consulta (HTTP ${status})`, {
       // A doc: "parâmetro errado repetido continua cobrando" — só três produtos dizem que não.
@@ -274,9 +278,22 @@ export type ResultadoDaConsulta =
   | { ok: false; status: 400 | 402 | 502 | 503; motivo: string; id: string | null; podeTerCobrado: boolean }
   | { ok: false; status: 409; motivo: string; repeticao: ConsultaDeDocumentoNaLista };
 
-/** O jsonb do Postgres recusa `\u0000`: uma resposta paga com ele ficaria sem registro. */
+/** A tentativa anterior que falhou mas pode ter sido cobrada também trava: o próximo clique cobraria de novo. */
+const PODE_TER_COBRADO = `tentativas.cs.${JSON.stringify([{ pode_ter_cobrado: true }])}`;
+
+/**
+ * O jsonb do Postgres recusa `\u0000`: uma resposta paga com ele ficaria sem
+ * registro. Limpa string por string (chaves inclusive), e não o JSON como
+ * texto — um "\\u0000" literal no meio dos dados não pode corromper o resto.
+ */
 export function semCaractereNulo<T>(v: T): T {
-  return JSON.parse(JSON.stringify(v ?? null).replace(/\\u0000/g, "")) as T;
+  const limpar = (x: unknown): unknown => {
+    if (typeof x === "string") return x.replace(/\u0000/g, "");
+    if (Array.isArray(x)) return x.map(limpar);
+    if (x && typeof x === "object") return Object.fromEntries(Object.entries(x as Record<string, unknown>).map(([k, y]) => [k.replace(/\u0000/g, ""), limpar(y)]));
+    return x;
+  };
+  return limpar(v ?? null) as T;
 }
 
 /** O custo da consulta. Em homologação é zero; fora dela, qualquer valor desconhecido de quem pode ter cobrado deixa a soma desconhecida. */
@@ -318,20 +335,34 @@ export async function executarConsulta(
 
   if (!pedido.repetir && deps.parametros.minutosContraRepeticao > 0) {
     const desde = new Date(agora.getTime() - deps.parametros.minutosContraRepeticao * 60000).toISOString();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("consultas_de_documento")
       .select(COLUNAS_DA_LISTA)
       .eq("tipo_documento", pedido.tipo)
       .eq("documento", pedido.documento)
       .eq("nivel", pedido.nivel)
       .eq("homologacao", deps.homologacao)
-      .neq("situacao", "falhou")
+      .or(`situacao.neq.falhou,${PODE_TER_COBRADO}`)
       .gte("criado_em", desde)
       .order("criado_em", { ascending: false })
       .limit(1);
+    // A trava fecha no erro: sem saber se houve consulta há pouco, não cobra.
+    if (error) {
+      console.error("[Consulta de documento] a trava contra repetição não leu:", error.code, error.message);
+      return { ok: false, status: 503, motivo: "Não deu para conferir se este documento foi consultado há pouco; nada foi cobrado. Tente de novo em instantes.", id: null, podeTerCobrado: false };
+    }
     const anterior = (data ?? []).flatMap((l) => itemDaLista(l as Record<string, unknown>) ?? [])[0];
     if (anterior) {
-      return { ok: false, status: 409, motivo: `Este documento foi consultado neste nível há menos de ${deps.parametros.minutosContraRepeticao} minutos. Abra a consulta guardada, ou confirme para pagar de novo.`, repeticao: anterior };
+      const minutos = deps.parametros.minutosContraRepeticao;
+      return {
+        ok: false,
+        status: 409,
+        motivo:
+          anterior.situacao === "falhou"
+            ? `Uma tentativa deste documento neste nível, há menos de ${minutos} minutos, não voltou mas PODE ter sido cobrada. Confira o saldo no painel da APIBrasil antes de pagar de novo.`
+            : `Este documento foi consultado neste nível há menos de ${minutos} minutos. Abra a consulta guardada, ou confirme para pagar de novo.`,
+        repeticao: anterior,
+      };
     }
   }
 
@@ -362,7 +393,7 @@ export async function executarConsulta(
     p_documento: pedido.documento,
     p_nivel: pedido.nivel,
     p_produtos: nivel.produtos,
-    p_nome: relatorio.titular?.slice(0, 200) ?? null,
+    p_nome: relatorio.titular ? semCaractereNulo(relatorio.titular).slice(0, 200) : null,
     p_relatorio: semCaractereNulo(relatorio),
     p_respostas: semCaractereNulo(Object.fromEntries(chamadas.flatMap(({ produto, chamada }) => (chamada.ok ? [[produto, chamada.dados]] : [])))),
     p_tentativas: semCaractereNulo(tentativas),
@@ -543,28 +574,33 @@ export async function criarLinkDoRelatorio(
   consultaId: string,
   parametros: Pick<ParametrosDaConsultaDeDocumento, "diasDoLink" | "linksAtivosPorConsulta">,
   agora = new Date(),
-): Promise<{ ok: true; url: string; expiraEm: string } | { ok: false; status: 404 | 409 | 502; motivo: string }> {
+): Promise<{ ok: true; id: string | null; url: string; expiraEm: string } | { ok: false; status: 404 | 409 | 502; motivo: string }> {
   if (!/^[0-9a-f-]{36}$/i.test(consultaId)) return { ok: false, status: 404, motivo: "Consulta não encontrada." };
   const { data: consulta } = await supabase.from("consultas_de_documento").select("id, situacao").eq("id", consultaId).maybeSingle();
   if (!consulta) return { ok: false, status: 404, motivo: "Consulta não encontrada." };
   if ((consulta as { situacao?: string }).situacao === "falhou") return { ok: false, status: 409, motivo: "Esta consulta não trouxe dados: não há relatório para enviar." };
-  const { count } = await supabase
+  const { count, error: erroDaContagem } = await supabase
     .from("relatorios_compartilhados")
     .select("id", { count: "exact", head: true })
     .eq("consulta_id", consultaId)
     .is("revogado_em", null)
     .gt("expira_em", agora.toISOString());
-  if ((count ?? 0) >= parametros.linksAtivosPorConsulta) {
+  // O limite fecha no erro: sem a contagem, não cria.
+  if (erroDaContagem || count === null) return { ok: false, status: 502, motivo: "Não deu para conferir os links ativos desta consulta; nenhum link foi criado." };
+  if (count >= parametros.linksAtivosPorConsulta) {
     return { ok: false, status: 409, motivo: `Esta consulta já tem ${count} links ativos (o limite é ${parametros.linksAtivosPorConsulta}). Revogue um antes de criar outro.` };
   }
   const token = gerarTokenDoLink();
-  const expiraEm = new Date(agora.getTime() + parametros.diasDoLink * DIA_MS).toISOString();
-  const { error } = await supabase.from("relatorios_compartilhados").insert({ consulta_id: consultaId, token_hash: hashDoToken(token), expira_em: expiraEm });
+  // Um minuto de folga: o banco mede o prazo pelo relógio dele, e no limite (30 dias) um relógio
+  // um pouco adiantado aqui faria o CHECK recusar o link.
+  const expiraEm = new Date(agora.getTime() + parametros.diasDoLink * DIA_MS - 60000).toISOString();
+  // `.select("id")`, e só ele: a sessão não lê `token_hash`, e um `select()` sem colunas daria 42501.
+  const { data: criado, error } = await supabase.from("relatorios_compartilhados").insert({ consulta_id: consultaId, token_hash: hashDoToken(token), expira_em: expiraEm }).select("id").maybeSingle();
   if (error) {
     console.error("[Consulta de documento] link não criado:", error.code, error.message);
     return { ok: false, status: error.code === "23503" ? 404 : 502, motivo: error.code === "23503" ? "Consulta não encontrada." : "Não deu para criar o link." };
   }
-  return { ok: true, url: urlDoSite(`${CAMINHO_DO_LINK}/${token}`), expiraEm };
+  return { ok: true, id: (criado as { id?: string } | null)?.id ?? null, url: urlDoSite(`${CAMINHO_DO_LINK}/${token}`), expiraEm };
 }
 
 export async function revogarLinkDoRelatorio(supabase: SupabaseClient, linkId: string, usuarioId: string): Promise<{ ok: true } | { ok: false; status: 404 | 409 | 502; motivo: string }> {

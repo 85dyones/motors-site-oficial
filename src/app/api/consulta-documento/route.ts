@@ -36,7 +36,23 @@ const SEM_CACHE = { "Cache-Control": "no-store" };
  * A porta é a ação "Consultar CPF e CNPJ (consulta paga)": Administrador,
  * Gestor, Comercial e Financeiro, a mesma RLS das tabelas.
  */
+/**
+ * Defesa a mais no POST pago: pedido com `Origin` de outro site é recusado
+ * antes de qualquer coisa (os cookies de sessão já são SameSite=Lax; isto
+ * fecha a porta também para navegador que não respeite).
+ */
+function deOutroSite(request: NextRequest): boolean {
+  const origem = request.headers.get("origin");
+  if (!origem) return false;
+  try {
+    return new URL(origem).host !== request.nextUrl.host;
+  } catch {
+    return true;
+  }
+}
+
 export async function POST(request: NextRequest) {
+  if (deOutroSite(request)) return NextResponse.json({ error: "Pedido de outra origem." }, { status: 403, headers: SEM_CACHE });
   const porta = await autorizarConsultaDeDocumento();
   if (!porta.ok) return NextResponse.json({ error: porta.motivo }, { status: porta.status, headers: SEM_CACHE });
   const corpo = (await request.json().catch(() => null)) as Record<string, unknown> | null;

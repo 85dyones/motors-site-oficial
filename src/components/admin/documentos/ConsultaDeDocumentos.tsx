@@ -15,8 +15,8 @@ import { relatorioEmHtml, type RelatorioDeDocumento, type TipoDeDocumento } from
  * enviar, e o histórico de buscas (dono, 18/10/2026).
  *
  * Antes de cobrar: a tela mostra o preço de referência de cada nível e as
- * consultas deste documento já feitas nos últimos 90 dias, que reabrem sem
- * custo; e pede a finalidade e a declaração de que o titular está negociando
+ * consultas deste documento já feitas na janela dos parâmetros, que reabrem
+ * sem custo; e pede a finalidade e a declaração de que o titular está negociando
  * com a loja (LGPD). A confirmação diz o valor.
  *
  * O relatório da tela é o mesmo HTML do PDF e do link (`relatorioEmHtml`),
@@ -137,7 +137,8 @@ export default function ConsultaDeDocumentos({ historico, temToken, homologacao 
           {erro}
         </div>
       )}
-      {aberta && <PainelDoRelatorio aberta={aberta} aoMudar={setAberta} />}
+      {/* `key`: trocar de consulta zera o link gerado e o erro — o link de um cliente nunca fica na tela de outro. */}
+      {aberta && <PainelDoRelatorio key={aberta.id ?? aberta.relatorio.geradoEm} aberta={aberta} aoMudar={setAberta} />}
     </div>
   );
 }
@@ -208,7 +209,7 @@ function FormularioDeDocumento({
   const formatado = tipo === "cpf" ? formatarCpf(normalizado) : formatarCnpj(normalizado);
 
   /** Manda a consulta. Devolve a repetição recusada (409), para a tela perguntar. */
-  const enviar = async (n: NivelComPreco, repetir: boolean): Promise<ConsultaDeDocumentoNaLista | null> => {
+  const enviar = async (n: NivelComPreco, repetir: boolean): Promise<{ repeticao: ConsultaDeDocumentoNaLista; motivo: string } | null> => {
     setCarregando(true);
     setErro(null);
     try {
@@ -218,7 +219,7 @@ function FormularioDeDocumento({
         body: JSON.stringify({ acao: "consultar", tipo, documento: normalizado, nivel: n.id, finalidade, titularCiente: ciente, repetir }),
       });
       const json = (await res.json().catch(() => ({}))) as RespostaDaConsulta;
-      if (res.status === 409 && json.repeticao) return json.repeticao;
+      if (res.status === 409 && json.repeticao) return { repeticao: json.repeticao, motivo: json.error ?? "" };
       if (!res.ok || !json.relatorio) {
         // Sem corpo de erro (504 da Vercel, 500 cru) não dá para saber se o fornecedor cobrou.
         const semResposta = !json.error || res.status >= 500;
@@ -227,8 +228,13 @@ function FormularioDeDocumento({
           (json.error || "A consulta não voltou a tempo.") +
             (cobrou && !homologacao ? " Ela PODE ter sido cobrada: antes de repetir, confira o histórico e o saldo no painel da APIBrasil." : ""),
         );
+        // Pode ter cobrado: a declaração volta em branco, e o próximo clique é uma decisão nova.
+        if (cobrou) setCiente(false);
         // A tentativa que falhou também fica no histórico.
-        if (json.id || semResposta) router.refresh();
+        if (json.id || semResposta) {
+          setRodada((v) => v + 1);
+          router.refresh();
+        }
         return null;
       }
       aoConsultar({ id: json.id ?? null, relatorio: json.relatorio, item: null, links: [], custo: json.custo ?? null, avisos: json.avisos ?? [], lidoEm: horaDaLeitura() });
@@ -259,17 +265,22 @@ function FormularioDeDocumento({
       type: "warning",
     });
     if (!ok) return;
-    const repeticao = await enviar(escolhido, false);
-    if (!repeticao) return;
+    const recusa = await enviar(escolhido, false);
+    if (!recusa) return;
+    const { repeticao } = recusa;
+    // A anterior que falhou não tem o que abrir: o aviso é sobre o saldo.
+    const falhou = repeticao.situacao === "falhou";
     const repetir = await confirm({
-      title: "Consultado há pouco",
-      message: `${repeticao.nivelRotulo} de ${formatado} foi consultado em ${quando(repeticao.quando)} por ${repeticao.quem ?? "alguém da equipe"}. Abrir aquela não custa nada; consultar de novo cobra outra vez.`,
+      title: falhou ? "Tentativa anterior pode ter sido cobrada" : "Consultado há pouco",
+      message: falhou
+        ? `${recusa.motivo} (${quando(repeticao.quando)}, ${repeticao.quem ?? "alguém da equipe"}.)`
+        : `${repeticao.nivelRotulo} de ${formatado} foi consultado em ${quando(repeticao.quando)} por ${repeticao.quem ?? "alguém da equipe"}. Abrir aquela não custa nada; consultar de novo cobra outra vez.`,
       confirmLabel: "Consultar de novo e pagar",
-      cancelLabel: "Abrir a anterior",
+      cancelLabel: falhou ? "Cancelar" : "Abrir a anterior",
       type: "warning",
     });
     if (repetir) await enviar(escolhido, true);
-    else await aoAbrirGuardada(repeticao.id);
+    else if (!falhou) await aoAbrirGuardada(repeticao.id);
   };
 
   return (
@@ -389,7 +400,7 @@ function FormularioDeDocumento({
 function PainelDoRelatorio({ aberta, aoMudar }: { aberta: Aberta; aoMudar: (a: Aberta) => void }) {
   const { confirm } = useConfirm();
   const quadro = useRef<HTMLIFrameElement>(null);
-  const [link, setLink] = useState<{ url: string; expiraEm: string } | null>(null);
+  const [link, setLink] = useState<{ id: string | null; url: string; expiraEm: string } | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const html = useMemo(
@@ -418,12 +429,12 @@ function PainelDoRelatorio({ aberta, aoMudar }: { aberta: Aberta; aoMudar: (a: A
     if (!aberta.id) return;
     setErro(null);
     const res = await fetch(`/api/consulta-documento/${aberta.id}/links`, { method: "POST" });
-    const json = (await res.json().catch(() => ({}))) as { url?: string; expiraEm?: string; error?: string };
+    const json = (await res.json().catch(() => ({}))) as { id?: string; url?: string; expiraEm?: string; error?: string };
     if (!res.ok || !json.url || !json.expiraEm) {
       setErro(json.error || "Não deu para criar o link.");
       return;
     }
-    setLink({ url: json.url, expiraEm: json.expiraEm });
+    setLink({ id: json.id ?? null, url: json.url, expiraEm: json.expiraEm });
     setCopiado(false);
     await recarregarLinks();
   };
@@ -447,7 +458,7 @@ function PainelDoRelatorio({ aberta, aoMudar }: { aberta: Aberta; aoMudar: (a: A
       setErro(json.error || "Não deu para revogar o link.");
       return;
     }
-    if (link) setLink(null);
+    if (link?.id === id) setLink(null);
     await recarregarLinks();
   };
 

@@ -19,5 +19,5 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!leitura.ok) return NextResponse.json({ error: leitura.motivo }, { status: 503, headers: SEM_CACHE });
   const r = await criarLinkDoRelatorio(porta.supabase, id, leitura.parametros);
   if (!r.ok) return NextResponse.json({ error: r.motivo }, { status: r.status, headers: SEM_CACHE });
-  return NextResponse.json({ url: r.url, expiraEm: r.expiraEm }, { headers: SEM_CACHE });
+  return NextResponse.json({ id: r.id, url: r.url, expiraEm: r.expiraEm }, { headers: SEM_CACHE });
 }
