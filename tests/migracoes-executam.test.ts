@@ -12,6 +12,7 @@ import {
   TEMPOS_DESDE_A_COMPRA,
 } from "../src/lib/smsCampanhas";
 import { ORIGENS_DE_IMPORTACAO } from "../src/lib/baseDeMarketing";
+import { gerarTokenDoLink, hashDoToken, tokenTemForma } from "../src/lib/linkDoRelatorio";
 
 /**
  * As migrações rodam de verdade — e o aceite delas é cobrado (AUDITORIA §5.7).
@@ -285,6 +286,22 @@ const CADEIA = [
   // que a chamada de 15 do site de hoje segue usando. Pediu ao andaime o
   // recorte de `midia_anuncios`, `midia_diario` e `midia_gravar_lote`.
   "20261017150000_copiloto_meta.sql",
+  // As consultas de CPF e CNPJ e o link do relatório (2026-10-18). É dado
+  // pessoal (LGPD): entra na cadeia porque o aceite veste admin, gestor,
+  // comercial, financeiro, marketing, sdr, um financeiro desativado, cliente,
+  // anon e service_role para provar que só os quatro papéis da ação nova leem,
+  // que ninguém inclui direto e só a service_role registra, pela função
+  // `registrar_consulta_de_documento`, com org, autor e nome carimbados por ela
+  // (e recusa quem não tem o papel), que sem a declaração do titular a
+  // consulta não entra, que ninguém edita nem apaga a consulta, que a sessão
+  // não lê `token_hash`, que o link só se revoga (esticar prazo, mexer no
+  // contador e desrevogar são negados, até à chave de serviço), que a porta
+  // pública `abrir_relatorio_compartilhado` abre como anon só pelo TOKEN (o
+  // hash não abre) e conta o acesso, e que `parametros_consulta_documento` é
+  // parâmetro com vigência, lido pelos quatro e escrito só pelo admin. Usa
+  // `tem_papel`, `autor_atual`, `org_padrao` e `nucleo_so_encerra_vigencia`;
+  // o andaime não precisou de nada novo.
+  "20261018120000_consultas_de_documento.sql",
 ];
 
 /**
@@ -2047,6 +2064,512 @@ describe.skipIf(!temBanco)("a agenda para toda a equipe, com dado e por cima do 
             from public.agenda_de_pessoas where origem = 'lead')`,
       ),
     ).toBe(true);
+  });
+});
+
+/**
+ * As consultas de documento (20261018120000), pelo lado de fora. O aceite da
+ * migração prova o efeito com sonda; aqui ficam a reaplicação (o catálogo não
+ * muda), cada violação falhando pelo NOME da regra (com controles que têm de
+ * entrar), a porta pública vista como anon — com o token que o APP gera e o
+ * hash que o APP calcula —, a leitura do link sem `token_hash`, o registro da
+ * consulta só pela função da service_role, e os parâmetros com vigência.
+ * Toda escrita é desfeita.
+ */
+describe.skipIf(!temBanco)("as consultas de CPF e CNPJ e o link do relatório, pelo lado de fora", () => {
+  const MIGRACAO = "20261018120000_consultas_de_documento.sql";
+  const PESSOA = "'00000000-0000-0000-0000-0000000000d0'::uuid";
+
+  /** A mensagem do erro, ou "" se o comando passou. Sempre desfeito. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(`begin; ${sql}; rollback;`);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  /** A saída do comando, numa transação desfeita. Erro sobe. */
+  const desfeito = (sql: string): string => psql!(`begin; ${sql}; rollback;`);
+
+  /** Um usuário de sonda com um papel, e a sessão dele vestida (claims + role). */
+  const UID: Record<string, string> = {
+    admin: "00000000-0000-0000-0000-00000000dc01",
+    gestor: "00000000-0000-0000-0000-00000000dc02",
+    comercial: "00000000-0000-0000-0000-00000000dc03",
+    financeiro: "00000000-0000-0000-0000-00000000dc04",
+    marketing: "00000000-0000-0000-0000-00000000dc05",
+    sdr: "00000000-0000-0000-0000-00000000dc06",
+  };
+  const usuario = (papel: string) =>
+    `insert into auth.users (id, instance_id, aud, role, email)
+       values ('${UID[papel]}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+               'doc-${papel}@exemplo.invalido');
+     update public.profiles set full_name = 'Doc ${papel}', papeis = array['${papel}'], role = '${papel}', is_active = true
+      where id = '${UID[papel]}'`;
+  const sessao = (papel: string) =>
+    `select set_config('request.jwt.claims',
+       json_build_object('sub', '${UID[papel]}', 'role', 'authenticated')::text, true);
+     set local role authenticated`;
+  const comoPapel = (papel: string, sql: string) => `${usuario(papel)}; ${sessao(papel)}; ${sql}`;
+
+  const consulta = (tipo: string, documento: string, ciente = "true", nivel = "basico") =>
+    `insert into public.consultas_de_documento
+       (tipo_documento, documento, nivel, produtos, relatorio, situacao, finalidade, titular_ciente, criado_por)
+     values ('${tipo}', '${documento}', '${nivel}', '{cpf-lite}', '{}', 'completa', 'financiamento', ${ciente}, ${PESSOA})`;
+
+  /** Uma consulta (como dono) com situação e tentativas dadas. */
+  const tentativa = (situacao: string, tentativas: string) =>
+    `insert into public.consultas_de_documento
+       (tipo_documento, documento, nivel, produtos, relatorio, situacao, tentativas, finalidade, titular_ciente, criado_por)
+     values ('cpf', '00000000191', 'credito', '{cpf-lite,receita-federal}', '{}', '${situacao}',
+             '${tentativas}'::jsonb, 'financiamento', true, ${PESSOA})`;
+
+  /** Um link para uma consulta nova, no mesmo comando; `prazo` é o intervalo até expirar. */
+  const link = (prazo: string, hash = "repeat('a', 64)") =>
+    `with c as (${consulta("cpf", "00000000191")} returning id)
+     insert into public.relatorios_compartilhados (consulta_id, token_hash, expira_em, criado_por)
+     select c.id, ${hash}, now() + interval '${prazo}', ${PESSOA} from c`;
+
+  /** A chamada da função de registro, com os 14 argumentos na ordem. */
+  const registrar = (quem: string, situacao: string, tentativas: string, ciente = "true") =>
+    `public.registrar_consulta_de_documento(
+       ${quem}, 'cpf', '00000000191', 'credito', '{cpf-lite,receita-federal}'::text[], 'DOC TESTE',
+       '{"titular": {}}'::jsonb, '{"cpf-lite": {}}'::jsonb, '${tentativas}'::jsonb, '${situacao}',
+       null::numeric, false, 'financiamento', ${ciente})`;
+
+  const PARCIAL =
+    '[{"produto": "cpf-lite", "ok": true, "status": 200, "motivo": null, "pode_ter_cobrado": true, "custo": 0.12},' +
+    ' {"produto": "receita-federal", "ok": false, "status": 504, "motivo": "tempo esgotado", "pode_ter_cobrado": true, "custo": null}]';
+
+  const retrato = (): string =>
+    psql!(
+      `select md5(
+         (select string_agg(conname || ':' || pg_get_constraintdef(oid), '|' order by conname)
+            from pg_constraint where conrelid in ('public.consultas_de_documento'::regclass,
+                                                  'public.relatorios_compartilhados'::regclass,
+                                                  'public.parametros_consulta_documento'::regclass))
+         || (select string_agg(tablename || ':' || policyname || ':' || cmd || ':' || coalesce(qual, '')
+                               || ':' || coalesce(with_check, ''), '|' order by tablename, policyname)
+               from pg_policies where tablename in ('consultas_de_documento', 'relatorios_compartilhados',
+                                                    'parametros_consulta_documento'))
+         || (select string_agg(proname || ':' || md5(prosrc) || ':' || prosecdef || ':'
+                               || coalesce(array_to_string(proconfig, ','), '') || ':'
+                               || coalesce(array_to_string(proacl, ','), ''), '|' order by proname)
+               from pg_proc where proname in ('abrir_relatorio_compartilhado', 'registrar_consulta_de_documento',
+                                              'consulta_documento_nova_vigencia', 'consulta_documento_tentativas_validas',
+                                              'consulta_documento_situacao_coerente', 'consulta_documento_precos_validos',
+                                              'relatorios_compartilhados_carimbar', 'relatorios_compartilhados_so_revogar',
+                                              'consultas_de_documento_so_inclusao'))
+         || (select string_agg(relname || ':' || coalesce(array_to_string(relacl, ','), ''), '|' order by relname)
+               from pg_class where oid in ('public.consultas_de_documento'::regclass,
+                                           'public.relatorios_compartilhados'::regclass,
+                                           'public.parametros_consulta_documento'::regclass))
+         || (select string_agg(attname || ':' || coalesce(array_to_string(attacl, ','), ''), '|' order by attname)
+               from pg_attribute where attrelid = 'public.relatorios_compartilhados'::regclass and attnum > 0)
+         || (select count(*)::text from public.parametros_consulta_documento)
+       )`,
+    ).match(/[0-9a-f]{32}/)?.[0] ?? "";
+
+  it("reaplicar levanta o aceite de novo e não muda regra, policy, função, privilégio nem a semente", () => {
+    const antes = retrato();
+    expect(antes).toMatch(/^[0-9a-f]{32}$/);
+    const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+    expect(saida).toContain("Aceite verificado");
+    expect(saida).not.toMatch(/^psql.*ERROR:/m);
+    expect(retrato()).toBe(antes);
+  });
+
+  it("violação falha: CPF fora de 11 dígitos, CNPJ fora do alfanumérico, e consulta sem o titular ciente", () => {
+    // Controles: CPF de 11 dígitos, CNPJ numérico e CNPJ alfanumérico entram.
+    expect(recusa(consulta("cpf", "00000000191"))).toBe("");
+    expect(recusa(consulta("cnpj", "11222333000181"))).toBe("");
+    expect(recusa(consulta("cnpj", "12ABC34501DE35"))).toBe("");
+    expect(recusa(consulta("cpf", "000.000.001-91"))).toContain("consultas_de_documento_documento_valido");
+    expect(recusa(consulta("cnpj", "12abc34501de35"))).toContain("consultas_de_documento_documento_valido");
+    expect(recusa(consulta("cnpj", "12ABC34501DEAB"))).toContain("consultas_de_documento_documento_valido");
+    expect(recusa(consulta("rg", "00000000191"))).toContain("consultas_de_documento_tipo_valido");
+    expect(recusa(consulta("cpf", "00000000191", "false"))).toContain("consultas_de_documento_titular_ciente");
+  });
+
+  it("violação falha: o nível é um dos seis, e o completo com score é só de CNPJ", () => {
+    for (const nivel of ["basico", "dados", "credito", "completo_economico", "completo_integral"]) {
+      expect(recusa(consulta("cpf", "00000000191", "true", nivel)), nivel).toBe("");
+    }
+    expect(recusa(consulta("cnpj", "11222333000181", "true", "completo_score"))).toBe("");
+    expect(recusa(consulta("cpf", "00000000191", "true", "completo_score"))).toContain(
+      "consultas_de_documento_score_so_cnpj",
+    );
+    expect(recusa(consulta("cpf", "00000000191", "true", "completo"))).toContain(
+      "consultas_de_documento_nivel_valido",
+    );
+  });
+
+  it("violação falha: situação fora da lista, tentativa malformada ou de produto não chamado, e situação que desmente as tentativas", () => {
+    // Controles: a parcial de verdade, a falha sem resposta e a completa sem tentativas entram.
+    expect(recusa(tentativa("parcial", PARCIAL))).toBe("");
+    expect(
+      recusa(tentativa("falhou", '[{"produto": "cpf-lite", "ok": false, "pode_ter_cobrado": true, "status": null, "custo": null}]')),
+    ).toBe("");
+    expect(recusa(tentativa("completa", "[]"))).toBe("");
+    expect(recusa(tentativa("cancelada", "[]"))).toContain("consultas_de_documento_situacao_valida");
+    expect(recusa(tentativa("completa", "{}"))).toContain("consultas_de_documento_tentativas_validas");
+    expect(
+      recusa(tentativa("completa", '[{"produto": "cnpj", "ok": true, "pode_ter_cobrado": true}]')),
+    ).toContain("consultas_de_documento_tentativas_validas");
+    expect(recusa(tentativa("completa", '[{"produto": "cpf-lite", "ok": true}]'))).toContain(
+      "consultas_de_documento_tentativas_validas",
+    );
+    expect(
+      recusa(tentativa("completa", '[{"produto": "cpf-lite", "ok": true, "pode_ter_cobrado": true, "custo": -1}]')),
+    ).toContain("consultas_de_documento_tentativas_validas");
+    expect(
+      recusa(tentativa("completa", '[{"produto": "cpf-lite", "ok": false, "pode_ter_cobrado": true}]')),
+    ).toContain("consultas_de_documento_situacao_coerente");
+    expect(
+      recusa(tentativa("falhou", '[{"produto": "cpf-lite", "ok": true, "pode_ter_cobrado": true}]')),
+    ).toContain("consultas_de_documento_situacao_coerente");
+    expect(
+      recusa(tentativa("parcial", '[{"produto": "cpf-lite", "ok": true, "pode_ter_cobrado": true}]')),
+    ).toContain("consultas_de_documento_situacao_coerente");
+    // O relatório continua obrigatório, mesmo numa falha.
+    expect(
+      recusa(`insert into public.consultas_de_documento
+                (tipo_documento, documento, nivel, produtos, situacao, finalidade, titular_ciente, criado_por)
+              values ('cpf', '00000000191', 'basico', '{cpf-lite}', 'falhou', 'financiamento', true, ${PESSOA})`),
+    ).toContain("relatorio");
+  });
+
+  it("violação falha: link de mais de 30 dias, link que expira antes de nascer, e desrevogar até pela chave de serviço", () => {
+    expect(recusa(link("720 hours"))).toBe("");
+    expect(recusa(link("721 hours"))).toContain("relatorios_compartilhados_prazo_valido");
+    expect(recusa(link("-1 second"))).toContain("relatorios_compartilhados_prazo_valido");
+    expect(
+      recusa(
+        `${link("1 day")};
+         update public.relatorios_compartilhados set revogado_em = now() where token_hash = repeat('a', 64);
+         set local role service_role;
+         update public.relatorios_compartilhados set revogado_em = null where token_hash = repeat('a', 64)`,
+      ),
+    ).toContain("Link revogado não volta");
+  });
+
+  it("o hash do app é o do banco: sha256 hex do token em UTF-8, dos dois lados", () => {
+    const tokens = [gerarTokenDoLink(), gerarTokenDoLink(), "a".repeat(43), "ação-Ç-não-é-token"];
+    expect(tokenTemForma(tokens[0])).toBe(true);
+    for (const token of tokens) {
+      const doBanco = psql!(
+        `select 'hash=' || encode(sha256(convert_to('${token}', 'UTF8')), 'hex')`,
+      ).match(/hash=([0-9a-f]{64})/)?.[1];
+      expect(doBanco, token).toBe(hashDoToken(token));
+    }
+  });
+
+  it("anon abre o link com o token, e não com o hash; nem revogado, nem fora da forma, nem com token alheio", () => {
+    expect(recusa("set local role anon; select count(*) from public.consultas_de_documento")).toContain(
+      "permission denied",
+    );
+    expect(recusa("set local role anon; select count(*) from public.relatorios_compartilhados")).toContain(
+      "permission denied",
+    );
+    // O miolo (`respostas`) não é coluna da porta: só as cinco do relatório. E
+    // o argumento é o token, não o hash.
+    expect(
+      psql!(
+        `select 'args=' || array_to_string(proargnames, ',') from pg_proc
+          where oid = 'public.abrir_relatorio_compartilhado(text)'::regprocedure`,
+      ),
+    ).toContain("args=p_token,relatorio,tipo_documento,nivel,criado_em,expira_em");
+
+    // O token e o hash como o app os faz: o link gravado com hashDoToken(token).
+    const token = gerarTokenDoLink();
+    const hash = hashDoToken(token);
+    const abrir = (antes: string, argumento: string): string =>
+      desfeito(
+        `${antes}; set local role anon;
+         select 'linhas=' || count(*) from public.abrir_relatorio_compartilhado(${argumento})`,
+      );
+    expect(abrir(link("1 day", `'${hash}'`), `'${token}'`)).toContain("linhas=1");
+    // Quem só tem o hash (vazou a tabela) não abre.
+    expect(abrir(link("1 day", `'${hash}'`), `'${hash}'`)).toContain("linhas=0");
+    expect(abrir(link("1 day", `'${hash}'`), `'${token}x'`)).toContain("linhas=0");
+    expect(abrir(link("1 day", `'${hash}'`), `'${token.slice(0, 42)}'`)).toContain("linhas=0");
+    expect(abrir(link("1 day", `'${hash}'`), "null")).toContain("linhas=0");
+    expect(abrir(link("1 day", `'${hash}'`), `'${gerarTokenDoLink()}'`)).toContain("linhas=0");
+    expect(
+      abrir(
+        `${link("1 day", `'${hash}'`)}; update public.relatorios_compartilhados set revogado_em = now() where token_hash = '${hash}'`,
+        `'${token}'`,
+      ),
+    ).toContain("linhas=0");
+    // Abrir conta o acesso.
+    expect(
+      desfeito(
+        `${link("1 day", `'${hash}'`)}; set local role anon;
+         select count(*) from public.abrir_relatorio_compartilhado('${token}');
+         reset role;
+         select 'acessos=' || acessos from public.relatorios_compartilhados where token_hash = '${hash}'`,
+      ),
+    ).toContain("acessos=1");
+  });
+
+  it("violação falha: authenticated não lê token_hash (nem por *), e lê o resto do link", () => {
+    // O link nasce como dono; só a leitura é na sessão do comercial.
+    const comLink = (sql: string) => `${usuario("comercial")}; ${link("1 day")}; ${sessao("comercial")}; ${sql}`;
+    const NEGADO = "permission denied for table relatorios_compartilhados";
+    expect(recusa(comLink("select token_hash from public.relatorios_compartilhados"))).toContain(NEGADO);
+    expect(recusa(comLink("select * from public.relatorios_compartilhados"))).toContain(NEGADO);
+    expect(
+      recusa(comLink("select 1 from public.relatorios_compartilhados where token_hash = repeat('a', 64)")),
+    ).toContain(NEGADO);
+    // Controle: as colunas da tela (src/lib/consultaDeDocumento-servidor.ts) saem.
+    expect(
+      desfeito(
+        comLink(
+          `select 'vistos=' || count(*) from (
+             select id, org_id, consulta_id, expira_em, revogado_em, revogado_por, acessos,
+                    ultimo_acesso_em, criado_por, criado_por_nome, criado_em
+               from public.relatorios_compartilhados) l`,
+        ),
+      ),
+    ).toContain("vistos=1");
+    // E o INSERT continua gravando token_hash pela sessão — sem `returning *`.
+    expect(
+      desfeito(
+        comoPapel(
+          "comercial",
+          `reset role;
+           ${consulta("cpf", "00000000191")};
+           ${sessao("comercial")};
+           insert into public.relatorios_compartilhados (consulta_id, token_hash, expira_em)
+           select id, repeat('c', 64), now() + interval '7 days' from public.consultas_de_documento limit 1
+           returning 'gravou=' || (criado_por = '${UID.comercial}')`,
+        ),
+      ),
+    ).toContain("gravou=true");
+  });
+
+  it("violação falha: authenticated (nem admin) e anon não inserem direto em consultas_de_documento, nem chamam a função de registro", () => {
+    const direto = `insert into public.consultas_de_documento
+       (tipo_documento, documento, nivel, produtos, relatorio, situacao, finalidade, titular_ciente, criado_por)
+     values ('cpf', '00000000191', 'basico', '{cpf-lite}', '{}', 'completa', 'financiamento', true, '${UID.admin}')`;
+    expect(recusa(comoPapel("admin", direto))).toContain("permission denied for table consultas_de_documento");
+    expect(recusa(`set local role anon; ${direto}`)).toContain("permission denied for table consultas_de_documento");
+    expect(recusa(`set local role service_role; ${direto}`)).toContain(
+      "permission denied for table consultas_de_documento",
+    );
+    expect(recusa(comoPapel("admin", `select ${registrar(`'${UID.admin}'`, "parcial", PARCIAL)}`))).toContain(
+      "permission denied for function registrar_consulta_de_documento",
+    );
+    expect(recusa(`set local role anon; select ${registrar(`'${UID.admin}'`, "parcial", PARCIAL)}`)).toContain(
+      "permission denied for function registrar_consulta_de_documento",
+    );
+  });
+
+  it("violação falha: ninguém edita a consulta — nem a service_role, nem o dono; a service_role apaga linha a linha (eliminação LGPD), sem TRUNCATE", () => {
+    const registrada = `${usuario("comercial")};
+       set local role service_role;
+       select ${registrar(`'${UID.comercial}'`, "parcial", PARCIAL)}`;
+    // service_role: sem o privilégio de UPDATE, 42501 antes de qualquer linha.
+    expect(
+      recusa(`${registrada};
+              update public.consultas_de_documento set finalidade = 'cadastro_de_cliente' where nome = 'DOC TESTE'`),
+    ).toContain("permission denied for table consultas_de_documento");
+    // dono (o papel que aplica a migração): o gatilho só-inclusão recusa.
+    expect(
+      recusa(`${registrada}; reset role;
+              update public.consultas_de_documento set custo = 0 where nome = 'DOC TESTE'`),
+    ).toContain("A consulta de documento não se edita");
+    // E o gatilho está lá, BEFORE UPDATE por linha (não só o privilégio).
+    expect(
+      psql!(`select tgname || ':' || (tgtype & 2 = 2) || ':' || (tgtype & 16 = 16) || ':' || (tgtype & 1 = 1)
+               from pg_trigger where tgrelid = 'public.consultas_de_documento'::regclass and not tgisinternal`),
+    ).toContain("consultas_de_documento_so_inclusao:true:true:true");
+    // service_role apaga — o pedido de eliminação do titular —, e o link vai junto (cascata).
+    const apagada = desfeito(
+      `${registrada};
+       insert into public.relatorios_compartilhados (consulta_id, token_hash, expira_em, criado_por)
+         select id, repeat('e', 64), now() + interval '1 day', '${UID.comercial}'
+           from public.consultas_de_documento where nome = 'DOC TESTE';
+       with apagou as (delete from public.consultas_de_documento where nome = 'DOC TESTE' returning 1)
+       select 'apagou=' || count(*) from apagou;
+       reset role;
+       select 'restou=' || (select count(*) from public.consultas_de_documento where nome = 'DOC TESTE')
+              || ':' || (select count(*) from public.relatorios_compartilhados where token_hash = repeat('e', 64))`,
+    );
+    expect(apagada).toContain("apagou=1");
+    expect(apagada).toContain("restou=0:0");
+    // A sessão (nem o admin) continua sem apagar.
+    expect(
+      recusa(comoPapel("admin", "delete from public.consultas_de_documento")),
+    ).toContain("permission denied for table consultas_de_documento");
+    // Eliminação é linha a linha: a service_role não trunca a consulta nem o link.
+    expect(recusa("set local role service_role; truncate public.consultas_de_documento cascade")).toContain(
+      "permission denied for table consultas_de_documento",
+    );
+    expect(recusa("set local role service_role; truncate public.relatorios_compartilhados")).toContain(
+      "permission denied for table relatorios_compartilhados",
+    );
+    expect(
+      psql!(`select has_table_privilege('service_role', 'public.consultas_de_documento', 'TRUNCATE') || ':'
+                 || has_table_privilege('service_role', 'public.relatorios_compartilhados', 'TRUNCATE') || ':'
+                 || has_table_privilege('service_role', 'public.relatorios_compartilhados', 'DELETE')`),
+    ).toContain("false:false:true");
+  });
+
+  it("a service_role registra pela função, e a linha sai com a org, o autor e o nome certos", () => {
+    const saida = desfeito(
+      `${usuario("comercial")};
+       set local role service_role;
+       select 'id=' || ${registrar(`'${UID.comercial}'`, "parcial", PARCIAL)};
+       reset role;
+       select 'linhas=' || count(*) || ':' ||
+              bool_and(org_id = public.org_padrao() and criado_por = '${UID.comercial}'
+                       and criado_por_nome = 'Doc comercial' and criado_em > now() - interval '1 minute'
+                       and situacao = 'parcial' and tentativas = '${PARCIAL}'::jsonb and custo is null)
+         from public.consultas_de_documento where nome = 'DOC TESTE'`,
+    );
+    expect(saida).toMatch(/id=[0-9a-f-]{36}/);
+    expect(saida).toContain("linhas=1:true");
+  });
+
+  it("violação falha: a função recusa marketing, sdr, quem não tem perfil, e a consulta sem o titular ciente", () => {
+    for (const papel of ["marketing", "sdr"]) {
+      expect(
+        recusa(`${usuario(papel)}; set local role service_role; select ${registrar(`'${UID[papel]}'`, "parcial", PARCIAL)}`),
+        papel,
+      ).toContain("Consultar CPF e CNPJ");
+    }
+    expect(
+      recusa(`set local role service_role; select ${registrar("gen_random_uuid()", "parcial", PARCIAL)}`),
+    ).toContain("Consultar CPF e CNPJ");
+    expect(recusa(`set local role service_role; select ${registrar("null", "parcial", PARCIAL)}`)).toContain(
+      "Consultar CPF e CNPJ",
+    );
+    expect(
+      recusa(`${usuario("financeiro")}; set local role service_role;
+              select ${registrar(`'${UID.financeiro}'`, "parcial", PARCIAL, "false")}`),
+    ).toContain("consultas_de_documento_titular_ciente");
+    // Controle: o financeiro registra.
+    expect(
+      recusa(`${usuario("financeiro")}; set local role service_role; select ${registrar(`'${UID.financeiro}'`, "parcial", PARCIAL)}`),
+    ).toBe("");
+  });
+
+  it("os parâmetros: a semente de 2026-10-18 é a vigente, o comercial lê, o marketing não vê, anon é barrado", () => {
+    expect(
+      desfeito(
+        comoPapel(
+          "comercial",
+          `select 'vigente=' || (count(*) = 1
+             and bool_and(dias_do_link = 7 and dias_de_consulta_recente = 90 and minutos_contra_repeticao = 30
+                          and links_ativos_por_consulta = 10 and tabela_de_precos_em = date '2026-10-18'
+                          and fonte = 'Tabela pública da APIBrasil'
+                          and (precos_de_referencia->>'analise-credito-plus-pf')::numeric = 29.02
+                          and (select count(*) from jsonb_object_keys(precos_de_referencia)) = 12))
+             from public.parametros_consulta_documento where vigencia_ate is null`,
+        ),
+      ),
+    ).toContain("vigente=true");
+    expect(
+      desfeito(comoPapel("marketing", "select 'vistos=' || count(*) from public.parametros_consulta_documento")),
+    ).toContain("vistos=0");
+    expect(recusa("set local role anon; select 1 from public.parametros_consulta_documento")).toContain(
+      "permission denied",
+    );
+  });
+
+  it("violação falha: parâmetro só se escreve pela função, e só o admin abre vigência", () => {
+    const nova = (dias: number) =>
+      `select 'nova=' || dias_do_link from public.consulta_documento_nova_vigencia(
+         ${dias}, 60, 15, 5, '{"cpf-lite": 0.2}'::jsonb, date '2026-11-01', 'Teste')`;
+    expect(recusa(comoPapel("comercial", nova(10)))).toContain("Só o Administrador");
+    expect(recusa(comoPapel("financeiro", nova(10)))).toContain("Só o Administrador");
+    expect(recusa(nova(10))).toContain("sem sessão");
+    expect(
+      recusa(
+        comoPapel(
+          "admin",
+          `insert into public.parametros_consulta_documento
+             (dias_do_link, dias_de_consulta_recente, minutos_contra_repeticao, links_ativos_por_consulta,
+              precos_de_referencia, tabela_de_precos_em, fonte)
+           values (7, 90, 30, 10, '{"cpf-lite": 0.12}', current_date, 'direto')`,
+        ),
+      ),
+    ).toContain("permission denied");
+    expect(
+      recusa(comoPapel("admin", "update public.parametros_consulta_documento set vigencia_ate = current_date")),
+    ).toContain("permission denied");
+    // O admin: a vigente nova tem o valor dele, a antiga encerrou hoje, e há uma vigente só.
+    const saida = desfeito(
+      comoPapel(
+        "admin",
+        `${nova(14)};
+         reset role;
+         select 'vigentes=' || count(*) || ':' || bool_and(dias_do_link = 14 and criado_por = '${UID.admin}')
+           from public.parametros_consulta_documento where vigencia_ate is null;
+         select 'encerradas_hoje=' || count(*) from public.parametros_consulta_documento
+          where vigencia_ate = current_date and dias_do_link = 7`,
+      ),
+    );
+    expect(saida).toContain("nova=14");
+    expect(saida).toContain("vigentes=1:true");
+    expect(saida).toContain("encerradas_hoje=1");
+    // A faixa vale pela função também.
+    expect(recusa(comoPapel("admin", nova(31)))).toContain("parametros_consulta_documento_dias_do_link_na_faixa");
+    // Valor vigente não sofre UPDATE nem pelo dono (D-T1.7).
+    expect(recusa("update public.parametros_consulta_documento set dias_do_link = 8 where vigencia_ate is null")).toContain(
+      "não sofre UPDATE",
+    );
+  });
+
+  it("violação falha: cada faixa dos parâmetros e a tabela de preços", () => {
+    // Cada caso é uma vigência FUTURA e já encerrada, inserida como dono: fica
+    // fora do índice de vigente única, e o guarda D-T1.7 (só de UPDATE) não entra.
+    const caso = (muda: Record<string, string>) => {
+      const base: Record<string, string> = {
+        dias_do_link: "7",
+        dias_de_consulta_recente: "90",
+        minutos_contra_repeticao: "30",
+        links_ativos_por_consulta: "10",
+        precos_de_referencia: `'{"cpf-lite": 0.12}'::jsonb`,
+        fonte: "'Teste'",
+        ...muda,
+      };
+      return `insert into public.parametros_consulta_documento
+                (${Object.keys(base).join(", ")}, tabela_de_precos_em, vigencia_desde, vigencia_ate)
+              values (${Object.values(base).join(", ")}, current_date, current_date + 365, current_date + 730)`;
+    };
+    expect(recusa(caso({}))).toBe("");
+    expect(recusa(caso({ dias_do_link: "30", minutos_contra_repeticao: "0" }))).toBe("");
+    expect(recusa(caso({ dias_do_link: "31" }))).toContain("parametros_consulta_documento_dias_do_link_na_faixa");
+    expect(recusa(caso({ dias_de_consulta_recente: "366" }))).toContain(
+      "parametros_consulta_documento_dias_de_consulta_recente_na_faixa",
+    );
+    expect(recusa(caso({ minutos_contra_repeticao: "1441" }))).toContain(
+      "parametros_consulta_documento_minutos_contra_repeticao_na_faixa",
+    );
+    expect(recusa(caso({ links_ativos_por_consulta: "0" }))).toContain(
+      "parametros_consulta_documento_links_ativos_na_faixa",
+    );
+    expect(recusa(caso({ precos_de_referencia: `'{"cpf-lite": -0.01}'::jsonb` }))).toContain(
+      "parametros_consulta_documento_precos_validos",
+    );
+    expect(recusa(caso({ precos_de_referencia: `'{}'::jsonb` }))).toContain(
+      "parametros_consulta_documento_precos_validos",
+    );
+    expect(recusa(caso({ precos_de_referencia: `'{"cpf-lite": "0.12"}'::jsonb` }))).toContain(
+      "parametros_consulta_documento_precos_validos",
+    );
+    expect(recusa(caso({ fonte: "'   '" }))).toContain("parametros_consulta_documento_fonte_preenchida");
+    // Uma vigente por org.
+    expect(
+      recusa(`insert into public.parametros_consulta_documento
+                (dias_do_link, dias_de_consulta_recente, minutos_contra_repeticao, links_ativos_por_consulta,
+                 precos_de_referencia, tabela_de_precos_em, fonte)
+              values (7, 90, 30, 10, '{"cpf-lite": 0.12}', current_date, 'segunda')`),
+    ).toContain("parametros_consulta_documento_um_vigente");
   });
 });
 

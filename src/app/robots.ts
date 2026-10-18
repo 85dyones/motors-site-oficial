@@ -27,6 +27,9 @@ import { SITE_URL } from "../lib/site";
  *   de uso único — não há nada ali para indexar.
  * - `/api/` e `/test` (no grupo geral desde antes; no de IA a partir de
  *   2026-09-08, que é quando os dois grupos passaram a ler daqui).
+ * - `/relatorio/` (2026-10-18): o link do relatório de CPF/CNPJ que o
+ *   consultor envia. A rota já responde `noindex` e exige o código; isto só
+ *   evita que um rastreador que achou o endereço o busque.
  */
 const FORA_DO_RASTREIO = [
   "/configuracoes",
@@ -37,6 +40,7 @@ const FORA_DO_RASTREIO = [
   "/recuperar-senha",
   "/api/",
   "/test",
+  "/relatorio/",
 ];
 
 /**
