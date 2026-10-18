@@ -505,6 +505,17 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "faz", "nao_ve", "faz", "nao_ve"],
     "Cada consulta nova é cobrada pelo fornecedor (placa, ou meses de tabela FIPE por modelo); o que já foi consultado reabre sem custo",
   ),
+  // Linha ACRESCENTADA em 2026-10-18, com a consulta de CPF e CNPJ
+  // (`/admin/consulta-documentos`): dado pessoal e de crédito, pago por
+  // consulta. Faz quem negocia (Comercial, Gestor, Administrador) e quem
+  // analisa o financiamento (Financeiro). A RLS de `consultas_de_documento` e
+  // `relatorios_compartilhados` repete os quatro papéis, e o texto da ação
+  // mora em `ACAO_CONSULTAR_DOCUMENTO` (`lib/consultaDeDocumento-servidor.ts`).
+  linha(
+    "Consultar CPF e CNPJ (consulta paga)",
+    ["faz", "faz", "nao_ve", "faz", "faz"],
+    "Cada consulta é cobrada pelo fornecedor e exige finalidade e titular em negociação (LGPD); a consulta guardada reabre sem custo",
+  ),
 ];
 
 /** Do mais permissivo para o menos — a ordem que resolve o empate multi-papel. */

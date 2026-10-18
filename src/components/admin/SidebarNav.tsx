@@ -142,6 +142,16 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
       ],
     },
     {
+      // A consulta de CPF e CNPJ (2026-10-18): crédito, cadastro e compliance
+      // de quem compra, vende ou financia com a loja. Paga por consulta, dado
+      // pessoal (LGPD): a linha "Consultar CPF e CNPJ (consulta paga)" da
+      // matriz — Administrador, Gestor, Comercial e Financeiro —, a mesma que
+      // a página, as rotas e a RLS cobram.
+      title: "Consultas",
+      roles: ["admin", "gestor", "comercial", "financeiro"],
+      items: [{ name: "CPF e CNPJ", href: "/admin/consulta-documentos" }],
+    },
+    {
       // Repasse Motors (2026-09-24): carros vendidos no estado, sem a
       // garantia da loja. Todo perfil cadastra (dono, 24/09); a lista de
       // inscritos — WhatsApp e CNPJ — é só de quem valida (Administrador,
