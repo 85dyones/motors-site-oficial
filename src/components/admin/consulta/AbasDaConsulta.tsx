@@ -120,7 +120,7 @@ export default function AbasDaConsulta({
       <header className="nao-imprimir flex flex-col gap-3">
         <div className="nao-imprimir flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-col gap-3">
-            <span className="mt-rotulo">ESTOQUE</span>
+            <span className="mt-rotulo">CONSULTAS</span>
             <h1 className="mt-titulo m-0 text-3xl md:text-4xl">Consulta de veículos</h1>
           </div>
           <button type="button" className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2 text-[11px]" onClick={imprimir} data-imprimir>
