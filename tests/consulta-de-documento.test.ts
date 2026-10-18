@@ -27,8 +27,9 @@ import type { LinhaDoRelatorio, SecaoDoRelatorio } from "../src/lib/relatorioDeD
  * da APIBrasil (18/10/2026).
  *
  * O que estes testes seguram:
- *  - os preços de referência que a tela mostra ANTES de cobrar são os da doc
- *    do fornecedor, e o que cada pacote completo traz ou deixa de fora está
+ *  - os preços de referência que a tela mostra ANTES de cobrar são os da
+ *    tabela do fornecedor gravada na semente de `parametros_consulta_documento`
+ *    (o código não tem preço), e o que cada pacote completo traz ou deixa de fora está
  *    escrito, sem prometer o que os produtos não trazem;
  *  - pedido torto (documento inválido, nível de outro documento, sem
  *    finalidade, sem a declaração do titular) não vira consulta paga;
@@ -41,7 +42,7 @@ const ENVELOPES = JSON.parse(readFileSync(join(__dirname, "fixtures", "apibrasil
 
 /** O miolo como a rede o entrega ao leitor: o envelope passa por `lerChamadaDoProduto`. */
 function dadosDe(produto: IdDoProduto): unknown {
-  const chamada = lerChamadaDoProduto(200, ENVELOPES[produto]);
+  const chamada = lerChamadaDoProduto(200, ENVELOPES[produto], produto);
   if (!chamada.ok) throw new Error(`${produto}: ${chamada.motivo}`);
   return chamada.dados;
 }
@@ -126,6 +127,18 @@ describe("os preços de referência que a tela mostra antes de cobrar", () => {
   it("só a API CNPJ usa a rota /dados/; todos os outros produtos usam /consulta/", () => {
     for (const p of TODOS_OS_PRODUTOS) expect(PRODUTOS[p].rota, p).toBe(p === "cnpj" ? "dados" : "consulta");
   });
+
+  it("só o Dossiê de Crédito PJ e o Cadastral + Score PJ não cobram quando respondem erro (política do fornecedor); todo o resto cobra", () => {
+    expect(TODOS_OS_PRODUTOS.filter((p) => !PRODUTOS[p].cobraEmErro).sort()).toEqual(["cadastral-score-pj", "dossie-credito-pj"]);
+  });
+
+  it("o preço de referência é da tabela que vem do banco: arredonda no centavo e recusa preço negativo ou não numérico", () => {
+    const basico = nivel(NIVEIS_DO_CPF, "basico");
+    expect(precoDeReferencia(basico, { "cpf-lite": 0.1, "receita-federal": 0.2 })).toBe(0.3);
+    expect(precoDeReferencia(basico, { "cpf-lite": -1, "receita-federal": 0.34 })).toBeNull();
+    expect(precoDeReferencia(basico, { "cpf-lite": Number.NaN, "receita-federal": 0.34 })).toBeNull();
+    expect(precoDeReferencia(basico, {})).toBeNull();
+  });
 });
 
 describe("o que cada pacote completo traz e o que deixa de fora", () => {
@@ -209,9 +222,9 @@ describe("o pedido que a tela manda", () => {
     for (const f of Object.keys(FINALIDADES)) expect(lerPedidoDeDocumento({ ...CERTO, finalidade: f }).ok, f).toBe(true);
   });
 
-  // BUG conhecido (não corrigido aqui, a pedido): `c.finalidade in FINALIDADES` aceita chaves do
-  // protótipo ("toString", "constructor"), o pedido passa, a consulta é PAGA e só depois o CHECK
-  // `consultas_de_documento_finalidade_valida` recusa o insert. Tirar o `.skip` quando trocar por hasOwnProperty.
+  // Já foi bug: `c.finalidade in FINALIDADES` aceitava chaves do protótipo ("toString",
+  // "constructor"), o pedido passava, a consulta era PAGA e só depois o CHECK
+  // `consultas_de_documento_finalidade_valida` recusava a gravação. Hoje é `hasOwnProperty`.
   it("finalidade com nome de propriedade do protótipo ('toString', 'constructor') não passa", () => {
     for (const finalidade of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
       expect(lerPedidoDeDocumento({ ...CERTO, finalidade }).ok, finalidade).toBe(false);
@@ -228,15 +241,17 @@ describe("o pedido que a tela manda", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("o envelope do fornecedor", () => {
-  it("cada exemplo da doc passa por lerChamadaDoProduto e traz o custo de valor_consulta, ou de tax quando ele falta", () => {
+  it("cada exemplo da doc passa por lerChamadaDoProduto e traz o custo de valor_consulta; o Acerta, que só manda tax, fica sem custo", () => {
     for (const p of TODOS_OS_PRODUTOS) {
-      const chamada = lerChamadaDoProduto(200, ENVELOPES[p]);
+      const chamada = lerChamadaDoProduto(200, ENVELOPES[p], p);
       expect(chamada.ok, p).toBe(true);
-      if (chamada.ok) expect(chamada.custo, p).toBeTypeOf("number");
+      if (!chamada.ok) continue;
+      const envelope = ENVELOPES[p] as { valor_consulta?: number };
+      expect(chamada.custo, p).toBe(p === "acerta-essencial-positivo" ? null : envelope.valor_consulta);
     }
-    // O Acerta Essencial Plus não tem `valor_consulta` nem `data` na raiz: o custo vem de `tax` com ponto.
-    const acerta = lerChamadaDoProduto(200, ENVELOPES["acerta-essencial-positivo"]);
-    expect(acerta.ok && acerta.custo).toBe(0.34);
+    // O Acerta Essencial Plus não tem `valor_consulta` nem `data` na raiz; `tax: "0.340"` contra R$ 4,49 da tabela não é o custo.
+    const acerta = lerChamadaDoProduto(200, ENVELOPES["acerta-essencial-positivo"], "acerta-essencial-positivo");
+    expect(acerta.ok && acerta.custo).toBeNull();
     expect(acerta.ok && (acerta.dados as { dados: unknown[] }).dados).toHaveLength(1);
   });
 });
@@ -281,7 +296,7 @@ describe("os leitores, CPF", () => {
     const envelope = structuredClone(ENVELOPES["cpf-dados"]) as { data: { resultado: Record<string, unknown> } };
     envelope.data.resultado.processos_criminais = [{ tribunal: "TJPR", numero_processo: "0001234-56.2025.8.16.0001" }];
     (envelope.data.resultado.indicadores as Record<string, unknown>).pep = true;
-    const chamada = lerChamadaDoProduto(200, envelope);
+    const chamada = lerChamadaDoProduto(200, envelope, "cpf-dados");
     if (!chamada.ok) throw new Error(chamada.motivo);
     const l = LEITORES["cpf-dados"](chamada.dados);
     expect(resumoDe(l, "Compliance (PEP, óbito, sanções, processos)")).toMatchObject({ valor: "2 apontamentos", estado: "impeditivo" });
@@ -323,7 +338,7 @@ describe("os leitores, CPF", () => {
       .acertaEssencialPositivo.consultaCredito;
     cc.pendenciasFinanceiras = [{ credor: "BANCO X", valor: "1.234,56" }];
     (cc.resumoConsulta as Record<string, unknown>).pendenciasFinanceiras = { quantidadeTotal: 1, valorTotal: "1.234,56" };
-    const chamada = lerChamadaDoProduto(200, envelope);
+    const chamada = lerChamadaDoProduto(200, envelope, "acerta-essencial-positivo");
     if (!chamada.ok) throw new Error(chamada.motivo);
     const l = LEITORES["acerta-essencial-positivo"](chamada.dados);
     expect(resumoDe(l, "Pendências financeiras")?.estado).toBe("atencao");
@@ -350,7 +365,7 @@ describe("os leitores, CNPJ", () => {
   it("API CNPJ com situação BAIXADA (08) fica em atenção no resumo", () => {
     const envelope = structuredClone(ENVELOPES.cnpj) as { data: { cnpj: Record<string, unknown> } };
     envelope.data.cnpj.situacao_cadastral = "08";
-    const chamada = lerChamadaDoProduto(200, envelope);
+    const chamada = lerChamadaDoProduto(200, envelope, "cnpj");
     if (!chamada.ok) throw new Error(chamada.motivo);
     expect(resumoDe(LEITORES.cnpj(chamada.dados), "Situação na Receita")).toMatchObject({ valor: "BAIXADA", estado: "atencao" });
   });
@@ -427,11 +442,8 @@ describe("os leitores, CNPJ", () => {
   });
 });
 
-// BUG conhecido (não corrigido aqui, a pedido): o leitor do Acerta Essencial Plus conta lista AUSENTE
-// como zero — com envelope vazio ou de formato novo, o relatório diz "Pendências financeiras: Nenhum
-// registro ✔" e "Protestos: Nenhum registro ✔". Ele fica fora dos dois testes abaixo e tem o seu,
-// em `.skip`, até `qtd`/`contar` de `lerAcertaPlus` devolverem nulo quando nem o resumo nem a lista vierem.
-const SEM_O_ACERTA = TODOS_OS_PRODUTOS.filter((p) => p !== "acerta-essencial-positivo");
+// Já foi bug no Acerta Essencial Plus: lista AUSENTE contava como zero e o relatório saía
+// "Pendências financeiras: Nenhum registro ✔". Ele ficava fora dos laços abaixo; hoje entra.
 
 describe("resposta vazia ou de formato desconhecido", () => {
   it("Acerta Essencial Plus vazio não vira 'nenhum registro' (ok) de pendências e protestos", () => {
@@ -443,7 +455,7 @@ describe("resposta vazia ou de formato desconhecido", () => {
     for (const p of TODOS_OS_PRODUTOS) {
       for (const vazio of [null, undefined, {}, [], "texto", 0]) expect(() => LEITORES[p](vazio), p).not.toThrow();
     }
-    for (const p of SEM_O_ACERTA) {
+    for (const p of TODOS_OS_PRODUTOS) {
       for (const vazio of [null, undefined, {}, [], "texto", 0, { data: {} }, { resultado: null }]) {
         const l = LEITORES[p](vazio);
         const rotulo = `${p} com ${JSON.stringify(vazio)}`;
@@ -461,7 +473,7 @@ describe("resposta vazia ou de formato desconhecido", () => {
   });
 
   it("e no relatório o produto vazio vai para 'não veio', sem seção e sem resumo de 'nenhum registro'", () => {
-    for (const p of SEM_O_ACERTA) {
+    for (const p of TODOS_OS_PRODUTOS) {
       const r = montarRelatorio({ tipo: PRODUTOS[p].documento, documento: PRODUTOS[p].documento === "cpf" ? "12345678909" : "11222333000181", nivel: "basico" }, [{ produto: p, ok: true, dados: {} }], {
         geradoEm: "2026-10-18T12:00:00.000Z",
         homologacao: false,
@@ -577,7 +589,7 @@ describe("formato inesperado nunca vira 'nada encontrado' (revisão de 18/10/202
     const l = LEITORES["analise-credito-plus-pf"]({ resultado: { identificacao: { nomes: "FULANO" }, debitos: { credor: "BANCO X", valor: "10,00" } } });
     const debitos = l.secoes.flatMap((s) => s.linhas).find((x) => x.rotulo === "Débitos");
     expect(debitos?.estado).toBe("atencao");
-    expect(debitos?.valor).toMatch(/^Formato não reconhecido/);
+    expect(debitos?.valor).toMatch(/^Consta \(verificar\)/);
     expect(l.secoes.flatMap((s) => s.tabelas).some((t) => t.titulo === "Débitos" && t.linhas.length === 1)).toBe(true);
   });
 

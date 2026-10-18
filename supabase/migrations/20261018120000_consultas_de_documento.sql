@@ -17,7 +17,11 @@
 -- não lê `token_hash`; a consulta deixa de ser gravada pela sessão e passa a
 -- ser registrada pelo servidor (service_role) por UMA função; toda tentativa
 -- fica registrada, inclusive a que falhou; e os números de negócio saem do
--- código para `parametros_consulta_documento`, com vigência.
+-- código para `parametros_consulta_documento`, com vigência. Segunda
+-- passada (2026-10-18): a consulta passa a ser imutável também para a
+-- service_role — sem UPDATE e com o gatilho `consultas_de_documento_so_inclusao`,
+-- que recusa UPDATE para todos, inclusive o dono; o DELETE da service_role
+-- fica, e só para o pedido de eliminação do titular (LGPD, art. 18, VI).
 --
 -- ---------------------------------------------------------------------------
 -- O que nasce
@@ -67,6 +71,11 @@
 --    dias do link, janela de "consulta recente", minutos contra repetição,
 --    links ativos por consulta e a tabela de preços de referência por
 --    produto. Escrita só pela `consulta_documento_nova_vigencia`, só admin.
+-- 8. `consultas_de_documento_so_inclusao()` — o gatilho BEFORE UPDATE que
+--    recusa QUALQUER edição da consulta, para todos (sessão, service_role e
+--    dono): o registro de "quem viu meus dados, e por quê" não se reescreve.
+--    Apagar continua possível só pela service_role, e só para atender o
+--    pedido de eliminação do titular (LGPD, art. 18, VI).
 --
 -- ---------------------------------------------------------------------------
 -- LGPD — o que o banco segura
@@ -80,8 +89,11 @@
 --   titular está em negociação com a loja e ciente da consulta. Uma linha com
 --   `false` seria a confissão de uma consulta sem base — o banco recusa.
 -- · Quem consultou e quando são carimbados pela função (não pela tela), e
---   ninguém edita nem apaga pelo painel: é o registro que responde ao titular
---   "quem viu meus dados, e por quê" — inclusive quando a consulta falhou.
+--   ninguém edita — nem a service_role, nem o dono (gatilho) — nem apaga pelo
+--   painel: é o registro que responde ao titular "quem viu meus dados, e por
+--   quê" — inclusive quando a consulta falhou. A ÚNICA saída de uma linha é o
+--   DELETE da service_role, reservado ao pedido de eliminação do titular
+--   (art. 18, VI); o link da consulta apagada vai junto (FK em cascata).
 -- · O link vive no máximo 30 dias (o padrão é `dias_do_link` do parâmetro),
 --   e qualquer um dos quatro papéis o revoga. Revogado não volta. Cada
 --   abertura é contada (`acessos`, `ultimo_acesso_em`).
@@ -162,6 +174,7 @@
 --   drop table    if exists public.consultas_de_documento;
 --   drop function if exists public.relatorios_compartilhados_carimbar();
 --   drop function if exists public.relatorios_compartilhados_so_revogar();
+--   drop function if exists public.consultas_de_documento_so_inclusao();
 --   drop function if exists public.consulta_documento_tentativas_validas(jsonb, text[]);
 --   drop function if exists public.consulta_documento_situacao_coerente(text, jsonb);
 --   drop function if exists public.consulta_documento_precos_validos(jsonb);
@@ -371,7 +384,9 @@ comment on table public.consultas_de_documento is
   'com o que aconteceu com cada produto em `tentativas`. DADO PESSOAL (LGPD): '
   'cada linha declara a finalidade e que o titular está ciente, e a função de '
   'registro carimba quem consultou e quando. Só inclusão, e só por '
-  'registrar_consulta_de_documento() (service_role): ninguém edita nem apaga. '
+  'registrar_consulta_de_documento() (service_role): ninguém edita — nem a '
+  'service_role, nem o dono (gatilho consultas_de_documento_so_inclusao). Só a '
+  'service_role apaga, e só para o pedido de eliminação do titular (LGPD, art. 18, VI). '
   'Lê a ação "Consultar CPF e CNPJ (consulta paga)": Administrador, Gestor, '
   'Comercial e Financeiro. Ver 20261018120000_consultas_de_documento.sql.';
 comment on column public.consultas_de_documento.tipo_documento is

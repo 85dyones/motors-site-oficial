@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
-import { CABECALHOS_DO_RELATORIO, escapar, relatorioEmHtml, type RelatorioDeDocumento } from "../src/lib/relatorioDeDocumento";
-import { CAMINHO_DO_LINK, DIAS_DO_LINK, gerarTokenDoLink, hashDoToken, tokenTemForma } from "../src/lib/linkDoRelatorio";
+import { CABECALHOS_DO_LINK, CABECALHOS_DO_RELATORIO, escapar, relatorioEmHtml, type RelatorioDeDocumento } from "../src/lib/relatorioDeDocumento";
+import * as linkDoRelatorio from "../src/lib/linkDoRelatorio";
+
+const { CAMINHO_DO_LINK, gerarTokenDoLink, hashDoToken, tokenTemForma } = linkDoRelatorio;
 
 /**
  * O relatório de CPF e CNPJ como página, e o link que o consultor manda
@@ -16,8 +18,8 @@ import { CAMINHO_DO_LINK, DIAS_DO_LINK, gerarTokenDoLink, hashDoToken, tokenTemF
  *  - o token do link: forma fixa (o que não tem a forma nem chega ao banco) e
  *    o hash sha256.
  *
- * A rota pública `/relatorio/[token]` fica de fora de propósito: ela vai virar
- * GET intermediário + POST, e a função do banco passa a receber o token cru.
+ * A rota pública `/relatorio/[token]` (GET = porta sem dados, POST = abre)
+ * está em `relatorio-compartilhado-rota.test.ts`.
  */
 
 const HOSTIL = `<script>alert("x")</script>`;
@@ -85,7 +87,6 @@ describe("relatorioEmHtml: o que veio do fornecedor sai escapado", () => {
     expect(pagina).toContain("<td>&lt;iframe src=&quot;//mal.example&quot;&gt;</td>");
     expect(pagina).toContain(`<li><strong>Plus PF ${script}</strong>: a APIBrasil recusou: ${img}</li>`);
     expect(pagina).toContain(`<footer>Rodapé ${script}</footer>`);
-    // O título da aba leva o documento formatado, também escapado.
     // O título é genérico: é o que aparece na aba e na pré-visualização de quem recebe o link.
     expect(pagina).toContain("<title>Relatório confidencial — Motors Store</title>");
     expect(pagina).not.toMatch(/<title>[^<]*123\.456/);
@@ -134,16 +135,30 @@ describe("relatorioEmHtml: o que veio do fornecedor sai escapado", () => {
 });
 
 describe("os cabeçalhos de toda resposta com o relatório", () => {
-  it("não guarda, não indexa, não manda referência, e a CSP não deixa nada de fora carregar", () => {
-    expect(CABECALHOS_DO_RELATORIO["Cache-Control"]).toBe("private, no-store");
-    expect(CABECALHOS_DO_RELATORIO["X-Robots-Tag"]).toBe("noindex, nofollow, noarchive");
-    expect(CABECALHOS_DO_RELATORIO["Referrer-Policy"]).toBe("no-referrer");
-    expect(CABECALHOS_DO_RELATORIO["X-Content-Type-Options"]).toBe("nosniff");
-    const csp = CABECALHOS_DO_RELATORIO["Content-Security-Policy"];
-    expect(csp).toContain("default-src 'none'");
-    expect(csp).toContain("form-action 'none'");
-    expect(csp).toContain("base-uri 'none'");
-    expect(csp).not.toMatch(/https?:|\*/);
+  it("painel e link: não guarda, não indexa, não manda referência, e a CSP não deixa nada de fora carregar", () => {
+    for (const [nome, c] of [
+      ["painel", CABECALHOS_DO_RELATORIO],
+      ["link", CABECALHOS_DO_LINK],
+    ] as const) {
+      expect(c["Content-Type"], nome).toBe("text/html; charset=utf-8");
+      expect(c["Cache-Control"], nome).toBe("private, no-store");
+      expect(c["X-Robots-Tag"], nome).toBe("noindex, nofollow, noarchive");
+      expect(c["Referrer-Policy"], nome).toBe("no-referrer");
+      expect(c["X-Content-Type-Options"], nome).toBe("nosniff");
+      const csp = c["Content-Security-Policy"];
+      expect(csp, nome).toContain("default-src 'none'");
+      expect(csp, nome).toContain("base-uri 'none'");
+      expect(csp, nome).not.toMatch(/https?:|\*/);
+    }
+  });
+
+  it("o painel emoldura só a si mesmo e não tem formulário; o link não é emoldurado por ninguém e só posta para si", () => {
+    expect(CABECALHOS_DO_RELATORIO["X-Frame-Options"]).toBe("SAMEORIGIN");
+    expect(CABECALHOS_DO_RELATORIO["Content-Security-Policy"]).toContain("frame-ancestors 'self'");
+    expect(CABECALHOS_DO_RELATORIO["Content-Security-Policy"]).toContain("form-action 'none'");
+    expect(CABECALHOS_DO_LINK["X-Frame-Options"]).toBe("DENY");
+    expect(CABECALHOS_DO_LINK["Content-Security-Policy"]).toContain("frame-ancestors 'none'");
+    expect(CABECALHOS_DO_LINK["Content-Security-Policy"]).toContain("form-action 'self'");
   });
 });
 
@@ -171,9 +186,9 @@ describe("o token do link", () => {
     }
   });
 
-  it("o link vale 7 dias e mora em /relatorio", () => {
-    expect(DIAS_DO_LINK).toBe(7);
+  it("o link mora em /relatorio, e a validade não é número do código (vem de parametros_consulta_documento.dias_do_link)", () => {
     expect(CAMINHO_DO_LINK).toBe("/relatorio");
+    expect(Object.keys(linkDoRelatorio)).not.toContain("DIAS_DO_LINK");
   });
 });
 

@@ -1,19 +1,23 @@
 /**
  * Dublê do supabase-js para a consulta de CPF e CNPJ (18/10/2026) — só o que
- * `lib/consultaDeDocumento-servidor.ts` e as rotas dela encadeiam: `select`,
- * `insert`, `update`, os filtros (`eq`, `is`, `gte`, `like`, `ilike`),
- * `order`, `limit`, `single`/`maybeSingle`, a espera direta (`await` na
- * cadeia) e `rpc`.
+ * `lib/consultaDeDocumento-servidor.ts` e as rotas dela encadeiam: `select`
+ * (com as opções `count`/`head`), `insert`, `update`, os filtros (`eq`, `neq`,
+ * `or`, `is`, `gt`, `gte`, `like`, `ilike`), `order`, `limit`,
+ * `single`/`maybeSingle`, a espera direta (`await` na cadeia) e `rpc`.
  *
  * Cada cadeia vira uma `Chamada` em `chamadas`, com a tabela, a operação, os
  * valores escritos e os filtros na ordem em que vieram; quem responde é
  * `responder`, que o teste escreve. Assim o teste confere o que foi pedido ao
  * banco (e o que NÃO foi), e não só o que a função devolveu.
+ *
+ * Na `rpc`, `tabela` é o nome da função e `valores` são os argumentos.
  */
 export interface Chamada {
   tabela: string;
   operacao: "select" | "insert" | "update" | "rpc";
   colunas?: string;
+  /** As opções do `select` (`{ count: "exact", head: true }`). */
+  opcoes?: Record<string, unknown>;
   valores?: unknown;
   filtros: Array<[string, ...unknown[]]>;
   fim: "single" | "maybeSingle" | null;
@@ -22,6 +26,8 @@ export interface Chamada {
 export interface Resposta {
   data: unknown;
   error: { message: string; code?: string } | null;
+  /** Só nas contagens (`select(..., { count: "exact", head: true })`). */
+  count?: number | null;
 }
 
 export function supabaseDeTeste(opcoes: {
@@ -47,8 +53,11 @@ export function supabaseDeTeste(opcoes: {
         return api;
       };
     const api = {
-      select(colunas?: string) {
-        if (c.operacao === "select") c.colunas = colunas;
+      select(colunas?: string, opcoesDoSelect?: Record<string, unknown>) {
+        if (c.operacao === "select") {
+          c.colunas = colunas;
+          if (opcoesDoSelect) c.opcoes = opcoesDoSelect;
+        }
         return api;
       },
       insert(valores: unknown) {
@@ -62,7 +71,10 @@ export function supabaseDeTeste(opcoes: {
         return api;
       },
       eq: filtro("eq"),
+      neq: filtro("neq"),
+      or: filtro("or"),
       is: filtro("is"),
+      gt: filtro("gt"),
       gte: filtro("gte"),
       like: filtro("like"),
       ilike: filtro("ilike"),
@@ -91,3 +103,27 @@ export function supabaseDeTeste(opcoes: {
 
   return { cliente, chamadas };
 }
+
+/** A linha vigente de `parametros_consulta_documento` como a semente da migração a grava. */
+export const LINHA_DOS_PARAMETROS = {
+  dias_do_link: 7,
+  dias_de_consulta_recente: 90,
+  minutos_contra_repeticao: 30,
+  links_ativos_por_consulta: 10,
+  precos_de_referencia: {
+    "cpf-lite": 0.12,
+    "receita-federal": 0.34,
+    "cpf-dados": 4.5,
+    "analise-credito-plus-pf": 29.02,
+    "acerta-essencial-positivo": 4.49,
+    cnpj: 0.04,
+    "cnpj-cadastral": 0.55,
+    "cadastral-premium-pj": 3.75,
+    "receita-federal-pj-v3": 6.35,
+    "analise-credito-basic-pj": 10.06,
+    "dossie-credito-pj": 4.4,
+    "cadastral-score-pj": 1.3,
+  },
+  tabela_de_precos_em: "2026-10-18",
+  fonte: "Tabela pública da APIBrasil",
+};
