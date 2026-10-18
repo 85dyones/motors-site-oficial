@@ -26,7 +26,8 @@ import { relatorioEmHtml, type RelatorioDeDocumento, type TipoDeDocumento } from
 type Aba = TipoDeDocumento | "historico";
 
 interface NivelComPreco extends NivelDaConsulta {
-  preco: number;
+  /** Da tabela vigente; `null` quando falta o preço de algum produto. */
+  preco: number | null;
   nomesDosProdutos: string[];
 }
 
@@ -44,6 +45,20 @@ interface Aberta {
 /** Lido só nos tratadores (depois de um fetch), nunca ao desenhar (`react-hooks/purity`). */
 const horaDaLeitura = () => Date.now();
 const reais = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const precoDoNivel = (n: NivelComPreco) => (n.preco === null ? "sem estimativa" : reais(n.preco));
+const dataCurta = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso);
+const SITUACAO: Record<ConsultaDeDocumentoNaLista["situacao"], string> = { completa: "", parcial: " · parcial", falhou: " · não voltou" };
+
+/** O que a rota de consultar devolve, no sucesso e no erro. */
+interface RespostaDaConsulta {
+  id?: string | null;
+  relatorio?: RelatorioDeDocumento;
+  custo?: number | null;
+  avisos?: string[];
+  error?: string;
+  podeTerCobrado?: boolean;
+  repeticao?: ConsultaDeDocumentoNaLista;
+}
 const quando = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
@@ -154,6 +169,10 @@ function FormularioDeDocumento({
   const [ciente, setCiente] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [tabelaDePrecosEm, setTabelaDePrecosEm] = useState<string | null>(null);
+  const [diasRecentes, setDiasRecentes] = useState<number | null>(null);
+  /** Sobe depois de cada consulta: o `estimar` roda de novo e traz a recém-feita em "já consultado". */
+  const [rodada, setRodada] = useState(0);
 
   const normalizado = tipo === "cpf" ? soDigitosDoCpf(documento) : soCaracteresDoCnpj(documento);
   const valido = tipo === "cpf" ? cpfValido(normalizado) : cnpjValido(normalizado);
@@ -166,7 +185,13 @@ function FormularioDeDocumento({
     const meu = ++pedido.current;
     void (async () => {
       const res = await fetch("/api/consulta-documento", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ acao: "estimar", tipo, documento: normalizado }) });
-      const json = (await res.json().catch(() => ({}))) as { niveis?: NivelComPreco[]; recentes?: ConsultaDeDocumentoNaLista[]; error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        niveis?: NivelComPreco[];
+        recentes?: ConsultaDeDocumentoNaLista[];
+        tabelaDePrecosEm?: string;
+        diasDeConsultaRecente?: number;
+        error?: string;
+      };
       if (meu !== pedido.current) return;
       if (!res.ok || !json.niveis) {
         setErro(json.error || "Não deu para carregar os níveis.");
@@ -175,41 +200,76 @@ function FormularioDeDocumento({
       setErro(null);
       setNiveis(json.niveis);
       setRecentes(json.recentes ?? []);
+      setTabelaDePrecosEm(json.tabelaDePrecosEm ?? null);
+      setDiasRecentes(json.diasDeConsultaRecente ?? null);
     })();
-  }, [valido, normalizado, tipo]);
+  }, [valido, normalizado, tipo, rodada]);
 
-  const consultar = async () => {
-    if (!escolhido || !finalidade || !ciente) return;
-    const ok = await confirm({
-      title: "Consulta paga",
-      message:
-        `${escolhido.rotulo} de ${tipo === "cpf" ? formatarCpf(normalizado) : formatarCnpj(normalizado)}: ${escolhido.nomesDosProdutos.join(" + ")}. ` +
-        (homologacao ? "Em modo de teste: não cobra." : `Cerca de ${reais(escolhido.preco)} no saldo da APIBrasil (o valor exato vem na resposta).`),
-      confirmLabel: homologacao ? "Consultar em teste" : "Consultar e pagar",
-      type: "warning",
-    });
-    if (!ok) return;
+  const formatado = tipo === "cpf" ? formatarCpf(normalizado) : formatarCnpj(normalizado);
+
+  /** Manda a consulta. Devolve a repetição recusada (409), para a tela perguntar. */
+  const enviar = async (n: NivelComPreco, repetir: boolean): Promise<ConsultaDeDocumentoNaLista | null> => {
     setCarregando(true);
     setErro(null);
     try {
       const res = await fetch("/api/consulta-documento", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ acao: "consultar", tipo, documento: normalizado, nivel: escolhido.id, finalidade, titularCiente: ciente }),
+        body: JSON.stringify({ acao: "consultar", tipo, documento: normalizado, nivel: n.id, finalidade, titularCiente: ciente, repetir }),
       });
-      const json = (await res.json().catch(() => ({}))) as { id?: string | null; relatorio?: RelatorioDeDocumento; custo?: number | null; avisos?: string[]; error?: string };
+      const json = (await res.json().catch(() => ({}))) as RespostaDaConsulta;
+      if (res.status === 409 && json.repeticao) return json.repeticao;
       if (!res.ok || !json.relatorio) {
-        setErro(json.error || "A consulta não voltou.");
-        return;
+        // Sem corpo de erro (504 da Vercel, 500 cru) não dá para saber se o fornecedor cobrou.
+        const semResposta = !json.error || res.status >= 500;
+        const cobrou = json.podeTerCobrado || (semResposta && !json.error);
+        setErro(
+          (json.error || "A consulta não voltou a tempo.") +
+            (cobrou && !homologacao ? " Ela PODE ter sido cobrada: antes de repetir, confira o histórico e o saldo no painel da APIBrasil." : ""),
+        );
+        // A tentativa que falhou também fica no histórico.
+        if (json.id || semResposta) router.refresh();
+        return null;
       }
       aoConsultar({ id: json.id ?? null, relatorio: json.relatorio, item: null, links: [], custo: json.custo ?? null, avisos: json.avisos ?? [], lidoEm: horaDaLeitura() });
-      // O histórico é do servidor.
+      // Feita a consulta, o formulário volta a pedir nível e declaração: mais um clique não cobra de novo.
+      setNivel(null);
+      setCiente(false);
+      setRodada((v) => v + 1);
       router.refresh();
+      return null;
     } catch {
-      setErro("Sem conexão com o servidor. Antes de tentar de novo, confira o saldo no painel da APIBrasil.");
+      setErro("Sem conexão com o servidor. A consulta PODE ter sido feita: antes de repetir, confira o histórico e o saldo no painel da APIBrasil.");
+      return null;
     } finally {
       setCarregando(false);
     }
+  };
+
+  const consultar = async () => {
+    if (!valido || !escolhido || !finalidade || !ciente || carregando) return;
+    const jaFeita = recentes.find((r) => r.nivel === escolhido.id);
+    const ok = await confirm({
+      title: "Consulta paga",
+      message:
+        `${escolhido.rotulo} de ${formatado}: ${escolhido.nomesDosProdutos.join(" + ")}. ` +
+        (homologacao ? "Em modo de teste: não cobra." : escolhido.preco === null ? "O preço deste nível não está na tabela; o valor exato vem na resposta." : `Cerca de ${reais(escolhido.preco)} no saldo da APIBrasil (o valor exato vem na resposta).`) +
+        (jaFeita ? ` Este nível já foi consultado em ${quando(jaFeita.quando)} por ${jaFeita.quem ?? "alguém da equipe"}: dá para abrir aquela sem custo.` : ""),
+      confirmLabel: homologacao ? "Consultar em teste" : "Consultar e pagar",
+      type: "warning",
+    });
+    if (!ok) return;
+    const repeticao = await enviar(escolhido, false);
+    if (!repeticao) return;
+    const repetir = await confirm({
+      title: "Consultado há pouco",
+      message: `${repeticao.nivelRotulo} de ${formatado} foi consultado em ${quando(repeticao.quando)} por ${repeticao.quem ?? "alguém da equipe"}. Abrir aquela não custa nada; consultar de novo cobra outra vez.`,
+      confirmLabel: "Consultar de novo e pagar",
+      cancelLabel: "Abrir a anterior",
+      type: "warning",
+    });
+    if (repetir) await enviar(escolhido, true);
+    else await aoAbrirGuardada(repeticao.id);
   };
 
   return (
@@ -223,6 +283,8 @@ function FormularioDeDocumento({
           placeholder={tipo === "cpf" ? "000.000.000-00" : "00.000.000/0000-00"}
           value={documento}
           onChange={(e) => {
+            // Uma resposta do `estimar` ainda no ar é de outro documento: descarta.
+            pedido.current++;
             setDocumento(e.target.value);
             setNiveis(null);
             setNivel(null);
@@ -236,12 +298,13 @@ function FormularioDeDocumento({
 
       {recentes.length > 0 && (
         <section className="flex flex-col gap-2 border border-mt-regua-fina bg-mt-surface p-4" data-recentes>
-          <span className={rotulo}>JÁ CONSULTADO NOS ÚLTIMOS 90 DIAS · REABRIR NÃO CUSTA</span>
+          <span className={rotulo}>JÁ CONSULTADO NOS ÚLTIMOS {diasRecentes ?? "—"} DIAS · REABRIR NÃO CUSTA</span>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {recentes.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-3 text-xs">
                 <span>
-                  {quando(r.quando)} · {r.nivelRotulo} · {r.quem ?? "—"}
+                  {quando(r.quando)} · {r.nivelRotulo}
+                  {SITUACAO[r.situacao]} · {r.quem ?? "—"}
                 </span>
                 <button type="button" className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-3 py-1.5 text-[11px]" onClick={() => void aoAbrirGuardada(r.id)}>
                   Abrir
@@ -267,7 +330,7 @@ function FormularioDeDocumento({
                     <input type="radio" name={`nivel-${tipo}`} value={n.id} checked={nivel === n.id} onChange={() => setNivel(n.id)} />
                     {n.rotulo}
                   </span>
-                  <span className="text-sm font-extrabold tabular-nums text-mt-ink">{reais(n.preco)}</span>
+                  <span className="text-sm font-extrabold tabular-nums text-mt-ink">{precoDoNivel(n)}</span>
                 </span>
                 <span className="text-xs text-mt-neutral-800">{n.traz}</span>
                 {n.deixaDeFora && <span className="text-[11px] text-mt-neutral-700">Fica de fora: {n.deixaDeFora}</span>}
@@ -275,7 +338,9 @@ function FormularioDeDocumento({
               </label>
             ))}
           </div>
-          <p className={dica}>Preço de referência da tabela da APIBrasil; o valor exato de cada consulta vem na resposta e fica no histórico.</p>
+          <p className={dica}>
+            Preço de referência da tabela da APIBrasil{tabelaDePrecosEm ? ` de ${dataCurta(tabelaDePrecosEm)}` : ""}; o valor exato de cada consulta vem na resposta e fica no histórico.
+          </p>
         </fieldset>
       )}
 
@@ -299,11 +364,11 @@ function FormularioDeDocumento({
           <button
             type="button"
             className="mt-btn mt-btn-primario mt-foco cursor-pointer self-start px-5 py-3 text-[11px]"
-            disabled={carregando || !temToken || !escolhido || !finalidade || !ciente}
+            disabled={carregando || !temToken || !valido || !escolhido || !finalidade || !ciente}
             onClick={() => void consultar()}
             data-consultar
           >
-            {carregando ? "Consultando…" : escolhido ? `Consultar · ${homologacao ? "teste" : reais(escolhido.preco)}` : "Escolha o nível"}
+            {carregando ? "Consultando…" : escolhido ? `Consultar · ${homologacao ? "teste" : precoDoNivel(escolhido)}` : "Escolha o nível"}
           </button>
         </div>
       )}
@@ -574,7 +639,10 @@ function HistoricoDeDocumentos({ inicial, aoAbrir }: { inicial: LeituraDoHistori
                   <td className="whitespace-nowrap tabular-nums">{quando(i.quando)}</td>
                   <td className="whitespace-nowrap font-mono">{i.documento}</td>
                   <td className="font-extrabold">{i.nome ?? "—"}</td>
-                  <td>{i.nivelRotulo}</td>
+                  <td>
+                    {i.nivelRotulo}
+                    {SITUACAO[i.situacao]}
+                  </td>
                   <td>{i.finalidade}</td>
                   <td className="mt-num whitespace-nowrap">{i.homologacao ? "teste" : i.custo === null ? "—" : reais(i.custo)}</td>
                   <td>{i.quem ?? "—"}</td>

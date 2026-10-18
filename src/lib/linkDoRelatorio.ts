@@ -3,15 +3,15 @@
  *
  * O token tem 32 bytes aleatórios (256 bits) e só existe na URL entregue ao
  * consultor: o banco guarda o sha256 dele (`relatorios_compartilhados.
- * token_hash`). Quem lê o banco não abre o link; quem tem o link abre até
- * vencer ou ser revogado, e cada abertura é contada.
+ * token_hash`), e a função pública `abrir_relatorio_compartilhado` recebe o
+ * TOKEN e calcula o hash lá dentro — então quem só tem o hash (um backup, um
+ * export) não abre o link. Ninguém da sessão lê `token_hash` (grant por
+ * coluna). Quem tem o link abre até vencer ou ser revogado, e cada abertura é
+ * contada. A validade vem de `parametros_consulta_documento.dias_do_link`.
  *
  * Só servidor (usa `crypto` do Node).
  */
 import { createHash, randomBytes } from "crypto";
-
-/** Quantos dias o link vale. O banco aceita até 30; a loja usa 7. */
-export const DIAS_DO_LINK = 7;
 
 export const CAMINHO_DO_LINK = "/relatorio";
 

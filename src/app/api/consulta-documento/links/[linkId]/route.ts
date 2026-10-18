@@ -11,6 +11,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!porta.ok) return NextResponse.json({ error: porta.motivo }, { status: porta.status, headers: SEM_CACHE });
   const { linkId } = await params;
   const r = await revogarLinkDoRelatorio(porta.supabase, linkId, porta.usuarioId);
-  if (!r.ok) return NextResponse.json({ error: r.motivo }, { status: 409, headers: SEM_CACHE });
+  if (!r.ok) return NextResponse.json({ error: r.motivo }, { status: r.status, headers: SEM_CACHE });
   return NextResponse.json({ ok: true }, { headers: SEM_CACHE });
 }

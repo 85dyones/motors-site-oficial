@@ -17,6 +17,7 @@ import {
   type LeituraDoProduto,
   type Nivel,
   type NivelDaConsulta,
+  type PrecosDeReferencia,
 } from "../src/lib/consultaDeDocumento";
 import { lerChamadaDoProduto } from "../src/lib/consultaDeDocumento-servidor";
 import type { LinhaDoRelatorio, SecaoDoRelatorio } from "../src/lib/relatorioDeDocumento";
@@ -61,33 +62,46 @@ const nivel = (lista: NivelDaConsulta[], id: Nivel) => {
 
 const TODOS_OS_PRODUTOS = Object.keys(PRODUTOS) as IdDoProduto[];
 
+/**
+ * Os preços vêm da semente da migração (`parametros_consulta_documento`): o
+ * teste lê o próprio arquivo, para o número conferido ser o que vai ao banco.
+ */
+const SEMENTE = readFileSync(join(__dirname, "..", "supabase", "migrations", "20261018120000_consultas_de_documento.sql"), "utf8");
+const PRECOS: PrecosDeReferencia = JSON.parse(SEMENTE.match(/links_ativos_por_consulta, precos_de_referencia[\s\S]*?'(\{"cpf-lite"[\s\S]*?\})'::jsonb/)![1]);
+const preco = (n: NivelDaConsulta) => precoDeReferencia(n, PRECOS) as number;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("os preços de referência que a tela mostra antes de cobrar", () => {
   it("CPF: completo econômico é R$ 8,99 (Acerta Essencial Plus + CPF Dados) e completo integral é R$ 33,52 (CPF Dados + Plus PF)", () => {
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CPF, "completo_economico"))).toBe(8.99);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CPF, "completo_integral"))).toBe(33.52);
+    expect(preco(nivel(NIVEIS_DO_CPF, "completo_economico"))).toBe(8.99);
+    expect(preco(nivel(NIVEIS_DO_CPF, "completo_integral"))).toBe(33.52);
     expect(nivel(NIVEIS_DO_CPF, "completo_economico").produtos).toEqual(["acerta-essencial-positivo", "cpf-dados"]);
     expect(nivel(NIVEIS_DO_CPF, "completo_integral").produtos).toEqual(["cpf-dados", "analise-credito-plus-pf"]);
   });
 
   it("CNPJ: completo econômico é R$ 4,99, completo com score é R$ 6,29 e completo integral é R$ 20,71", () => {
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CNPJ, "completo_economico"))).toBe(4.99);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CNPJ, "completo_score"))).toBe(6.29);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CNPJ, "completo_integral"))).toBe(20.71);
+    expect(preco(nivel(NIVEIS_DO_CNPJ, "completo_economico"))).toBe(4.99);
+    expect(preco(nivel(NIVEIS_DO_CNPJ, "completo_score"))).toBe(6.29);
+    expect(preco(nivel(NIVEIS_DO_CNPJ, "completo_integral"))).toBe(20.71);
   });
 
   it("os três níveis de cada documento saem da soma dos produtos da doc, arredondada no centavo", () => {
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CPF, "basico"))).toBe(0.46);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CPF, "dados"))).toBe(4.5);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CPF, "credito"))).toBe(29.02);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CNPJ, "basico"))).toBe(6.9);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CNPJ, "dados"))).toBe(3.75);
-    expect(precoDeReferencia(nivel(NIVEIS_DO_CNPJ, "credito"))).toBe(10.06);
+    expect(preco(nivel(NIVEIS_DO_CPF, "basico"))).toBe(0.46);
+    expect(preco(nivel(NIVEIS_DO_CPF, "dados"))).toBe(4.5);
+    expect(preco(nivel(NIVEIS_DO_CPF, "credito"))).toBe(29.02);
+    expect(preco(nivel(NIVEIS_DO_CNPJ, "basico"))).toBe(6.9);
+    expect(preco(nivel(NIVEIS_DO_CNPJ, "dados"))).toBe(3.75);
+    expect(preco(nivel(NIVEIS_DO_CNPJ, "credito"))).toBe(10.06);
     for (const n of [...NIVEIS_DO_CPF, ...NIVEIS_DO_CNPJ]) {
-      const preco = precoDeReferencia(n);
-      expect(Math.round(preco * 100) / 100, n.id).toBe(preco);
+      const p = preco(n);
+      expect(Math.round(p * 100) / 100, n.id).toBe(p);
     }
+  });
+
+  it("a semente tem preço para todo produto do catálogo; produto sem preço deixa o nível sem estimativa", () => {
+    expect(Object.keys(PRECOS).sort()).toEqual([...TODOS_OS_PRODUTOS].sort());
+    expect(precoDeReferencia(nivel(NIVEIS_DO_CPF, "basico"), { "cpf-lite": 0.12 })).toBeNull();
   });
 
   it("o pacote com score só existe para CNPJ: o CPF não oferece, e nivelDe responde nulo", () => {

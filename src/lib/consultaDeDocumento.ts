@@ -19,9 +19,10 @@
  *          completo com score: o econômico + Cadastral + Score PJ · completo
  *          integral: os quatro.
  *
- * Os preços aqui são os da documentação do fornecedor em 18/10/2026 e servem
- * só para a tela dizer "até R$ X" ANTES de cobrar. O custo gravado é o que a
- * resposta de cada produto diz (`valor_consulta`/`tax`).
+ * Os preços de referência ficam no banco (`parametros_consulta_documento`,
+ * tabela pública da APIBrasil de 18/10/2026) e servem só para a tela dizer
+ * quanto custa ANTES de cobrar. O custo gravado é o que a resposta de cada
+ * produto diz (`valor_consulta`).
  *
  * Cada leitor de produto transforma a resposta em seções do relatório
  * (`relatorioDeDocumento.ts`). O formato de vários produtos só é conhecido
@@ -56,23 +57,28 @@ export interface ProdutoDaApiBrasil {
   documento: TipoDeDocumento;
   /** `/api/v2/{rota}/{cpf|cnpj}/credits`. Só a API CNPJ usa "dados". */
   rota: "consulta" | "dados";
-  /** R$, da doc em 18/10/2026. Só para a estimativa. */
-  precoDeReferencia: number;
+  /**
+   * A doc diz que o produto cobra mesmo quando responde erro (o aviso padrão:
+   * "parâmetro errado repetido continua cobrando"). Só três dizem que não: o
+   * CPF Cadastral (fora do catálogo), o Dossiê de Crédito PJ e o Cadastral +
+   * Score PJ. É política do fornecedor, não número da loja.
+   */
+  cobraEmErro: boolean;
 }
 
 export const PRODUTOS: Record<IdDoProduto, ProdutoDaApiBrasil> = {
-  "cpf-lite": { id: "cpf-lite", nome: "CPF Lite", documento: "cpf", rota: "consulta", precoDeReferencia: 0.12 },
-  "receita-federal": { id: "receita-federal", nome: "CPF Receita Federal", documento: "cpf", rota: "consulta", precoDeReferencia: 0.34 },
-  "cpf-dados": { id: "cpf-dados", nome: "CPF Dados", documento: "cpf", rota: "consulta", precoDeReferencia: 4.5 },
-  "analise-credito-plus-pf": { id: "analise-credito-plus-pf", nome: "Análise de Crédito Plus PF", documento: "cpf", rota: "consulta", precoDeReferencia: 29.02 },
-  "acerta-essencial-positivo": { id: "acerta-essencial-positivo", nome: "Acerta Essencial Plus", documento: "cpf", rota: "consulta", precoDeReferencia: 4.49 },
-  cnpj: { id: "cnpj", nome: "API CNPJ (Receita)", documento: "cnpj", rota: "dados", precoDeReferencia: 0.04 },
-  "cnpj-cadastral": { id: "cnpj-cadastral", nome: "CNPJ Cadastral", documento: "cnpj", rota: "consulta", precoDeReferencia: 0.55 },
-  "cadastral-premium-pj": { id: "cadastral-premium-pj", nome: "CNPJ Cadastral Premium", documento: "cnpj", rota: "consulta", precoDeReferencia: 3.75 },
-  "receita-federal-pj-v3": { id: "receita-federal-pj-v3", nome: "Receita Federal PJ V3", documento: "cnpj", rota: "consulta", precoDeReferencia: 6.35 },
-  "analise-credito-basic-pj": { id: "analise-credito-basic-pj", nome: "Análise de Crédito Basic PJ", documento: "cnpj", rota: "consulta", precoDeReferencia: 10.06 },
-  "dossie-credito-pj": { id: "dossie-credito-pj", nome: "Dossiê de Crédito PJ", documento: "cnpj", rota: "consulta", precoDeReferencia: 4.4 },
-  "cadastral-score-pj": { id: "cadastral-score-pj", nome: "Cadastral + Score PJ", documento: "cnpj", rota: "consulta", precoDeReferencia: 1.3 },
+  "cpf-lite": { id: "cpf-lite", nome: "CPF Lite", documento: "cpf", rota: "consulta", cobraEmErro: true },
+  "receita-federal": { id: "receita-federal", nome: "CPF Receita Federal", documento: "cpf", rota: "consulta", cobraEmErro: true },
+  "cpf-dados": { id: "cpf-dados", nome: "CPF Dados", documento: "cpf", rota: "consulta", cobraEmErro: true },
+  "analise-credito-plus-pf": { id: "analise-credito-plus-pf", nome: "Análise de Crédito Plus PF", documento: "cpf", rota: "consulta", cobraEmErro: true },
+  "acerta-essencial-positivo": { id: "acerta-essencial-positivo", nome: "Acerta Essencial Plus", documento: "cpf", rota: "consulta", cobraEmErro: true },
+  cnpj: { id: "cnpj", nome: "API CNPJ (Receita)", documento: "cnpj", rota: "dados", cobraEmErro: true },
+  "cnpj-cadastral": { id: "cnpj-cadastral", nome: "CNPJ Cadastral", documento: "cnpj", rota: "consulta", cobraEmErro: true },
+  "cadastral-premium-pj": { id: "cadastral-premium-pj", nome: "CNPJ Cadastral Premium", documento: "cnpj", rota: "consulta", cobraEmErro: true },
+  "receita-federal-pj-v3": { id: "receita-federal-pj-v3", nome: "Receita Federal PJ V3", documento: "cnpj", rota: "consulta", cobraEmErro: true },
+  "analise-credito-basic-pj": { id: "analise-credito-basic-pj", nome: "Análise de Crédito Basic PJ", documento: "cnpj", rota: "consulta", cobraEmErro: true },
+  "dossie-credito-pj": { id: "dossie-credito-pj", nome: "Dossiê de Crédito PJ", documento: "cnpj", rota: "consulta", cobraEmErro: false },
+  "cadastral-score-pj": { id: "cadastral-score-pj", nome: "Cadastral + Score PJ", documento: "cnpj", rota: "consulta", cobraEmErro: false },
 };
 
 export const NIVEIS = ["basico", "dados", "credito", "completo_economico", "completo_score", "completo_integral"] as const;
@@ -167,7 +173,22 @@ export const NIVEIS_DO_CNPJ: NivelDaConsulta[] = [
 
 export const niveisDe = (tipo: TipoDeDocumento) => (tipo === "cpf" ? NIVEIS_DO_CPF : NIVEIS_DO_CNPJ);
 export const nivelDe = (tipo: TipoDeDocumento, nivel: Nivel) => niveisDe(tipo).find((n) => n.id === nivel) ?? null;
-export const precoDeReferencia = (n: NivelDaConsulta) => Math.round(n.produtos.reduce((s, p) => s + PRODUTOS[p].precoDeReferencia, 0) * 100) / 100;
+/**
+ * O preço de referência de um nível: a soma da tabela de preços vigente em
+ * `parametros_consulta_documento.precos_de_referencia` (número de negócio
+ * fica no banco). Produto sem preço na tabela deixa o nível sem estimativa
+ * (`null`), em vez de um "até R$ X" mais barato do que a conta.
+ */
+export type PrecosDeReferencia = Partial<Record<IdDoProduto, number>>;
+export function precoDeReferencia(n: NivelDaConsulta, precos: PrecosDeReferencia): number | null {
+  let soma = 0;
+  for (const p of n.produtos) {
+    const v = precos[p];
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return null;
+    soma += v;
+  }
+  return Math.round(soma * 100) / 100;
+}
 
 export const FINALIDADES = {
   financiamento: "Financiamento",
