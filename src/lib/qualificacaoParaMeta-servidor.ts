@@ -356,10 +356,12 @@ async function registrosDaLinha(cliente: ClienteDeLeads, leadId: string): Promis
  *     painel. Lead sem correspondência não é tentado nem registrado.
  *
  * Quem chama é a rodada agendada da sincronização do Meta (de hora em hora),
- * com a chave de serviço — que não filtra loja: `leads` e `leads_eventos`
- * ainda não têm `org_id` e o pixel é o único de `site_settings`. Na S1 (mais
- * de uma loja), a repescagem passa a ir por loja, com o pixel de cada uma,
- * como o retrato do copiloto (`copilotoMeta-servidor`).
+ * com a chave de serviço, que não filtra loja. `leads` e `leads_eventos`
+ * ainda não têm `org_id`, e o pixel é o único de `site_settings`.
+ * `leads_interacoes` tem `org_id`, mas também não é filtrada, porque o
+ * resultado é cruzado com `leads`. Na S1 (mais de uma loja), as três passam
+ * a ser lidas por loja, e o envio vai com o pixel de cada uma, como o retrato
+ * do copiloto (`copilotoMeta-servidor`).
  *
  * `prazo` (epoch ms): a rota tem 60 s; passado ele, a rodada para e o resto
  * fica para a próxima hora. Nunca lança.

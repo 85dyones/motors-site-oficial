@@ -893,12 +893,15 @@ continua indo na hora, porque fechar um negócio é uma decisão e não um arras
   conta depois de completar os 10 min: o cartão arrastado para a Visita um
   minuto antes da rodada espera a seguinte e, se sair antes, não vai.
 - **Visita registrada vale sozinha:** a interação `visita` (`leads_interacoes`,
-  a do "Chegou na loja", sem as importadas) qualifica dure o que durar a etapa.
-  O cliente esteve na loja; quem chegou e foi perdido cinco minutos depois
-  qualificou. O `event_time` é o da interação e a etapa vai como `visita`.
+  sem as importadas) qualifica, dure o que durar a etapa. Ela vem do "Chegou na
+  loja" ou do registro manual "Visita à loja", que conta mesmo sem mover o
+  card. O cliente esteve na loja: quem chegou e foi perdido cinco minutos
+  depois qualificou. O `event_time` é o da interação e a etapa vai como
+  `visita`. Por isso a "Visita à loja" é para visita que aconteceu, não para
+  anotar a que vai acontecer.
 - **Janela:** 7 dias menos 1 hora — o Meta recusa evento mais velho que 7 dias.
   `event_time` é a primeira vez que o lead qualificou; se ela já saiu da
-  janela, a mais recente (a volta à Visita, o ganho).
+  janela, a mais recente (a volta à Visita, a visita registrada, o ganho).
 - **Quantos:** até 5 por rodada; primeiro quem nunca foi tentado, depois quem
   sai da janela antes. Evento recusado por inválido (code 100) espera 24 h —
   repetir só repetiria a recusa e o alerta; token, permissão, limite de
@@ -912,12 +915,15 @@ continua indo na hora, porque fechar um negócio é uma decisão e não um arras
   o resto da rodada, e não no fim: um Graph lento ou a leitura dos anúncios
   falhando não o deixam sem tempo. O resultado sai em `repescagem` na resposta
   da rota, e o registro do lead leva `repescado: true`.
-- **Loja:** a chave de serviço não filtra loja (`leads` e `leads_eventos` ainda
-  sem `org_id`; pixel único em `site_settings`). Na S1, vai por loja, com o
-  pixel de cada uma.
+- **Loja:** a chave de serviço não filtra loja. `leads` e `leads_eventos`
+  ainda não têm `org_id`, e o pixel é um só, em `site_settings`.
+  `leads_interacoes` tem `org_id`, mas também não é filtrada, porque o
+  resultado é cruzado com `leads`. Na S1, as três passam a ser lidas por loja,
+  e o envio vai com o pixel de cada uma.
 
-O mesmo rastro (`lerRastroDeEtapas`, paginado) decide o "qualificado" do
-Copiloto do Meta: quem visitou e depois foi perdido conta como qualificado.
+O mesmo rastro (`lerRastroDeEtapas`, paginado) e as mesmas visitas registradas
+(`lerVisitasRegistradas`) decidem o "qualificado" do Copiloto do Meta: quem
+visitou e depois foi perdido conta como qualificado.
 
 ### Onde mora
 

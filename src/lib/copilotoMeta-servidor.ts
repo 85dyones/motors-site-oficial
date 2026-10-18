@@ -16,7 +16,7 @@ import {
 } from "./copilotoMeta";
 import { janelaDeDias, type Situacao } from "./midiaSync";
 import { quandoQualificou } from "./qualificacaoParaMeta";
-import { lerRastroDeEtapas } from "./qualificacaoParaMeta-servidor";
+import { lerRastroDeEtapas, lerVisitasRegistradas } from "./qualificacaoParaMeta-servidor";
 
 /**
  * O Copiloto do Meta no servidor (17/10/2026): monta o retrato com a chave de
@@ -141,15 +141,18 @@ export async function montarRetratoMeta(admin: SupabaseClient, conta: string, ag
       .range(de, fim),
   );
 
-  // "Qualificou" é CHEGAR a Visita ou Negociação (e ficar), não estar lá hoje:
-  // quem visitou e depois foi perdido qualificou. Vem do rastro do funil.
-  const passagensDe = await lerRastroDeEtapas(admin, linhasLeads.map((l) => String(l.id)));
+  // "Qualificou" é CHEGAR a Visita ou Negociação (e ficar), ou ter a visita
+  // registrada, não estar lá hoje: quem visitou e depois foi perdido
+  // qualificou. Vem do rastro do funil e das interações, como no Meta.
+  const idsDosLeads = linhasLeads.map((l) => String(l.id));
+  const [passagensDe, visitasDe] = await Promise.all([lerRastroDeEtapas(admin, idsDosLeads), lerVisitasRegistradas(admin, idsDosLeads)]);
 
   const leads: LeadDoMeta[] = linhasLeads.map((l) => {
-    const qualificado = quandoQualificou(passagensDe.get(String(l.id)) ?? [], {
-      situacao: l.situacao as string | null,
-      desfecho: l.desfecho as string | null,
-    }).qualificou;
+    const qualificado = quandoQualificou(
+      passagensDe.get(String(l.id)) ?? [],
+      { situacao: l.situacao as string | null, desfecho: l.desfecho as string | null },
+      visitasDe.get(String(l.id)) ?? [],
+    ).qualificou;
     return {
       campanhaId: (l.utm_campaign as string | null) ?? null,
       anuncioId: (l.utm_content as string | null) ?? null,

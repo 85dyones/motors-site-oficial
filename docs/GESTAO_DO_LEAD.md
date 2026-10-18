@@ -308,6 +308,11 @@ Constantes: `TIPOS_DE_INTERACAO`, `RESULTADOS_DA_LIGACAO`,
 `ROTULO_DA_INTERACAO` (Anotação, Ligação, WhatsApp, Visita à loja),
 `ROTULO_DO_RESULTADO` (Atendeu, Não atendeu, Caixa postal).
 
+A interação "Visita à loja" (`visita`) deixa o lead qualificado no Meta,
+mesmo sem mover o card. A rodada de hora em hora a lê (seção "Fase 6" de
+`TRACKING_SPEC.md`). Ela serve para a visita que aconteceu, não para anotar
+a que está marcada.
+
 ### 3.2 As sugestões e o mapa de etapas
 
 ```ts

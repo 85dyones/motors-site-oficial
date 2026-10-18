@@ -115,6 +115,7 @@ function tabelas(extra: { ultimoDiagnostico?: Resultado } = {}) {
             { id: "visita", utm_campaign: "A", utm_content: "a1", created_at: "2026-09-25T15:00:00Z", situacao: "visita", desfecho: null },
             { id: "visitou-e-perdeu", utm_campaign: "A", utm_content: "a1", created_at: "2026-09-28T15:00:00Z", situacao: "perdido", desfecho: "perdido" },
             { id: "arrastado", utm_campaign: "A", utm_content: "a1", created_at: "2026-09-28T15:00:00Z", situacao: "em_contato", desfecho: null },
+            { id: "chegou-e-perdeu", utm_campaign: "A", utm_content: "a1", created_at: "2026-09-28T15:00:00Z", situacao: "perdido", desfecho: "perdido" },
             // 02h UTC do dia 11 ainda é dia 10 em Brasília.
             { id: "ganho", utm_campaign: "A", utm_content: "a1", created_at: "2026-10-11T02:00:00Z", situacao: null, desfecho: "ganho" },
           ],
@@ -131,6 +132,12 @@ function tabelas(extra: { ultimoDiagnostico?: Resultado } = {}) {
         ];
         const ids = c.filtros.find((f) => f[0] === "in" && f[1] === "lead_id")?.[2] as string[] | undefined;
         return { data: rastro.filter((e) => ids?.includes(e.lead_id)), error: null };
+      }
+      case "leads_interacoes": {
+        // "Chegou na loja" e perdido dois minutos depois: a visita registrada qualifica.
+        const visitas = [{ lead_id: "chegou-e-perdeu", criado_em: "2026-10-02T14:00:00Z" }];
+        const ids = c.filtros.find((f) => f[0] === "in" && f[1] === "lead_id")?.[2] as string[] | undefined;
+        return { data: visitas.filter((v) => ids?.includes(v.lead_id)), error: null };
       }
       default:
         return { data: null, error: { message: `tabela inesperada ${c.tabela}` } };
@@ -178,8 +185,14 @@ describe("montarRetratoMeta", () => {
     expect(eventos.select).toBe("lead_id, para, criado_em");
     expect(eventos.filtros).toContainEqual(["eq", "tipo", "etapa"]);
 
-    // Visita hoje, ganho, e o que visitou e depois foi perdido: 3 qualificados.
-    expect(r.leads.filter((l) => l.qualificado)).toHaveLength(3);
+    const interacoes = consultas.find((c) => c.tabela === "leads_interacoes")!;
+    expect(interacoes.select).toBe("lead_id, criado_em");
+    expect(interacoes.filtros).toEqual(expect.arrayContaining([["eq", "tipo", "visita"], ["eq", "importada", false]]));
+
+    // Visita hoje, ganho, o que visitou e depois foi perdido, e o que chegou na
+    // loja e foi perdido logo depois: 4 qualificados.
+    expect(r.leads.filter((l) => l.qualificado)).toHaveLength(4);
+    expect(r.leads[9]).toMatchObject({ qualificado: true, aberto: false });
     expect(r.leads.at(-1)).toEqual({ campanhaId: "A", anuncioId: "a1", dia: "2026-10-10", qualificado: true, aberto: false });
     expect(r.leads[0]).toMatchObject({ qualificado: false, aberto: true });
     expect(r.leads[7]).toMatchObject({ qualificado: true, aberto: false });
