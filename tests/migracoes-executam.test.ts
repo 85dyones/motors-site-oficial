@@ -285,6 +285,18 @@ const CADEIA = [
   // que a chamada de 15 do site de hoje segue usando. Pediu ao andaime o
   // recorte de `midia_anuncios`, `midia_diario` e `midia_gravar_lote`.
   "20261017150000_copiloto_meta.sql",
+  // As consultas de CPF e CNPJ e o link do relatório (2026-10-18). É dado
+  // pessoal (LGPD): entra na cadeia porque o aceite veste admin, gestor,
+  // comercial, financeiro, marketing, sdr, um financeiro desativado, cliente,
+  // anon e service_role para provar que só os quatro papéis da ação nova leem
+  // e incluem, que o carimbo (autor, nome, hora, org) é da sessão, que sem a
+  // declaração do titular a consulta não entra, que ninguém edita nem apaga a
+  // consulta, que o link só se revoga (esticar prazo, mexer no contador e
+  // desrevogar são negados, até à chave de serviço), e que a porta pública
+  // `abrir_relatorio_compartilhado` abre como anon só o link válido e conta o
+  // acesso. Usa `tem_papel`, `autor_atual` e `org_padrao`; o andaime não
+  // precisou de nada novo.
+  "20261018120000_consultas_de_documento.sql",
 ];
 
 /**
@@ -2047,6 +2059,134 @@ describe.skipIf(!temBanco)("a agenda para toda a equipe, com dado e por cima do 
             from public.agenda_de_pessoas where origem = 'lead')`,
       ),
     ).toBe(true);
+  });
+});
+
+/**
+ * As consultas de documento (20261018120000), pelo lado de fora. O aceite da
+ * migração prova o efeito com sonda; aqui ficam a reaplicação (o catálogo não
+ * muda), cada violação falhando pelo NOME da regra (com controles que têm de
+ * entrar), e a porta pública vista como anon. Toda escrita é desfeita.
+ */
+describe.skipIf(!temBanco)("as consultas de CPF e CNPJ e o link do relatório, pelo lado de fora", () => {
+  const MIGRACAO = "20261018120000_consultas_de_documento.sql";
+  const PESSOA = "'00000000-0000-0000-0000-0000000000d0'::uuid";
+
+  /** A mensagem do erro, ou "" se o comando passou. Sempre desfeito. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(`begin; ${sql}; rollback;`);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  const consulta = (tipo: string, documento: string, ciente = "true", nivel = "basico") =>
+    `insert into public.consultas_de_documento
+       (tipo_documento, documento, nivel, produtos, relatorio, finalidade, titular_ciente, criado_por)
+     values ('${tipo}', '${documento}', '${nivel}', '{cpf-lite}', '{}', 'financiamento', ${ciente}, ${PESSOA})`;
+
+  /** Um link para uma consulta nova, no mesmo comando; `prazo` é o intervalo até expirar. */
+  const link = (prazo: string) =>
+    `with c as (${consulta("cpf", "00000000191")} returning id)
+     insert into public.relatorios_compartilhados (consulta_id, token_hash, expira_em, criado_por)
+     select c.id, repeat('a', 64), now() + interval '${prazo}', ${PESSOA} from c`;
+
+  const retrato = (): string =>
+    psql!(
+      `select md5(
+         (select string_agg(conname || ':' || pg_get_constraintdef(oid), '|' order by conname)
+            from pg_constraint where conrelid in ('public.consultas_de_documento'::regclass,
+                                                  'public.relatorios_compartilhados'::regclass))
+         || (select string_agg(tablename || ':' || policyname || ':' || cmd || ':' || coalesce(qual, '')
+                               || ':' || coalesce(with_check, ''), '|' order by tablename, policyname)
+               from pg_policies where tablename in ('consultas_de_documento', 'relatorios_compartilhados'))
+         || (select string_agg(proname || ':' || md5(prosrc) || ':' || prosecdef || ':'
+                               || coalesce(array_to_string(proconfig, ','), '') || ':'
+                               || coalesce(array_to_string(proacl, ','), ''), '|' order by proname)
+               from pg_proc where proname in ('abrir_relatorio_compartilhado', 'consultas_de_documento_carimbar',
+                                              'relatorios_compartilhados_carimbar', 'relatorios_compartilhados_so_revogar'))
+         || (select coalesce(array_to_string(relacl, ','), '') from pg_class
+              where oid = 'public.relatorios_compartilhados'::regclass)
+       )`,
+    ).match(/[0-9a-f]{32}/)?.[0] ?? "";
+
+  it("reaplicar levanta o aceite de novo e não muda regra, policy, função nem privilégio", () => {
+    const antes = retrato();
+    expect(antes).toMatch(/^[0-9a-f]{32}$/);
+    const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+    expect(saida).toContain("Aceite verificado");
+    expect(saida).not.toMatch(/^psql.*ERROR:/m);
+    expect(retrato()).toBe(antes);
+  });
+
+  it("violação falha: CPF fora de 11 dígitos, CNPJ fora do alfanumérico, e consulta sem o titular ciente", () => {
+    // Controles: CPF de 11 dígitos, CNPJ numérico e CNPJ alfanumérico entram.
+    expect(recusa(consulta("cpf", "00000000191"))).toBe("");
+    expect(recusa(consulta("cnpj", "11222333000181"))).toBe("");
+    expect(recusa(consulta("cnpj", "12ABC34501DE35"))).toBe("");
+    expect(recusa(consulta("cpf", "000.000.001-91"))).toContain("consultas_de_documento_documento_valido");
+    expect(recusa(consulta("cnpj", "12abc34501de35"))).toContain("consultas_de_documento_documento_valido");
+    expect(recusa(consulta("cnpj", "12ABC34501DEAB"))).toContain("consultas_de_documento_documento_valido");
+    expect(recusa(consulta("rg", "00000000191"))).toContain("consultas_de_documento_tipo_valido");
+    expect(recusa(consulta("cpf", "00000000191", "false"))).toContain("consultas_de_documento_titular_ciente");
+  });
+
+  it("violação falha: o nível é um dos seis, e o completo com score é só de CNPJ", () => {
+    for (const nivel of ["basico", "dados", "credito", "completo_economico", "completo_integral"]) {
+      expect(recusa(consulta("cpf", "00000000191", "true", nivel)), nivel).toBe("");
+    }
+    expect(recusa(consulta("cnpj", "11222333000181", "true", "completo_score"))).toBe("");
+    expect(recusa(consulta("cpf", "00000000191", "true", "completo_score"))).toContain(
+      "consultas_de_documento_score_so_cnpj",
+    );
+    expect(recusa(consulta("cpf", "00000000191", "true", "completo"))).toContain(
+      "consultas_de_documento_nivel_valido",
+    );
+  });
+
+  it("violação falha: link de mais de 30 dias, link que expira antes de nascer, e desrevogar até pela chave de serviço", () => {
+    expect(recusa(link("720 hours"))).toBe("");
+    expect(recusa(link("721 hours"))).toContain("relatorios_compartilhados_prazo_valido");
+    expect(recusa(link("-1 second"))).toContain("relatorios_compartilhados_prazo_valido");
+    expect(
+      recusa(
+        `${link("1 day")};
+         update public.relatorios_compartilhados set revogado_em = now() where token_hash = repeat('a', 64);
+         set local role service_role;
+         update public.relatorios_compartilhados set revogado_em = null where token_hash = repeat('a', 64)`,
+      ),
+    ).toContain("Link revogado não volta");
+  });
+
+  it("anon não lê as tabelas, e a porta pública abre o link válido e cala para o resto", () => {
+    expect(recusa("set local role anon; select count(*) from public.consultas_de_documento")).toContain(
+      "permission denied",
+    );
+    expect(recusa("set local role anon; select count(*) from public.relatorios_compartilhados")).toContain(
+      "permission denied",
+    );
+    const abrir = (antes: string, hash: string): string =>
+      psql!(
+        `begin; ${antes}; set local role anon;
+         select 'linhas=' || count(*) from public.abrir_relatorio_compartilhado(${hash}); rollback;`,
+      );
+    // O miolo (`respostas`) não é coluna da porta: só as cinco do relatório.
+    expect(
+      psql!(
+        `select 'args=' || array_to_string(proargnames, ',') from pg_proc
+          where oid = 'public.abrir_relatorio_compartilhado(text)'::regprocedure`,
+      ),
+    ).toContain("args=p_token_hash,relatorio,tipo_documento,nivel,criado_em,expira_em");
+    expect(abrir(link("1 day"), "repeat('a', 64)")).toContain("linhas=1");
+    expect(abrir(link("1 day"), "repeat('b', 64)")).toContain("linhas=0");
+    expect(
+      abrir(
+        `${link("1 day")}; update public.relatorios_compartilhados set revogado_em = now() where token_hash = repeat('a', 64)`,
+        "repeat('a', 64)",
+      ),
+    ).toContain("linhas=0");
   });
 });
 
