@@ -443,6 +443,36 @@ comment on column public.consultas_de_documento.criado_por_nome is
 comment on column public.consultas_de_documento.criado_em is
   'Quando a consulta foi registrada (now() da função de registro).';
 
+-- A consulta não se edita, para ninguém. O privilégio (seção 6) já tira o
+-- UPDATE de `authenticated` e da service_role; este gatilho é a segunda
+-- tranca, no padrão de `relatorios_compartilhados_so_revogar`, e vale também
+-- para o dono da tabela: uma linha deste registro reescrita depois — outra
+-- finalidade, outro autor, outro custo — desmentiria o que a loja responde
+-- ao titular. Apagar NÃO passa por aqui: o DELETE da service_role existe para
+-- o pedido de eliminação do titular (LGPD, art. 18, VI), e só para ele.
+create or replace function public.consultas_de_documento_so_inclusao()
+  returns trigger
+  language plpgsql
+  set search_path = public
+as $$
+begin
+  raise exception 'A consulta de documento não se edita: é o registro de quem consultou o titular, e por quê. '
+                  'Só se apaga, pela service_role, a pedido de eliminação do titular (LGPD).'
+    using errcode = 'insufficient_privilege';
+end;
+$$;
+
+comment on function public.consultas_de_documento_so_inclusao() is
+  'Gatilho BEFORE UPDATE de consultas_de_documento: recusa qualquer edição (42501), para todos — '
+  'sessão, service_role e dono. O DELETE (só service_role, eliminação a pedido do titular) não passa por ele.';
+
+drop trigger if exists consultas_de_documento_so_inclusao on public.consultas_de_documento;
+create trigger consultas_de_documento_so_inclusao
+  before update on public.consultas_de_documento
+  for each row execute function public.consultas_de_documento_so_inclusao();
+
+revoke all on function public.consultas_de_documento_so_inclusao() from public, anon, authenticated;
+
 
 -- ----------------------------------------------------------------------------
 -- 3. O link compartilhado
@@ -634,11 +664,15 @@ revoke all on function public.relatorios_compartilhados_so_revogar() from public
 -- da seção 7, depois de chamar o fornecedor. Nem a service_role insere
 -- direto — a função é a única porta, e é ela que confere o papel de quem
 -- consultou e carimba org, nome e hora. Sem INSERT, tentar direto é 42501,
--- não "0 linhas" calado.
+-- não "0 linhas" calado. A service_role também não EDITA (sem UPDATE, e o
+-- gatilho da seção 2 recusa até o dono). Ela guarda o DELETE por um motivo
+-- só: atender o pedido de eliminação do titular (LGPD, art. 18, VI) — o
+-- link da consulta apagada vai junto, pela FK em cascata. O `revoke update`
+-- é explícito porque a versão anterior deste arquivo concedia.
 revoke all on public.consultas_de_documento from public, anon, authenticated;
 grant select on public.consultas_de_documento to authenticated;
-revoke insert on public.consultas_de_documento from service_role;
-grant select, update, delete, truncate, references, trigger
+revoke insert, update on public.consultas_de_documento from service_role;
+grant select, delete, truncate, references, trigger
   on public.consultas_de_documento to service_role;
 
 -- No link, `authenticated` LÊ por coluna — todas menos `token_hash` —,
@@ -1416,9 +1450,11 @@ begin
     raise warning 'FALHOU: na consulta, authenticated deveria ter SELECT e só ele';
   end if;
   if has_any_column_privilege('service_role', 'public.consultas_de_documento', 'INSERT')
-     or not has_table_privilege('service_role', 'public.consultas_de_documento', 'SELECT') then
+     or has_any_column_privilege('service_role', 'public.consultas_de_documento', 'UPDATE')
+     or not has_table_privilege('service_role', 'public.consultas_de_documento', 'SELECT')
+     or not has_table_privilege('service_role', 'public.consultas_de_documento', 'DELETE') then
     falhas := falhas + 1;
-    raise warning 'FALHOU: na consulta, service_role deveria ler e só inserir pela função';
+    raise warning 'FALHOU: na consulta, service_role deveria ler, apagar (eliminação LGPD), só inserir pela função e nunca editar';
   end if;
   if has_table_privilege('authenticated', 'public.relatorios_compartilhados', 'SELECT')
      or has_column_privilege('authenticated', 'public.relatorios_compartilhados', 'token_hash', 'SELECT')
