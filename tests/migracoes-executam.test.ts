@@ -2160,7 +2160,8 @@ describe.skipIf(!temBanco)("as consultas de CPF e CNPJ e o link do relatório, p
                from pg_proc where proname in ('abrir_relatorio_compartilhado', 'registrar_consulta_de_documento',
                                               'consulta_documento_nova_vigencia', 'consulta_documento_tentativas_validas',
                                               'consulta_documento_situacao_coerente', 'consulta_documento_precos_validos',
-                                              'relatorios_compartilhados_carimbar', 'relatorios_compartilhados_so_revogar'))
+                                              'relatorios_compartilhados_carimbar', 'relatorios_compartilhados_so_revogar',
+                                              'consultas_de_documento_so_inclusao'))
          || (select string_agg(relname || ':' || coalesce(array_to_string(relacl, ','), ''), '|' order by relname)
                from pg_class where oid in ('public.consultas_de_documento'::regclass,
                                            'public.relatorios_compartilhados'::regclass,
@@ -2364,6 +2365,45 @@ describe.skipIf(!temBanco)("as consultas de CPF e CNPJ e o link do relatório, p
     expect(recusa(`set local role anon; select ${registrar(`'${UID.admin}'`, "parcial", PARCIAL)}`)).toContain(
       "permission denied for function registrar_consulta_de_documento",
     );
+  });
+
+  it("violação falha: ninguém edita a consulta — nem a service_role, nem o dono; a service_role apaga (eliminação LGPD)", () => {
+    const registrada = `${usuario("comercial")};
+       set local role service_role;
+       select ${registrar(`'${UID.comercial}'`, "parcial", PARCIAL)}`;
+    // service_role: sem o privilégio de UPDATE, 42501 antes de qualquer linha.
+    expect(
+      recusa(`${registrada};
+              update public.consultas_de_documento set finalidade = 'cadastro_de_cliente' where nome = 'DOC TESTE'`),
+    ).toContain("permission denied for table consultas_de_documento");
+    // dono (o papel que aplica a migração): o gatilho só-inclusão recusa.
+    expect(
+      recusa(`${registrada}; reset role;
+              update public.consultas_de_documento set custo = 0 where nome = 'DOC TESTE'`),
+    ).toContain("A consulta de documento não se edita");
+    // E o gatilho está lá, BEFORE UPDATE por linha (não só o privilégio).
+    expect(
+      psql!(`select tgname || ':' || (tgtype & 2 = 2) || ':' || (tgtype & 16 = 16) || ':' || (tgtype & 1 = 1)
+               from pg_trigger where tgrelid = 'public.consultas_de_documento'::regclass and not tgisinternal`),
+    ).toContain("consultas_de_documento_so_inclusao:true:true:true");
+    // service_role apaga — o pedido de eliminação do titular —, e o link vai junto (cascata).
+    const apagada = desfeito(
+      `${registrada};
+       insert into public.relatorios_compartilhados (consulta_id, token_hash, expira_em, criado_por)
+         select id, repeat('e', 64), now() + interval '1 day', '${UID.comercial}'
+           from public.consultas_de_documento where nome = 'DOC TESTE';
+       with apagou as (delete from public.consultas_de_documento where nome = 'DOC TESTE' returning 1)
+       select 'apagou=' || count(*) from apagou;
+       reset role;
+       select 'restou=' || (select count(*) from public.consultas_de_documento where nome = 'DOC TESTE')
+              || ':' || (select count(*) from public.relatorios_compartilhados where token_hash = repeat('e', 64))`,
+    );
+    expect(apagada).toContain("apagou=1");
+    expect(apagada).toContain("restou=0:0");
+    // A sessão (nem o admin) continua sem apagar.
+    expect(
+      recusa(comoPapel("admin", "delete from public.consultas_de_documento")),
+    ).toContain("permission denied for table consultas_de_documento");
   });
 
   it("a service_role registra pela função, e a linha sai com a org, o autor e o nome certos", () => {

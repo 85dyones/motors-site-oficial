@@ -1248,6 +1248,9 @@ declare
   v_anon_link     text := 'não testado';
   v_edita         text := 'não testado';
   v_apaga         text := 'não testado';
+  v_srv_edita     text := 'não testado';   -- service_role: UPDATE negado (sem privilégio)
+  v_dono_edita    text := 'não testado';   -- dono: UPDATE negado pelo gatilho
+  v_srv_apaga     text := 'não testado';   -- service_role: DELETE funciona (eliminação LGPD)
   v_sem_ciencia   text := 'não testado';
   v_link_forjado  text := 'não testado';
   v_link_alheio   text := 'não testado';
@@ -1513,14 +1516,21 @@ begin
     raise warning 'FALHOU: parametros_consulta_documento deveria ter só a policy de leitura';
   end if;
 
-  -- 6 · Os gatilhos: nenhum de carimbo na consulta (a função carimba); carimbo
-  --     BEFORE INSERT e só-revogar BEFORE UPDATE no link; guarda de vigência
-  --     BEFORE UPDATE nos parâmetros.
-  if exists (select 1 from pg_trigger
-              where tgrelid = 'public.consultas_de_documento'::regclass and not tgisinternal)
+  -- 6 · Os gatilhos: na consulta, nenhum de carimbo (a função carimba) e só o
+  --     só-inclusão BEFORE UPDATE por linha; carimbo BEFORE INSERT e
+  --     só-revogar BEFORE UPDATE no link; guarda de vigência BEFORE UPDATE
+  --     nos parâmetros.
+  if (select coalesce(string_agg(tgname, ',' order by tgname), '') from pg_trigger
+       where tgrelid = 'public.consultas_de_documento'::regclass and not tgisinternal)
+       <> 'consultas_de_documento_so_inclusao'
+     or not exists (select 1 from pg_trigger
+                     where tgrelid = 'public.consultas_de_documento'::regclass
+                       and tgname = 'consultas_de_documento_so_inclusao'
+                       and tgfoid = 'public.consultas_de_documento_so_inclusao()'::regprocedure
+                       and tgtype & 1 = 1 and tgtype & 2 = 2 and tgtype & 16 = 16 and tgenabled <> 'D')
      or to_regprocedure('public.consultas_de_documento_carimbar()') is not null then
     falhas := falhas + 1;
-    raise warning 'FALHOU: consultas_de_documento ainda tem gatilho (ou a função de carimbo antiga)';
+    raise warning 'FALHOU: consultas_de_documento deveria ter só o gatilho so_inclusao (BEFORE UPDATE, por linha), sem o carimbo antigo';
   end if;
   if not exists (select 1 from pg_trigger
                   where tgrelid = 'public.relatorios_compartilhados'::regclass
@@ -1870,6 +1880,40 @@ begin
     exception when insufficient_privilege then v_apaga := 'negado';
     end;
     perform set_config('request.jwt.claims', '', true);
+
+    -- 9k' · Nem a service_role edita (sem UPDATE: 42501 antes de qualquer
+    --       linha), nem o dono da tabela (o gatilho só-inclusão: 42501 com a
+    --       mensagem dele). A service_role APAGA — o pedido de eliminação do
+    --       titular —, e a linha some de fato (a de "sessao", sem link).
+    begin
+      set local role service_role;
+      update public.consultas_de_documento set custo = 0 where id = v_consulta;
+      reset role;
+      v_srv_edita := 'editou';
+    exception when insufficient_privilege then
+      get stacked diagnostics v_msg = message_text;
+      v_srv_edita := case when v_msg like 'permission denied for table consultas_de_documento%'
+                          then 'negado' else 'negado por ' || v_msg end;
+    end;
+    begin
+      update public.consultas_de_documento set custo = 0 where id = v_consulta;
+      v_dono_edita := 'editou';
+    exception when insufficient_privilege then
+      get stacked diagnostics v_msg = message_text;
+      v_dono_edita := case when v_msg like 'A consulta de documento não se edita%'
+                           then 'negado' else 'negado por ' || v_msg end;
+    end;
+    begin
+      set local role service_role;
+      delete from public.consultas_de_documento where nome = 'ACEITE DOCUMENTO sessao';
+      get diagnostics v_n = row_count;
+      reset role;
+      v_srv_apaga := case
+        when v_n = 1 and not exists (select 1 from public.consultas_de_documento
+                                      where nome = 'ACEITE DOCUMENTO sessao') then 'apagou'
+        else format('apagou %s linha(s)', v_n) end;
+    exception when insufficient_privilege then v_srv_apaga := 'negado';
+    end;
 
     -- 9l · O financeiro gera o link da consulta do admin, forjando autor, hora,
     --      acessos e revogação: entra com o carimbo da sessão, zero acesso e
@@ -2476,6 +2520,11 @@ begin
     falhas := falhas + 1;
     raise warning 'FALHOU: consulta só inclusão — update %, delete % (esperado 42501 nos dois)', v_edita, v_apaga;
   end if;
+  if v_srv_edita <> 'negado' or v_dono_edita <> 'negado' or v_srv_apaga <> 'apagou' then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: consulta imutável para todos — update service_role %, update dono %, delete service_role % (esperado negado, negado, apagou)',
+      v_srv_edita, v_dono_edita, v_srv_apaga;
+  end if;
   if v_link_forjado <> 'sobrescrito' or v_link_alheio <> 'negado' then
     falhas := falhas + 1;
     raise warning 'FALHOU: link — carimbo forjado %, link para consulta inexistente %', v_link_forjado, v_link_alheio;
@@ -2576,7 +2625,9 @@ begin
     'completa, parcial e falhou com org, autor, nome e hora da função (a sessão não '
     'entra) e recusa marketing, sdr, desativado, cliente e nulo citando a ação; '
     'admin, gestor, comercial e financeiro leem as consultas de todos; sem a '
-    'declaração do titular não entra; ninguém edita nem apaga consulta (42501); o '
+    'declaração do titular não entra; a sessão não edita nem apaga consulta (42501), '
+    'e ninguém edita — nem a service_role (sem UPDATE), nem o dono (gatilho '
+    'só-inclusão) —, e só a service_role apaga (eliminação a pedido do titular); o '
     'link nasce com carimbo da sessão, zero acesso e vivo, e a sessão não lê '
     'token_hash; revogar funciona, carimbado pela sessão; esticar prazo, mexer no '
     'contador, desrevogar, revogar de novo e apagar são negados, e nem a chave de '

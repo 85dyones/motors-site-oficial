@@ -480,7 +480,7 @@ describe("resposta vazia ou de formato desconhecido", () => {
       });
       expect(r.secoes, p).toEqual([]);
       expect(r.resumo, p).toEqual([]);
-      expect(r.faltou, p).toEqual([{ produto: PRODUTOS[p].nome, motivo: expect.stringMatching(/sem os dados esperados/) }]);
+      expect(r.faltou, p).toEqual([{ produto: PRODUTOS[p].nome, motivo: "respondeu sem dados deste documento." }]);
     }
   });
 });
@@ -555,7 +555,7 @@ describe("o relatório montado", () => {
       ],
       { geradoEm: "2026-10-18T12:00:00.000Z", homologacao: false },
     );
-    expect(r.faltou).toEqual([{ produto: "CPF Lite", motivo: expect.stringMatching(/formato que o painel não reconheceu/) }]);
+    expect(r.faltou).toEqual([{ produto: "CPF Lite", motivo: "respondeu, mas a resposta não pôde ser lida." }]);
     expect(r.titular).toBe("PESSOA DA SILVA HOMOLOG");
   });
 });
@@ -585,7 +585,7 @@ describe("formato inesperado nunca vira 'nada encontrado' (revisão de 18/10/202
     expect(resumo?.estado).toBeUndefined();
   });
 
-  it("débitos do Plus PF como objeto viram 'formato não reconhecido' em atenção, e a tabela mostra o objeto", () => {
+  it("débitos do Plus PF como objeto viram 'Consta (verificar)' em atenção, e a tabela mostra o objeto", () => {
     const l = LEITORES["analise-credito-plus-pf"]({ resultado: { identificacao: { nomes: "FULANO" }, debitos: { credor: "BANCO X", valor: "10,00" } } });
     const debitos = l.secoes.flatMap((s) => s.linhas).find((x) => x.rotulo === "Débitos");
     expect(debitos?.estado).toBe("atencao");

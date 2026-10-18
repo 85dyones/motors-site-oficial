@@ -232,6 +232,17 @@ describe("custoDaResposta", () => {
     expect(custoDaResposta({ response: { message: "Você foi tarifada em R$ 4.49" } })).toBe(4.49);
     expect(custoDaResposta({ message: "Requisição processada com sucesso", tax: "0.340" })).toBeNull();
   });
+
+  it("valor negativo não é custo (o CHECK do banco recusaria o registro de uma consulta já paga)", () => {
+    expect(custoDaResposta({ valor_consulta: -4.5 })).toBeNull();
+    expect(lerChamadaDoProduto(200, { error: false, valor_consulta: -1, data: { a: 1 } }, "cpf-dados")).toMatchObject({ ok: true, custo: null });
+  });
+
+  it("falta de saldo dita na mensagem guarda o custo, se o fornecedor disser um", () => {
+    expect(lerChamadaDoProduto(200, { error: true, message: "Saldo insuficiente", valor_consulta: 0 }, "cpf-dados")).toMatchObject({ ok: false, daConta: true, custo: 0 });
+    // "saldo" sozinho (num texto qualquer) não é falta de saldo.
+    expect(lerChamadaDoProduto(200, { error: true, message: "Consulta de saldo bancário indisponível" }, "cpf-dados")).toMatchObject({ ok: false, daConta: false });
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -340,14 +351,13 @@ describe("semCaractereNulo", () => {
     expect(semCaractereNulo(undefined)).toBeNull();
   });
 
-  // BUG (não corrigido aqui, a pedido): o `replace(/\\u0000/g, "")` age sobre o TEXTO do JSON, e um
-  // texto do fornecedor com a barra invertida literal seguida de "u0000" (seis caracteres, não o
-  // caractere nulo) vira `\\u0000` no JSON; o replace come o `\u0000` depois da primeira barra e
-  // deixa uma barra solta — o `JSON.parse` estoura, depois de a consulta já ter sido paga, e ela
-  // não fica registrada. Tirar o `.skip` quando a limpeza for feita nos valores, e não no texto.
-  it.skip("texto com a barra invertida literal antes de 'u0000' não quebra a limpeza", () => {
+  // Já foi bug: a limpeza era um replace no TEXTO do JSON, e a barra invertida literal seguida de
+  // "u0000" (seis caracteres, não o caractere nulo) deixava uma barra solta e o JSON.parse estourava
+  // depois de a consulta já ter sido paga. Hoje a limpeza é string por string.
+  it("texto com a barra invertida literal antes de 'u0000' não quebra a limpeza nem perde dado; a chave também é limpa", () => {
     expect(() => semCaractereNulo({ nome: "C:\\u0000\\pasta" })).not.toThrow();
     expect(semCaractereNulo({ nome: "C:\\u0000" })).toEqual({ nome: "C:\\u0000" });
+    expect(semCaractereNulo({ "ra\u0000zao": "x" })).toEqual({ razao: "x" });
   });
 });
 
@@ -411,18 +421,39 @@ describe("executarConsulta: a trava contra repetição", () => {
     if (!r.ok) expect(r.motivo).toContain("30 minutos");
     expect(g.pedidas).toEqual([]);
     expect(gravacao.chamadas).toEqual([]);
-    // A pergunta vai pela SESSÃO (a RLS recorta), e só considera a que trouxe dados, do mesmo modo e da janela.
+    // A pergunta vai pela SESSÃO (a RLS recorta), do mesmo modo e da janela.
     expect(sessao.chamadas).toHaveLength(1);
     expect(sessao.chamadas[0].filtros).toEqual([
       ["eq", "tipo_documento", "cpf"],
       ["eq", "documento", "12345678909"],
       ["eq", "nivel", "completo_integral"],
       ["eq", "homologacao", false],
-      ["neq", "situacao", "falhou"],
+      // A que trouxe dados, OU a que falhou mas pode ter cobrado: as duas travam o próximo clique.
+      ["or", 'situacao.neq.falhou,tentativas.cs.[{"pode_ter_cobrado":true}]'],
       ["gte", "criado_em", "2026-10-18T14:30:00.000Z"],
       ["order", "criado_em", { ascending: false }],
       ["limit", 1],
     ]);
+  });
+
+  it("a anterior que falhou mas pode ter cobrado também trava, com o aviso de conferir o saldo", async () => {
+    const g = gateway(doExemplo);
+    const sessao = banco(() => ({ data: [{ ...ANTERIOR, situacao: "falhou", custo: null }], error: null }));
+    const r = await executarConsulta(sessao.cliente, PEDIDO_CPF, deps({ buscar: g.buscar }));
+    expect(r).toMatchObject({ ok: false, status: 409, repeticao: { situacao: "falhou" } });
+    if (!r.ok) expect(r.motivo).toMatch(/PODE ter sido cobrada.*saldo/);
+    expect(g.pedidas).toEqual([]);
+  });
+
+  it("se a trava não conseguir ler, fecha: 503 sem chamar o gateway nem gravar", async () => {
+    const g = gateway(doExemplo);
+    const gravacao = gravacaoQueDevolve();
+    const sessao = banco(() => ({ data: null, error: { code: "57014", message: "timeout" } }));
+    const r = await executarConsulta(sessao.cliente, PEDIDO_CPF, deps({ gravacao: gravacao.cliente, buscar: g.buscar }));
+    expect(r).toMatchObject({ ok: false, status: 503, id: null, podeTerCobrado: false });
+    if (!r.ok) expect(r.motivo).toMatch(/nada foi cobrado/);
+    expect(g.pedidas).toEqual([]);
+    expect(gravacao.chamadas).toEqual([]);
   });
 
   it("com repetir:true a trava nem pergunta ao banco, e a consulta sai", async () => {
@@ -573,7 +604,7 @@ describe("executarConsulta: a consulta paga e a gravação", () => {
     expect(r.ok && r.avisos).toEqual(["CPF Dados: a APIBrasil está fora do ar (HTTP 502)."]);
   });
 
-  it("o \\u0000 que o fornecedor mandar sai do relatório, das respostas e das tentativas antes de gravar", async () => {
+  it("o \\u0000 que o fornecedor mandar sai do nome, do relatório, das respostas e das tentativas antes de gravar", async () => {
     const sujo = structuredClone(ENVELOPES.cnpj) as { data: { cnpj: { empresa: { razao_social: string } } } };
     sujo.data.cnpj.empresa.razao_social = "APIBRASIL\u0000 LTDA";
     const g = gateway((p) => (p === "cnpj" ? { status: 200, corpo: sujo } : p === "dossie-credito-pj" ? { status: 200, corpo: { error: true, message: "falhou\u0000 aqui" } } : doExemplo(p)));
@@ -582,6 +613,7 @@ describe("executarConsulta: a consulta paga e a gravação", () => {
     const p = argumentosDaGravacao(gravacao);
     for (const chave of ["p_relatorio", "p_respostas", "p_tentativas"]) expect(JSON.stringify(p[chave]), chave).not.toContain("\\u0000");
     expect((p.p_relatorio as { titular: string }).titular).toBe("APIBRASIL LTDA");
+    expect(p.p_nome).toBe("APIBRASIL LTDA");
   });
 
   it("consulta feita e não gravada (função ausente): devolve o relatório sem id, com o aviso de imprimir e o nome da migração", async () => {
@@ -776,26 +808,29 @@ describe("as consultas recentes do documento (as que reabrem sem pagar)", () => 
 describe("o link para enviar", () => {
   const LIMITES = { diasDoLink: 7, linksAtivosPorConsulta: 10 };
   const AGORA_DO_LINK = new Date("2026-10-18T12:00:00.000Z");
-  /** A consulta existe (com a situação dada), tem `ativos` links vivos, e o insert devolve `erro`. */
-  const bancoDoLink = (o: { situacao?: string | null; ativos?: number; erro?: Resposta["error"] } = {}) =>
+  /** A consulta existe (com a situação dada), tem `ativos` links vivos (ou a contagem responde `contagem`), e o insert devolve `erro`. */
+  const bancoDoLink = (o: { situacao?: string | null; ativos?: number; contagem?: Resposta; erro?: Resposta["error"] } = {}) =>
     banco((c) => {
       if (c.tabela === "consultas_de_documento") return { data: o.situacao === null ? null : { id: ID, situacao: o.situacao ?? "completa" }, error: null };
-      if (c.operacao === "select") return { data: null, error: null, count: o.ativos ?? 0 };
-      return { data: null, error: o.erro ?? null };
+      if (c.operacao === "select") return o.contagem ?? { data: null, error: null, count: o.ativos ?? 0 };
+      return o.erro ? { data: null, error: o.erro } : { data: { id: "1d2c3b4a-0000-4000-8000-000000000001" }, error: null };
     });
 
-  it("cria com só o hash do token no banco e a validade dos parâmetros; o token só existe na URL devolvida", async () => {
+  it("cria com só o hash do token no banco e a validade dos parâmetros (menos um minuto de folga); o token só existe na URL devolvida", async () => {
     const b = bancoDoLink({ ativos: 9 });
     const r = await criarLinkDoRelatorio(b.cliente, ID, LIMITES, AGORA_DO_LINK);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.expiraEm).toBe("2026-10-25T12:00:00.000Z");
+    expect(r.id).toBe("1d2c3b4a-0000-4000-8000-000000000001");
+    expect(r.expiraEm).toBe("2026-10-25T11:59:00.000Z");
     const token = r.url.split("/relatorio/")[1];
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const insercoes = b.chamadas.filter((c) => c.operacao === "insert");
     expect(insercoes).toHaveLength(1);
     expect(insercoes[0]).toMatchObject({ tabela: "relatorios_compartilhados" });
-    expect(insercoes[0].valores).toEqual({ consulta_id: ID, token_hash: sha256(token), expira_em: "2026-10-25T12:00:00.000Z" });
+    expect(insercoes[0].valores).toEqual({ consulta_id: ID, token_hash: sha256(token), expira_em: "2026-10-25T11:59:00.000Z" });
+    // Devolve só o id: a sessão não lê `token_hash`.
+    expect(insercoes[0].fim).toBe("maybeSingle");
     expect(JSON.stringify(b.chamadas)).not.toContain(token);
     // A contagem dos ativos: desta consulta, não revogados e ainda no prazo.
     const contagem = b.chamadas.find((c) => c.tabela === "relatorios_compartilhados" && c.operacao === "select");
@@ -809,7 +844,15 @@ describe("o link para enviar", () => {
 
   it("a validade vem do parâmetro, não de um número no código", async () => {
     const r = await criarLinkDoRelatorio(bancoDoLink().cliente, ID, { diasDoLink: 3, linksAtivosPorConsulta: 10 }, AGORA_DO_LINK);
-    expect(r.ok && r.expiraEm).toBe("2026-10-21T12:00:00.000Z");
+    expect(r.ok && r.expiraEm).toBe("2026-10-21T11:59:00.000Z");
+  });
+
+  it("sem conseguir contar os links ativos (erro, ou contagem nula), fecha: 502 e nada é inserido", async () => {
+    for (const contagem of [{ data: null, error: { code: "42501", message: "rls" } }, { data: null, error: null, count: null }]) {
+      const b = bancoDoLink({ contagem });
+      expect(await criarLinkDoRelatorio(b.cliente, ID, LIMITES), JSON.stringify(contagem)).toMatchObject({ ok: false, status: 502 });
+      expect(b.chamadas.some((c) => c.operacao === "insert")).toBe(false);
+    }
   });
 
   it("cada link é um token novo", async () => {

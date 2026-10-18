@@ -96,9 +96,13 @@ beforeEach(() => {
 
 // ── as chamadas ──────────────────────────────────────────────────────────────
 
-async function postar(corpo: unknown) {
+async function postar(corpo: unknown, cabecalhos: Record<string, string> = {}) {
   const res = await rotaPrincipal.POST(
-    new NextRequest("http://localhost/api/consulta-documento", { method: "POST", headers: { "content-type": "application/json" }, body: typeof corpo === "string" ? corpo : JSON.stringify(corpo) }),
+    new NextRequest("http://localhost/api/consulta-documento", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...cabecalhos },
+      body: typeof corpo === "string" ? corpo : JSON.stringify(corpo),
+    }),
   );
   return { status: res.status, json: (await res.json()) as Record<string, unknown>, cache: res.headers.get("cache-control") };
 }
@@ -145,6 +149,21 @@ describe("a porta: sem sessão 401, sem papel 403, em todas as rotas — e nada 
     }
     expect(sessao.chamadas).toEqual([]);
     nadaFoiPago();
+  });
+});
+
+describe("o POST pago só aceita a própria origem", () => {
+  it("Origin de outro site (ou ilegível) é 403 antes até da porta; a mesma origem, ou sem Origin, passa", async () => {
+    for (const origem of ["https://mal.example", "http://localhost.mal.example", "null"]) {
+      const r = await postar(CONSULTAR, { origin: origem });
+      expect(r.status, origem).toBe(403);
+      expect(r.json.error, origem).toBe("Pedido de outra origem.");
+    }
+    // Nem os parâmetros foram lidos: a recusa vem antes da sessão.
+    expect(sessao.chamadas).toEqual([]);
+    nadaFoiPago();
+    expect((await postar(CONSULTAR, { origin: "http://localhost" })).status).toBe(200);
+    expect((await postar({ acao: "estimar", tipo: "cpf", documento: "12345678909" })).status).toBe(200);
   });
 });
 
@@ -332,16 +351,17 @@ describe("os links", () => {
   const comLinks = (o: { situacao?: string; ativos?: number } = {}) =>
     sessaoCom({
       consultas_de_documento: () => ({ data: { id: ID, situacao: o.situacao ?? "completa" }, error: null }),
-      relatorios_compartilhados: (c) => (c.operacao === "select" ? { data: null, error: null, count: o.ativos ?? 0 } : { data: null, error: null }),
+      relatorios_compartilhados: (c) => (c.operacao === "select" ? { data: null, error: null, count: o.ativos ?? 0 } : { data: { id: LINK }, error: null }),
     });
   const criar = () => rotaDosLinks.POST(new Request("http://localhost", { method: "POST" }), params({ id: ID }));
   const revogar = (linkId = LINK) => rotaDoLink.DELETE(new Request("http://localhost", { method: "DELETE" }), params({ linkId }));
 
-  it("POST cria o link com a validade dos parâmetros; o token só existe na resposta", async () => {
+  it("POST cria o link com o id e a validade dos parâmetros; o token só existe na resposta", async () => {
     comLinks({ ativos: 2 });
     const res = await criar();
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { url: string; expiraEm: string };
+    const json = (await res.json()) as { id: string; url: string; expiraEm: string };
+    expect(json.id).toBe(LINK);
     expect(json.url).toMatch(/\/relatorio\/[A-Za-z0-9_-]{43}$/);
     const dias = (new Date(json.expiraEm).getTime() - Date.now()) / 86400000;
     expect(dias).toBeGreaterThan(6.99);
