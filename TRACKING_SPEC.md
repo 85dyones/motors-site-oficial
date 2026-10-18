@@ -859,9 +859,12 @@ quê. Agora:
   `evento`, `event_id`, `resultado` (`enviado` · `recusado` · `sem_rede` ·
   `pulado`), `em`, `http`, o resumo da resposta do Graph (`events_received`,
   `fbtrace_id`, o `error`) e `motivo` quando pulado.
-- `capi_meta_status` é `<evento>:<resultado>` do registro mais recente
-  (`Purchase:enviado`, `LeadQualificado:recusado`, `Lead:pulado`): um `where`
-  ou um olhar na tabela dizem como o lead está com o Meta.
+- `capi_meta_status` é `<evento>:<resultado>` do registro mais adiantado no
+  funil, nesta ordem: Purchase, LeadQualificado, Lead (`Purchase:pulado`,
+  `LeadQualificado:recusado`, `Lead:pulado`). Um `where` ou um olhar na tabela
+  dizem como o lead está com o Meta. É o adiantado, e não o mais recente: o
+  LeadQualificado sai de hora em hora, depois do Purchase do ganho, e não pode
+  esconder um `Purchase:pulado`.
 - `capi_meta_sent_at` é a última entrega que o Meta aceitou.
 
 Sem pixel em `site_settings`, a CAPI inteira está desligada: nada vai e nada
@@ -889,6 +892,10 @@ continua indo na hora, porque fechar um negócio é uma decisão e não um arras
   anti-ruído da tela, não régua de negócio. Quem ainda está na etapa só
   conta depois de completar os 10 min: o cartão arrastado para a Visita um
   minuto antes da rodada espera a seguinte e, se sair antes, não vai.
+- **Visita registrada vale sozinha:** a interação `visita` (`leads_interacoes`,
+  a do "Chegou na loja", sem as importadas) qualifica dure o que durar a etapa.
+  O cliente esteve na loja; quem chegou e foi perdido cinco minutos depois
+  qualificou. O `event_time` é o da interação e a etapa vai como `visita`.
 - **Janela:** 7 dias menos 1 hora — o Meta recusa evento mais velho que 7 dias.
   `event_time` é a primeira vez que o lead qualificou; se ela já saiu da
   janela, a mais recente (a volta à Visita, o ganho).
@@ -901,9 +908,10 @@ continua indo na hora, porque fechar um negócio é uma decisão e não um arras
   evita o envio em dobro é o registro da linha, relido logo antes de mandar e
   logo antes de gravar — o Purchase gravado pelo painel no meio da rodada
   fica.
-- **Independe dos anúncios:** vai pela CAPI, com outro token; roda mesmo
-  quando a leitura dos anúncios falha. O resultado sai em `repescagem` na
-  resposta da rota, e o registro do lead leva `repescado: true`.
+- **Independe dos anúncios:** vai pela CAPI, com outro token. Começa junto com
+  o resto da rodada, e não no fim: um Graph lento ou a leitura dos anúncios
+  falhando não o deixam sem tempo. O resultado sai em `repescagem` na resposta
+  da rota, e o registro do lead leva `repescado: true`.
 - **Loja:** a chave de serviço não filtra loja (`leads` e `leads_eventos` ainda
   sem `org_id`; pixel único em `site_settings`). Na S1, vai por loja, com o
   pixel de cada uma.

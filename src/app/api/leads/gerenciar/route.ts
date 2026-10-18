@@ -558,7 +558,7 @@ export async function PATCH(request: NextRequest) {
     let desfechoGravado: TipoDeDesfecho | null = null;
     /** Os motivos lidos para a decisão: é deles que sai o rótulo da nota do Chatwoot. */
     let motivosLidos: MotivoDoFunil[] = [];
-    /** O tipo da etapa de destino, para a qualificação no Meta saber se é ganho. */
+    /** O tipo da etapa de destino, que vai no movimento para o Meta (o Purchase decide pelo desfecho gravado). */
     let tipoDaEtapaGravada: string | null = null;
     if (situacao !== undefined) atualizacao.situacao = situacao;
     // Aparado: a validação acima já apara para comparar, e o nome gravado com

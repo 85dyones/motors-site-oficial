@@ -220,11 +220,11 @@ do banco). Resposta `200`:
 O lead só anda para **frente**: quem está em `visita` ou `negociacao` fica onde
 está (`movido: false`), com a visita e o próximo passo registrados.
 
-Movido para a visita, o lead conta como **qualificado no Meta**, mas o
+A visita registrada aqui deixa o lead **qualificado no Meta**, mas o
 `LeadQualificado` não sai desta rota (18/10/2026). Ele vai pela rodada de hora
-em hora, com a mesma régua de quem é movido pelo quadro: só quem ficou 10
-minutos na etapa (`lib/qualificacaoParaMeta`, seção "Fase 6" de
-`TRACKING_SPEC.md`).
+em hora, que lê a interação `visita`: ela vale sozinha, mesmo que o lead saia
+da etapa logo depois. O cartão só movido pelo quadro precisa ficar 10 minutos
+na etapa (`lib/qualificacaoParaMeta`, seção "Fase 6" de `TRACKING_SPEC.md`).
 
 ### 2.4 `PATCH /api/leads/[id]/dados`: dados do negócio
 

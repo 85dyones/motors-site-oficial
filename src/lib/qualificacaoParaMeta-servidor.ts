@@ -1,4 +1,5 @@
 import type { ClienteDaSessao } from "./gestaoDoLead-servidor";
+import { ETAPA_DE_VISITA } from "./gestaoDoLead";
 import { sendCapiEvent, type CapiEvent } from "./meta-capi";
 import { registrarFalha } from "./observabilidade";
 import { getCachedSettings } from "./settings";
@@ -251,8 +252,37 @@ export async function lerRastroDeEtapas(cliente: ClienteDeLeads, leadIds: readon
   return rastro;
 }
 
+/** A interação que diz que o cliente esteve na loja (a do "Chegou na loja"). */
+const INTERACAO_DE_VISITA = "visita";
+
+/**
+ * As visitas REGISTRADAS de cada lead (`leads_interacoes`, tipo `visita`,
+ * sem as importadas do sistema antigo): só o horário. Em lotes de ids e
+ * paginadas, como o rastro.
+ */
+export async function lerVisitasRegistradas(cliente: ClienteDeLeads, leadIds: readonly string[]): Promise<Map<string, string[]>> {
+  const visitas = new Map<string, string[]>();
+  for (const lote of emLotes([...new Set(leadIds)])) {
+    const linhas = await todasAsPaginas<{ lead_id: string; criado_em: string }>((de, ate) =>
+      cliente
+        .from("leads_interacoes")
+        .select("lead_id, criado_em")
+        .eq("tipo", INTERACAO_DE_VISITA)
+        .eq("importada", false)
+        .in("lead_id", lote)
+        .order("id", { ascending: true })
+        .range(de, ate),
+    );
+    for (const v of linhas) {
+      const id = String(v.lead_id);
+      visitas.set(id, [...(visitas.get(id) ?? []), String(v.criado_em)]);
+    }
+  }
+  return visitas;
+}
+
 // ---------------------------------------------------------------------------
-// A repescagem (17/10/2026)
+// O envio do LeadQualificado, de hora em hora (17/10/2026)
 // ---------------------------------------------------------------------------
 
 /** O Meta recusa evento com mais de 7 dias; uma hora de folga para a rodada. */
@@ -311,13 +341,15 @@ async function registrosDaLinha(cliente: ClienteDeLeads, leadId: string): Promis
  *     correndo só conta depois de `PERMANENCIA_MINIMA_MS` (10 min). O cartão
  *     arrastado para a Visita um minuto antes da rodada espera a próxima — e,
  *     se sair dela antes, não vai.
+ *   - A visita REGISTRADA (o "Chegou na loja", ou a interação `visita`) vale
+ *     sozinha, dure o que durar a etapa: o cliente esteve na loja. Quem
+ *     chegou e foi perdido cinco minutos depois qualificou.
  *   - `event_time` = quando qualificou; se a primeira vez já passou dos 7
- *     dias, a mais recente (a volta à Visita, o ganho) — o horário que o envio
- *     em tempo real teria usado.
- *   - O mesmo `event_id` (`<lead>:qualificado`) do envio em tempo real. O
- *     Meta só junta repetidos dentro de 48 h, então quem evita o envio em
- *     dobro é o registro da linha: relido logo antes de mandar e logo antes de
- *     gravar, para não pisar no que o painel gravou no meio (o Purchase).
+ *     dias, a mais recente (a volta à Visita, a visita registrada, o ganho).
+ *   - O `event_id` é fixo (`<lead>:qualificado`). O Meta só junta repetidos
+ *     dentro de 48 h, então quem evita o envio em dobro é o registro da
+ *     linha: relido logo antes de mandar e logo antes de gravar, para não
+ *     pisar no que o painel gravou no meio (o Purchase do ganho).
  *   - Na fila, primeiro quem nunca foi tentado, depois quem está mais perto de
  *     sair dos 7 dias. Evento recusado por inválido espera um dia.
  *   - Só o LeadQualificado: o Purchase depende do valor, que chega pelo
@@ -343,8 +375,9 @@ export async function repescarQualificacoes(
   const desde = new Date(agoraMs - JANELA_DA_REPESCAGEM_MS).toISOString();
   const naJanela = (iso: string | null) => iso !== null && Date.parse(iso) >= Date.parse(desde);
   try {
-    // Quem pode ter qualificado na janela: entrou em Visita/Negociação, ou fechou ganho.
-    const [entradas, ganhos] = await Promise.all([
+    // Quem pode ter qualificado na janela: entrou em Visita/Negociação, teve
+    // a visita registrada, ou fechou ganho.
+    const [entradas, visitasNaJanela, ganhos] = await Promise.all([
       todasAsPaginas<{ lead_id: string }>((de, ate) =>
         cliente
           .from("leads_eventos")
@@ -355,11 +388,23 @@ export async function repescarQualificacoes(
           .order("id", { ascending: true })
           .range(de, ate),
       ),
+      todasAsPaginas<{ lead_id: string }>((de, ate) =>
+        cliente
+          .from("leads_interacoes")
+          .select("lead_id")
+          .eq("tipo", INTERACAO_DE_VISITA)
+          .eq("importada", false)
+          .gte("criado_em", desde)
+          .order("id", { ascending: true })
+          .range(de, ate),
+      ),
       todasAsPaginas<{ id: string }>((de, ate) =>
         cliente.from("leads").select("id").eq("desfecho", "ganho").gte("desfecho_em", desde).order("id", { ascending: true }).range(de, ate),
       ),
     ]);
-    const ids = [...new Set([...entradas.map((e) => String(e.lead_id)), ...ganhos.map((g) => String(g.id))])];
+    const ids = [
+      ...new Set([...entradas.map((e) => String(e.lead_id)), ...visitasNaJanela.map((v) => String(v.lead_id)), ...ganhos.map((g) => String(g.id))]),
+    ];
     if (ids.length === 0) return rodada;
 
     const linhas: LinhaDaRepescagem[] = [];
@@ -372,19 +417,22 @@ export async function repescarQualificacoes(
     }
     if (linhas.length === 0) return rodada;
 
-    const rastro = await lerRastroDeEtapas(cliente, linhas.map((l) => l.id));
+    const idsPendentes = linhas.map((l) => l.id);
+    const [rastro, visitasDe] = await Promise.all([lerRastroDeEtapas(cliente, idsPendentes), lerVisitasRegistradas(cliente, idsPendentes)]);
 
     const fila: Array<{ lead: LinhaDaRepescagem; quando: string; devido: Extract<EventoDevido, { evento: CapiEvent }>; anterior?: RegistroDaCapi }> = [];
     for (const lead of linhas) {
       const passagens = rastro.get(lead.id) ?? [];
-      const q = quandoQualificou(passagens, { situacao: lead.situacao, desfecho: lead.desfecho, desfechoEm: lead.desfecho_em });
+      const visitas = visitasDe.get(lead.id) ?? [];
+      const q = quandoQualificou(passagens, { situacao: lead.situacao, desfecho: lead.desfecho, desfechoEm: lead.desfecho_em }, visitas);
       if (!q.qualificou) continue;
       const quando = [q.desde, q.ultima].find(naJanela);
       if (!quando) continue;
       // Ainda não ficou 10 min: a próxima rodada decide.
       if (Date.parse(quando) > agoraMs - PERMANENCIA_MINIMA_MS) continue;
-      // A etapa em que qualificou; no ganho, a etapa do ganho.
-      const etapa = passagens.find((p) => p.em === quando)?.para ?? lead.situacao ?? null;
+      // A etapa em que qualificou: a da passagem, a Visita da visita
+      // registrada, ou (no ganho) a etapa do ganho.
+      const etapa = passagens.find((p) => p.em === quando)?.para ?? (visitas.includes(quando) ? ETAPA_DE_VISITA : null) ?? lead.situacao ?? null;
       const ganho = lead.desfecho === "ganho";
       const devido = eventosDevidos(lead, { etapa: etapa ? { chave: etapa } : null, desfecho: ganho ? "ganho" : null }).find(
         (d) => d.chave === "qualificado",
@@ -405,7 +453,8 @@ export async function repescarQualificacoes(
       if (pixelId === undefined) pixelId = await fontes.lerPixelId().catch(() => null);
       if (!pixelId) return rodada;
 
-      // O painel pode ter mandado desde a primeira leitura: aí não está mais pendente.
+      // Outra rodada (uma lenta e a seguinte ao mesmo tempo) pode ter mandado
+      // desde a primeira leitura: aí não está mais pendente.
       const antes = await registrosDaLinha(cliente, lead.id);
       if (!antes) continue;
       if (antes.qualificado?.resultado === "enviado") {

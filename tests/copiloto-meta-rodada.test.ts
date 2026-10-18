@@ -92,10 +92,10 @@ beforeEach(() => {
 });
 
 describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
-  it("agendada: aplica, sincroniza, diagnostica e repesca o LeadQualificado, nessa ordem", async () => {
+  it("agendada: o envio do LeadQualificado começa primeiro, junto; depois aplica, sincroniza e diagnostica", async () => {
     const r = await POST(agendado());
     expect(r.status).toBe(200);
-    expect(ordem).toEqual(["aplicar", "buscar", "gravar", "diagnosticar:act_802008949148808", "repescar"]);
+    expect(ordem).toEqual(["repescar", "aplicar", "buscar", "gravar", "diagnosticar:act_802008949148808"]);
     const corpo = (await r.json()) as { copiloto: Record<string, { feito: boolean }>; repescagem: unknown };
     expect(corpo.copiloto.aplicacao.feito).toBe(true);
     expect(corpo.copiloto.diagnostico.feito).toBe(false);
@@ -145,7 +145,7 @@ describe("POST /api/marketing/sincronizar/meta — o copiloto", () => {
     buscaFalha = true;
     const r = await POST(agendado());
     expect(r.status).toBe(502);
-    expect(ordem).toEqual(["aplicar", "buscar", "repescar"]);
+    expect(ordem).toEqual(["repescar", "aplicar", "buscar"]);
     expect(await r.json()).toMatchObject({ error: "Meta fora do ar", repescagem: { enviados: 0 } });
   });
 

@@ -139,7 +139,7 @@ describe("quais etapas qualificam", () => {
 });
 
 describe("o que é devido depois de um movimento", () => {
-  it("entrar na visita manda UM LeadQualificado, gerado pelo sistema, sem IP nem User-Agent", () => {
+  it("a visita deve UM LeadQualificado, gerado pelo sistema, sem IP nem User-Agent", () => {
     const devidos = eventosDevidos(LEAD_COMPLETO, { etapa: etapa("visita"), desfecho: null });
     expect(devidos).toHaveLength(1);
     const [d] = devidos;
@@ -164,7 +164,7 @@ describe("o que é devido depois de um movimento", () => {
     if (d.evento) expect(d.extra).toEqual({ etapa: "visita" });
   });
 
-  it("negociação manda o mesmo evento; em contato, proposta e perdido não mandam nada", () => {
+  it("a negociação deve o mesmo evento; em contato, proposta e perdido não devem nada", () => {
     expect(eventosDevidos(LEAD_COMPLETO, { etapa: etapa("negociacao"), desfecho: null })).toHaveLength(1);
     for (const chave of ["novo", "em_contato", "proposta"]) {
       expect(eventosDevidos(LEAD_COMPLETO, { etapa: etapa(chave), desfecho: null }), chave).toEqual([]);
@@ -173,7 +173,7 @@ describe("o que é devido depois de um movimento", () => {
     expect(eventosDevidos(LEAD_COMPLETO, { etapa: etapa("descartado"), desfecho: "descartado" })).toEqual([]);
   });
 
-  it("o ganho com valor manda LeadQualificado E Purchase, com o valor real em BRL", () => {
+  it("o ganho com valor deve LeadQualificado E Purchase, com o valor real em BRL", () => {
     const devidos = eventosDevidos(
       { ...LEAD_COMPLETO, desfecho_valor: 55000.5 },
       { etapa: etapa("fechado"), desfecho: "ganho" },
@@ -328,7 +328,7 @@ describe("o registro na linha do lead", () => {
     expect(resumirResposta(undefined)).toBeUndefined();
   });
 
-  it("o status é o registro MAIS RECENTE, e o sent_at é a última entrega aceita", () => {
+  it("o status é o registro MAIS ADIANTADO no funil, e o sent_at é a última entrega aceita", () => {
     const registros: RegistrosDaCapi = {
       lead: { evento: "Lead", resultado: "enviado", em: "2026-10-01T10:00:00.000Z" },
       qualificado: { evento: "LeadQualificado", resultado: "enviado", em: "2026-10-10T10:00:00.000Z" },
@@ -342,6 +342,14 @@ describe("o registro na linha do lead", () => {
       capi_meta_sent_at: "2026-10-10T10:00:00.000Z",
     });
     expect(statusDaCapi({})).toBeNull();
+    // O LeadQualificado sai de hora em hora, DEPOIS do Purchase do ganho: o
+    // status continua dizendo que falta o valor da venda.
+    const qualificadoDepois: RegistrosDaCapi = {
+      purchase: { evento: "Purchase", resultado: "pulado", motivo: SEM_VALOR, em: "2026-10-16T10:00:00.000Z" },
+      qualificado: { evento: "LeadQualificado", resultado: "enviado", em: "2026-10-16T11:17:00.000Z" },
+    };
+    expect(statusDaCapi(qualificadoDepois)).toBe("Purchase:pulado");
+    expect(statusDaCapi({ lead: registros.lead, qualificado: registros.qualificado })).toBe("LeadQualificado:enviado");
     expect(ultimoEnvio({ purchase: registros.purchase })).toBeNull();
     expect(registroPulado("Purchase", null, SEM_VALOR, 0)).toEqual({
       evento: "Purchase",
@@ -836,6 +844,28 @@ describe("quandoQualificou — se o lead CHEGOU a qualificar, pelo rastro", () =
   it("sem rastro (lead de antes dele): vale a etapa de agora, sem data", () => {
     expect(quandoQualificou([], { situacao: "negociacao", desfecho: null })).toEqual({ qualificou: true, desde: null, ultima: null });
     expect(quandoQualificou([], { situacao: "em_contato", desfecho: null })).toEqual(NAO);
+  });
+
+  it("a visita REGISTRADA qualifica sozinha, dure o que durar a etapa; o descartado continua não qualificando", () => {
+    const rapido = [p("visita", "16T10:00:00"), p("perdido", "16T10:05:00")];
+    expect(quandoQualificou(rapido, { situacao: "perdido", desfecho: "perdido" })).toEqual(NAO);
+    expect(quandoQualificou(rapido, { situacao: "perdido", desfecho: "perdido" }, ["2026-10-16T10:00:01Z"])).toEqual({
+      qualificou: true,
+      desde: "2026-10-16T10:00:01Z",
+      ultima: "2026-10-16T10:00:01Z",
+    });
+    // Visita registrada antes, permanência longa depois: a primeira é a visita.
+    const depois = [p("visita", "12T10:00:00"), p("negociacao", "12T10:00:05")];
+    expect(quandoQualificou(depois, { situacao: "negociacao", desfecho: null }, ["2026-10-09T15:00:00Z"])).toEqual({
+      qualificou: true,
+      desde: "2026-10-09T15:00:00Z",
+      ultima: "2026-10-12T10:00:00Z",
+    });
+    expect(quandoQualificou([], { situacao: "descartado", desfecho: "descartado" }, ["2026-10-16T10:00:01Z"])).toEqual(NAO);
+    // No ganho, a visita registrada antes da etapa conta como a primeira vez.
+    expect(
+      quandoQualificou([p("fechado", "16T18:00:00")], { situacao: "fechado", desfecho: "ganho", desfechoEm: "2026-10-16T18:00:01Z" }, ["2026-10-14T11:00:00Z"]),
+    ).toEqual({ qualificou: true, desde: "2026-10-14T11:00:00Z", ultima: "2026-10-16T18:00:01Z" });
   });
 
   it("a ordem de chegada do rastro não importa", () => {
