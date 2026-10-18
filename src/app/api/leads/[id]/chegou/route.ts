@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { comEscopoDeLeads } from "../../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente } from "../../../../../lib/erroDeSchema";
 import { ETAPAS_PADRAO, type EtapaDoFunil } from "../../../../../lib/funil";
-import { pixelIdDasSettings, qualificarNoMeta } from "../../../../../lib/qualificacaoParaMeta-servidor";
 import {
   ETAPA_DE_VISITA,
   PASSO_DE_QUEM_CHEGOU,
@@ -121,8 +120,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // apagada da lista) conta como "antes".
     const atual = etapas.find((e) => e.chave === lead.situacao);
     const mover = !atual || atual.ordem < visita.ordem;
-    /** O aviso da qualificação no Meta, quando houver (hoje, nunca: a visita não fecha negócio). */
-    let avisoDoMeta: string | null = null;
     if (mover) {
       const { data: movidos, error: erroAoMover } = await comEscopoDeLeads(
         supabase.from("leads").update({ situacao: visita.chave, atualizado_em: agora }).eq("id", id),
@@ -140,22 +137,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           { status: 500 },
         );
       }
-      // A visita é etapa qualificada para o Meta (16/10/2026): o mesmo
-      // `LeadQualificado` que o movimento pelo quadro manda, pela mesma
-      // régua (`lib/qualificacaoParaMeta`). Depois do `update`, e só porque
-      // ele alcançou o lead; falhar não desfaz nada, e o resultado fica na
-      // linha (`capi_meta_*`).
-      const meta = await qualificarNoMeta(
-        supabase,
-        id,
-        { etapa: { chave: visita.chave, tipo: visita.tipo }, desfecho: null },
-        { lerPixelId: pixelIdDasSettings },
-      );
-      avisoDoMeta = meta.aviso;
+      // A visita é etapa qualificada para o Meta, mas o LeadQualificado não
+      // vai daqui (18/10/2026): vai pela rodada de hora em hora
+      // (`repescarQualificacoes`), que só conta quem FICOU na etapa — a
+      // mesma régua do movimento pelo quadro.
     }
 
     const relido = await relerDepoisDeRegistrar(supabase, id, String(interacaoId));
-    const aviso = [relido.aviso, avisoDoMeta].filter(Boolean).join(" ");
+    const aviso = relido.aviso;
     return NextResponse.json({
       ok: true,
       interacao_id: interacaoId,

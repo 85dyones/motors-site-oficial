@@ -220,11 +220,11 @@ do banco). Resposta `200`:
 O lead só anda para **frente**: quem está em `visita` ou `negociacao` fica onde
 está (`movido: false`), com a visita e o próximo passo registrados.
 
-Movido, o lead é **qualificado no Meta** (16/10/2026): a rota manda o mesmo
-`LeadQualificado` que o movimento pelo quadro manda, pela mesma régua
-(`lib/qualificacaoParaMeta`, seção "Fase 6" de `TRACKING_SPEC.md`), depois do
-`update` e só porque ele alcançou o lead. O resultado fica na linha
-(`capi_meta_*`); falhar não desfaz nada e não muda a resposta.
+A visita registrada aqui deixa o lead **qualificado no Meta**, mas o
+`LeadQualificado` não sai desta rota (18/10/2026). Ele vai pela rodada de hora
+em hora, que lê a interação `visita`: ela vale sozinha, mesmo que o lead saia
+da etapa logo depois. O cartão só movido pelo quadro precisa ficar 10 minutos
+na etapa (`lib/qualificacaoParaMeta`, seção "Fase 6" de `TRACKING_SPEC.md`).
 
 ### 2.4 `PATCH /api/leads/[id]/dados`: dados do negócio
 
@@ -307,6 +307,11 @@ devolve `ok`, e a dica ao lado sai do `codigo`.
 Constantes: `TIPOS_DE_INTERACAO`, `RESULTADOS_DA_LIGACAO`,
 `ROTULO_DA_INTERACAO` (Anotação, Ligação, WhatsApp, Visita à loja),
 `ROTULO_DO_RESULTADO` (Atendeu, Não atendeu, Caixa postal).
+
+A interação "Visita à loja" (`visita`) deixa o lead qualificado no Meta,
+mesmo sem mover o card. A rodada de hora em hora a lê (seção "Fase 6" de
+`TRACKING_SPEC.md`). Ela serve para a visita que aconteceu, não para anotar
+a que está marcada.
 
 ### 3.2 As sugestões e o mapa de etapas
 

@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ClienteDeLeads } from "../src/lib/qualificacaoParaMeta-servidor";
 
 /**
- * A repescagem do LeadQualificado (17/10/2026): o lead que qualificou nos
- * últimos 7 dias e ainda não tem o evento aceito pelo Meta vai agora, com
- * `event_time` = quando qualificou. O cartão só arrastado pela coluna não vai,
+ * O envio do LeadQualificado, de hora em hora (17/10/2026; o único desde
+ * 18/10): o lead que qualificou nos últimos 7 dias e ainda não tem o evento
+ * aceito pelo Meta vai agora, com `event_time` = quando qualificou — se já
+ * ficou 10 min na etapa. O cartão só arrastado pela coluna não vai,
  * "Não é oportunidade" não vai, o que já foi não vai de novo, e o que passou
  * dos 7 dias o Meta recusaria — não vai. Rastro longo é lido inteiro, e o que
  * o painel grava no meio da rodada não é apagado.
@@ -58,6 +59,9 @@ const lead = (id: string, extra: Record<string, unknown> = {}): Lead => ({
 let proximoId = 1;
 /** O `id` cresce na ordem de criação, como o do banco. */
 const ev = (lead_id: string, para: string, criado_em: string): Evento => ({ id: proximoId++, lead_id, tipo: "etapa", para, criado_em });
+type Interacao = { id: number; lead_id: string; tipo: string; importada: boolean; criado_em: string };
+/** A interação registrada no painel (a `visita` é a do "Chegou na loja"). */
+const interacao = (lead_id: string, tipo: string, criado_em: string, importada = false): Interacao => ({ id: proximoId++, lead_id, tipo, importada, criado_em });
 
 /** O PostgREST devolve no máximo isto por resposta, peça o que pedir. */
 const MAX_ROWS = 1000;
@@ -71,6 +75,7 @@ function bancoFalso(
   leads: Lead[],
   eventos: Evento[],
   ganchos: { aoReler?: (leadId: string, vez: number) => void; releituraFalha?: (leadId: string) => boolean } = {},
+  interacoes: Interacao[] = [],
 ) {
   const gravacoes: Array<{ id: unknown; campos: Record<string, unknown> }> = [];
   const relidas = new Map<string, number>();
@@ -98,7 +103,7 @@ function bancoFalso(
         if (alvo) Object.assign(alvo, campos);
         return Promise.resolve({ data: null, error: null }).then(ok);
       }
-      const base = (tabela === "leads" ? leads : eventos) as Array<Record<string, unknown>>;
+      const base = (tabela === "leads" ? leads : tabela === "leads_interacoes" ? interacoes : eventos) as Array<Record<string, unknown>>;
       let linhas = base.filter((l) => filtros.every((f) => f(l)));
       if (umSo && tabela === "leads" && colunas?.join() === "capi_meta_response" && typeof linhas[0]?.id === "string") {
         const id = linhas[0].id as string;
@@ -152,6 +157,68 @@ describe("repescarQualificacoes", () => {
     });
     expect(registroDe(a).qualificado).toMatchObject({ evento: "LeadQualificado", resultado: "enviado", etapa: "visita", repescado: true });
     expect(a.capi_meta_status).toBe("LeadQualificado:enviado");
+  });
+
+  it("é o único envio do LeadQualificado: quem entrou na Visita há menos de 10 min espera a próxima rodada", async () => {
+    const { cliente } = bancoFalso(
+      [lead("agora-ha-pouco", { situacao: "visita" }), lead("ha-15-min", { situacao: "negociacao" })],
+      [ev("agora-ha-pouco", "visita", "2026-10-17T19:55:00Z"), ev("ha-15-min", "negociacao", "2026-10-17T19:45:00Z")],
+    );
+    const r = await repescarQualificacoes(cliente, PIXEL, AGORA);
+    expect(capi.chamadas.map((c) => c.eventId)).toEqual(["ha-15-min:qualificado"]);
+    expect(capi.chamadas[0]).toMatchObject({ eventTime: Math.floor(Date.parse("2026-10-17T19:45:00Z") / 1000), customData: { etapa: "negociacao" } });
+    // O de 5 min ainda não é pendente: a próxima rodada decide se ele ficou.
+    expect(r).toEqual({ pendentes: 1, enviados: 1, naoAceitos: 0 });
+  });
+
+  it("'Chegou na loja' e perdido 5 min depois: a visita registrada qualifica, com o horário dela", async () => {
+    const { cliente } = bancoFalso(
+      [lead("chegou", { situacao: "perdido", desfecho: "perdido" })],
+      [ev("chegou", "em_contato", "2026-10-15T09:00:00Z"), ev("chegou", "visita", "2026-10-16T10:00:00Z"), ev("chegou", "perdido", "2026-10-16T10:05:00Z")],
+      {},
+      [interacao("chegou", "visita", "2026-10-16T10:00:01Z")],
+    );
+    const r = await repescarQualificacoes(cliente, PIXEL, AGORA);
+    expect(capi.chamadas).toHaveLength(1);
+    expect(capi.chamadas[0]).toMatchObject({
+      eventId: "chegou:qualificado",
+      eventTime: Math.floor(Date.parse("2026-10-16T10:00:01Z") / 1000),
+      customData: { etapa: "visita" },
+    });
+    expect(r).toEqual({ pendentes: 1, enviados: 1, naoAceitos: 0 });
+  });
+
+  it("a visita só registrada (sem mover o card) também traz o lead; a importada do sistema antigo e o 'Não é oportunidade' não", async () => {
+    const { cliente } = bancoFalso(
+      [
+        lead("so-registro", { situacao: "em_contato" }),
+        lead("importada", { situacao: "em_contato" }),
+        lead("descartado", { situacao: "descartado", desfecho: "descartado" }),
+      ],
+      [],
+      {},
+      [
+        interacao("so-registro", "visita", "2026-10-16T15:00:00Z"),
+        interacao("importada", "visita", "2026-10-16T15:00:00Z", true),
+        interacao("descartado", "visita", "2026-10-16T15:00:00Z"),
+        interacao("so-registro", "ligacao", "2026-10-16T16:00:00Z"),
+      ],
+    );
+    await repescarQualificacoes(cliente, PIXEL, AGORA);
+    expect(capi.chamadas.map((c) => c.eventId)).toEqual(["so-registro:qualificado"]);
+    expect(capi.chamadas[0]).toMatchObject({ customData: { etapa: "visita" } });
+  });
+
+  it("ganho fechado há menos de 10 min espera e vai na rodada seguinte", async () => {
+    const leads = [lead("g", { situacao: "fechado", desfecho: "ganho", desfecho_em: "2026-10-17T19:56:00Z" })];
+    const eventos = [ev("g", "em_contato", "2026-10-15T10:00:00Z"), ev("g", "fechado", "2026-10-17T19:56:00Z")];
+    const { cliente } = bancoFalso(leads, eventos);
+    expect(await repescarQualificacoes(cliente, PIXEL, AGORA)).toEqual({ pendentes: 0, enviados: 0, naoAceitos: 0 });
+    expect(capi.chamadas).toEqual([]);
+
+    const umaHoraDepois = new Date(AGORA.getTime() + 3600_000);
+    expect(await repescarQualificacoes(cliente, PIXEL, umaHoraDepois)).toEqual({ pendentes: 1, enviados: 1, naoAceitos: 0 });
+    expect(capi.chamadas[0]).toMatchObject({ eventName: "LeadQualificado", eventTime: Math.floor(Date.parse("2026-10-17T19:56:00Z") / 1000) });
   });
 
   it("quem visitou e depois foi perdido também vai; o cartão só arrastado e o 'Não é oportunidade' não", async () => {
@@ -303,7 +370,7 @@ describe("repescarQualificacoes", () => {
     expect(registroDe(a).qualificado).toMatchObject({ resultado: "enviado", repescado: true });
   });
 
-  it("se o painel mandou o LeadQualificado no meio, a falha da repescagem não grava por cima", async () => {
+  it("se outra rodada mandou o LeadQualificado no meio, a falha desta não grava por cima", async () => {
     capi.resposta = { ok: false, status: 0 };
     const a = lead("a", { situacao: "visita" });
     const { cliente, gravacoes } = bancoFalso([a], [ev("a", "visita", "2026-10-16T10:00:00Z")]);
@@ -315,7 +382,7 @@ describe("repescarQualificacoes", () => {
     expect(registroDe(a).qualificado.resultado).toBe("enviado");
   });
 
-  it("se o painel já mandou entre a leitura e o envio, não manda de novo, não conta e não gasta vaga", async () => {
+  it("se outra rodada já mandou entre a leitura e o envio, não manda de novo, não conta e não gasta vaga", async () => {
     const ids = ["d10", "d11", "d12", "d13", "d14", "d15"];
     const leads = ids.map((id) => lead(id, { situacao: "visita" }));
     const { cliente } = bancoFalso(

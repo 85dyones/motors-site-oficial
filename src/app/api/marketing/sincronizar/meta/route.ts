@@ -40,10 +40,12 @@ const PRAZO_DA_REPESCAGEM_MS = 45_000;
  * O copiloto nunca derruba a sincronização: o erro dele vai no log e na
  * resposta, e a rodada segue. O botão do painel só sincroniza.
  *
- * A rodada agendada também manda ao Meta o LeadQualificado que ficou para trás
- * (`repescarQualificacoes`, 17/10/2026). Não é do copiloto nem depende da
- * sincronização: vai pela CAPI, com outro token, e roda mesmo quando a
- * leitura dos anúncios falha — até `PRAZO_DA_REPESCAGEM_MS` do início.
+ * A rodada agendada também manda ao Meta o LeadQualificado
+ * (`repescarQualificacoes`, 17/10/2026) — desde 18/10, o único envio dele:
+ * o movimento no painel não manda mais. Não é do copiloto nem depende da
+ * sincronização: vai pela CAPI, com outro token. Por isso começa JUNTO com o
+ * resto, e não no fim — um Graph lento ou a leitura dos anúncios falhando não
+ * o deixam sem tempo — e para em `PRAZO_DA_REPESCAGEM_MS` do início.
  */
 export async function POST(request: NextRequest) {
   const iniciadaEm = new Date();
@@ -59,8 +61,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
 
-  // O LeadQualificado que ficou para trás (qualificou antes do envio existir,
-  // ou a entrega falhou): até 5 por rodada, dentro dos 7 dias.
+  // O LeadQualificado de quem ficou na etapa qualificada (ou fechou ganho) e
+  // ainda não foi aceito pelo Meta: até 5 por rodada, dentro dos 7 dias.
   const repescar = async (): Promise<{ repescagem?: unknown }> => {
     if (gatilho !== "agendado") return {};
     try {
@@ -72,10 +74,13 @@ export async function POST(request: NextRequest) {
     }
   };
 
+  // Começa já, em paralelo com o resto da rodada; cada resposta espera por ele.
+  const repescagem = repescar();
+
   const cfg = configMeta();
   if ("erro" in cfg) {
     await registrarRodada(admin, { plataforma: "meta", gatilho, iniciadaEm, ok: false, erro: cfg.erro });
-    return NextResponse.json({ error: cfg.erro, ...(await repescar()) }, { status: 500 });
+    return NextResponse.json({ error: cfg.erro, ...(await repescagem) }, { status: 500 });
   }
 
   const copiloto: Record<string, unknown> = {};
@@ -104,10 +109,10 @@ export async function POST(request: NextRequest) {
         copiloto.diagnostico = { feito: false, motivo };
       }
     }
-    return NextResponse.json({ ok: true, janela, ...r, ...(gatilho === "agendado" ? { copiloto } : {}), ...(await repescar()) });
+    return NextResponse.json({ ok: true, janela, ...r, ...(gatilho === "agendado" ? { copiloto } : {}), ...(await repescagem) });
   } catch (err) {
     const erro = err instanceof Error ? err.message : String(err);
     await registrarRodada(admin, { plataforma: "meta", gatilho, iniciadaEm, ok: false, erro });
-    return NextResponse.json({ error: erro, ...(await repescar()) }, { status: 502 });
+    return NextResponse.json({ error: erro, ...(await repescagem) }, { status: 502 });
   }
 }

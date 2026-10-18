@@ -14,23 +14,26 @@ import { META_CONTENT_TYPE } from "./telemetry";
  * que acontece depois, no painel: a visita agendada, a negociação, a venda.
  * É isso que este módulo devolve ao Meta, pela CAPI, em dois eventos:
  *
- *   - `LeadQualificado` (evento personalizado): quando o lead entra numa
+ *   - `LeadQualificado` (evento personalizado): quando o lead FICA numa
  *     etapa qualificada — `visita`, `negociacao` — ou fecha como ganho sem
  *     ter passado por elas. Um ganho é, por definição, um lead qualificado.
+ *     Vai pela rodada de hora em hora (`repescarQualificacoes`, decisão do
+ *     dono em 18/10/2026: *"envie de hora em hora"*), que só conta quem ficou
+ *     10 minutos na etapa: o cartão arrastado pela coluna não vai ao Meta.
  *   - `Purchase`: quando o negócio fecha como ganho, com `value` = o valor
  *     gravado no desfecho e `currency` BRL. Sem valor, não há Purchase: um
  *     Purchase de R$ 0 ensinaria o algoritmo a otimizar para vendas de zero.
+ *     Este vai na hora, do movimento (`qualificarNoMeta`): fechar é uma
+ *     decisão, não um arrasto.
  *
  * UMA vez por lead, cada um. O `event_id` é determinístico
  * (`<id do lead>:qualificado`, `<id do lead>:purchase`) e o resultado fica
  * gravado na própria linha (`capi_meta_response`): o lead que vai de visita
  * para negociação, ou que é reaberto e fechado de novo, não conta duas vezes.
- * O que NÃO foi entregue (recusa do Meta, rede, pulado por falta de valor)
- * fica registrado como tal e é tentado de novo no próximo movimento que o
- * justifique — é assim que o valor preenchido depois de fechar vira Purchase.
- * O LeadQualificado não aceito volta também sozinho, de hora em hora, pela
- * repescagem (`repescarQualificacoes`, 17/10/2026), enquanto couber nos 7 dias
- * que o Meta aceita.
+ * O que NÃO foi entregue fica registrado como tal e é tentado de novo: o
+ * Purchase no próximo movimento que o justifique — é assim que o valor
+ * preenchido depois de fechar vira Purchase —, o LeadQualificado na próxima
+ * rodada, enquanto couber nos 7 dias que o Meta aceita.
  *
  * `action_source` é `system_generated`: o evento nasce no painel, de uma ação
  * da equipe, e não de uma página do site. Por isso não leva IP nem
@@ -77,7 +80,7 @@ export interface RegistroDaCapi {
   /** O nome do evento como foi ao Meta: `Lead`, `LeadQualificado`, `Purchase`. */
   evento: string;
   resultado: ResultadoDaCapi;
-  /** Quando, em ISO. É por ele que se escolhe o mais recente. */
+  /** Quando, em ISO. */
   em: string;
   event_id?: string;
   /** O status HTTP do Graph; ausente quando nem chegou à rede. */
@@ -90,7 +93,7 @@ export interface RegistroDaCapi {
   valor?: number;
   /** O que o Graph respondeu, resumido (`events_received`, `fbtrace_id`, o erro). */
   resposta?: unknown;
-  /** Mandado pela repescagem (`repescarQualificacoes`), e não no movimento do painel. */
+  /** Mandado pela rodada de hora em hora (`repescarQualificacoes`), e não no movimento do painel. */
   repescado?: boolean;
 }
 
@@ -197,28 +200,19 @@ export function registroPulado(
 }
 
 /**
- * O registro mais recente, pelo `em`. No empate (dois gravados na mesma
- * passada, no mesmo milissegundo) vence o que vem DEPOIS no funil — a ordem
- * de `CHAVES_DO_REGISTRO` é a do funil, e `>=` deixa o último ganhar.
- */
-function maisRecente(registros: RegistrosDaCapi): RegistroDaCapi | null {
-  let ultimo: RegistroDaCapi | null = null;
-  for (const chave of CHAVES_DO_REGISTRO) {
-    const r = registros[chave];
-    if (r && (!ultimo || r.em >= ultimo.em)) ultimo = r;
-  }
-  return ultimo;
-}
-
-/**
  * O `capi_meta_status` da linha: `<evento>:<resultado>` do registro mais
- * recente — `Purchase:enviado`, `LeadQualificado:recusado`. Um texto só, para
- * um `where` ou um olhar na tabela dizerem como o lead está com o Meta sem
- * abrir o JSON. O detalhe mora em `capi_meta_response`.
+ * ADIANTADO no funil (Purchase, depois LeadQualificado, depois Lead) —
+ * `Purchase:pulado`, `LeadQualificado:recusado`. Um texto só, para um `where`
+ * ou um olhar na tabela dizerem como o lead está com o Meta sem abrir o JSON.
+ * O detalhe mora em `capi_meta_response`.
+ *
+ * O adiantado, e não o mais recente (18/10/2026): o LeadQualificado sai de
+ * hora em hora, DEPOIS do Purchase do ganho, e o mais recente esconderia o
+ * `Purchase:pulado` do ganho sem valor.
  */
 export function statusDaCapi(registros: RegistrosDaCapi): string | null {
-  const ultimo = maisRecente(registros);
-  return ultimo ? `${ultimo.evento}:${ultimo.resultado}` : null;
+  const adiantado = [...CHAVES_DO_REGISTRO].reverse().map((chave) => registros[chave]).find(Boolean);
+  return adiantado ? `${adiantado.evento}:${adiantado.resultado}` : null;
 }
 
 /** O `capi_meta_sent_at`: a entrega mais recente que o Meta ACEITOU. */
@@ -352,9 +346,9 @@ export interface Qualificacao {
   /** A primeira vez que qualificou. */
   desde: string | null;
   /**
-   * A vez mais recente: a última permanência em Visita/Negociação, ou o ganho.
-   * É o horário que o envio em tempo real teria usado no último movimento
-   * qualificador — e o que a repescagem usa quando `desde` já saiu dos 7 dias.
+   * A vez mais recente: a última permanência em Visita/Negociação, a última
+   * visita registrada, ou o ganho. É o que a rodada de hora em hora usa
+   * quando `desde` já saiu dos 7 dias que o Meta aceita.
    */
   ultima: string | null;
 }
@@ -364,47 +358,56 @@ export interface Qualificacao {
  * de agora: quem visitou e depois foi perdido qualificou.
  *
  *   - Ganho qualificou sempre; `desde` é a primeira entrada em etapa
- *     qualificada, ou a entrada na etapa do ganho; `ultima` é o ganho
- *     (`desfechoEm`, ou a última passagem).
+ *     qualificada (ou a primeira visita registrada), ou a entrada na etapa do
+ *     ganho; `ultima` é o ganho (`desfechoEm`, ou a última passagem).
  *   - "Não é oportunidade" (descartado) nunca: a equipe disse que não havia
  *     negócio, e isso vale mais que a passagem pelo funil.
  *   - Senão, as permanências contínuas em Visita/Negociação que duraram
- *     `PERMANENCIA_MINIMA_MS`, ou que duram até agora: `desde` é o começo da
- *     primeira, `ultima` o da mais recente.
- *   - Sem rastro (lead de antes dele), vale a etapa de agora, sem horário.
+ *     `PERMANENCIA_MINIMA_MS`, ou que duram até agora, e as VISITAS
+ *     REGISTRADAS (`visitas`: a interação `visita`, como a do "Chegou na
+ *     loja"), que valem dure o que durar a etapa — o cliente esteve na loja,
+ *     e isso não é arrasto de cartão. `desde` é a primeira, `ultima` a mais
+ *     recente.
+ *   - Sem rastro nem visita (lead de antes deles), vale a etapa de agora, sem
+ *     horário.
  *
- * `desde` (ou `ultima`, quando `desde` passou dos 7 dias) é o `event_time` do
- * LeadQualificado que a repescagem manda.
+ * Quem ainda está na etapa conta aqui desde a entrada; a rodada de hora em
+ * hora espera os 10 min antes de mandar.
  */
 export function quandoQualificou(
   passagens: readonly PassagemDeEtapa[],
   atual: { situacao: string | null | undefined; desfecho: string | null | undefined; desfechoEm?: string | null },
+  visitas: readonly string[] = [],
 ): Qualificacao {
   const nao: Qualificacao = { qualificou: false, desde: null, ultima: null };
   if (atual.desfecho === "descartado") return nao;
   const ordenadas = passagens.filter((p) => Number.isFinite(emMs(p.em))).sort((a, b) => emMs(a.em) - emMs(b.em));
+  const visitasValidas = visitas.filter((v) => Number.isFinite(emMs(v)));
   const qualificada = (chave: string) => ETAPAS_QUALIFICADAS.includes(chave);
+  const primeiro = (xs: readonly string[]) => (xs.length ? xs.reduce((a, b) => (emMs(b) < emMs(a) ? b : a)) : null);
+  const ultimo = (xs: readonly string[]) => (xs.length ? xs.reduce((a, b) => (emMs(b) > emMs(a) ? b : a)) : null);
 
   if (atual.desfecho === "ganho") {
-    const desde = (ordenadas.find((p) => qualificada(p.para)) ?? ordenadas.at(-1))?.em ?? atual.desfechoEm ?? null;
+    const entrada = ordenadas.find((p) => qualificada(p.para))?.em;
+    const desde = primeiro([...(entrada ? [entrada] : []), ...visitasValidas]) ?? ordenadas.at(-1)?.em ?? atual.desfechoEm ?? null;
     const ganhoEm = atual.desfechoEm && Number.isFinite(emMs(atual.desfechoEm)) ? atual.desfechoEm : null;
     return { qualificou: true, desde, ultima: ganhoEm ?? ordenadas.at(-1)?.em ?? desde };
   }
 
-  // O começo de cada permanência que conta.
-  const comecos: string[] = [];
+  // O começo de cada permanência que conta, e cada visita registrada.
+  const momentos: string[] = [...visitasValidas];
   let inicio: string | null = null;
   for (const p of ordenadas) {
     if (qualificada(p.para)) {
       inicio ??= p.em;
       continue;
     }
-    if (inicio !== null && emMs(p.em) - emMs(inicio) >= PERMANENCIA_MINIMA_MS) comecos.push(inicio);
+    if (inicio !== null && emMs(p.em) - emMs(inicio) >= PERMANENCIA_MINIMA_MS) momentos.push(inicio);
     inicio = null;
   }
-  // Ainda numa etapa qualificada: conta, dure o que durar.
-  if (inicio !== null) comecos.push(inicio);
-  if (comecos.length > 0) return { qualificou: true, desde: comecos[0], ultima: comecos[comecos.length - 1] };
+  // Ainda numa etapa qualificada: conta desde a entrada.
+  if (inicio !== null) momentos.push(inicio);
+  if (momentos.length > 0) return { qualificou: true, desde: primeiro(momentos), ultima: ultimo(momentos) };
   if (ordenadas.length === 0 && typeof atual.situacao === "string" && qualificada(atual.situacao)) {
     return { qualificou: true, desde: null, ultima: null };
   }

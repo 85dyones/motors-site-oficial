@@ -826,8 +826,8 @@ correspondência do `Lead`. É o que esta fase faz.
 
 | Evento | Quando | `event_id` | `custom_data` |
 |---|---|---|---|
-| `LeadQualificado` (personalizado) | o lead entra em `visita` ou `negociacao` — pelo quadro (`PATCH /api/leads/gerenciar`) ou pelo "Chegou na loja" (`POST /api/leads/[id]/chegou`) — ou fecha como **ganho** sem ter passado por elas | `<id do lead>:qualificado` | `etapa`, `content_ids`/`content_type` do carro |
-| `Purchase` | o negócio fecha como **ganho**, com `desfecho_valor` | `<id do lead>:purchase` | `value` = o valor gravado, `currency: "BRL"`, `content_ids`/`content_type` |
+| `LeadQualificado` (personalizado) | o lead **fica** em `visita` ou `negociacao` (10 min ou mais), seja pelo quadro ou pelo "Chegou na loja", ou fecha como **ganho** sem ter passado por elas. Vai pela rodada de hora em hora (abaixo), e não no movimento | `<id do lead>:qualificado` | `etapa`, `content_ids`/`content_type` do carro |
+| `Purchase` | o negócio fecha como **ganho**, com `desfecho_valor`. Vai na hora, do movimento (`PATCH /api/leads/gerenciar`) | `<id do lead>:purchase` | `value` = o valor gravado, `currency: "BRL"`, `content_ids`/`content_type` |
 
 - `action_source: system_generated`. O evento nasce no painel, de uma ação da
   equipe, e não de uma página: por isso **não** leva IP nem User-Agent (seriam
@@ -835,9 +835,9 @@ correspondência do `Lead`. É o que esta fase faz.
   em `sendCapiEvent`), `fbp`, `fbc`, `external_id` = `ag_uid`.
 - **Uma vez por lead, cada um.** O `event_id` é fixo e o resultado fica na
   linha (abaixo): visita → negociação não conta duas vezes, nem o lead reaberto
-  e fechado de novo. Recusa do Meta e rede voltam a tentar no próximo
-  movimento que justifique, com o mesmo `event_id` — e o `LeadQualificado`
-  também sozinho, pela repescagem de hora em hora (abaixo).
+  e fechado de novo. Recusa do Meta e rede voltam a tentar com o mesmo
+  `event_id`: o Purchase no próximo movimento que justifique, o
+  `LeadQualificado` na próxima rodada de hora em hora (abaixo).
 - **Sem valor não há Purchase.** Um Purchase de R$ 0 ensinaria o algoritmo a
   otimizar para vendas de zero. O ganho sem valor fica `Purchase:pulado` na
   linha e a tela recebe o aviso; o vendedor informa o valor (o PATCH com o
@@ -859,22 +859,28 @@ quê. Agora:
   `evento`, `event_id`, `resultado` (`enviado` · `recusado` · `sem_rede` ·
   `pulado`), `em`, `http`, o resumo da resposta do Graph (`events_received`,
   `fbtrace_id`, o `error`) e `motivo` quando pulado.
-- `capi_meta_status` é `<evento>:<resultado>` do registro mais recente
-  (`Purchase:enviado`, `LeadQualificado:recusado`, `Lead:pulado`): um `where`
-  ou um olhar na tabela dizem como o lead está com o Meta.
+- `capi_meta_status` é `<evento>:<resultado>` do registro mais adiantado no
+  funil, nesta ordem: Purchase, LeadQualificado, Lead (`Purchase:pulado`,
+  `LeadQualificado:recusado`, `Lead:pulado`). Um `where` ou um olhar na tabela
+  dizem como o lead está com o Meta. É o adiantado, e não o mais recente: o
+  LeadQualificado sai de hora em hora, depois do Purchase do ganho, e não pode
+  esconder um `Purchase:pulado`.
 - `capi_meta_sent_at` é a última entrega que o Meta aceitou.
 
 Sem pixel em `site_settings`, a CAPI inteira está desligada: nada vai e nada
 se registra, como na captura. O `Lead` sem `event_id` (formulário sem sessão
 de rastreio) fica `Lead:pulado` com o motivo.
 
-### A repescagem (2026-10-17)
+### O envio de hora em hora (2026-10-17; o único desde 2026-10-18)
 
-O envio acima só acontece no movimento do quadro. O lead que qualificou antes
-dele existir (até 16/10), ou cuja entrega falhou e que não se mexeu de novo,
-ficava sem `LeadQualificado` para sempre. A rodada agendada da sincronização
-do Meta (`/api/marketing/sincronizar/meta`, pg_cron de hora em hora) agora
-chama `repescarQualificacoes`:
+Até 17/10 o `LeadQualificado` ia no movimento do quadro, na hora. A rodada de
+hora em hora nasceu para repescar o que ficou para trás (o lead que
+qualificou antes do envio existir, ou cuja entrega falhou). Em 18/10 o dono
+decidiu: *"envie de hora em hora"*. O movimento deixou de mandar o
+`LeadQualificado` (o cartão arrastado o mandaria sem volta), e a rodada
+agendada da sincronização do Meta (`/api/marketing/sincronizar/meta`, pg_cron
+de hora em hora) é o único envio, por `repescarQualificacoes`. O Purchase
+continua indo na hora, porque fechar um negócio é uma decisão e não um arrasto:
 
 - **Quem:** o lead que **chegou a qualificar** pelo rastro do funil
   (`leads_eventos`, tipo `etapa`; regra `quandoQualificou`) e cuja entrada
@@ -883,12 +889,19 @@ chama `repescarQualificacoes`:
   ou mais (ou estar lá agora), ou fechar ganho. O rastro de produção mostra
   cartões arrastados coluna a coluna em segundos: isso não é visita. "Não é
   oportunidade" nunca conta. Os 10 min (`PERMANENCIA_MINIMA_MS`) são
-  anti-ruído da tela, não régua de negócio. O envio em tempo real não espera
-  os 10 min: o cartão arrastado continua indo ao Meta na hora.
+  anti-ruído da tela, não régua de negócio. Quem ainda está na etapa só
+  conta depois de completar os 10 min: o cartão arrastado para a Visita um
+  minuto antes da rodada espera a seguinte e, se sair antes, não vai.
+- **Visita registrada vale sozinha:** a interação `visita` (`leads_interacoes`,
+  sem as importadas) qualifica, dure o que durar a etapa. Ela vem do "Chegou na
+  loja" ou do registro manual "Visita à loja", que conta mesmo sem mover o
+  card. O cliente esteve na loja: quem chegou e foi perdido cinco minutos
+  depois qualificou. O `event_time` é o da interação e a etapa vai como
+  `visita`. Por isso a "Visita à loja" é para visita que aconteceu, não para
+  anotar a que vai acontecer.
 - **Janela:** 7 dias menos 1 hora — o Meta recusa evento mais velho que 7 dias.
   `event_time` é a primeira vez que o lead qualificou; se ela já saiu da
-  janela, a mais recente (a volta à Visita, o ganho), o horário que o envio
-  em tempo real teria usado.
+  janela, a mais recente (a volta à Visita, a visita registrada, o ganho).
 - **Quantos:** até 5 por rodada; primeiro quem nunca foi tentado, depois quem
   sai da janela antes. Evento recusado por inválido (code 100) espera 24 h —
   repetir só repetiria a recusa e o alerta; token, permissão, limite de
@@ -898,15 +911,19 @@ chama `repescarQualificacoes`:
   evita o envio em dobro é o registro da linha, relido logo antes de mandar e
   logo antes de gravar — o Purchase gravado pelo painel no meio da rodada
   fica.
-- **Independe dos anúncios:** vai pela CAPI, com outro token; roda mesmo
-  quando a leitura dos anúncios falha. O resultado sai em `repescagem` na
-  resposta da rota, e o registro do lead leva `repescado: true`.
-- **Loja:** a chave de serviço não filtra loja (`leads` e `leads_eventos` ainda
-  sem `org_id`; pixel único em `site_settings`). Na S1, vai por loja, com o
-  pixel de cada uma.
+- **Independe dos anúncios:** vai pela CAPI, com outro token. Começa junto com
+  o resto da rodada, e não no fim: um Graph lento ou a leitura dos anúncios
+  falhando não o deixam sem tempo. O resultado sai em `repescagem` na resposta
+  da rota, e o registro do lead leva `repescado: true`.
+- **Loja:** a chave de serviço não filtra loja. `leads` e `leads_eventos`
+  ainda não têm `org_id`, e o pixel é um só, em `site_settings`.
+  `leads_interacoes` tem `org_id`, mas também não é filtrada, porque o
+  resultado é cruzado com `leads`. Na S1, as três passam a ser lidas por loja,
+  e o envio vai com o pixel de cada uma.
 
-O mesmo rastro (`lerRastroDeEtapas`, paginado) decide o "qualificado" do
-Copiloto do Meta: quem visitou e depois foi perdido conta como qualificado.
+O mesmo rastro (`lerRastroDeEtapas`, paginado) e as mesmas visitas registradas
+(`lerVisitasRegistradas`) decidem o "qualificado" do Copiloto do Meta: quem
+visitou e depois foi perdido conta como qualificado.
 
 ### Onde mora
 

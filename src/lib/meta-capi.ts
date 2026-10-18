@@ -35,7 +35,8 @@ export interface CapiUserData {
  * Os eventos que o servidor manda. Os cinco primeiros espelham o pixel do
  * navegador (mesmo `event_id`, desduplicados). Os dois últimos nascem no
  * PAINEL, sem par no navegador (16/10/2026): `LeadQualificado` quando o lead
- * entra em visita agendada ou negociação, e `Purchase` quando o negócio
+ * fica em visita agendada ou negociação (pela rodada de hora em hora), e
+ * `Purchase` quando o negócio
  * fecha como ganho, com o valor real — ver `lib/qualificacaoParaMeta`.
  */
 export type NomeDoEventoCapi =
