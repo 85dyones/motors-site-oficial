@@ -1,0 +1,437 @@
+{
+  "_fonte": "Exemplos publicados em doc.apibrasil.io (lidos em 18/10/2026), aparados. Um envelope inteiro por produto, como o gateway devolve; dados fictícios de homologação.",
+  "cpf-lite": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 0,12.",
+    "valor_consulta": 0.12,
+    "tax": "0,120",
+    "balance": "105,660",
+    "data": {
+      "nome": "NOME FICTICIO DA SILVA",
+      "nome_mae": "NOME FICTICIO DA SILVA",
+      "data_nascimento": "03/03/1900",
+      "idade": "126 anos"
+    }
+  },
+  "receita-federal": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 0,34.",
+    "valor_consulta": 0.34,
+    "tax": "0,340",
+    "data": {
+      "code": "000",
+      "message": "Pesquisa feita com sucesso",
+      "content": {
+        "nome": {
+          "existe_informacao": "SIM",
+          "conteudo": {
+            "nome": "PESSOA DA SILVA HOMOLOG",
+            "mae": "MAE DA SILVA HOMOLOG",
+            "data_nascimento": "06/10/1900",
+            "idade": "81 anos",
+            "sexo": "M",
+            "documento": "00000000000",
+            "tipo_documento": "CPF",
+            "situacao_receita": "REGULAR",
+            "situacao_receita_data": "2016-11-26"
+          }
+        },
+        "protocolo": "260416092229658"
+      },
+      "date": "2025-08-29",
+      "hour": "14:46:46",
+      "server": "02APIBRASIL"
+    }
+  },
+  "cpf-dados": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 4,50.",
+    "valor_consulta": 4.5,
+    "tax": "4,500",
+    "data": {
+      "resultado": {
+        "nome": "JOAO FICTICIO DE OLIVEIRA",
+        "nome_mae": "MARIA FICTICIA DE OLIVEIRA",
+        "nome_social": null,
+        "data_nascimento": "1992-05-20",
+        "idade": 33,
+        "genero": "NAO INFORMADO",
+        "documento": { "numero": "00000000000", "status": "REGULAR", "tipo": "CPF", "ultima_atualizacao": "01-01-2026" },
+        "endereco": {
+          "logradouro": "RUA FICTICIA DAS ACACIAS",
+          "numero": "123",
+          "complemento": "AP 101",
+          "bairro": "CENTRO",
+          "cidade": "SAO PAULO",
+          "estado": "SP",
+          "cep": "01001-000"
+        },
+        "financeiro": { "faixa_renda_descricao": "De R$ 3.254,01 a R$ 6.508,00", "faixa_renda_valor": "4500.00", "faixa_patrimonial": [] },
+        "indicadores": {
+          "pep": false,
+          "obito": false,
+          "agente_publico": false,
+          "beneficiario_social": false,
+          "restricao_regulatoria": false,
+          "cpf_duplicado": null,
+          "interdicao_judicial": null,
+          "paraisos_fiscais": null,
+          "vicio_jogos": null
+        },
+        "ceis": [],
+        "cnep": [],
+        "processos_criminais": [],
+        "mandado_prisao": null,
+        "lista_restritiva_internacional": [],
+        "inelegibilidade_improbidade_administrativa": [],
+        "embargos_ambientais": [],
+        "trabalho_analogo_escravidao": null,
+        "participacao_sociedade_risco": [],
+        "midias_negativas": null,
+        "processos_eleitorais": null,
+        "classificacao_profissao_natureza_ocupacao": null
+      }
+    }
+  },
+  "analise-credito-plus-pf": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 29,02.",
+    "valor_consulta": 29.02,
+    "tax": "29,020",
+    "data": {
+      "resultado": {
+        "identificacao": {
+          "nomes": "JOAO DA SILVA SANTOS",
+          "nome_mae": "MARIA SILVA SANTOS",
+          "data_nascimento": "15/07/1985",
+          "situacao_receita": "Regular",
+          "sexo_consultado": "Masculino",
+          "documento": "00000000000",
+          "obito": null,
+          "titulo_eleitor": "0000000000000",
+          "regiao_cpf": "SP",
+          "data_atualizacao": "10/03/2026"
+        },
+        "localizacao": {
+          "tipo_logradouro": "Avenida",
+          "nome_logradouro": "AVENIDA PAULISTA",
+          "numero_logradouro": "1000",
+          "complemento": "APTO 101",
+          "bairro": "CENTRO",
+          "cidade": "SAO PAULO",
+          "unidade_federativa": "SP",
+          "cep": "01310100",
+          "ddd_1": "0011",
+          "telefone_1": "987654321"
+        },
+        "score_classificacao_varios_modelos": [
+          { "nome_score": "NOVO RISCO 6 MESES", "score": "380", "classificacao": "E", "texto": "Risco alto" },
+          { "nome_score": "RENDA PRESUMIDA", "score": null, "classificacao": null, "texto": "De R$ 801 até R$ 1.400" }
+        ],
+        "decisao": { "texto": "NEGOCIAÇÃO NÃO RECOMENDADA", "aprova": "N", "score": "0002" },
+        "debitos": [],
+        "resumo_ocorrencias_de_debitos": { "total_devedor": null },
+        "titulos_protestados": [],
+        "resumo_titulos_protestados": { "total": null },
+        "cheque_talao_sustado": [],
+        "relacao_devolucoes_informadas_pelo_ccf": [],
+        "relacao_de_acoes_civeis": [],
+        "resumo_de_acoes_civeis": { "quantidade": null },
+        "consultas_anteriores": [{ "data": "15/03/2026", "informante": "BANCO EXEMPLO S.A.", "tipo_ocorrencia": "Cartão de crédito", "valor": "0,00" }],
+        "resumo_consultas_anteriores_90_dias": { "total": "00004" }
+      }
+    }
+  },
+  "acerta-essencial-positivo": {
+    "error": false,
+    "message": "Requisição processada com sucesso",
+    "balance": "4.971,310",
+    "tax": "0.340",
+    "api_limit_for": "credit",
+    "response": {
+      "error": false,
+      "message": "Requisição processada com sucesso",
+      "data": {
+        "status": true,
+        "homolog": true,
+        "msg": "consulta realizada com sucesso!",
+        "dados": [
+          {
+            "resumoRetorno": { "protocolo": "27d8f49167a343b", "dataConsulta": "05/09/2025 | 15:29" },
+            "scoreRating": { "score": 850 },
+            "acertaEssencialPositivo": {
+              "consultaCredito": {
+                "dadosCadastrais": {
+                  "nome": "JOAO DA SILVA",
+                  "nomeMae": "MARIA DA SILVA",
+                  "dataNascimento": "01/09/1990",
+                  "cpf": "00000000000",
+                  "situacao": "Regular",
+                  "endereco": "RUA EXEMPLO 10",
+                  "bairro": "CENTRO",
+                  "cidade": "BELO HORIZONTE",
+                  "uf": "MG",
+                  "cep": "31030071",
+                  "telefone": "31999999999",
+                  "rendaPresumida": "De R$ 1.401 até R$ 2.000",
+                  "estadoCivil": "SOLTEIRO",
+                  "grauInstrucao": "SUPERIOR"
+                },
+                "score": { "score": "556", "probabilidade": "00400", "decisao": 0, "mensagem": "Risco moderado" },
+                "pendenciasFinanceiras": [],
+                "chequesSemFundo": [],
+                "chequesSustados": [],
+                "acoesCiveis": [],
+                "protestos": [],
+                "creditoObtido": [],
+                "participacaoEmEmpresas": [],
+                "historicoConsultas": [{ "data": "07/08/2025", "empresa": "EMPRESA EXEMPLO LTDA" }],
+                "resumoConsulta": {
+                  "pendenciasFinanceiras": { "quantidadeTotal": 0, "valorTotal": 0 },
+                  "protestos": { "quantidadeTotal": 0, "valorTotal": 0 },
+                  "chequesSemFundo": { "quantidadeTotal": 0, "valorTotal": 0 },
+                  "chequesSustados": { "quantidadeTotal": 0, "valorTotal": 0 },
+                  "acoesCiveis": { "quantidadeTotal": 0, "valorTotal": 0 }
+                }
+              },
+              "statusRetorno": 1,
+              "providerId": 1,
+              "prioridade": 1
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cnpj": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 0,04.",
+    "valor_consulta": 0.04,
+    "tax": "0,040",
+    "data": {
+      "status": true,
+      "msg": "Foi encontrado informações!",
+      "cnpj": {
+        "empresa": { "razao_social": "APIBRASIL SITES E SOFTWARES LTDA", "natureza_juridica": "2062", "capital_social": 10000, "porte_empresa": "03" },
+        "nome_fantasia": "APIBRASIL SITES E SOFTWARE",
+        "cnpj": "44959669000180",
+        "matriz_filial": "1",
+        "situacao_cadastral": "02",
+        "data_situacao_cadastral": "20220121",
+        "motivo_situacao": { "descricao": "SEM MOTIVO" },
+        "data_inicio_atividades": "20220121",
+        "cnae_fiscal": "6311900",
+        "cnae": [{ "descricao": "Tratamento de dados, provedores de serviços de aplicação e serviços de hospedagem na internet" }],
+        "cnae_fiscal_secundaria": "6201501,6204000,6319400,6399200",
+        "tipo_logradouro": "RUA",
+        "logradouro": "ACUCENA",
+        "numero": "134",
+        "complemento": "",
+        "bairro": "PARQUE XANGRI-LA",
+        "cep": "32187090",
+        "uf": "MG",
+        "municipio": { "descricao": "CONTAGEM" },
+        "ddd1": "31",
+        "telefone1": "94359434",
+        "correio_eletronico": "[omitido]",
+        "simples": { "opcao_simples": "S", "data_opcao_simples": "20220121", "opcao_mei": "N" },
+        "socios": [
+          {
+            "nome_socio": "JONATHAN HENRIQUE DA SILVA MOTTA",
+            "cnpj_cpf_socio": "***067476**",
+            "qualificacao": { "descricao": "Sócio-Administrador" },
+            "data_entrada_sociedade": "20220121",
+            "faixa_etaria": "4"
+          }
+        ]
+      }
+    }
+  },
+  "cnpj-cadastral": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 0,55.",
+    "valor_consulta": 0.55,
+    "tax": "0,550",
+    "data": {
+      "resultado": {
+        "nome": "ORBITA DADOS DIGITAIS LTDA",
+        "data_nascimento": "2021-09-14",
+        "idade": 5,
+        "size": "EMPRESA DE PEQUENO PORTE",
+        "documento": { "numero": "37142922000143", "status": "ATIVA", "tipo": "CNPJ", "ultima_atualizacao": "2026-02-11" },
+        "legalNatureDescription": null,
+        "endereco": { "logradouro": "Rua das Laranjeiras", "numero": "742", "bairro": "Vila Horizonte", "cidade": null, "estado": "MG", "cep": "30130010" },
+        "financeiro": { "social_capital": "15000.00", "faixa_renda_valor": "420000.00" },
+        "members": [
+          {
+            "nome": "CARLOS EDUARDO PEREIRA LIMA",
+            "documento": { "tipo": "CPF", "numero": "12345678901", "status": "REGULAR" },
+            "data_nascimento": "1988-11-17",
+            "idade": 37,
+            "nome_mae": "ANA LUCIA PEREIRA",
+            "indicadores": { "pep": false, "obito": false, "beneficiario_social": false, "restricao_regulatoria": false }
+          }
+        ]
+      }
+    }
+  },
+  "cadastral-premium-pj": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 3,75.",
+    "valor_consulta": 3.75,
+    "tax": "3,750",
+    "data": {
+      "cadastralPremiumPJ": {
+        "dadosCadastrais": {
+          "razaoSocial": "EMPRESA FICTICIA DE HOMOLOGACAO LTDA",
+          "nomeFantasia": "EMPRESA FICTICIA",
+          "situacao": "ATIVO",
+          "dataFundacao": "21/01/2022",
+          "capitalInicial": "R$200.000,00",
+          "naturezaJuridica": "2062 - SOCIEDADE EMPRESARIA LIMITADA",
+          "ramoAtividade": "TRATAMENTO DE DADOS, PROVEDORE",
+          "inscricaoEstadual": "Para dados de IE tente novamente em alguns instantes.",
+          "cnpj": "44959669000180",
+          "uf": "MG"
+        },
+        "enderecos": [{ "logradouro": "RUA EXEMPLO", "numero": "LOJA 9", "bairro": "BAIRRO FICTICIO", "cep": "31140-020", "cidade": "BELO HORIZONTE", "uf": "MG" }],
+        "telefones": [{ "ddd": "31", "numero": "37000000", "tipo": "COMERCIAL" }],
+        "emails": [{ "email": "[omitido]" }],
+        "socios": [{ "nome": "FULANO FICTICIO DA SILVA", "cpf": "00000000191", "cargo": "SOCIO", "percentualParticipacao": 30, "temRestricoes": false }],
+        "administradores": [],
+        "participacoesPorSocios": [
+          { "socioNome": "BELTRANO FICTICIO SOUZA", "participacoes": [{ "empresa": "EMPRESA FICTICIA SECUNDARIA LTDA", "participacaoEmPorcentagem": 100 }] }
+        ]
+      }
+    }
+  },
+  "receita-federal-pj-v3": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 6,35.",
+    "valor_consulta": 6.35,
+    "tax": "6,350",
+    "data": {
+      "results": {
+        "nome_empresarial": "ALFA DADOS E SISTEMAS LTDA",
+        "nome_fantasia": "ALFA DADOS",
+        "data_abertura": "2019-07-15",
+        "situacao_cadastral": { "codigo": "2", "data": "2019-07-15", "motivo": null },
+        "natureza_juridica": { "codigo": "2062", "descricao": "Sociedade Empresaria Limitada" },
+        "cnae_principal": { "codigo": "6202300", "descricao": "Desenvolvimento e licenciamento de programas de computador customizaveis" },
+        "cnae_secundarias": [
+          { "codigo": "6201501", "descricao": "Desenvolvimento de programas de computador sob encomenda" },
+          { "codigo": "6204000", "descricao": "Consultoria em tecnologia da informação" }
+        ],
+        "endereco": {
+          "tipo_logradouro": "AVENIDA",
+          "logradouro": "DAS ACACIAS",
+          "numero": "245",
+          "complemento": "SALA 402",
+          "bairro": "JARDIM ATLANTICO",
+          "cep": "30130010",
+          "uf": "MG",
+          "municipio": { "codigo": "4123", "descricao": "BELO HORIZONTE" }
+        },
+        "telefones": [{ "ddd": "31", "numero": "33334444" }],
+        "correio_eletronico": "[omitido]",
+        "capital_social": 850000,
+        "porte": "03",
+        "informacoes_adicionais": { "optante_simples": true, "optante_mei": false },
+        "socios": [{ "nome": "CARLOS EDUARDO FERREIRA", "documento": "12345678901", "qualificacao": "49", "tipo_socio": "2", "data_inclusao": "2019-07-15" }]
+      }
+    }
+  },
+  "analise-credito-basic-pj": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 10,06.",
+    "valor_consulta": 10.06,
+    "tax": "10,060",
+    "data": {
+      "resultado": {
+        "dados_cadastrais": {
+          "nome_empresa": "EMPRESA FICTICIA LTDA",
+          "nome_fantasia": "FAKE COMERCIO",
+          "status_empresa": "ATIVO",
+          "nire": "35200123456",
+          "contagem_filiais": "1",
+          "numero_telefone": "1133334444"
+        },
+        "negativacoes": {
+          "controle_pendencias_credito": "0",
+          "apontamentos": [],
+          "ccf_apontamentos": [],
+          "acoes_judiciais_apontamentos": [],
+          "data_ultimo_apontamento": { "ano": null }
+        },
+        "protestos": [{ "data_consulta": "2026-03-06", "total_protestos": null, "erro": null }],
+        "consultas": {
+          "contagem_consultas_ultimos_30_dias": 1,
+          "contagem_consultas_mais_90_dias": 5,
+          "detalhes_consultas": [{ "segmento": "Comércio" }]
+        },
+        "quadro_societario": {
+          "capital_social": "50000",
+          "nivel_confianca": "0",
+          "socios": [{ "cpf_cnpj": "12345678901", "nomes": "JOAO DA SILVA FICTICIO", "descricao_relacionamento": "SOCIO", "percentual_participacao": "60.0" }]
+        },
+        "participacao_societaria_em_outras_empresas": [],
+        "status_cadastro_positivo": "1"
+      }
+    }
+  },
+  "dossie-credito-pj": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 4,40.",
+    "valor_consulta": 4.4,
+    "tax": "4,400",
+    "data": {
+      "credcadastral": {
+        "dados_receita_federal": {
+          "tipo_pessoa": "JURIDICA",
+          "razao_social": "EMPRESA FICTICIA DE HOMOLOGACAO LTDA",
+          "situacao_receita": "ATIVA",
+          "data_nascimento_fundacao": "01/01/2010",
+          "natureza_juridica": "2062-SOCIEDADE EMPRESARIA LIMITADA",
+          "atividade_economica_principal": "6311900-TRATAMENTO DE DADOS",
+          "email": ""
+        },
+        "informacoes_da_empresa": {
+          "cnpj": "11222333000181",
+          "situacao": "ATIVA",
+          "razao_social": "EMPRESA FICTICIA DE HOMOLOGACAO LTDA",
+          "razao_social_anterior": "",
+          "nome_fantasia": "FICTICIA",
+          "cnae_primario": "6311900-TRATAMENTO DE DADOS",
+          "capital_social": "10000,00",
+          "porte": "ME"
+        },
+        "pend_financeiras": { "quantidade_ocorrencia": "0", "valor_total": "", "provedores": [{ "provedor": "AMOSTRA" }] },
+        "protestos": { "quantidade_ocorrencia": "0", "ultimo_protesto": "" },
+        "ch_sem_fundos_bacen": { "quantidade_ocorrencia": "0", "ocorrencias": [] },
+        "somente_telefone": { "registro_localizado": "1", "dados": [{ "ddd": "00", "num_telefone": "00000000" }] }
+      },
+      "pdf": "https://gateway.apibrasil.io/proxy/?u=https%3A%2F%2Fanalise-credito.apidocumentos.com.br%2Fpdf%2Fhomolog"
+    }
+  },
+  "cadastral-score-pj": {
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 1,30.",
+    "valor_consulta": 1.3,
+    "tax": "1,300",
+    "data": {
+      "credcadastral": {
+        "dados_receita_federal": {
+          "razao_social": "EMPRESA FICTICIA DE HOMOLOGACAO LTDA",
+          "situacao_receita": "ATIVA",
+          "natureza_juridica": "2062-SOCIEDADE EMPRESARIA LIMITADA"
+        },
+        "informacoes_da_empresa": { "cnae_primario": "6311900-TRATAMENTO DE DADOS", "capital_social": "10000.00", "porte": "" },
+        "informacoes_alertas_restricoes": { "quantidade_ocorrencia": "0" },
+        "scores": {
+          "quantidade_ocorrencias": "1",
+          "ocorrencias": [{ "score": "700", "risco": "BAIXO", "probabilidade_inadimplencia": "20,00", "classificacao": "B" }]
+        }
+      }
+    }
+  }
+}
