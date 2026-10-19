@@ -943,7 +943,8 @@ export function quadroDeChecagens(retrato: RetratoDaConsulta): Checagem[] {
 
   return [
     linha("leilao", "Leilão", aponta("leilao"), sem("leilao", faltou("leilao")), c ? "Sem indício" : "Sem registro"),
-    linha("sinistro", "Sinistro", aponta("sinistro"), sem("sinistro", faltou("sinistro")), "Sem indício"),
+    // `check_list`: item do Check List que a doc não descreve; aparece aqui para não sumir do quadro.
+    linha("sinistro", "Sinistro", aponta("sinistro", "check_list"), sem("sinistro", faltou("sinistro")), "Sem indício"),
     linha("gravame", "Financiamento", aponta("gravame", "restricao_financeira"), sem("gravame", faltou("gravame")), "Sem gravame em aberto"),
     linha("roubo_furto", "Roubo e furto", aponta("roubo_furto", "roubo_furto_historico"), sem("roubo_furto", semNacional), "Sem ocorrência"),
     linha("renajud", "Bloqueio judicial", aponta("renajud", "restricao_judicial"), sem("renajud", semNacional && semEstadual), "Nada consta"),

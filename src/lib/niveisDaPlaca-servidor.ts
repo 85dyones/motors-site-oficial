@@ -42,6 +42,13 @@ export const MIGRACAO_DOS_NIVEIS_DA_PLACA = "20261019120000_niveis_da_consulta_d
 export const PRODUTO_DAS_CONSULTAS_POR_NIVEL = "niveis";
 
 const DIA_MS = 86_400_000;
+/**
+ * A idade da guardada é conferida antes de pagar, e o gatilho do banco a
+ * confere de novo na gravação, até a espera do fornecedor depois. A folga
+ * evita pagar e ter a gravação recusada na borda do prazo.
+ */
+const FOLGA_DO_PRAZO_MS = ESPERA_DA_APIBRASIL_MS + 5 * 60_000;
+const dentroDoPrazo = (criadoEm: string, dias: number, agora: Date) => agora.getTime() - new Date(criadoEm).getTime() + FOLGA_DO_PRAZO_MS <= dias * DIA_MS;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Os parâmetros
@@ -97,6 +104,8 @@ export interface NivelComPrecoDaPlaca {
 
 export interface AprofundarDaPlaca {
   nivel: NivelDaPlaca;
+  /** O id da guardada a reaproveitar; `null` quando ela não serve (velha, ou de outro modo do fornecedor) e subir é o nível inteiro. */
+  aprofundarDe: string | null;
   rotulo: string;
   /** Os produtos que serão pagos agora. */
   nomesDosProdutos: string[];
@@ -128,17 +137,18 @@ export function nivelDaGuardada(c: ConsultaGuardada): { nivel: NivelDaPlaca; pro
  */
 export function opcoesDeAprofundar(c: ConsultaGuardada, parametros: ParametrosDaPlaca, homologacaoAtual: boolean, agora = new Date()): AprofundarDaPlaca[] {
   const { nivel, produtos } = nivelDaGuardada(c);
-  const idadeMs = agora.getTime() - new Date(c.criadoEm).getTime();
-  const reaproveita = c.id !== null && c.homologacao === homologacaoAtual && idadeMs <= parametros.diasParaAprofundar * DIA_MS && Boolean(c.fragmentos);
+  const reaproveita = c.id !== null && c.homologacao === homologacaoAtual && dentroDoPrazo(c.criadoEm, parametros.diasParaAprofundar, agora) && Boolean(c.fragmentos);
   const jaTem = reaproveita ? produtos.filter((p) => p === "veiculos-total" || (c.fragmentos as Record<string, unknown>)[p] !== undefined) : [];
   return NIVEIS_DA_PLACA.filter((n) => ordemDoNivel(n.id) > ordemDoNivel(nivel)).map((n) => {
     const faltam = produtosQueFaltam(n.id, jaTem);
+    const reaproveitados = n.produtos.length - faltam.length;
     return {
       nivel: n.id,
+      aprofundarDe: reaproveitados > 0 ? c.id : null,
       rotulo: n.rotulo,
       nomesDosProdutos: faltam.map((p) => PRODUTOS_DA_PLACA[p].nome),
       preco: precoDosProdutos(faltam, parametros.precos),
-      reaproveitados: n.produtos.length - faltam.length,
+      reaproveitados,
     };
   });
 }
@@ -261,8 +271,7 @@ export async function consultarPlacaPorNivel(
     if (error) return { ok: false, status: 503, motivo: "Não deu para ler a consulta a aprofundar; nada foi cobrado.", podeTerCobrado: false };
     base = linhaParaConsulta(data);
     if (!base || base.placa !== pedido.placa) return { ok: false, status: 404, motivo: "A consulta a aprofundar não é desta placa.", podeTerCobrado: false };
-    const idade = agora.getTime() - new Date(base.criadoEm).getTime();
-    if (base.homologacao !== deps.homologacao || idade > deps.parametros.diasParaAprofundar * DIA_MS) {
+    if (base.homologacao !== deps.homologacao || !dentroDoPrazo(base.criadoEm, deps.parametros.diasParaAprofundar, agora)) {
       return {
         ok: false,
         status: 400,
@@ -296,7 +305,9 @@ export async function consultarPlacaPorNivel(
       const leitura = LEITORES_DA_PLACA[produto](chamada.dados);
       // A Base Estadual diz a placa: fora do teste, resposta de outra placa não entra.
       const placaDaResposta = produto === "estadual" ? String((chamada.dados as { bin_estadual?: { placa?: unknown } } | null)?.bin_estadual?.placa ?? "").toUpperCase() : "";
-      if (!leitura) motivo = "respondeu sem os dados esperados";
+      // Resposta de teste com o painel em produção: o carro de exemplo nunca entra numa placa real.
+      if (chamada.homologacao && !deps.homologacao) motivo = "respondeu em modo de teste (dados de exemplo)";
+      else if (!leitura) motivo = "respondeu sem os dados esperados";
       else if (produto === "estadual" && !deps.homologacao && !chamada.homologacao && placaDaResposta && placaDaResposta !== pedido.placa) motivo = `respondeu sobre outra placa (${placaDaResposta})`;
       else (fragmentos as Record<string, unknown>)[produto] = leitura;
     }
@@ -310,9 +321,15 @@ export async function consultarPlacaPorNivel(
   const algumVeio = Object.keys(fragmentos).length > 0;
   if (!algumVeio) {
     const semSaldo = chamadas.some(({ chamada }) => !chamada.ok && chamada.daConta && /saldo/.test(chamada.motivo));
+    // Mesmo sem saldo, outro produto chamado junto pode ter estourado o tempo e cobrado.
     const podeTerCobrado = !deps.homologacao && tentativas.some((t) => !t.reaproveitado && t.pode_ter_cobrado);
     return semSaldo
-      ? { ok: false, status: 402, motivo: "A conta da APIBrasil está sem saldo. Ponha crédito no painel deles e consulte de novo.", podeTerCobrado: false }
+      ? {
+          ok: false,
+          status: 402,
+          motivo: `A conta da APIBrasil está sem saldo. Ponha crédito no painel deles e consulte de novo.${podeTerCobrado ? " Algum produto pode ter sido cobrado antes: confira o saldo." : ""}`,
+          podeTerCobrado,
+        }
       : { ok: false, status: 502, motivo: `A consulta não voltou. ${avisos.join(" ")}`, podeTerCobrado };
   }
 

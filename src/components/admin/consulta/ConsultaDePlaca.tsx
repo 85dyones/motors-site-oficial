@@ -124,6 +124,7 @@ export default function ConsultaDePlaca({
   /** A placa esperando a escolha do nível (placa nova, ou "consultar de novo"). */
   const [escolhendo, setEscolhendo] = useState<string | null>(null);
   const [nivelEscolhido, setNivelEscolhido] = useState<NivelDaPlaca | null>(null);
+  const pagando = useRef(false);
   // Um relógio só por montagem: a idade da consulta não precisa andar sozinha.
   const [agora] = useState(() => Date.now());
 
@@ -193,6 +194,17 @@ export default function ConsultaDePlaca({
 
   /** Paga um nível (ou o aprofundar de uma guardada), com confirmação e a trava contra repetição. */
   const pagar = async (placaAlvo: string, nivel: NivelDaPlaca, preco: number | null, produtos: string[], aprofundarDe: string | null = null) => {
+    // Duplo clique, ou um clique durante a confirmação: uma consulta paga por vez.
+    if (pagando.current) return;
+    pagando.current = true;
+    try {
+      await pagarUmaVez(placaAlvo, nivel, preco, produtos, aprofundarDe);
+    } finally {
+      pagando.current = false;
+    }
+  };
+
+  const pagarUmaVez = async (placaAlvo: string, nivel: NivelDaPlaca, preco: number | null, produtos: string[], aprofundarDe: string | null) => {
     setRetorno(null);
     if (!temToken) {
       setRetorno({ tipo: "erro", texto: "Falta configurar APIBRASIL_TOKEN na Vercel para consultar." });
@@ -635,7 +647,8 @@ export default function ConsultaDePlaca({
                     key={a.nivel}
                     type="button"
                     disabled={carregando || a.nomesDosProdutos.length === 0}
-                    onClick={() => void pagar(consulta.placa, a.nivel, a.preco, a.nomesDosProdutos, consulta.id)}
+                    data-reaproveita={a.aprofundarDe ? "sim" : "nao"}
+                    onClick={() => void pagar(consulta.placa, a.nivel, a.preco, a.nomesDosProdutos, a.aprofundarDe)}
                     className="mt-btn mt-btn-primario mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
                     title={a.reaproveitados > 0 ? `Reaproveita ${a.reaproveitados} ${a.reaproveitados === 1 ? "produto" : "produtos"} desta consulta` : undefined}
                     data-aprofundar={a.nivel}

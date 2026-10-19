@@ -19,11 +19,16 @@
  *
  * Nada de dado pessoal sai daqui (regra do dono, 06/10/2026): o nome e o
  * documento do proprietário e do financiado, que a Base Estadual e o
- * Histórico de Proprietários trazem, são lidos só para contar e descartados.
+ * Histórico de Proprietários trazem, não são lidos. Texto livre do
+ * fornecedor passa por `semDocumentos`, e as mensagens de restrição do
+ * Detran (que podem citar comprador ou financiado pelo nome) viram só a
+ * categoria (`classificarRestricao`). A tranca do banco olha os NOMES das
+ * chaves; o texto é responsabilidade daqui.
  *
  * Os preços NÃO estão aqui: vêm de `parametros_consulta_veiculo`. O que está
  * aqui é o catálogo (que produto traz o quê) e a política do fornecedor.
  */
+import { cnpjValido } from "./cnpj";
 import {
   dataDoFornecedor,
   decodificarChassi,
@@ -168,6 +173,44 @@ const sim = (v: unknown) => v === true || v === 1 || /^(1|s|sim|true)$/i.test(te
 /** "0", 0, false, "N", "NAO" → não. Qualquer outra coisa é "não informado". */
 const nao = (v: unknown) => v === false || v === 0 || /^(0|n|n[aã]o|false)$/i.test(texto(v) ?? "");
 
+/**
+ * Texto livre do fornecedor, sem número de documento: CPF e CNPJ (com ou sem
+ * máscara) e qualquer sequência de 11 ou 14 dígitos viram "[omitido]". Vale
+ * para o que pode ir ao banco ou à tela (motivo de erro, texto do recall,
+ * descrição de item). Nome de pessoa não se reconhece por regex: por isso as
+ * mensagens de restrição do Detran não são guardadas como texto, só
+ * classificadas (`classificarRestricao`).
+ */
+export function semDocumentos(t: string): string {
+  return t
+    .replace(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g, "[omitido]")
+    .replace(/\d{3}\.\d{3}\.\d{3}-\d{2}/g, "[omitido]")
+    .replace(/\*{3}\.?\d{3}\.?\d{3}-?\*{2}/g, "[omitido]")
+    .replace(/(?<!\d)(\d{11}|\d{14})(?!\d)/g, "[omitido]");
+}
+
+/**
+ * As mensagens de restrição do Detran viram categorias fixas: a mensagem
+ * crua pode trazer nome e documento de comprador, vendedor ou financiado
+ * ("COMUNICACAO DE VENDA - COMPRADOR FULANO CPF …"), e nenhuma regex
+ * reconhece nome. Fica o tipo da restrição; o texto, nunca.
+ */
+const CATEGORIAS_DE_RESTRICAO: Array<[RegExp, string]> = [
+  [/renajud|judicial/i, "Restrição judicial"],
+  [/roubo|furto/i, "Roubo ou furto"],
+  [/aliena|financ|gravame|arrend|reserva de dom/i, "Alienação ou financiamento"],
+  [/comunica[cç][aã]o de venda/i, "Comunicação de venda"],
+  [/administr/i, "Restrição administrativa"],
+  [/tribut|ipva/i, "Restrição tributária"],
+  [/ambient|ibama/i, "Restrição ambiental"],
+  [/guincho|p[aá]tio|remo[cç]/i, "Veículo em pátio ou removido"],
+  [/baix/i, "Baixa do veículo"],
+  [/bloque/i, "Bloqueio"],
+];
+export function classificarRestricao(mensagem: string): string {
+  return CATEGORIAS_DE_RESTRICAO.find(([re]) => re.test(mensagem))?.[1] ?? "Outra restrição (detalhe no Detran)";
+}
+
 /** A leitura do envelope de um produto: erro, custo e o miolo. */
 export type ChamadaDaPlaca =
   | { ok: true; dados: unknown; custo: number | null; homologacao: boolean }
@@ -180,7 +223,9 @@ export function custoDaResposta(c: Objeto | null): number | null {
   const valorDoHistorico = pegar(c, "consulta.valor");
   if (pegar(c, "consulta.debitado") === true && typeof valorDoHistorico === "number" && valorDoHistorico >= 0) return valorDoHistorico;
   for (const m of [c.message, c.msg].filter((x): x is string => typeof x === "string")) {
-    const achou = m.match(/tarifad[oa][^0-9]*R?\$?\s*([0-9]+(?:[.,][0-9]+)?)/i);
+    // Só "foi tarifado em R$ X", e nunca "não foi tarifado… limite 990000".
+    if (/n[aã]o\s+foi\s+tarifad/i.test(m)) continue;
+    const achou = m.match(/foi\s+tarifad[oa]\s+em\s+R\$\s*([0-9]+(?:[.,][0-9]+)?)/i);
     if (achou) {
       const n = numeroDoFornecedor(achou[1]);
       return n !== null && n >= 0 ? n : null;
@@ -213,11 +258,12 @@ export function lerChamadaDaPlaca(status: number, corpo: unknown, produto: Produ
 
   if (produto === "historico-proprietarios") {
     const dados = objeto(c.dados);
-    if (c.status === true && dados) return { ok: true, dados, custo, homologacao };
     const msg = texto(c.msg) ?? texto(c.message);
+    // O erro vence o miolo: HTTP de erro com `status: true` não é resposta boa.
     if (status >= 400 || c.status === false || c.error === true) {
-      return falha(msg ? `a APIBrasil recusou: ${msg.slice(0, 200)}` : `a APIBrasil recusou a consulta (HTTP ${status})`, { podeTerCobrado: cobra, custo });
+      return falha(msg ? `a APIBrasil recusou: ${semDocumentos(msg).slice(0, 200)}` : `a APIBrasil recusou a consulta (HTTP ${status})`, { podeTerCobrado: cobra, custo });
     }
+    if (c.status === true && dados) return { ok: true, dados, custo, homologacao };
     // Pode vir no envelope padrão.
     const padrao = objeto(c.data);
     if (padrao) return { ok: true, dados: objeto(padrao.dados) ?? padrao, custo, homologacao };
@@ -225,7 +271,7 @@ export function lerChamadaDaPlaca(status: number, corpo: unknown, produto: Produ
   }
 
   if (status >= 400 || c.error === true) {
-    const msg = (texto(c.message) ?? "").slice(0, 200);
+    const msg = semDocumentos(texto(c.message) ?? "").slice(0, 200);
     if (/saldo insuficiente|sem saldo|cr[ée]dito insuficiente/i.test(msg)) return falha("a conta da APIBrasil está sem saldo", { daConta: true, podeTerCobrado: false, custo });
     return falha(msg ? `a APIBrasil recusou: ${msg}` : `a APIBrasil recusou a consulta (HTTP ${status})`, { podeTerCobrado: cobra, custo });
   }
@@ -249,9 +295,11 @@ export interface FragmentoEstadual {
   restricao: { financiamento: boolean | null; geral: boolean | null; renajud: boolean | null; rouboFurto: boolean | null };
   /** O agente e a data; o financiado nunca. */
   financiamento: { agente: string | null; tipo: string | null; dataInclusao: string | null } | null;
+  /** `null` = não informado. Pendência confirmada sem valor legível entra em `debitosSemValor`. */
   debitos: DebitosDoRetrato;
-  /** As mensagens de restrição do Detran, como vieram. */
-  mensagens: string[];
+  debitosSemValor: string[];
+  /** As restrições do Detran por CATEGORIA (`classificarRestricao`), sem o texto cru. */
+  restricoesListadas: string[];
   /** Só quando o faturado foi EMPRESA (CNPJ é dado público de empresa); pessoa física nunca. */
   cnpjDoFaturamento: string | null;
 }
@@ -300,19 +348,31 @@ export interface FragmentosDaPlaca {
   "historico-proprietarios"?: FragmentoHistorico;
 }
 
+/** O `status_retorno` do fornecedor diz se a consulta foi concluída (código 1); ausente, não decide. */
+function concluida(o: Objeto): boolean {
+  const s = objeto(o.status_retorno);
+  if (!s) return true;
+  return texto(s.codigo) === "1";
+}
+
 export function lerEstadual(d: unknown): FragmentoEstadual | null {
   const b = objeto(pegar(d, "bin_estadual")) ?? objeto(d);
-  if (!b || (!texto(b.placa) && !texto(b.chassi) && !objeto(b.restricoes))) return null;
-  const r = objeto(b.restricoes);
-  const pendencia = (chave: string): number | null => {
-    const o = objeto(r?.[chave]);
+  // Sem o bloco de restrições (ou com a consulta não concluída) não há o que conferir:
+  // uma resposta que só ecoa a placa não pode virar "nada consta".
+  const r = objeto(b?.restricoes);
+  if (!b || !r || !concluida(b)) return null;
+  const debitosSemValor: string[] = [];
+  const pendencia = (chave: string, nome: string): number | null => {
+    const o = objeto(r[chave]);
     if (!o) return null;
     if (nao(o.existe_pendencia)) return 0;
-    // Pendência sem valor legível: `null` ("não informado"), nunca zero.
-    return numeroDoFornecedor(o.valor_pendencia);
+    const valor = numeroDoFornecedor(o.valor_pendencia);
+    if (sim(o.existe_pendencia) && (valor === null || valor <= 0)) debitosSemValor.push(nome);
+    // Sem a confirmação "0" ou "1", o valor sozinho só vale se for legível.
+    return sim(o.existe_pendencia) || valor !== null ? valor : null;
   };
   const flag = (v: unknown): boolean | null => (sim(v) ? true : nao(v) ? false : null);
-  const f = objeto(r?.financiamento);
+  const f = objeto(r.financiamento);
   const agente = texto(f?.nome_agente_financeiro);
   const tipoDoc = texto(b.tipo_documento_do_faturado);
   const docFaturado = (texto(b.numero_identificacao_do_faturado) ?? "").replace(/\D/g, "");
@@ -340,31 +400,47 @@ export function lerEstadual(d: unknown): FragmentoEstadual | null {
     },
     situacao: texto(b.situacao),
     situacaoDoChassi: texto(b.situacao_chassi),
-    baixado: flag(r?.veiculo_baixado),
+    baixado: flag(r.veiculo_baixado),
     restricao: {
-      financiamento: flag(r?.existe_restricao_financiamento),
-      geral: flag(r?.existe_restricao_geral),
-      renajud: flag(r?.existe_restricao_renajud),
-      rouboFurto: flag(r?.existe_restricao_roubo_furto),
+      financiamento: flag(r.existe_restricao_financiamento),
+      geral: flag(r.existe_restricao_geral),
+      renajud: flag(r.existe_restricao_renajud),
+      rouboFurto: flag(r.existe_restricao_roubo_furto),
     },
     financiamento: agente || texto(f?.tipo_restricao_financiamento) ? { agente, tipo: texto(f?.tipo_restricao_financiamento), dataInclusao: dataDoFornecedor(f?.data_inclusao) } : null,
-    debitos: { ipva: pendencia("ipva"), licenciamento: pendencia("licenciamento"), multas: pendencia("multas"), dpvat: pendencia("dpvat") },
-    mensagens: lista(r?.mensagens_restricoes)
-      .map((m) => texto(objeto(m)?.mensagem) ?? texto(m))
-      .filter((m): m is string => m !== null && !/homologa/i.test(m)),
-    cnpjDoFaturamento: docFaturado.length === 14 && !/^(f|fisica|cpf)$/i.test(tipoDoc ?? "") ? docFaturado : null,
+    debitos: { ipva: pendencia("ipva", "IPVA"), licenciamento: pendencia("licenciamento", "licenciamento"), multas: pendencia("multas", "multas"), dpvat: pendencia("dpvat", "DPVAT") },
+    debitosSemValor,
+    restricoesListadas: [
+      ...new Set(
+        lista(r.mensagens_restricoes)
+          .map((m) => texto(objeto(m)?.mensagem) ?? texto(m))
+          .filter((m): m is string => m !== null && !/homologa|nada consta|sem restri/i.test(m))
+          .map(classificarRestricao),
+      ),
+    ],
+    // Lista POSITIVA: só faturado PJ com CNPJ válido. "FÍSICA", "PF", tipo vazio com CPF completado com zeros: nada.
+    cnpjDoFaturamento: /^(j|juridica|cnpj|pj)$/i.test((tipoDoc ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")) && docFaturado.length === 14 && cnpjValido(docFaturado) ? docFaturado : null,
   };
 }
 
 export function lerRecall(d: unknown): FragmentoRecall | null {
   const o = objeto(d);
   if (!o) return null;
-  const msg = texto(o.msg) ?? texto(o.message) ?? texto(o.descricaoRetorno);
+  const bruto = texto(o.msg) ?? texto(o.message) ?? texto(o.descricaoRetorno);
+  const msg = bruto ? semDocumentos(bruto).slice(0, 300) : null;
   const pendentesListados = lista(o.recallsPendente).length + lista(pegar(o, "recall.recallsPendente")).length;
   if (pendentesListados > 0) return { pendentes: pendentesListados, texto: msg };
-  if (msg && /n[aã]o (possui|h[aá]|consta)[^.]*recall/i.test(msg)) return { pendentes: 0, texto: msg };
-  if (msg && /recall/i.test(msg) && /pendente|em aberto|possui/i.test(msg)) return { pendentes: 1, texto: msg };
-  return { pendentes: null, texto: msg };
+  if (!msg) return { pendentes: null, texto: null };
+  // Frase por frase, e a pendência primeiro: "possui recall pendente. Não há outros recalls" é pendente.
+  let pendente = false;
+  let semPendencia = false;
+  for (const frase of msg.split(/[.;!\n]+/)) {
+    if (!/recall/i.test(frase)) continue;
+    const negada = /\bn[aã]o\b|\bnenhum/i.test(frase);
+    if (!negada && /(possui|h[aá]|consta|tem|existe)[^.]*recall|recall[^.]*(pendente|em aberto)/i.test(frase)) pendente = true;
+    else if (negada) semPendencia = true;
+  }
+  return { pendentes: pendente ? 1 : semPendencia ? 0 : null, texto: msg };
 }
 
 export function lerFipeDaPlaca(d: unknown): FragmentoFipe | null {
@@ -409,13 +485,14 @@ export function lerFipeDaPlaca(d: unknown): FragmentoFipe | null {
 /** Cada item do Check List é `{descricao, ocorrencias[], quantidade_ocorrencias, relevancia}`; os que a doc não lista entram com a chave dele. */
 export function lerCheckList(d: unknown): FragmentoCheckList | null {
   const raiz = objeto(pegar(d, "veicular.check_list_veicular")) ?? objeto(pegar(d, "check_list_veicular"));
-  if (!raiz) return null;
+  if (!raiz || !concluida(raiz)) return null;
   const itens: ItemDoCheckList[] = [];
   for (const [chave, valor] of Object.entries(raiz)) {
     const o = objeto(valor);
     if (!o || !("quantidade_ocorrencias" in o || "ocorrencias" in o)) continue;
     const quantidade = inteiro(o.quantidade_ocorrencias) ?? (Array.isArray(o.ocorrencias) ? o.ocorrencias.length : null);
-    itens.push({ chave, descricao: texto(o.descricao), quantidade });
+    const descricao = texto(o.descricao);
+    itens.push({ chave, descricao: descricao ? semDocumentos(descricao).slice(0, 200) : null, quantidade });
   }
   return itens.length ? { itens } : null;
 }
@@ -573,11 +650,16 @@ export function montarRetratoPorNivel(placa: string, nivel: NivelDaPlaca, fragme
     if (est.restricao.rouboFurto === true) add("roubo_furto", "impeditivo", "Roubo ou furto em aberto", "A base do Detran registra restrição de roubo ou furto. Não é compra.");
     if (est.restricao.renajud === true) add("renajud", "impeditivo", "Bloqueio judicial (Renajud)", "Há restrição judicial registrada no Renajud. Não transfere enquanto durar.");
     if (est.restricao.geral === true) {
-      add("restricao_outra", "impeditivo", "Restrição no Detran", est.mensagens.length ? `O Detran registra: ${est.mensagens.join("; ")}.` : "O Detran registra restrição; a base não detalhou qual.");
+      add(
+        "restricao_outra",
+        "impeditivo",
+        "Restrição no Detran",
+        est.restricoesListadas.length ? `O Detran registra: ${est.restricoesListadas.join("; ")}. O detalhe fica na consulta do Detran.` : "O Detran registra restrição; a base não detalhou qual.",
+      );
     }
     if (est.baixado === true) add("situacao", "impeditivo", "Veículo baixado", "O cadastro diz que o veículo foi baixado. Não volta a circular.");
     else if (est.situacao && !/circula/i.test(est.situacao)) add("situacao", "impeditivo", "Situação do veículo", `O cadastro diz "${est.situacao}", e não "em circulação".`);
-    if (est.situacaoDoChassi && !/^regular$/i.test(est.situacaoDoChassi)) {
+    if (est.situacaoDoChassi && !/^(regular|normal)$/i.test(est.situacaoDoChassi)) {
       add("chassi_situacao", "impeditivo", "Situação do chassi", `O Detran registra o chassi como "${est.situacaoDoChassi}". Conferir a numeração na perícia.`);
     }
     const itens: Array<[string, number | null]> = [
@@ -590,6 +672,9 @@ export function montarRetratoPorNivel(placa: string, nivel: NivelDaPlaca, fragme
     if (abertos.length > 0) {
       add("debitos", "atencao", "Débitos em aberto", `${abertos.map(([n, v]) => `${n} ${reais(v)}`).join(", ")}. Somam ${reais(abertos.reduce((s, [, v]) => s + v, 0))}.`);
     }
+    if (est.debitosSemValor.length > 0) {
+      add("debitos", "atencao", "Débito sem valor informado", `O Detran confirma pendência de ${est.debitosSemValor.join(", ")}, sem dizer o valor. Conferir antes de fechar.`);
+    }
   }
 
   // ── Check List ──
@@ -597,7 +682,7 @@ export function montarRetratoPorNivel(placa: string, nivel: NivelDaPlaca, fragme
   let sinistroConsta = false;
   if (chk) {
     for (const item of chk.itens) {
-      if (!item.quantidade || item.quantidade <= 0) continue;
+      if (item.quantidade === null || item.quantidade <= 0) continue;
       const peso = PESO_DO_CHECK_LIST[item.chave];
       if (peso === null) continue;
       const titulo = peso?.titulo ?? item.descricao ?? item.chave.replace(/_/g, " ");
@@ -621,14 +706,22 @@ export function montarRetratoPorNivel(placa: string, nivel: NivelDaPlaca, fragme
     add("chassi_ano", "atencao", "Ano do chassi diferente do cadastro", `O chassi indica ${chassi.ano}, e o cadastro diz ${veiculo.anoFabricacao ?? "?"}/${veiculo.anoModelo ?? "?"}. Conferir a numeração na perícia.`);
   }
 
-  // ── O que este nível conferiu ──
-  const presentes: ProdutoDeVeiculo[] = [];
-  if (est) presentes.push("estadual");
-  if (rec && rec.pendentes !== null) presentes.push("recall");
-  if (fip) presentes.push("fipe");
-  if (chk) presentes.push("check-list");
-  if (his) presentes.push("historico-proprietarios");
-  const cobertura = Object.fromEntries(CHECAGENS.map((c) => [c, presentes.some((p) => PRODUTOS_DA_PLACA[p].confere.includes(c))])) as Record<ChaveDaChecagem, boolean>;
+  // ── O que este nível conferiu, checagem por checagem, pelo VALOR lido ──
+  // Ter o produto não basta: flag vazia, quantidade ilegível ou bloco ausente é "não conferido",
+  // nunca "ok" (revisão de 19/10/2026: flags "" no econômico davam "apto").
+  const quantidadeDo = (chave: string) => chk?.itens.find((i) => i.chave === chave)?.quantidade ?? null;
+  const cobertura: Record<ChaveDaChecagem, boolean> = {
+    leilao: quantidadeDo("leiloes") !== null,
+    sinistro: quantidadeDo("historico_indenizacao_integral") !== null && quantidadeDo("comercio_lojas_salvados") !== null,
+    gravame: est?.restricao.financiamento != null,
+    roubo_furto: est?.restricao.rouboFurto != null,
+    renajud: est?.restricao.renajud != null,
+    restricoes: est != null && est.restricao.geral !== null && est.baixado !== null && est.situacao !== null,
+    debitos: est != null && (["ipva", "licenciamento", "multas", "dpvat"] as const).every((k) => est.debitos[k] !== null || est.debitosSemValor.length > 0),
+    donos: his?.total != null,
+    chassi: Boolean(est?.situacaoDoChassi) || quantidadeDo("indicio_chassi_adulterado") !== null,
+    recall: rec?.pendentes != null,
+  };
 
   const naoVeio: BlocoQueNaoVeio[] = [];
   for (const c of CHECAGENS) if (!cobertura[c]) naoVeio.push(QUEM_CONFERE[c]);
