@@ -51,9 +51,22 @@ export interface ConsultaGuardada {
   homologacao: boolean;
   criadoEm: string;
   consultadoPor: string | null;
+  /** Desde a consulta por níveis (19/10/2026). Ausentes = Veículos Total. */
+  nivel?: "basico" | "intermediario" | "economico" | "completo";
+  produtos?: Array<"estadual" | "recall" | "fipe" | "check-list" | "historico-proprietarios" | "veiculos-total">;
+  /** As leituras de cada produto, sem dado pessoal, para o aprofundar reaproveitar. */
+  fragmentos?: Record<string, unknown>;
 }
 
-const COLUNAS = "id, placa, retrato, custo, homologacao, criado_em, consultado_por_nome";
+const COLUNAS_ANTIGAS = "id, placa, retrato, custo, homologacao, criado_em, consultado_por_nome";
+const COLUNAS = `${COLUNAS_ANTIGAS}, nivel, produtos, fragmentos`;
+
+/**
+ * Coluna que não existe (42703): a migração dos níveis ainda não foi
+ * aplicada. A leitura cai para as colunas antigas, e a tela continua abrindo
+ * as consultas guardadas.
+ */
+const semColunaNova = (erro: { code?: string; message?: string } | null) => erro?.code === "42703" || /column .* does not exist/i.test(erro?.message ?? "");
 
 export function linhaParaConsulta(linha: unknown): ConsultaGuardada | null {
   if (!linha || typeof linha !== "object") return null;
@@ -62,6 +75,7 @@ export function linhaParaConsulta(linha: unknown): ConsultaGuardada | null {
     return null;
   }
   const custo = typeof l.custo === "string" ? Number(l.custo) : l.custo;
+  const nivel = l.nivel === "basico" || l.nivel === "intermediario" || l.nivel === "economico" || l.nivel === "completo" ? l.nivel : undefined;
   return {
     id: typeof l.id === "string" ? l.id : null,
     placa: l.placa,
@@ -70,6 +84,9 @@ export function linhaParaConsulta(linha: unknown): ConsultaGuardada | null {
     homologacao: l.homologacao === true,
     criadoEm: l.criado_em,
     consultadoPor: typeof l.consultado_por_nome === "string" ? l.consultado_por_nome : null,
+    ...(nivel ? { nivel } : {}),
+    ...(Array.isArray(l.produtos) ? { produtos: l.produtos as NonNullable<ConsultaGuardada["produtos"]> } : {}),
+    ...(l.fragmentos && typeof l.fragmentos === "object" && !Array.isArray(l.fragmentos) ? { fragmentos: l.fragmentos as Record<string, unknown> } : {}),
   };
 }
 
@@ -84,12 +101,9 @@ export type LeituraDaUltima =
 
 /** A consulta mais recente de uma placa: é ela que evita pagar duas vezes. */
 export async function lerUltimaConsulta(supabase: SupabaseClient, placa: string): Promise<LeituraDaUltima> {
-  const { data, error } = await supabase
-    .from("consultas_de_placa")
-    .select(COLUNAS)
-    .eq("placa", placa)
-    .order("criado_em", { ascending: false })
-    .limit(1);
+  const ler = (colunas: string) => supabase.from("consultas_de_placa").select(colunas).eq("placa", placa).order("criado_em", { ascending: false }).limit(1);
+  let { data, error } = await ler(COLUNAS);
+  if (semColunaNova(error)) ({ data, error } = await ler(COLUNAS_ANTIGAS));
   if (error) return { ok: false, faltaMigracao: ehTabelaAusente(error), motivo: error.message };
   return { ok: true, consulta: linhaParaConsulta(data?.[0]) };
 }
@@ -102,6 +116,8 @@ export interface ConsultaRecente {
   consultadoPor: string | null;
   /** A qualificação pelos registros, sem o km e o estado que só a tela pergunta. */
   nivel: NivelDaQualificacao;
+  /** O nível da consulta (básico… completo); as antigas são o completo. */
+  nivelDaConsulta: NonNullable<ConsultaGuardada["nivel"]>;
 }
 
 export type LeituraDasRecentes =
@@ -110,12 +126,10 @@ export type LeituraDasRecentes =
 
 /** As últimas placas consultadas, uma linha por placa (a consulta mais nova de cada). */
 export async function lerConsultasRecentes(supabase: SupabaseClient, limite = 12): Promise<LeituraDasRecentes> {
-  const { data, error } = await supabase
-    .from("consultas_de_placa")
-    .select(COLUNAS)
-    .order("criado_em", { ascending: false })
-    // Folga para as repetições da mesma placa não esvaziarem a lista.
-    .limit(limite * 3);
+  // Folga para as repetições da mesma placa não esvaziarem a lista. Sem os fragmentos: a lista não precisa deles.
+  const ler = (colunas: string) => supabase.from("consultas_de_placa").select(colunas).order("criado_em", { ascending: false }).limit(limite * 3);
+  let { data, error } = await ler(`${COLUNAS_ANTIGAS}, nivel`);
+  if (semColunaNova(error)) ({ data, error } = await ler(COLUNAS_ANTIGAS));
   if (error) return { ok: false, faltaMigracao: ehTabelaAusente(error), motivo: error.message };
 
   const vistas = new Set<string>();
@@ -130,6 +144,7 @@ export async function lerConsultasRecentes(supabase: SupabaseClient, limite = 12
       criadoEm: c.criadoEm,
       consultadoPor: c.consultadoPor,
       nivel: qualificarCompra({ ...c.retrato, apontamentos: c.retrato.apontamentos ?? [], naoVeio: c.retrato.naoVeio ?? [] }).nivel,
+      nivelDaConsulta: c.nivel ?? c.retrato.nivel ?? "completo",
     });
     if (consultas.length === limite) break;
   }

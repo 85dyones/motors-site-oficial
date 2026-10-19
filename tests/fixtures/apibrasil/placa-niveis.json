@@ -1,0 +1,210 @@
+{
+  "_sobre": "Respostas dos produtos avulsos da APIBrasil usados nos níveis da consulta de placa, montadas a partir dos exemplos da documentação pública (levantamento de 19/10/2026: estadual, recall, fipe, check-list, historico-proprietarios). O miolo (data / dados) é o do exemplo de cada página; o envelope é o padrão da doc, em modo de produção (homolog false, valor_consulta com o preço da tabela). Nomes e documentos são os fictícios da própria doc, mantidos de propósito: os leitores têm de descartá-los.",
+  "estadual": {
+    "user": { "first_name": "[omitido]", "email": "[omitido]", "cellphone": "[omitido]", "notification": "yes" },
+    "balance": "103,160",
+    "balance_before": "105,660",
+    "tax": "2,500",
+    "status_code": 200,
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 2,50.",
+    "valor_consulta": 2.5,
+    "api_limit_for": "credit",
+    "homolog": false,
+    "data": {
+      "bin_estadual": {
+        "alerta_informativo": "",
+        "ano_fabricacao": "2024",
+        "ano_modelo": "2025",
+        "caixa_cambio": "",
+        "capacidade_carga": "1500",
+        "categoria_veiculo": "PARTICULAR",
+        "chassi": "9ZX0H0M0L0G4T001X",
+        "cilindrada": "1600",
+        "cmt": "",
+        "codigo_seguranca_crv": "1234567890",
+        "combustivel": "GASOLINA",
+        "cor_veiculo": "AZUL",
+        "data_atualizacao": "15/05/2024",
+        "data_emissao_crlv": "10/05/2024",
+        "data_emissao_ultimo_crv": "09/05/2024",
+        "data_emplacamento": "20/01/2024",
+        "data_limite_restricao_tributaria": "",
+        "especie_veiculo": "PASSAGEIRO",
+        "informacoes_avulsas": [{ "codigo": "H001", "descricao": "Consulta em ambiente de homologacao", "valor": "DADOS SIMULADOS" }],
+        "marca_modelo": "MONTADORA/PROTO HOMOLOG",
+        "municipio": "CIDADE HOMOLOG",
+        "nome_carroceria": "",
+        "numero_carroceria": "",
+        "numero_crv": "0000000000",
+        "numero_eixo_auxiliar": "",
+        "numero_eixo_traseiro": "",
+        "numero_eixos": "",
+        "numero_identificacao_do_faturado": "",
+        "numero_motor": "H0M0LG1234",
+        "numero_sequencia_crv": "001",
+        "numero_via_crlv": "01",
+        "numero_via_crv": "01",
+        "off_line": "0",
+        "pbt": "1500",
+        "placa": "QOZ7702",
+        "potencia_veiculo": "110",
+        "procedencia": "NACIONAL",
+        "proprietario": { "documento": "000.000.000-00", "nome": "USUARIO HOMOLOG" },
+        "quantidade_passageiros": "005",
+        "renavam": "00000000000",
+        "restricoes": {
+          "dpvat": { "existe_pendencia": "0", "observacoes": "", "valor_pendencia": "0,00" },
+          "existe_restricao_financiamento": "0",
+          "existe_restricao_geral": "0",
+          "existe_restricao_renajud": "0",
+          "existe_restricao_roubo_furto": "0",
+          "financiamento": {
+            "cgc_financeira": "",
+            "codigo_agente": "",
+            "cpf_cnpj_financiado": "",
+            "data_inclusao": "",
+            "data_vigencia_contrato": "",
+            "nome_agente_financeiro": "",
+            "nome_financiado": "",
+            "numero_contrato": "",
+            "tipo_restricao_financiamento": "",
+            "tipo_transacao": ""
+          },
+          "ipva": { "existe_pendencia": "0", "observacoes": "", "valor_pendencia": "0,00" },
+          "licenciamento": { "existe_pendencia": "0", "observacoes": "", "valor_pendencia": "0,00" },
+          "mensagens_restricoes": [{ "mensagem": "Retorno de homologacao com dados simulados" }],
+          "multas": { "existe_pendencia": "0", "observacoes": "", "valor_pendencia": "0,00" },
+          "veiculo_baixado": "0"
+        },
+        "situacao": "EM CIRCULACAO",
+        "situacao_chassi": "REGULAR",
+        "status_retorno": { "codigo": "1", "descricao": "CONSULTA CONCLUIDA COM SUCESSO" },
+        "tipo_carroceria": "NAO INFORMADO",
+        "tipo_documento_do_faturado": "",
+        "tipo_montagem": "",
+        "tipo_veiculo": "AUTOMOVEL",
+        "uf": "PR",
+        "uf_destino_de_faturamento": ""
+      }
+    }
+  },
+  "recall": {
+    "user": { "first_name": "[omitido]", "email": "[omitido]", "cellphone": "[omitido]", "notification": "yes" },
+    "balance": "102,540",
+    "balance_before": "103,160",
+    "tax": "0,620",
+    "status_code": 200,
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 0.62.",
+    "valor_consulta": 0.62,
+    "api_limit_for": "credit",
+    "homolog": false,
+    "data": {
+      "status": true,
+      "msg": "Prezado cliente, o veiculo de placa QOZ7702 nao possui recall pendente desde 17/03/2011."
+    }
+  },
+  "fipe": {
+    "user": { "first_name": "[omitido]", "email": "[omitido]", "cellphone": "[omitido]", "notification": "yes" },
+    "balance": "102,480",
+    "balance_before": "102,540",
+    "tax": "0,060",
+    "status_code": 200,
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 0,06.",
+    "valor_consulta": 0.06,
+    "api_limit_for": "credit",
+    "homolog": false,
+    "data": {
+      "data": [
+        {
+          "anoFabricacao": 2003,
+          "anoModelo": "2004",
+          "categoria": "carro",
+          "codigoFipe": "001177-0",
+          "combustivel": "gasolina",
+          "extra": { "categoria": { "descricao": "Carro", "sintetico": "carro" }, "combustivel": { "descricao": "Gasolina", "sintetico": "G" } },
+          "historico": [
+            { "mes": "2025-11", "valor": 15920 },
+            { "mes": "2025-12", "valor": 15810 },
+            { "mes": "2026-01", "valor": 15693 }
+          ],
+          "ipva": { "aliquota": 4, "uf": "SP", "valor": 627.72, "valor_formatado": "R$ 627,72" },
+          "marca": "Fiat",
+          "mesReferencia": "janeiro de 2026",
+          "modelo": "Palio 1.0/ Trofeo 1.0 Fire/ Fire Flex 4p",
+          "principal": true,
+          "url": "http://veiculos.fipe.org.br/",
+          "valor": 15693
+        }
+      ],
+      "veiculo": {
+        "chassi": "9BD17206G7****321",
+        "cilindradas": 999,
+        "combustivel": "GASOLINA",
+        "cor": "PRATA",
+        "especie": "PASSAGEIRO",
+        "municipio": "SAO PAULO",
+        "nacionalidade": "NACIONAL",
+        "potencia": 73,
+        "quantidade_lugares": 5,
+        "tipo_veiculo": "AUTOMOVEL",
+        "uf": "SP"
+      }
+    }
+  },
+  "check-list": {
+    "user": { "first_name": "[omitido]", "email": "[omitido]", "cellphone": "[omitido]", "notification": "yes" },
+    "balance": "100,080",
+    "balance_before": "102,480",
+    "tax": "2,400",
+    "status_code": 200,
+    "error": false,
+    "message": "Dados validos! Voce foi tarifado em R$ 2,40.",
+    "valor_consulta": 2.4,
+    "api_limit_for": "credit",
+    "homolog": false,
+    "data": {
+      "veicular": {
+        "check_list_veicular": {
+          "leiloes": { "descricao": "Passagem por leilao", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "ALTA" },
+          "historico_indenizacao_integral": { "descricao": "Indenizacao integral por seguradora", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "ALTA" },
+          "comercio_lojas_salvados": { "descricao": "Comercializado em loja de salvados", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "ALTA" },
+          "seguradora": { "descricao": "Transferencia para seguradora", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "MEDIA" },
+          "historico_acidentes": { "descricao": "Historico de acidentes", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "MEDIA" },
+          "historico_danos_avarias": { "descricao": "Historico de danos e avarias", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "MEDIA" },
+          "relatorio_embarque_guincho": { "descricao": "Embarque em guincho", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "indicio_chassi_adulterado": { "descricao": "Suspeita de chassi adulterado ou clonagem", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "ALTA" },
+          "indicio_busca_aprensao_futuro_leilao": { "descricao": "Transferencia para banco", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "MEDIA" },
+          "hist_restricao_emissao_apolice_seguros": { "descricao": "Apolice online nao aprovada", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "utilizacao_em_crimes": { "descricao": "Utilizacao em crimes", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "ALTA" },
+          "viatura_policial": { "descricao": "Viatura policial", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "frota_locadora": { "descricao": "Frota de locadora", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "frota_taxi": { "descricao": "Frota de taxi", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "indicio_taxi_app": { "descricao": "Indicio de taxi por aplicativo", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "frota_publica": { "descricao": "Frota publica", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "frota_empresa_privada": { "descricao": "Frota de empresa privada", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "frota_seguranca_privada": { "descricao": "Frota de seguranca privada", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "frota_entidade_religiosa": { "descricao": "Frota de entidade religiosa", "ocorrencias": [], "quantidade_ocorrencias": 0, "relevancia": "BAIXA" },
+          "pdf": "https://api-check-list.apiveiculos.com.br/pdf/00000000-0000-0000-0000-000000000000",
+          "status_retorno": { "codigo": 1, "descricao": "CONSULTA CONCLUIDA COM SUCESSO" }
+        }
+      }
+    }
+  },
+  "historico-proprietarios": {
+    "status": true,
+    "msg": "Foi consultado com sucesso!",
+    "consulta": { "id": 123456, "debitado": true, "valor": 5 },
+    "dados": {
+      "total_registros": 4,
+      "registros": [
+        { "ano": 2013, "chassi": "9BFZF55A0E8008912", "data_transferencia": "04/11/2025", "documento": "***.396.586-**", "tp_doc": "CPF", "nome_razao": "PROPRIETARIO TESTE 24", "modelo": "", "municipio": "BELO HORIZONTE", "placa": "OQH3A65", "placa_mercosul": "OQH3A65", "uf": "MG" },
+        { "ano": 2013, "chassi": "9BFZF55A0E8008912", "data_transferencia": "12/03/2019", "documento": "***.115.222-**", "tp_doc": "F", "nome_razao": "PROPRIETARIO TESTE 23", "modelo": "", "municipio": "CONTAGEM", "placa": "OQH3065", "placa_mercosul": "OQH3A65", "uf": "MG" },
+        { "ano": 2013, "chassi": "9BFZF55A0E8008912", "data_transferencia": "30/06/2016", "documento": "00.000.000/0001-91", "tp_doc": "J", "nome_razao": "LOCADORA TESTE LTDA", "modelo": "", "municipio": "BELO HORIZONTE", "placa": "OQH3065", "placa_mercosul": "OQH3A65", "uf": "MG" },
+        { "ano": 2013, "chassi": "9BFZF55A0E8008912", "data_transferencia": "20/01/2014", "documento": "00.000.000/0002-72", "tp_doc": "CNPJ", "nome_razao": "CONCESSIONARIA TESTE SA", "modelo": "", "municipio": "BELO HORIZONTE", "placa": "OQH3065", "placa_mercosul": "OQH3A65", "uf": "MG" }
+      ]
+    }
+  }
+}

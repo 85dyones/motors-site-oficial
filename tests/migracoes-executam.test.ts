@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PASSOS_DO_FUNIL } from "../src/lib/funilDoProfiler";
 import {
@@ -13,6 +14,7 @@ import {
 } from "../src/lib/smsCampanhas";
 import { ORIGENS_DE_IMPORTACAO } from "../src/lib/baseDeMarketing";
 import { gerarTokenDoLink, hashDoToken, tokenTemForma } from "../src/lib/linkDoRelatorio";
+import { supabaseDeTeste, type Chamada, type Resposta } from "./supabaseDaConsultaDeDocumento";
 
 /**
  * As migrações rodam de verdade — e o aceite delas é cobrado (AUDITORIA §5.7).
@@ -302,6 +304,20 @@ const CADEIA = [
   // `tem_papel`, `autor_atual`, `org_padrao` e `nucleo_so_encerra_vigencia`;
   // o andaime não precisou de nada novo.
   "20261018120000_consultas_de_documento.sql",
+  // Os níveis da consulta de placa e o aprofundar (2026-10-19). Entra na
+  // cadeia porque o aceite grava a forma antiga como o app de hoje (sessão do
+  // comercial) e prova que ela sai 'completo'; grava um básico e o aprofunda
+  // para o intermediário pagando só o check-list; prova que o gatilho recusa
+  // aprofundar fora do prazo do parâmetro, com fragmento trocado, de produto
+  // que a origem não tem e sem origem; que a FK composta recusa outra placa,
+  // outra loja e a homologação; que apagar a origem zera `aproveitou_de`; que
+  // o comercial não vê consulta nem parâmetro de uma SEGUNDA loja; cada regra
+  // nova tentando gravar o inválido; e `parametros_consulta_veiculo` como
+  // parâmetro com vigência, escrito só pelo admin. FK com `set null (coluna)`,
+  // gatilho, RLS e CHECK só se provam num banco de verdade. Usa `tem_papel`,
+  // `org_padrao`, `nucleo_so_encerra_vigencia` e `orgs`; o andaime não
+  // precisou de nada novo.
+  "20261019120000_niveis_da_consulta_de_placa.sql",
 ];
 
 /**
@@ -2570,6 +2586,713 @@ describe.skipIf(!temBanco)("as consultas de CPF e CNPJ e o link do relatório, p
                  precos_de_referencia, tabela_de_precos_em, fonte)
               values (7, 90, 30, 10, '{"cpf-lite": 0.12}', current_date, 'segunda')`),
     ).toContain("parametros_consulta_documento_um_vigente");
+  });
+});
+
+/**
+ * Os níveis da consulta de placa (20261019120000), pelo lado de fora. O aceite
+ * da migração prova o efeito com sonda; aqui ficam a reaplicação (o catálogo
+ * não muda), o backfill por cima de consultas que JÁ existem (a tabela volta à
+ * forma de 20261006180000 numa transação desfeita, recebe linhas antigas e a
+ * migração roda por cima), a conferência prévia que para tudo diante de dado
+ * pessoal antigo, cada violação pelo nome da regra, o prazo do aprofundar lido
+ * do parâmetro vigente, e o isolamento entre duas lojas.
+ */
+describe.skipIf(!temBanco)("os níveis da consulta de placa e o aprofundar, pelo lado de fora", () => {
+  const MIGRACAO = "20261019120000_niveis_da_consulta_de_placa.sql";
+
+  /** A mensagem do erro, ou "" se o comando passou. Sempre desfeito. */
+  const recusa = (sql: string): string => {
+    try {
+      psql!(`begin; ${sql}; rollback;`);
+      return "";
+    } catch (e) {
+      return String((e as Error).message);
+    }
+  };
+
+  /** A saída do comando, numa transação desfeita. Erro sobe. */
+  const desfeito = (sql: string): string => psql!(`begin; ${sql}; rollback;`);
+
+  const UID: Record<string, string> = {
+    admin: "00000000-0000-0000-0000-00000000ae01",
+    gestor: "00000000-0000-0000-0000-00000000ae02",
+    comercial: "00000000-0000-0000-0000-00000000ae03",
+    marketing: "00000000-0000-0000-0000-00000000ae04",
+  };
+  const usuario = (papel: string) =>
+    `insert into auth.users (id, instance_id, aud, role, email)
+       values ('${UID[papel]}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+               'niveis-${papel}@exemplo.invalido');
+     update public.profiles set full_name = 'Níveis ${papel}', papeis = array['${papel}'], role = '${papel}', is_active = true
+      where id = '${UID[papel]}'`;
+  const sessao = (papel: string) =>
+    `select set_config('request.jwt.claims',
+       json_build_object('sub', '${UID[papel]}', 'role', 'authenticated')::text, true);
+     set local role authenticated`;
+  const comoPapel = (papel: string, sql: string) => `${usuario(papel)}; ${sessao(papel)}; ${sql}`;
+
+  const FRAG = { estadual: { uf: "PR" }, recall: { pendentes: 0 }, fipe: { valor: 50000 } };
+  const comprada = (produto: string, custo: number | null = null) => ({
+    produto, ok: true, status: 200, motivo: null, pode_ter_cobrado: true, custo, reaproveitado: false,
+  });
+  const reaproveitada = (produto: string) => ({ produto, ok: true, pode_ter_cobrado: false, reaproveitado: true });
+  const TENT3 = [comprada("estadual", 2.5), comprada("recall", 0.62), comprada("fipe", 0.06)];
+  const REAP3 = [reaproveitada("estadual"), reaproveitada("recall"), reaproveitada("fipe")];
+  const ORIGEM = "00000000-0000-0000-0000-0000000f0001";
+  const BASE = {
+    placa: "FOR1A23", produto: "niveis", nivel: "basico", produtos: ["estadual", "recall", "fipe"],
+    homologacao: false, retrato: { placa: "FOR1A23" }, fragmentos: FRAG, tentativas: TENT3, custo: 3.18,
+  };
+  /** O aprofundar para o intermediário: os três do básico reaproveitados, o check-list comprado. */
+  const APROFUNDAR = {
+    nivel: "intermediario", produtos: ["estadual", "recall", "fipe", "check-list"],
+    fragmentos: { ...FRAG, "check-list": { itens: 3 } }, tentativas: [...REAP3, comprada("check-list", 2.4)],
+    custo: 2.4, aproveitou_de: ORIGEM,
+  };
+
+  /**
+   * Uma linha gravada como dono (só gatilho e regras falam), em cima de BASE;
+   * `muda` ganha, e `extra` (uma expressão jsonb em SQL) ganha de todos.
+   */
+  const linha = (muda: Record<string, unknown> = {}, extra = "'{}'::jsonb") =>
+    `insert into public.consultas_de_placa
+     select * from jsonb_populate_record(null::public.consultas_de_placa,
+       '${JSON.stringify(BASE)}'::jsonb
+       || jsonb_build_object('id', gen_random_uuid(), 'org_id', public.org_padrao(), 'criado_em', now())
+       || '${JSON.stringify(muda)}'::jsonb || ${extra})`;
+  /** A origem do aprofundar: o básico, com o id conhecido. */
+  const origem = (muda: Record<string, unknown> = {}, extra?: string) => linha({ id: ORIGEM, ...muda }, extra);
+
+  /** Uma segunda loja, criada DEPOIS da padrão (org_padrao() não muda). */
+  const OUTRA_LOJA = `insert into public.orgs (nome, criada_em)
+                        select 'Outra loja (níveis)', max(criada_em) + interval '1 day' from public.orgs`;
+  const naOutraLoja = "jsonb_build_object('org_id', (select id from public.orgs where nome = 'Outra loja (níveis)'))";
+
+  const PRECOS = `'{"estadual": 2.5, "recall": 0.62, "fipe": 0.06, "check-list": 2.4, "historico-proprietarios": 5.0, "veiculos-total": 30.0}'::jsonb`;
+
+  const retrato = (): string =>
+    psql!(
+      `select md5(
+         (select string_agg(conname || ':' || pg_get_constraintdef(oid), '|' order by conname)
+            from pg_constraint where conrelid in ('public.consultas_de_placa'::regclass,
+                                                  'public.parametros_consulta_veiculo'::regclass))
+         || (select string_agg(attname || ':' || format_type(atttypid, atttypmod) || ':' || attnotnull || ':'
+                               || coalesce(pg_get_expr(d.adbin, d.adrelid), ''), '|' order by attnum)
+               from pg_attribute a left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+              where a.attrelid = 'public.consultas_de_placa'::regclass and a.attnum > 0 and not a.attisdropped)
+         || (select string_agg(tgrelid::regclass::text || ':' || tgname || ':' || tgfoid::regprocedure::text || ':'
+                               || tgtype || ':' || tgenabled::text, '|' order by tgrelid::regclass::text, tgname)
+               from pg_trigger where tgrelid in ('public.consultas_de_placa'::regclass,
+                                                 'public.parametros_consulta_veiculo'::regclass) and not tgisinternal)
+         || (select string_agg(proname || ':' || md5(prosrc) || ':' || prosecdef || ':'
+                               || coalesce(array_to_string(proconfig, ','), '') || ':'
+                               || coalesce(array_to_string(proacl, ','), ''), '|' order by proname)
+               from pg_proc where pronamespace = 'public'::regnamespace
+                 and (proname like 'consulta_placa_%' or proname like 'consulta_veiculo_%'
+                      or proname like 'consultas_de_placa_%'))
+         || (select string_agg(tablename || ':' || policyname || ':' || cmd || ':' || coalesce(qual, '')
+                               || ':' || coalesce(with_check, ''), '|' order by tablename, policyname)
+               from pg_policies where tablename in ('consultas_de_placa', 'parametros_consulta_veiculo'))
+         || (select string_agg(relname || ':' || coalesce(array_to_string(relacl, ','), ''), '|' order by relname)
+               from pg_class where oid in ('public.consultas_de_placa'::regclass,
+                                           'public.parametros_consulta_veiculo'::regclass))
+         || (select string_agg(pg_get_indexdef(indexrelid), '|' order by indexrelid::regclass::text)
+               from pg_index where indrelid in ('public.consultas_de_placa'::regclass,
+                                                'public.parametros_consulta_veiculo'::regclass))
+         || (select count(*)::text from public.parametros_consulta_veiculo)
+         || (select count(*)::text from public.consultas_de_placa)
+       )`,
+    ).match(/[0-9a-f]{32}/)?.[0] ?? "";
+
+  /**
+   * Roda a migração por cima de `consultas_de_placa` devolvida à forma de
+   * 20261006180000, com as linhas antigas dadas, numa transação desfeita. Um
+   * arquivo de verdade (e não `-c`) porque é por `\i` que a migração entra
+   * inteira, como no `db push`.
+   */
+  const sobreAntigas = (antigas: string, depois: string): string => {
+    const dir = mkdtempSync(join(tmpdir(), "niveis-placa-"));
+    const sql = join(dir, "sobre-antigas.sql");
+    writeFileSync(
+      sql,
+      `begin;
+       drop trigger if exists consultas_de_placa_forma_antiga on public.consultas_de_placa;
+       drop trigger if exists consultas_de_placa_reaproveitamento on public.consultas_de_placa;
+       alter table public.consultas_de_placa
+         drop constraint consultas_de_placa_produto_conhecido,
+         drop constraint consultas_de_placa_sem_dado_pessoal,
+         drop column nivel cascade, drop column produtos cascade, drop column fragmentos cascade,
+         drop column tentativas cascade, drop column aproveitou_de cascade;
+       alter table public.consultas_de_placa
+         add constraint consultas_de_placa_produto_conhecido check (produto in ('veiculos-total')),
+         add constraint consultas_de_placa_sem_dado_pessoal
+           check (retrato::text !~* '"(proprietario|pronome|pronomeAnterior|cpfCnpj|cpf|documentoFinanciado|restricaoArrendatario|restricaoDocArrendatario|email|cellphone)"\\s*:');
+       ${antigas};
+       \\i ${join(DIR_MIGRACOES, MIGRACAO)}
+       ${depois};
+       rollback;
+      `,
+    );
+    // O psql pode rodar como `postgres` (su): o diretório temporário nasce 0700.
+    chmodSync(dir, 0o755);
+    chmodSync(sql, 0o644);
+    try {
+      return arquivo(PREFIXO, sql);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("reaplicar levanta o aceite de novo e não muda regra, coluna, gatilho, função, privilégio, índice nem linha", () => {
+    const antes = retrato();
+    expect(antes).toMatch(/^[0-9a-f]{32}$/);
+    const saida = arquivo(PREFIXO, join(DIR_MIGRACOES, MIGRACAO));
+    expect(saida).toContain("Aceite verificado");
+    expect(saida).not.toMatch(/^psql.*ERROR:/m);
+    expect(retrato()).toBe(antes);
+  });
+
+  it("sobre consultas que já existem: as antigas saem completo, {veiculos-total} e a tentativa cobrada (a da homologação, não)", () => {
+    const saida = sobreAntigas(
+      `insert into public.consultas_de_placa (placa, produto, retrato, custo, homologacao) values
+         ('OLD1A11', 'veiculos-total',
+          '{"placa": "OLD1A11", "veiculo": {"descricao": "GOL"}, "gratuito": {"empresaDoFaturamento": {"razaoSocial": "X", "nomeFantasia": "Y"}}}', 30, false),
+         ('OLD1A12', 'veiculos-total', '{"placa": "EXEMPLO"}', 0, true)`,
+      `select 'antigas=' || string_agg(placa || ':' || nivel || ':' || array_to_string(produtos, ',') || ':'
+                                       || (tentativas -> 0 ->> 'pode_ter_cobrado') || ':' || (tentativas -> 0 ->> 'custo') || ':'
+                                       || jsonb_array_length(tentativas) || ':' || fragmentos::text || ':'
+                                       || coalesce(aproveitou_de::text, 'nulo'), '|' order by placa)
+         from public.consultas_de_placa where placa like 'OLD%'`,
+    );
+    expect(saida).toContain("Aceite verificado");
+    expect(saida).toContain(
+      "antigas=OLD1A11:completo:veiculos-total:true:30.00:1:{}:nulo|OLD1A12:completo:veiculos-total:false:0.00:1:{}:nulo",
+    );
+  });
+
+  it("violação falha: consulta antiga com chave pessoal nova no retrato para a migração ANTES de mexer em qualquer coisa", () => {
+    let erro = "";
+    try {
+      sobreAntigas(
+        `insert into public.consultas_de_placa (placa, produto, retrato, custo)
+           values ('OLD1A13', 'veiculos-total', '{"placa": "OLD1A13", "veiculo": {"documento": "123"}}', 30)`,
+        "select 1",
+      );
+    } catch (e) {
+      erro = String((e as Error).message);
+    }
+    expect(erro).toContain("DADO PESSOAL: 1 consulta(s) de placa");
+    // Nada ficou: a tabela segue com as colunas e o gatilho da migração (o banco do teste).
+    expect(
+      psql!(`select 'colunas=' || count(*) from information_schema.columns
+              where table_schema = 'public' and table_name = 'consultas_de_placa'
+                and column_name in ('nivel', 'produtos', 'fragmentos', 'tentativas', 'aproveitou_de')`),
+    ).toContain("colunas=5");
+  });
+
+  it("o app de hoje (sem nível) segue gravando pela sessão do comercial, e a linha sai completo", () => {
+    const saida = desfeito(
+      comoPapel(
+        "comercial",
+        `insert into public.consultas_de_placa (placa, produto, retrato, custo, homologacao)
+         values ('APP1A23', 'veiculos-total', '{"placa": "APP1A23"}', 30, false)
+         returning 'gravou=' || nivel || ':' || array_to_string(produtos, ',') || ':' || jsonb_array_length(tentativas)
+                   || ':' || (consultado_por = '${UID.comercial}')`,
+      ),
+    );
+    expect(saida).toContain("gravou=completo:veiculos-total:1:true");
+    // A forma antiga com produto 'niveis' não é completada: cai na regra.
+    expect(
+      recusa(comoPapel("comercial", `insert into public.consultas_de_placa (placa, produto, retrato)
+                                     values ('APP1A23', 'niveis', '{"placa": "APP1A23"}')`)),
+    ).toContain('null value in column "nivel"');
+  });
+
+  it("o básico e o aprofundar para o intermediário, pela sessão do comercial; o marketing não inclui", () => {
+    /** Pela sessão: só as colunas que o app manda (org, autor e hora são do carimbo). */
+    const peloApp = (muda: Record<string, unknown>) =>
+      `insert into public.consultas_de_placa
+         (id, placa, produto, nivel, produtos, fragmentos, tentativas, retrato, custo, aproveitou_de)
+       select id, placa, produto, nivel, produtos, fragmentos, tentativas, retrato, custo, aproveitou_de
+         from jsonb_populate_record(null::public.consultas_de_placa, '${JSON.stringify({ ...BASE, ...muda })}'::jsonb)`;
+    const saida = desfeito(
+      comoPapel(
+        "comercial",
+        `${peloApp({ id: ORIGEM })};
+         ${peloApp({ ...APROFUNDAR, id: "00000000-0000-0000-0000-0000000f0002" })};
+         select 'aprofundou=' || count(*) || ':' || string_agg(nivel || '/' || coalesce(aproveitou_de::text, '-'), ',' order by nivel)
+           from public.consultas_de_placa where placa = 'FOR1A23'`,
+      ),
+    );
+    expect(saida).toContain(`aprofundou=2:basico/-,intermediario/${ORIGEM}`);
+    expect(recusa(comoPapel("marketing", peloApp({ id: ORIGEM })))).toContain("row-level security");
+  });
+
+  it("violação falha: nível inventado, produto avulso em `produto`, e produto × nível desencontrados", () => {
+    expect(recusa(linha())).toBe("");
+    expect(recusa(linha({ produto: "veiculos-total", nivel: "completo", produtos: ["veiculos-total"], fragmentos: {},
+                          tentativas: [comprada("veiculos-total", 30)] }))).toBe("");
+    expect(recusa(linha({ nivel: "premium" }))).toContain("consultas_de_placa_nivel_valido");
+    expect(recusa(linha({ produto: "estadual" }))).toContain("consultas_de_placa_produto_conhecido");
+    expect(recusa(linha({ produto: "veiculos-total" }))).toContain("consultas_de_placa_produto_coerente_com_nivel");
+    expect(
+      recusa(linha({ nivel: "completo", produtos: ["veiculos-total"], fragmentos: {}, tentativas: [comprada("veiculos-total")] })),
+    ).toContain("consultas_de_placa_produto_coerente_com_nivel");
+    // Sem nível e fora da forma antiga: o NOT NULL.
+    expect(recusa(linha({ nivel: null }))).toContain('null value in column "nivel"');
+  });
+
+  it("violação falha: produtos vazios, repetidos, inventados ou de outro nível; fragmento fora dos produtos; tentativas malformadas ou desmentindo os produtos", () => {
+    // Controle: a parcial (recall falhou) entra — o produto que falhou fica fora de `produtos`.
+    expect(
+      recusa(linha({ produtos: ["estadual", "fipe"], fragmentos: { fipe: { valor: 1 } },
+                     tentativas: [comprada("estadual"), { ...comprada("recall"), ok: false, status: 504, motivo: "tempo esgotado" }, comprada("fipe")] })),
+    ).toBe("");
+    expect(recusa(linha({ produtos: [], fragmentos: {} }))).toContain("consultas_de_placa_produtos_conhecidos");
+    expect(recusa(linha({ produtos: ["estadual", "estadual", "recall", "fipe"] }))).toContain("consultas_de_placa_produtos_conhecidos");
+    expect(recusa(linha({ produtos: ["estadual", "recall", "fipe", "cpf-lite"] }))).toContain("consultas_de_placa_produtos_conhecidos");
+    expect(
+      recusa(linha({ produtos: ["estadual", "recall", "fipe", "check-list"], tentativas: [...TENT3, comprada("check-list")] })),
+    ).toContain("consultas_de_placa_produtos_do_nivel");
+    expect(recusa(linha({ fragmentos: { "check-list": { itens: 1 } } }))).toContain("consultas_de_placa_fragmentos_validos");
+    expect(recusa(linha({ fragmentos: { fipe: 50000 } }))).toContain("consultas_de_placa_fragmentos_validos");
+    expect(recusa(linha({ tentativas: {} }))).toContain("consultas_de_placa_tentativas_validas");
+    expect(
+      recusa(linha({ tentativas: [{ produto: "estadual", ok: true, pode_ter_cobrado: true }, TENT3[1], TENT3[2]] })),
+    ).toContain("consultas_de_placa_tentativas_validas");
+    expect(
+      recusa(linha({ tentativas: [...TENT3, { ...comprada("historico-proprietarios"), ok: false }] })),
+    ).toContain("consultas_de_placa_tentativas_validas");
+    expect(
+      recusa(linha({ aproveitou_de: ORIGEM, tentativas: [{ ...reaproveitada("estadual"), custo: 2.5 }, TENT3[1], TENT3[2]] })),
+    ).toContain("consultas_de_placa_tentativas_validas");
+    expect(
+      recusa(linha({ tentativas: [TENT3[0], { ...TENT3[1], ok: false }, TENT3[2]] })),
+    ).toContain("consultas_de_placa_tentativas_coerentes");
+    expect(recusa(linha({ produtos: ["estadual", "fipe"], fragmentos: {} }))).toContain(
+      "consultas_de_placa_tentativas_coerentes",
+    );
+  });
+
+  it("violação falha: o aprofundar fora do prazo, com fragmento trocado, de produto que a origem não tem, sem origem, ou sem comprar nada", () => {
+    const REAP = "consultas_de_placa_reaproveitamento";
+    // Controle: origem de hoje, aprofundar entra.
+    expect(recusa(`${origem()}; ${linha(APROFUNDAR)}`)).toBe("");
+    // Origem de 8 dias, com o parâmetro semeado de 7.
+    expect(
+      recusa(`${origem({ criado_em: new Date(Date.now() - 8 * 86_400_000).toISOString() })}; ${linha(APROFUNDAR)}`),
+    ).toContain(REAP);
+    // Origem posterior à linha.
+    expect(
+      recusa(`${origem({ criado_em: new Date(Date.now() + 86_400_000).toISOString() })}; ${linha(APROFUNDAR)}`),
+    ).toContain(REAP);
+    expect(
+      recusa(`${origem()}; ${linha({ ...APROFUNDAR, fragmentos: { ...APROFUNDAR.fragmentos, fipe: { valor: 1 } } })}`),
+    ).toContain(REAP);
+    expect(
+      recusa(`${origem()}; ${linha({
+        ...APROFUNDAR, nivel: "economico", produtos: [...APROFUNDAR.produtos, "historico-proprietarios"],
+        tentativas: [...REAP3, reaproveitada("check-list"), comprada("historico-proprietarios", 5)],
+      })}`),
+    ).toContain(REAP);
+    expect(recusa(linha({ ...APROFUNDAR, aproveitou_de: null }))).toContain(REAP);
+    // Tudo reaproveitado e nada comprado: é reabrir, não consultar.
+    expect(recusa(`${origem()}; ${linha({ aproveitou_de: ORIGEM, tentativas: REAP3 })}`)).toContain(
+      "consultas_de_placa_tentativas_coerentes",
+    );
+    // Origem que não é outra linha.
+    expect(recusa(linha({ id: ORIGEM, aproveitou_de: ORIGEM, tentativas: [...REAP3.slice(0, 2), TENT3[2]] }))).toContain(
+      "consultas_de_placa_aproveitou_coerente",
+    );
+  });
+
+  it("o prazo do aprofundar é o do parâmetro vigente: com 30 dias aberto pelo admin, a origem de 8 dias entra", () => {
+    const oitoDias = new Date(Date.now() - 8 * 86_400_000).toISOString();
+    expect(
+      desfeito(
+        comoPapel(
+          "admin",
+          `select 'nova=' || dias_para_aprofundar from public.consulta_veiculo_nova_vigencia(
+             30, 30, ${PRECOS}, date '2026-10-19', 'Teste');
+           reset role;
+           ${origem({ criado_em: oitoDias })};
+           ${linha(APROFUNDAR)};
+           select 'linhas=' || count(*) from public.consultas_de_placa where placa = 'FOR1A23'`,
+        ),
+      ),
+    ).toMatch(/nova=30[\s\S]*linhas=2/);
+  });
+
+  it("violação falha: reaproveitar de outra placa, de outra loja ou da homologação cai na FK composta", () => {
+    const FK = "consultas_de_placa_aproveitou_da_mesma_placa";
+    expect(recusa(`${origem({ placa: "OUT1A23", retrato: { placa: "OUT1A23" } })}; ${linha(APROFUNDAR)}`)).toContain(FK);
+    expect(recusa(`${origem({ homologacao: true, retrato: { placa: "EXEMPLO" } })}; ${linha(APROFUNDAR)}`)).toContain(FK);
+    expect(recusa(`${OUTRA_LOJA}; ${origem({}, naOutraLoja)}; ${linha(APROFUNDAR)}`)).toContain(FK);
+    // Origem que não existe.
+    expect(recusa(linha(APROFUNDAR))).toContain(FK);
+  });
+
+  it("violação falha: dado pessoal em fragmentos e tentativas, com as chaves novas; as chaves legítimas do retrato passam", () => {
+    const PESSOAL = "consultas_de_placa_sem_dado_pessoal";
+    // Controle: as chaves do RetratoDaConsulta que lembram as proibidas não colidem (a regex casa a chave inteira).
+    expect(
+      recusa(linha({ retrato: { placa: "FOR1A23", veiculo: { descricao: "GOL" },
+                                gratuito: { empresaDoFaturamento: { razaoSocial: "X", nomeFantasia: "Y" } },
+                                pessoas: { donosNoHistorico: 2, financiadosDistintos: 1 } } })),
+    ).toBe("");
+    for (const chave of ["nome_razao", "nome_financiado", "cpf_cnpj_financiado", "numero_identificacao_do_faturado",
+                         "codigo_seguranca_crv", "nome", "Nome", "documento", "cpf", "pronome"]) {
+      expect(recusa(linha({ fragmentos: { ...FRAG, estadual: { [chave]: "X" } } })), `fragmento: ${chave}`).toContain(PESSOAL);
+    }
+    expect(recusa(linha({ tentativas: [{ ...TENT3[0], documento: "0" }, TENT3[1], TENT3[2]] }))).toContain(PESSOAL);
+    expect(recusa(linha({ retrato: { placa: "FOR1A23", veiculo: { nome: "FULANO" } } }))).toContain(PESSOAL);
+  });
+
+  it("apagar a origem (só o serviço apaga) não apaga o aprofundamento: aproveitou_de vira nulo e a linha fica", () => {
+    const saida = desfeito(
+      `${origem()};
+       ${linha({ ...APROFUNDAR, id: "00000000-0000-0000-0000-0000000f0003" })};
+       set local role service_role;
+       delete from public.consultas_de_placa where id = '${ORIGEM}';
+       reset role;
+       select 'ficou=' || count(*) || ':' || bool_and(aproveitou_de is null) || ':' || nivel
+         from public.consultas_de_placa where id = '00000000-0000-0000-0000-0000000f0003' group by nivel`,
+    );
+    expect(saida).toContain("ficou=1:true:intermediario");
+    // A sessão (nem o admin) continua sem apagar nem editar.
+    expect(recusa(comoPapel("admin", `delete from public.consultas_de_placa`))).toContain("permission denied");
+    expect(recusa(comoPapel("admin", `update public.consultas_de_placa set nivel = 'completo'`))).toContain("permission denied");
+  });
+
+  it("os parâmetros: a semente de 2026-10-19 é a vigente, admin/gestor/comercial leem, o marketing não vê, anon é barrado", () => {
+    for (const papel of ["admin", "gestor", "comercial"]) {
+      expect(
+        desfeito(
+          comoPapel(
+            papel,
+            `select 'vigente=' || (count(*) = 1
+               and bool_and(dias_para_aprofundar = 7 and minutos_contra_repeticao = 30
+                            and tabela_de_precos_em = date '2026-10-19' and fonte = 'Tabela pública da APIBrasil'
+                            and precos_de_referencia = ${PRECOS}))
+               from public.parametros_consulta_veiculo where vigencia_ate is null`,
+          ),
+        ),
+        papel,
+      ).toContain("vigente=true");
+    }
+    expect(desfeito(comoPapel("marketing", "select 'vistos=' || count(*) from public.parametros_consulta_veiculo"))).toContain(
+      "vistos=0",
+    );
+    expect(recusa("set local role anon; select 1 from public.parametros_consulta_veiculo")).toContain("permission denied");
+  });
+
+  it("violação falha: parâmetro só se escreve pela função, só o admin abre vigência, e o valor vigente não se edita", () => {
+    const nova = (dias: number, precos = PRECOS) =>
+      `select 'nova=' || dias_para_aprofundar from public.consulta_veiculo_nova_vigencia(
+         ${dias}, 15, ${precos}, date '2026-11-01', 'Teste')`;
+    for (const papel of ["gestor", "comercial", "marketing"]) {
+      expect(recusa(comoPapel(papel, nova(10))), papel).toContain("Só o Administrador");
+    }
+    expect(recusa(nova(10))).toContain("sem sessão");
+    expect(recusa(`set local role anon; ${nova(10)}`)).toContain("permission denied for function consulta_veiculo_nova_vigencia");
+    expect(
+      recusa(comoPapel("admin", `insert into public.parametros_consulta_veiculo
+           (precos_de_referencia, tabela_de_precos_em, fonte, dias_para_aprofundar, minutos_contra_repeticao)
+         values (${PRECOS}, current_date, 'direto', 7, 30)`)),
+    ).toContain("permission denied");
+    expect(
+      recusa(comoPapel("admin", "update public.parametros_consulta_veiculo set vigencia_ate = current_date")),
+    ).toContain("permission denied");
+    const saida = desfeito(
+      comoPapel(
+        "admin",
+        `${nova(14)};
+         reset role;
+         select 'vigentes=' || count(*) || ':' || bool_and(dias_para_aprofundar = 14 and criado_por = '${UID.admin}')
+           from public.parametros_consulta_veiculo where vigencia_ate is null;
+         select 'encerradas_hoje=' || count(*) from public.parametros_consulta_veiculo
+          where vigencia_ate = current_date and dias_para_aprofundar = 7`,
+      ),
+    );
+    expect(saida).toContain("nova=14");
+    expect(saida).toContain("vigentes=1:true");
+    expect(saida).toContain("encerradas_hoje=1");
+    expect(recusa(comoPapel("admin", nova(91)))).toContain("parametros_consulta_veiculo_dias_para_aprofundar_na_faixa");
+    expect(recusa(comoPapel("admin", nova(7, `${PRECOS} - 'recall'`)))).toContain("parametros_consulta_veiculo_precos_validos");
+    // Valor vigente não sofre UPDATE nem pelo dono (D-T1.7).
+    expect(
+      recusa("update public.parametros_consulta_veiculo set dias_para_aprofundar = 8 where vigencia_ate is null"),
+    ).toContain("não sofre UPDATE");
+  });
+
+  it("violação falha: cada faixa dos parâmetros e a tabela de preços com exatamente os seis produtos", () => {
+    // Vigência FUTURA e já encerrada, como dono: fora do índice de vigente única e do guarda D-T1.7.
+    const caso = (muda: Record<string, string>) => {
+      const base: Record<string, string> = {
+        precos_de_referencia: PRECOS, fonte: "'Teste'", dias_para_aprofundar: "7", minutos_contra_repeticao: "30", ...muda,
+      };
+      return `insert into public.parametros_consulta_veiculo
+                (${Object.keys(base).join(", ")}, tabela_de_precos_em, vigencia_desde, vigencia_ate)
+              values (${Object.values(base).join(", ")}, current_date, current_date + 365, current_date + 730)`;
+    };
+    expect(recusa(caso({}))).toBe("");
+    expect(recusa(caso({ dias_para_aprofundar: "90", minutos_contra_repeticao: "0" }))).toBe("");
+    expect(recusa(caso({ dias_para_aprofundar: "0" }))).toContain("parametros_consulta_veiculo_dias_para_aprofundar_na_faixa");
+    expect(recusa(caso({ minutos_contra_repeticao: "1441" }))).toContain(
+      "parametros_consulta_veiculo_minutos_contra_repeticao_na_faixa",
+    );
+    expect(recusa(caso({ precos_de_referencia: `${PRECOS} || '{"cpf-lite": 0.12}'` }))).toContain(
+      "parametros_consulta_veiculo_precos_validos",
+    );
+    expect(recusa(caso({ precos_de_referencia: `${PRECOS} || '{"fipe": -0.01}'` }))).toContain(
+      "parametros_consulta_veiculo_precos_validos",
+    );
+    expect(recusa(caso({ precos_de_referencia: `${PRECOS} || '{"fipe": "0.06"}'` }))).toContain(
+      "parametros_consulta_veiculo_precos_validos",
+    );
+    expect(recusa(caso({ fonte: "'   '" }))).toContain("parametros_consulta_veiculo_fonte_preenchida");
+    // Uma vigente por loja.
+    expect(
+      recusa(`insert into public.parametros_consulta_veiculo
+                (precos_de_referencia, tabela_de_precos_em, fonte, dias_para_aprofundar, minutos_contra_repeticao)
+              values (${PRECOS}, current_date, 'segunda', 7, 30)`),
+    ).toContain("parametros_consulta_veiculo_um_vigente");
+  });
+
+  it("isolamento entre duas lojas: a consulta e o parâmetro da outra não aparecem, e cada loja tem a sua vigente", () => {
+    const saida = desfeito(
+      `${OUTRA_LOJA};
+       ${usuario("comercial")};
+       ${linha({ placa: "ISO1A23", retrato: { placa: "ISO1A23" } }, naOutraLoja)};
+       ${linha({ placa: "ISO1A23", retrato: { placa: "ISO1A23" } })};
+       insert into public.parametros_consulta_veiculo
+         (org_id, precos_de_referencia, tabela_de_precos_em, fonte, dias_para_aprofundar, minutos_contra_repeticao)
+       select id, ${PRECOS}, current_date, 'Outra loja', 30, 0 from public.orgs where nome = 'Outra loja (níveis)';
+       select 'vigentes_por_loja=' || count(*) from public.parametros_consulta_veiculo where vigencia_ate is null;
+       ${sessao("comercial")};
+       select 'consultas_vistas=' || count(*) from public.consultas_de_placa where placa = 'ISO1A23';
+       select 'parametros_vistos=' || count(*) || ':' || bool_and(org_id = public.org_padrao())
+         from public.parametros_consulta_veiculo`,
+    );
+    expect(saida).toContain("vigentes_por_loja=2");
+    expect(saida).toContain("consultas_vistas=1");
+    expect(saida).toContain("parametros_vistos=1:true");
+  });
+});
+
+/**
+ * Os níveis da consulta de placa, pela porta de verdade (19/10/2026): a linha
+ * que `gravar()` de `niveisDaPlaca-servidor.ts` monta — leitores e
+ * `montarRetratoPorNivel` sobre as respostas da doc (tests/fixtures/apibrasil/
+ * placa-niveis.json) — vai ao banco vestida de COMERCIAL, como o PostgREST a
+ * levaria, e tem de passar em todas as regras e no gatilho do
+ * reaproveitamento. O aceite da migração prova as regras com linhas escritas
+ * à mão; aqui é o app que escreve.
+ *
+ * O "PostgREST" é um tradutor mínimo: cada cadeia do dublê do supabase-js
+ * (select com eq/is/gte/order/limit, e insert…select) vira SQL rodado pelo
+ * psql na sessão do comercial. A trava contra repetição, a leitura dos
+ * parâmetros e a leitura da guardada no aprofundar também passam por ele —
+ * contra o banco de verdade.
+ *
+ * Diferente dos blocos acima, as linhas aqui são GRAVADAS (o aprofundar lê a
+ * básica em outra conexão); o `afterAll` apaga o que este bloco criou.
+ */
+describe.skipIf(!temBanco)("os níveis da consulta de placa, gravados pela porta do app", () => {
+  const UID = "00000000-0000-0000-0000-00000000ae13";
+  const PLACA = "QOZ7702";
+  const PLACA_COMPLETO = "ABC1D23";
+  const COLUNAS = "id, placa, nivel, produtos, fragmentos, retrato, custo, homologacao, criado_em, consultado_por_nome";
+  const respostas = JSON.parse(readFileSync(join(__dirname, "fixtures", "apibrasil", "placa-niveis.json"), "utf8")) as Record<string, unknown>;
+  const veiculosTotal = JSON.parse(readFileSync(join(__dirname, "fixtures", "apibrasil", "veiculos-total-mg-com-alienacao.json"), "utf8")) as unknown;
+
+  type Servidor = typeof import("../src/lib/niveisDaPlaca-servidor");
+  let servidor: Servidor;
+  let fetchOriginal: typeof globalThis.fetch;
+
+  const literal = (v: unknown): string =>
+    v === null ? "null" : typeof v === "boolean" || typeof v === "number" ? String(v) : `$v$${String(v)}$v$`;
+
+  /** A cadeia do dublê em SQL: um comando que devolve a lista de linhas em JSON, entre marcas `@@`. */
+  function emSql(c: Chamada): string {
+    if (c.operacao === "insert") {
+      const valores = c.valores as Record<string, unknown>;
+      const colunas = Object.keys(valores).join(", ");
+      return `with ins as (
+                insert into public.${c.tabela} (${colunas})
+                select ${colunas} from jsonb_populate_record(null::public.${c.tabela}, $j$${JSON.stringify(valores)}$j$::jsonb)
+                returning ${COLUNAS})
+              select '@@' || coalesce(jsonb_agg(to_jsonb(ins)), '[]'::jsonb)::text || '@@' from ins`;
+    }
+    const onde: string[] = [];
+    let ordem = "";
+    let limite = "";
+    for (const [nome, coluna, valor] of c.filtros as Array<[string, string, unknown]>) {
+      if (nome === "eq") onde.push(`${coluna} = ${literal(valor)}`);
+      else if (nome === "gte") onde.push(`${coluna} >= ${literal(valor)}`);
+      else if (nome === "is") onde.push(`${coluna} is ${literal(valor)}`);
+      else if (nome === "order") ordem = ` order by ${coluna} ${(valor as { ascending?: boolean })?.ascending === false ? "desc" : "asc"}`;
+      else if (nome === "limit") limite = ` limit ${Number(coluna)}`;
+      else throw new Error(`filtro não traduzido: ${nome}`);
+    }
+    return `select '@@' || coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb)::text || '@@'
+              from (select ${c.colunas ?? "*"} from public.${c.tabela}${onde.length ? ` where ${onde.join(" and ")}` : ""}${ordem}${limite}) t`;
+  }
+
+  /** O banco que o app vê: cada chamada numa transação própria, na sessão do comercial. */
+  const banco = supabaseDeTeste({
+    responder: (c: Chamada): Resposta => {
+      try {
+        const saida = psql!(
+          `begin;
+           select set_config('request.jwt.claims', json_build_object('sub', '${UID}', 'role', 'authenticated')::text, true);
+           set local role authenticated;
+           ${emSql(c)};
+           commit;`,
+        );
+        const linhas = JSON.parse(saida.match(/@@([\s\S]*?)@@/)![1]) as unknown[];
+        return { data: c.fim === null ? linhas : (linhas[0] ?? null), error: null };
+      } catch (e) {
+        const mensagem = String((e as Error).message);
+        return { data: null, error: { message: mensagem, code: mensagem.match(/\b(23514|23503|42501|P0001)\b/)?.[1] } };
+      }
+    },
+  });
+  const cliente = banco.cliente as unknown as Parameters<Servidor["consultarPlacaPorNivel"]>[0];
+
+  /** O gateway: as respostas da doc, por produto, e o que foi pedido. */
+  function gateway() {
+    const tipos: string[] = [];
+    const buscar = async (_url: string, init: { body: string }) => {
+      const tipo = String((JSON.parse(init.body) as { tipo: string }).tipo);
+      tipos.push(tipo);
+      return { status: 200, json: async () => structuredClone(tipo === "veiculos-total" ? veiculosTotal : respostas[tipo]) };
+    };
+    return { buscar, tipos };
+  }
+
+  /** Consulta como a rota: parâmetros lidos do banco, token, modo de produção. Devolve também o erro do banco, se a gravação falhou. */
+  async function consultar(pedido: { placa: string; nivel: "basico" | "intermediario" | "economico" | "completo"; aprofundarDe?: string | null; repetir?: boolean }) {
+    const parametros = await servidor.lerParametrosDaPlaca(cliente);
+    if (!parametros.ok) throw new Error(parametros.motivo);
+    const gw = gateway();
+    const erros: string[] = [];
+    const espia = vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => void erros.push(a.map(String).join(" ")));
+    try {
+      const r = await servidor.consultarPlacaPorNivel(cliente, pedido, { token: "tok", homologacao: false, parametros: parametros.parametros, buscar: gw.buscar as never });
+      return { r, gw, erroDoBanco: erros.join(" | ") };
+    } finally {
+      espia.mockRestore();
+    }
+  }
+
+  /** A linha gravada, lida como dono (sem RLS), em JSON. */
+  const linhaNoBanco = (id: string) =>
+    JSON.parse(
+      psql!(
+        `select '@@' || to_jsonb(c)::text || '@@' from public.consultas_de_placa c where id = '${id}'`,
+      ).match(/@@([\s\S]*?)@@/)![1],
+    ) as Record<string, unknown>;
+
+  const limpar = () =>
+    psql!(
+      `delete from public.consultas_de_placa where placa in ('${PLACA}', '${PLACA_COMPLETO}') and consultado_por = '${UID}';
+       delete from public.profiles where id = '${UID}';
+       delete from auth.users where id = '${UID}'`,
+    );
+
+  let idDaBasica = "";
+
+  beforeAll(async () => {
+    servidor = await import("../src/lib/niveisDaPlaca-servidor");
+    limpar();
+    psql!(
+      `insert into auth.users (id, instance_id, aud, role, email)
+         values ('${UID}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'niveis-porta@exemplo.invalido');
+       update public.profiles set full_name = 'Comercial da porta', papeis = array['comercial'], role = 'comercial', is_active = true
+        where id = '${UID}'`,
+    );
+    // A parte sem custo (BrasilAPI) não sai da máquina: a falha dela vira aviso, como em produção.
+    fetchOriginal = globalThis.fetch;
+    globalThis.fetch = (async () => ({ ok: false, status: 503, json: async () => null })) as never;
+  });
+
+  afterAll(() => {
+    globalThis.fetch = fetchOriginal;
+    limpar();
+  });
+
+  it("os parâmetros vêm do banco, na sessão do comercial, com os preços da semente", async () => {
+    const p = await servidor.lerParametrosDaPlaca(cliente);
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.parametros).toMatchObject({ tabelaDePrecosEm: "2026-10-19", diasParaAprofundar: 7, minutosContraRepeticao: 30 });
+    expect(servidor.niveisComPreco(p.parametros.precos).map((n) => n.preco)).toEqual([3.18, 5.58, 10.58, 30]);
+  });
+
+  it("básico: a linha que gravar() monta passa em todas as regras, e o carimbo é do comercial", async () => {
+    const { r, gw, erroDoBanco } = await consultar({ placa: PLACA, nivel: "basico" });
+    expect(erroDoBanco, "o banco recusou a linha do básico").toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+    expect(gw.tipos.sort()).toEqual(["estadual", "fipe", "recall"]);
+    if (!r.ok) return;
+    idDaBasica = r.consulta.id!;
+    const linha = linhaNoBanco(idDaBasica);
+    expect(linha).toMatchObject({
+      produto: "niveis",
+      nivel: "basico",
+      produtos: ["estadual", "recall", "fipe"],
+      custo: 3.18,
+      homologacao: false,
+      aproveitou_de: null,
+      consultado_por: UID,
+      consultado_por_nome: "Comercial da porta",
+    });
+    expect((linha.tentativas as unknown[]).length).toBe(3);
+  });
+
+  it("o aprofundar para o econômico (aproveitou_de da básica) passa nas regras e no gatilho, pagando só o que falta", async () => {
+    expect(idDaBasica).not.toBe("");
+    const { r, gw, erroDoBanco } = await consultar({ placa: PLACA, nivel: "economico", aprofundarDe: idDaBasica });
+    expect(erroDoBanco, "o banco recusou o aprofundar").toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+    expect(gw.tipos.sort()).toEqual(["check-list", "historico-proprietarios"]);
+    if (!r.ok) return;
+    const linha = linhaNoBanco(r.consulta.id!);
+    expect(linha).toMatchObject({
+      nivel: "economico",
+      produtos: ["estadual", "recall", "fipe", "check-list", "historico-proprietarios"],
+      aproveitou_de: idDaBasica,
+      custo: 7.4,
+    });
+    const tentativas = linha.tentativas as Array<{ produto: string; reaproveitado: boolean }>;
+    expect(tentativas.filter((t) => t.reaproveitado).map((t) => t.produto)).toEqual(["estadual", "recall", "fipe"]);
+    // A guardada nova já é a mais recente da placa, com as dez checagens.
+    expect((linha.retrato as { naoVeio: unknown[] }).naoVeio).toEqual([]);
+  });
+
+  it("o intermediário a partir da mesma básica também passa", async () => {
+    const { r, erroDoBanco } = await consultar({ placa: PLACA, nivel: "intermediario", aprofundarDe: idDaBasica });
+    expect(erroDoBanco).toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+  });
+
+  it("a trava de verdade: o básico de novo, há pouco, volta 409 sem chamar o gateway; com `repetir`, grava", async () => {
+    const trava = await consultar({ placa: PLACA, nivel: "basico" });
+    expect(trava.r).toMatchObject({ ok: false, status: 409 });
+    expect(trava.gw.tipos).toEqual([]);
+    const repetida = await consultar({ placa: PLACA, nivel: "basico", repetir: true });
+    expect(repetida.erroDoBanco).toBe("");
+    expect(repetida.r.ok && repetida.r.gravada).toBe(true);
+  });
+
+  it("completo: o Veículos Total gravado como produto veiculos-total passa nas regras", async () => {
+    const { r, gw, erroDoBanco } = await consultar({ placa: PLACA_COMPLETO, nivel: "completo" });
+    expect(erroDoBanco).toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+    expect(gw.tipos).toEqual(["veiculos-total"]);
+    if (r.ok) expect(linhaNoBanco(r.consulta.id!)).toMatchObject({ produto: "veiculos-total", nivel: "completo", produtos: ["veiculos-total"], fragmentos: {} });
   });
 });
 
