@@ -14,6 +14,8 @@ import {
   type NivelDaQualificacao,
 } from "../../../lib/consultaDePlaca";
 import type { ConsultaGuardada, LeituraDasRecentes } from "../../../lib/consultaDePlaca-servidor";
+import { nivelDaPlaca, type NivelDaPlaca } from "../../../lib/niveisDaPlaca";
+import type { AprofundarDaPlaca, NivelComPrecoDaPlaca } from "../../../lib/niveisDaPlaca-servidor";
 import FaixaDeCompra, { useAvaliacao } from "./FaixaDeCompra";
 import PainelDaFipe from "./PainelDaFipe";
 import SinalDeEstado, { COR_DO_ESTADO, ROTULO_DO_ESTADO } from "./SinalDeEstado";
@@ -34,6 +36,10 @@ import SinalDeEstado, { COR_DO_ESTADO, ROTULO_DO_ESTADO } from "./SinalDeEstado"
  * A faixa de compra é a curva de deságio vigente (`parametros_avaliacao`), a
  * mesma conta de `/api/avaliacao`, recalculada ao vivo com o km e o estado
  * que o avaliador informa. Nenhum percentual mora aqui.
+ *
+ * Desde 19/10/2026 a consulta tem NÍVEIS com preço (`niveisDaPlaca.ts`):
+ * placa nova abre os cartões dos níveis antes de cobrar, e a consulta
+ * guardada oferece o APROFUNDAR — subir de nível pagando só o que falta.
  */
 
 const reais = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -70,6 +76,23 @@ const TITULO_DO_NIVEL: Record<NivelDaQualificacao, string> = {
 
 type Retorno = { tipo: "erro" | "aviso"; texto: string } | null;
 
+/** O que a rota devolve. */
+interface RespostaDaPlaca {
+  consulta?: ConsultaGuardada | null;
+  guardada?: boolean;
+  saldo?: number | null;
+  aviso?: string;
+  error?: string;
+  podeTerCobrado?: boolean;
+  repeticao?: ConsultaGuardada;
+  niveis?: NivelComPrecoDaPlaca[] | null;
+  aprofundar?: AprofundarDaPlaca[];
+  tabelaDePrecosEm?: string | null;
+  avisoDosNiveis?: string | null;
+}
+
+const precoDoNivel = (p: number | null) => (p === null ? "sem estimativa" : p.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+
 export default function ConsultaDePlaca({
   recentes,
   curva,
@@ -94,6 +117,13 @@ export default function ConsultaDePlaca({
   const [carregando, setCarregando] = useState(false);
   const [retorno, setRetorno] = useState<Retorno>(null);
   const [saldo, setSaldo] = useState<number | null>(null);
+  const [niveis, setNiveis] = useState<NivelComPrecoDaPlaca[] | null>(null);
+  const [aprofundar, setAprofundar] = useState<AprofundarDaPlaca[]>([]);
+  const [tabelaDePrecosEm, setTabelaDePrecosEm] = useState<string | null>(null);
+  const [avisoDosNiveis, setAvisoDosNiveis] = useState<string | null>(null);
+  /** A placa esperando a escolha do nível (placa nova, ou "consultar de novo"). */
+  const [escolhendo, setEscolhendo] = useState<string | null>(null);
+  const [nivelEscolhido, setNivelEscolhido] = useState<NivelDaPlaca | null>(null);
   // Um relógio só por montagem: a idade da consulta não precisa andar sozinha.
   const [agora] = useState(() => Date.now());
 
@@ -101,20 +131,21 @@ export default function ConsultaDePlaca({
   const fipeAtual = retrato?.fipe?.valorAtual ?? null;
   const avaliacao = useAvaliacao(fipeAtual, retrato?.veiculo.anoModelo ?? null, curva);
 
-  const pedir = async (corpo: { placa: string; soGuardada?: boolean; refazer?: boolean }) => {
+  const pedir = async (corpo: { placa: string; soGuardada?: boolean; nivel?: NivelDaPlaca; aprofundarDe?: string | null; repetir?: boolean }) => {
     const res = await fetch("/api/consulta-placa", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(corpo),
     });
-    const json = (await res.json().catch(() => ({}))) as {
-      consulta?: ConsultaGuardada | null;
-      guardada?: boolean;
-      saldo?: number | null;
-      aviso?: string;
-      error?: string;
-    };
-    return { ok: res.ok, json };
+    const json = (await res.json().catch(() => ({}))) as RespostaDaPlaca;
+    return { ok: res.ok, status: res.status, json };
+  };
+
+  const guardarOpcoes = (json: RespostaDaPlaca) => {
+    if (json.niveis !== undefined) setNiveis(json.niveis ?? null);
+    if (json.aprofundar !== undefined) setAprofundar(json.aprofundar);
+    if (json.tabelaDePrecosEm !== undefined) setTabelaDePrecosEm(json.tabelaDePrecosEm ?? null);
+    if (json.avisoDosNiveis !== undefined) setAvisoDosNiveis(json.avisoDosNiveis ?? null);
   };
 
   const mostrar = (c: ConsultaGuardada, guardada: boolean) => {
@@ -124,8 +155,12 @@ export default function ConsultaDePlaca({
     avaliacao.zerar();
   };
 
-  /** Primeiro o que já está guardado, de graça; só depois, com confirmação, o fornecedor. */
-  const consultar = async (valor: string, refazer = false) => {
+  /**
+   * Primeiro o que já está guardado, de graça. Sem guardada (ou com
+   * `escolherNivel`), abre os cartões dos níveis; só a escolha e a
+   * confirmação levam ao fornecedor.
+   */
+  const consultar = async (valor: string, escolherNivel = false) => {
     setRetorno(null);
     const normalizada = normalizarPlaca(valor);
     if (!normalizada) {
@@ -134,46 +169,89 @@ export default function ConsultaDePlaca({
     }
     setCarregando(true);
     try {
-      if (!refazer) {
-        const guardada = await pedir({ placa: normalizada, soGuardada: true });
-        if (!guardada.ok) {
-          setRetorno({ tipo: "erro", texto: guardada.json.error || "Não deu para ler as consultas guardadas." });
-          return;
-        }
-        if (guardada.json.consulta) {
-          mostrar(guardada.json.consulta, true);
-          return;
-        }
-      }
-
-      if (!temToken) {
-        setRetorno({ tipo: "erro", texto: "Falta configurar APIBRASIL_TOKEN na Vercel para consultar placa nova." });
+      const guardada = await pedir({ placa: normalizada, soGuardada: true });
+      if (!guardada.ok) {
+        setRetorno({ tipo: "erro", texto: guardada.json.error || "Não deu para ler as consultas guardadas." });
         return;
       }
-      const ok = await confirm({
-        title: refazer ? "Consultar de novo no fornecedor" : "Placa ainda não consultada",
-        message: homologacao
-          ? `O painel está em modo de teste: a APIBrasil responde com um carro de exemplo, sem cobrar, e não com o ${normalizada}.`
-          : `A consulta de ${normalizada} é cobrada pela APIBrasil no saldo da loja. ` +
-            (refazer ? "A consulta guardada continua no histórico." : "Depois de feita, reabrir a mesma placa não custa nada."),
-        confirmLabel: homologacao ? "Consultar em teste" : "Consultar e pagar",
-        cancelLabel: "Cancelar",
-        type: "warning",
-      });
-      if (!ok) return;
-
-      const nova = await pedir({ placa: normalizada, refazer: true });
-      if (!nova.ok || !nova.json.consulta) {
-        setRetorno({ tipo: "erro", texto: nova.json.error || "A consulta não voltou." });
+      guardarOpcoes(guardada.json);
+      if (guardada.json.consulta && !escolherNivel) {
+        mostrar(guardada.json.consulta, true);
+        setEscolhendo(null);
         return;
       }
-      mostrar(nova.json.consulta, false);
-      setSaldo(typeof nova.json.saldo === "number" ? nova.json.saldo : null);
-      if (nova.json.aviso) setRetorno({ tipo: "aviso", texto: nova.json.aviso });
+      if (!guardada.json.consulta) setConsulta(null);
+      setPlaca(normalizada);
+      setNivelEscolhido(null);
+      setEscolhendo(normalizada);
+    } catch {
+      setRetorno({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  /** Paga um nível (ou o aprofundar de uma guardada), com confirmação e a trava contra repetição. */
+  const pagar = async (placaAlvo: string, nivel: NivelDaPlaca, preco: number | null, produtos: string[], aprofundarDe: string | null = null) => {
+    setRetorno(null);
+    if (!temToken) {
+      setRetorno({ tipo: "erro", texto: "Falta configurar APIBRASIL_TOKEN na Vercel para consultar." });
+      return;
+    }
+    const rotuloDoNivel = nivelDaPlaca(nivel)?.rotulo ?? nivel;
+    const ok = await confirm({
+      title: aprofundarDe ? `Aprofundar para ${rotuloDoNivel}` : `Consulta ${rotuloDoNivel}`,
+      message: homologacao
+        ? `O painel está em modo de teste: a APIBrasil responde com um carro de exemplo, sem cobrar, e não com o ${placaAlvo}.`
+        : `${placaAlvo}: ${produtos.join(" + ")}. ` +
+          (preco === null ? "O preço não está na tabela; o valor exato vem na resposta." : `Cerca de ${precoDoNivel(preco)} no saldo da APIBrasil (o valor exato vem na resposta).`) +
+          (aprofundarDe ? " O que a consulta guardada já tem é reaproveitado, sem pagar de novo." : ""),
+      confirmLabel: homologacao ? "Consultar em teste" : "Consultar e pagar",
+      cancelLabel: "Cancelar",
+      type: "warning",
+    });
+    if (!ok) return;
+
+    setCarregando(true);
+    try {
+      let resposta = await pedir({ placa: placaAlvo, nivel, aprofundarDe });
+      if (resposta.status === 409 && resposta.json.repeticao) {
+        const anterior = resposta.json.repeticao;
+        const repetir = await confirm({
+          title: "Consultada há pouco",
+          message: `${resposta.json.error ?? ""} (${dataCurta(anterior.criadoEm)}${anterior.consultadoPor ? `, ${anterior.consultadoPor}` : ""}.)`,
+          confirmLabel: "Consultar de novo e pagar",
+          cancelLabel: "Abrir a guardada",
+          type: "warning",
+        });
+        if (!repetir) {
+          mostrar(anterior, true);
+          setEscolhendo(null);
+          return;
+        }
+        resposta = await pedir({ placa: placaAlvo, nivel, aprofundarDe, repetir: true });
+      }
+      if (!resposta.ok || !resposta.json.consulta) {
+        const semCorpo = !resposta.json.error || resposta.status >= 500;
+        const cobrou = resposta.json.podeTerCobrado || (semCorpo && !resposta.json.error);
+        setRetorno({
+          tipo: "erro",
+          texto:
+            (resposta.json.error || "A consulta não voltou a tempo.") +
+            (cobrou && !homologacao && !/PODE ter sido cobrada|confira o saldo/i.test(resposta.json.error ?? "") ? " Ela PODE ter sido cobrada: confira o saldo no painel da APIBrasil antes de repetir." : ""),
+        });
+        return;
+      }
+      mostrar(resposta.json.consulta, false);
+      setEscolhendo(null);
+      setNivelEscolhido(null);
+      setAprofundar(resposta.json.aprofundar ?? []);
+      setSaldo(typeof resposta.json.saldo === "number" ? resposta.json.saldo : null);
+      if (resposta.json.aviso) setRetorno({ tipo: "aviso", texto: resposta.json.aviso });
       // A lista de recentes é do servidor.
       router.refresh();
     } catch {
-      setRetorno({ tipo: "erro", texto: "Sem conexão com o servidor. Antes de tentar de novo, confira o saldo no painel da APIBrasil." });
+      setRetorno({ tipo: "erro", texto: "Sem conexão com o servidor. A consulta PODE ter sido feita: confira o saldo no painel da APIBrasil antes de repetir." });
     } finally {
       setCarregando(false);
     }
@@ -263,6 +341,62 @@ export default function ConsultaDePlaca({
           <SinalDeEstado estado={retorno.tipo === "erro" ? "impeditivo" : "atencao"} />
           <span>{retorno.texto}</span>
         </div>
+      )}
+
+      {escolhendo && (
+        <section aria-label="Nível da consulta" className="nao-imprimir flex flex-col gap-3" data-escolher-nivel>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className={`${rotulo} m-0`}>NÍVEL DA CONSULTA · {escolhendo}</h2>
+            <button type="button" className="mt-link-regua mt-foco cursor-pointer border-0 bg-transparent p-0 text-[11px]" onClick={() => setEscolhendo(null)}>
+              Cancelar
+            </button>
+          </div>
+          {avisoDosNiveis && <p className={`${dica} font-bold`}>{avisoDosNiveis}</p>}
+          {niveis && (
+            <>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {niveis.map((n) => (
+                  <label
+                    key={n.id}
+                    data-nivel-da-placa={n.id}
+                    className={`flex cursor-pointer flex-col gap-1 border-2 bg-mt-surface p-4 ${nivelEscolhido === n.id ? "border-mt-ink" : "border-mt-regua-fina"}`}
+                  >
+                    <span className="flex items-baseline justify-between gap-3">
+                      <span className="flex items-center gap-2 text-sm font-extrabold text-mt-ink">
+                        <input type="radio" name="nivel-da-placa" value={n.id} checked={nivelEscolhido === n.id} onChange={() => setNivelEscolhido(n.id)} />
+                        {n.rotulo}
+                      </span>
+                      <span className="text-sm font-extrabold tabular-nums text-mt-ink">{precoDoNivel(n.preco)}</span>
+                    </span>
+                    <span className="text-xs text-mt-neutral-800">{n.traz}</span>
+                    {n.deixaDeFora && <span className="text-[11px] text-mt-neutral-700">Fica de fora: {n.deixaDeFora}</span>}
+                    <span className="text-[11px] text-mt-neutral-600">{n.nomesDosProdutos.join(" + ")}</span>
+                  </label>
+                ))}
+              </div>
+              <p className={dica}>
+                Preço de referência da tabela da APIBrasil{tabelaDePrecosEm ? ` de ${dataCurta(tabelaDePrecosEm)}` : ""}; o valor exato vem na resposta e fica no histórico. Depois, dá para
+                aprofundar pagando só o que faltar.
+              </p>
+              <button
+                type="button"
+                disabled={carregando || !temToken || !nivelEscolhido}
+                className="mt-btn mt-btn-primario mt-foco cursor-pointer self-start px-5 py-3 text-[11px]"
+                onClick={() => {
+                  const n = niveis.find((x) => x.id === nivelEscolhido);
+                  if (n) void pagar(escolhendo, n.id, n.preco, n.nomesDosProdutos);
+                }}
+                data-consultar-nivel
+              >
+                {carregando
+                  ? "Consultando…"
+                  : nivelEscolhido
+                    ? `Consultar · ${homologacao ? "teste" : precoDoNivel(niveis.find((x) => x.id === nivelEscolhido)?.preco ?? null)}`
+                    : "Escolha o nível"}
+              </button>
+            </>
+          )}
+        </section>
       )}
 
       {consulta && retrato && qualificacao && (
@@ -487,20 +621,37 @@ export default function ConsultaDePlaca({
               todo `<footer>` pela tag; agora é pela classe. */}
           <footer className="nao-imprimir flex flex-wrap items-center justify-between gap-3 border-t border-mt-regua-fina pt-4 text-xs text-mt-neutral-800">
             <span>
-              {veioGuardada ? "Consulta guardada" : "Consulta nova"}, feita em {dataCurta(consulta.criadoEm)} ({haQuanto(consulta.criadoEm, agora)})
+              {veioGuardada ? "Consulta guardada" : "Consulta nova"} · nível {nivelDaPlaca(consulta.nivel ?? retrato.nivel ?? "completo")?.rotulo}, feita em{" "}
+              {dataCurta(consulta.criadoEm)} ({haQuanto(consulta.criadoEm, agora)})
               {consulta.consultadoPor ? ` por ${consulta.consultadoPor}` : ""}
               {consulta.custo !== null ? ` · custou ${centavos(consulta.custo)}` : ""}
               {consulta.homologacao ? " · MODO DE TESTE" : ""}
               {saldo !== null ? ` · saldo na APIBrasil: ${centavos(saldo)}` : ""}
             </span>
-            <button
-              type="button"
-              disabled={carregando}
-              onClick={() => void consultar(consulta.placa, true)}
-              className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
-            >
-              Consultar de novo (cobrado)
-            </button>
+            <span className="flex flex-wrap gap-2">
+              {consulta.id &&
+                aprofundar.map((a) => (
+                  <button
+                    key={a.nivel}
+                    type="button"
+                    disabled={carregando || a.nomesDosProdutos.length === 0}
+                    onClick={() => void pagar(consulta.placa, a.nivel, a.preco, a.nomesDosProdutos, consulta.id)}
+                    className="mt-btn mt-btn-primario mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
+                    title={a.reaproveitados > 0 ? `Reaproveita ${a.reaproveitados} ${a.reaproveitados === 1 ? "produto" : "produtos"} desta consulta` : undefined}
+                    data-aprofundar={a.nivel}
+                  >
+                    Aprofundar: {a.rotulo} · {homologacao ? "teste" : `+${precoDoNivel(a.preco)}`}
+                  </button>
+                ))}
+              <button
+                type="button"
+                disabled={carregando}
+                onClick={() => void consultar(consulta.placa, true)}
+                className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-4 py-2.5 text-[11px]"
+              >
+                Consultar de novo (cobrado)
+              </button>
+            </span>
           </footer>
         </>
       )}
@@ -514,6 +665,7 @@ export default function ConsultaDePlaca({
                 <tr>
                   <th scope="col">Placa</th>
                   <th scope="col">Veículo</th>
+                  <th scope="col">Nível</th>
                   <th scope="col">Situação</th>
                   <th scope="col">Quando</th>
                   <th scope="col">Quem</th>
@@ -532,6 +684,7 @@ export default function ConsultaDePlaca({
                       </button>
                     </td>
                     <td>{c.descricao ?? "—"}</td>
+                    <td>{nivelDaPlaca(c.nivelDaConsulta)?.rotulo ?? "—"}</td>
                     <td>
                       <span className="inline-flex items-center gap-1.5">
                         <SinalDeEstado estado={ESTADO_DO_NIVEL[c.nivel]} tamanho={14} />

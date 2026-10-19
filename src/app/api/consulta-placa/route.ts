@@ -1,62 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
-import { configuracaoDaApiBrasil, consultarVeiculosTotal } from "../../../lib/apiBrasil";
+import { configuracaoDaApiBrasil } from "../../../lib/apiBrasil";
+import { normalizarPlaca } from "../../../lib/consultaDePlaca";
+import { MIGRACAO_DA_CONSULTA_DE_PLACA, autorizarConsultaDePlaca, lerUltimaConsulta } from "../../../lib/consultaDePlaca-servidor";
+import { nivelDaPlaca } from "../../../lib/niveisDaPlaca";
 import {
-  PRODUTO_VEICULOS_TOTAL,
-  lerRespostaDaApiBrasil,
-  mesclarGratuito,
-  normalizarPlaca,
-} from "../../../lib/consultaDePlaca";
-import {
-  MIGRACAO_DA_CONSULTA_DE_PLACA,
-  autorizarConsultaDePlaca,
-  gravarConsulta,
-  lerUltimaConsulta,
-  type ConsultaGuardada,
-} from "../../../lib/consultaDePlaca-servidor";
-import { consultarGratuito } from "../../../lib/consultaGratuita";
+  MIGRACAO_DOS_NIVEIS_DA_PLACA,
+  consultarPlacaPorNivel,
+  lerParametrosDaPlaca,
+  niveisComPreco,
+  opcoesDeAprofundar,
+} from "../../../lib/niveisDaPlaca-servidor";
 import { registrarFalha } from "../../../lib/observabilidade";
 
 export const dynamic = "force-dynamic";
-// A consulta paga espera até 45 s pelo fornecedor, e a gratuita vem depois.
+// Os produtos esperam até 45 s pelo fornecedor (todos de uma vez), e a parte gratuita vem depois.
 export const maxDuration = 60;
 
 const SEM_CACHE = { "Cache-Control": "no-store" };
 
 /**
- * `POST /api/consulta-placa` — o retrato de um carro pela placa.
+ * `POST /api/consulta-placa` — o retrato de um carro pela placa, em níveis
+ * (dono, 19/10/2026).
  *
- * Corpo: `{ placa, refazer?, soGuardada? }`. `soGuardada` pergunta só pelo que
- * já está no banco e nunca chega ao fornecedor: é o primeiro passo da tela,
- * que só então pede a confirmação de quem vai gastar.
+ * Corpo:
+ *   `{ placa, soGuardada: true }` — nunca chega ao fornecedor. Devolve a
+ *     consulta guardada (se houver), os níveis com o preço da tabela vigente
+ *     e, para a guardada, quanto custa aprofundar até cada nível acima.
+ *   `{ placa, nivel, aprofundarDe?, repetir? }` — cobra. `aprofundarDe` é o
+ *     id de uma consulta guardada desta placa: os produtos dela são
+ *     reaproveitados e só os que faltam são pagos. O mesmo nível da mesma
+ *     placa consultado há pouco volta 409 até vir `repetir`.
+ *   `{ placa, refazer: true }` sem `nivel` — compatibilidade: é o completo.
  *
- * A ordem existe para não gastar dinheiro à toa:
- *   1. sessão e papel (matriz: Administrador, Gestor, Comercial);
- *   2. placa numa das duas máscaras;
- *   3. a consulta GUARDADA dessa placa. Havendo uma e sem `refazer`, é ela que
- *      volta, sem custo. Esta leitura roda SEMPRE, mesmo com `refazer`: é ela
- *      que descobre a tabela ausente ANTES de pagar por um retrato que não
- *      teria onde ser guardado;
- *   4. o token do fornecedor;
- *   5. a consulta paga, uma chamada, sem nova tentativa (`lib/apiBrasil.ts`);
- *   6. a parte sem custo, mesclada por cima (`lib/consultaGratuita.ts`). Ela
- *      nunca derruba a consulta;
- *   7. gravar. Se a gravação falhar, o retrato VOLTA assim mesmo, com o aviso:
- *      a consulta já foi paga, e perdê-la seria pagar de novo.
+ * A ordem existe para não gastar dinheiro à toa: sessão e papel; placa; a
+ * consulta guardada (descobre a tabela ausente ANTES de pagar); os
+ * parâmetros (preços e prazos); o token; a consulta paga, sem nova
+ * tentativa; a parte sem custo; gravar — e, se a gravação falhar, o retrato
+ * volta assim mesmo, com o aviso: a consulta já foi paga.
  *
- * A resposta crua do fornecedor (que traz nome e CPF de proprietário) não é
- * gravada nem devolvida: só o retrato sai daqui.
+ * A resposta crua do fornecedor (nome e CPF de proprietário) não é gravada
+ * nem devolvida: só o retrato e os fragmentos, sem dado pessoal.
  */
 export async function POST(request: NextRequest) {
   const porta = await autorizarConsultaDePlaca();
   if (!porta.ok) return NextResponse.json({ error: porta.motivo }, { status: porta.status, headers: SEM_CACHE });
 
-  const corpo = (await request.json().catch(() => null)) as { placa?: unknown; refazer?: unknown; soGuardada?: unknown } | null;
+  const corpo = (await request.json().catch(() => null)) as {
+    placa?: unknown;
+    refazer?: unknown;
+    soGuardada?: unknown;
+    nivel?: unknown;
+    aprofundarDe?: unknown;
+    repetir?: unknown;
+  } | null;
   const placa = normalizarPlaca(corpo?.placa);
   if (!placa) {
-    return NextResponse.json(
-      { error: "Placa inválida. Use o formato ABC1234 ou ABC1D23.", codigo: "placa_invalida" },
-      { status: 400, headers: SEM_CACHE },
-    );
+    return NextResponse.json({ error: "Placa inválida. Use o formato ABC1234 ou ABC1D23.", codigo: "placa_invalida" }, { status: 400, headers: SEM_CACHE });
   }
 
   const guardada = await lerUltimaConsulta(porta.supabase, placa);
@@ -71,84 +70,73 @@ export async function POST(request: NextRequest) {
       { status: 503, headers: SEM_CACHE },
     );
   }
-  if (guardada.consulta && corpo?.refazer !== true) {
-    return NextResponse.json({ consulta: guardada.consulta, guardada: true }, { headers: SEM_CACHE });
-  }
-
-  if (corpo?.soGuardada === true) {
-    return NextResponse.json({ consulta: guardada.consulta, guardada: true }, { headers: SEM_CACHE });
-  }
 
   const { token, homologacao } = configuracaoDaApiBrasil();
-  if (!token) {
-    return NextResponse.json(
-      { error: "Falta configurar APIBRASIL_TOKEN na Vercel. Nada foi consultado nem cobrado.", codigo: "sem_token" },
-      { status: 503, headers: SEM_CACHE },
-    );
-  }
+  const parametros = await lerParametrosDaPlaca(porta.supabase);
 
-  const rede = await consultarVeiculosTotal(placa, { token, homologacao });
-  if (!rede.ok) {
-    // Sem saldo é PARADA, e não quebra: a tela funciona, quem parou foi o
-    // fornecedor, e quem resolve é o dono, pondo crédito. Vai ao WhatsApp.
-    if (rede.status === 402) {
-      await registrarFalha("parada", "apibrasil-sem-saldo", "A consulta de placa parou: a conta da APIBrasil está sem saldo.", {
-        rota: "/api/consulta-placa",
-        metodo: "POST",
-        origem: "servidor",
-      });
-    }
-    return NextResponse.json(
-      { error: rede.motivo, podeTerCobrado: rede.podeTerCobrado },
-      { status: rede.status, headers: SEM_CACHE },
-    );
-  }
-
-  const leitura = lerRespostaDaApiBrasil(rede.corpo, placa);
-  if (!leitura.ok) {
-    return NextResponse.json({ error: leitura.motivo, podeTerCobrado: false }, { status: 502, headers: SEM_CACHE });
-  }
-
-  const gratuito = await consultarGratuito({
-    cnpj: leitura.retrato.primeiroFaturamento.cnpj,
-    codigoFipe: leitura.retrato.fipe?.codigo ?? null,
-    anoModelo: leitura.retrato.veiculo.anoModelo,
-  });
-  const retrato = mesclarGratuito(leitura.retrato, gratuito);
-
-  const gravacao = await gravarConsulta(porta.supabase, {
-    placa,
-    produto: PRODUTO_VEICULOS_TOTAL,
-    retrato,
-    custo: leitura.custo,
-    homologacao: leitura.homologacao,
-  });
-  if (!gravacao.ok) {
-    console.error("[Consulta de placa] A consulta foi paga e não foi gravada:", gravacao.motivo);
-    await registrarFalha("quebra", "consulta-de-placa-nao-gravada", gravacao.motivo, {
-      rota: "/api/consulta-placa",
-      metodo: "POST",
-      origem: "servidor",
-    });
-    const avulsa: ConsultaGuardada = {
-      id: null,
-      placa,
-      retrato,
-      custo: leitura.custo,
-      homologacao: leitura.homologacao,
-      criadoEm: new Date().toISOString(),
-      consultadoPor: null,
-    };
+  if (corpo?.soGuardada === true) {
     return NextResponse.json(
       {
-        consulta: avulsa,
-        guardada: false,
-        saldo: leitura.saldo,
-        aviso: "A consulta foi feita e cobrada, mas NÃO foi guardada. Não feche esta tela: abrir a placa de novo vai cobrar outra vez.",
+        consulta: guardada.consulta,
+        guardada: true,
+        niveis: parametros.ok ? niveisComPreco(parametros.parametros.precos) : null,
+        aprofundar: parametros.ok && guardada.consulta ? opcoesDeAprofundar(guardada.consulta, parametros.parametros, homologacao) : [],
+        tabelaDePrecosEm: parametros.ok ? parametros.parametros.tabelaDePrecosEm : null,
+        avisoDosNiveis: parametros.ok
+          ? null
+          : parametros.faltaMigracao
+            ? `Falta aplicar a migração ${MIGRACAO_DOS_NIVEIS_DA_PLACA}: as consultas guardadas abrem, mas consultar de novo espera por ela.`
+            : parametros.motivo,
       },
       { headers: SEM_CACHE },
     );
   }
 
-  return NextResponse.json({ consulta: gravacao.consulta, guardada: false, saldo: leitura.saldo }, { headers: SEM_CACHE });
+  const nivel = corpo?.nivel === undefined && corpo?.refazer === true ? nivelDaPlaca("completo") : nivelDaPlaca(corpo?.nivel);
+  if (!nivel) return NextResponse.json({ error: "Escolha o nível da consulta.", codigo: "sem_nivel" }, { status: 400, headers: SEM_CACHE });
+
+  if (!parametros.ok) {
+    return NextResponse.json(
+      {
+        error: parametros.faltaMigracao ? `Falta aplicar a migração ${MIGRACAO_DOS_NIVEIS_DA_PLACA}. Nada foi consultado nem cobrado.` : `${parametros.motivo} Nada foi consultado nem cobrado.`,
+        codigo: parametros.faltaMigracao ? "falta_migracao" : "sem_parametros",
+      },
+      { status: 503, headers: SEM_CACHE },
+    );
+  }
+  if (!token) {
+    return NextResponse.json({ error: "Falta configurar APIBRASIL_TOKEN na Vercel. Nada foi consultado nem cobrado.", codigo: "sem_token" }, { status: 503, headers: SEM_CACHE });
+  }
+
+  const r = await consultarPlacaPorNivel(
+    porta.supabase,
+    { placa, nivel: nivel.id, aprofundarDe: typeof corpo?.aprofundarDe === "string" ? corpo.aprofundarDe : null, repetir: corpo?.repetir === true },
+    { token, homologacao, parametros: parametros.parametros },
+  );
+
+  if (!r.ok && r.status === 409) return NextResponse.json({ error: r.motivo, repeticao: r.repeticao }, { status: 409, headers: SEM_CACHE });
+  if (!r.ok) {
+    // Sem saldo é PARADA, e não quebra: quem resolve é o dono, pondo crédito. Vai ao WhatsApp.
+    if (r.status === 402) {
+      await registrarFalha("parada", "apibrasil-sem-saldo", "A consulta de placa parou: a conta da APIBrasil está sem saldo.", { rota: "/api/consulta-placa", metodo: "POST", origem: "servidor" });
+    }
+    return NextResponse.json({ error: r.motivo, podeTerCobrado: r.podeTerCobrado }, { status: r.status, headers: SEM_CACHE });
+  }
+
+  if (!r.gravada) {
+    await registrarFalha("quebra", "consulta-de-placa-nao-gravada", "A consulta de placa foi paga e não foi gravada.", { rota: "/api/consulta-placa", metodo: "POST", origem: "servidor" });
+  }
+  const aprofundar = r.consulta.id ? opcoesDeAprofundar(r.consulta, parametros.parametros, homologacao) : [];
+  return NextResponse.json(
+    {
+      consulta: r.consulta,
+      guardada: false,
+      saldo: r.saldo,
+      aprofundar,
+      avisos: r.avisos,
+      // Compatibilidade com a tela antiga: um aviso só.
+      aviso: r.avisos.length ? r.avisos.join(" ") : undefined,
+    },
+    { headers: SEM_CACHE },
+  );
 }

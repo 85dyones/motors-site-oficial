@@ -224,6 +224,15 @@ export interface RetratoDaConsulta {
   gratuito: DadosGratuitos | null;
   apontamentos: Apontamento[];
   naoVeio: BlocoQueNaoVeio[];
+  /**
+   * Desde 19/10/2026 (consulta por níveis, `niveisDaPlaca.ts`). Ausentes nas
+   * consultas antigas, que eram todas Veículos Total.
+   */
+  nivel?: "basico" | "intermediario" | "economico" | "completo";
+  /** O que o nível conferiu, checagem por checagem. Sem ele, o quadro decide pelo que não veio. */
+  cobertura?: Partial<Record<"leilao" | "sinistro" | "gravame" | "roubo_furto" | "renajud" | "restricoes" | "debitos" | "donos" | "chassi" | "recall", boolean>>;
+  /** As transferências do Histórico de Proprietários: quando, onde e se o dono era pessoa ou empresa — nunca quem. */
+  transferencias?: Array<{ data: string | null; uf: string | null; municipio: string | null; dono: "pessoa" | "empresa" | null }>;
 }
 
 export type LeituraDaResposta =
@@ -928,24 +937,34 @@ export function quadroDeChecagens(retrato: RetratoDaConsulta): Checagem[] {
 
   const semEstadual = faltou("base_estadual");
   const semNacional = faltou("base_nacional");
+  // Consulta por nível: a cobertura diz o que foi conferido. Consulta antiga (Veículos Total): o que não veio.
+  const c = retrato.cobertura;
+  const sem = (chave: keyof NonNullable<RetratoDaConsulta["cobertura"]>, antigo: boolean) => (c ? c[chave] !== true : antigo);
 
   return [
-    linha("leilao", "Leilão", aponta("leilao"), faltou("leilao"), "Sem registro"),
-    linha("sinistro", "Sinistro", aponta("sinistro"), faltou("sinistro"), "Sem indício"),
-    linha("gravame", "Financiamento", aponta("gravame", "restricao_financeira"), faltou("gravame"), "Sem gravame em aberto"),
-    linha("roubo_furto", "Roubo e furto", aponta("roubo_furto", "roubo_furto_historico"), semNacional, "Sem ocorrência"),
-    linha("renajud", "Bloqueio judicial", aponta("renajud", "restricao_judicial"), semNacional && semEstadual, "Nada consta"),
+    linha("leilao", "Leilão", aponta("leilao"), sem("leilao", faltou("leilao")), c ? "Sem indício" : "Sem registro"),
+    linha("sinistro", "Sinistro", aponta("sinistro"), sem("sinistro", faltou("sinistro")), "Sem indício"),
+    linha("gravame", "Financiamento", aponta("gravame", "restricao_financeira"), sem("gravame", faltou("gravame")), "Sem gravame em aberto"),
+    linha("roubo_furto", "Roubo e furto", aponta("roubo_furto", "roubo_furto_historico"), sem("roubo_furto", semNacional), "Sem ocorrência"),
+    linha("renajud", "Bloqueio judicial", aponta("renajud", "restricao_judicial"), sem("renajud", semNacional && semEstadual), "Nada consta"),
     linha(
       "restricoes",
       "Restrições do Detran",
       aponta("restricao_administrativa", "restricao_tributaria", "restricao_guincho", "restricao_ambiental", "restricao_outra", "situacao", "comunicacao_de_venda"),
-      semEstadual,
+      sem("restricoes", semEstadual),
       "Nada consta",
     ),
-    linha("debitos", "Débitos e multas", aponta("debitos"), retrato.debitos === null, "Sem débito"),
-    linha("donos", "Donos anteriores", aponta("donos", "locadora"), faltou("proprietarios"), donosPorExtenso(retrato)),
-    linha("chassi", "Numeração do chassi", aponta("chassi_ano"), retrato.chassi?.confereComOCadastro !== true, "Ano confere com o cadastro"),
-    linha("recall", "Recall", aponta("recall"), faltou("recall"), "Sem chamado pendente"),
+    linha("debitos", "Débitos e multas", aponta("debitos"), sem("debitos", retrato.debitos === null), "Sem débito"),
+    linha("donos", "Donos anteriores", aponta("donos", "locadora", "uso_anterior"), sem("donos", faltou("proprietarios")), donosPorExtenso(retrato)),
+    linha(
+      "chassi",
+      "Numeração do chassi",
+      aponta("chassi_ano", "chassi_adulterado", "chassi_situacao"),
+      // Pelo número só dá para conferir o ano; sem a base que conhece o chassi, não é "ok".
+      c ? c.chassi !== true || retrato.chassi?.confereComOCadastro === false : retrato.chassi?.confereComOCadastro !== true,
+      c ? "Situação regular" : "Ano confere com o cadastro",
+    ),
+    linha("recall", "Recall", aponta("recall"), sem("recall", faltou("recall")), "Sem chamado pendente"),
   ];
 }
 
