@@ -734,3 +734,11 @@ describe("recall: 'sem pendência' só com a negação explícita (2ª revisão,
     });
   }
 });
+
+describe("recall: 'nenhum recall' só fecha a frase (3ª revisão, 19/10/2026)", () => {
+  it("'nenhum recall pôde ser verificado' é não informado; 'nenhum recall pendente' é zero", () => {
+    expect(lerRecall({ msg: "Consulta de recall indisponível, nenhum recall pôde ser verificado" })?.pendentes).toBeNull();
+    expect(lerRecall({ msg: "Nenhum recall pendente" })?.pendentes).toBe(0);
+    expect(lerRecall({ msg: "Nenhum recall" })?.pendentes).toBe(0);
+  });
+});
