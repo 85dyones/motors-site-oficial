@@ -281,6 +281,8 @@ export async function consultarPlacaPorNivel(
     }
   }
   const comprar = nivel.produtos.filter((p) => !reaproveitados.includes(p)) as Array<Exclude<ProdutoDeVeiculo, "veiculos-total">>;
+  // Nada a comprar é reabrir, não consultar (o banco também recusa uma linha sem chamada ao fornecedor).
+  if (comprar.length === 0) return { ok: false, status: 400, motivo: "A consulta guardada já tem tudo deste nível: abra a guardada.", podeTerCobrado: false };
 
   // ── Os produtos que faltam, todos de uma vez ──
   const chamadas = await Promise.all(comprar.map(async (produto) => ({ produto, chamada: await consultarProdutoDaPlaca(produto, pedido.placa, deps) })));
