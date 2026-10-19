@@ -1,0 +1,207 @@
+{
+  "name": "Motors Atendimento — Entrada (Evolution)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "atendimento-evolution",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "c1000000-0000-4000-8000-000000000001",
+      "name": "Webhook da Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "c1000000-0000-4000-8000-0000000000aa",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUBSTITUIR_NA_IMPORTACAO",
+          "name": "Evolution — webhook do atendimento"
+        }
+      },
+      "notes": "Na Evolution, o webhook da instância aponta para esta URL, com o evento MESSAGES_UPSERT e o cabeçalho da credencial (Evolution v2: `webhook.headers`).\n\nResponde 200 na hora (`onReceived`): a Evolution não espera o assistente pensar, e uma entrega lenta não vira reenvio.\n\n⚠️ Sem a credencial, qualquer um que descubra esta URL faria o site responder — e mandar WhatsApp — para o número que quisesse. Não deixe sem cabeçalho.\n\nDesligue a integração da Evolution com o Chatwoot antes de ligar este workflow: duas portas criando o mesmo lead é o caminho mais curto para o assistente e o Captain responderem juntos."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://motorsstore.com.br/api/atendimento/evolution",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {
+          "timeout": 70000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "c1000000-0000-4000-8000-000000000002",
+      "name": "Repassar ao site",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUBSTITUIR_NA_IMPORTACAO",
+          "name": "ATENDIMENTO_MOTOR_TOKEN"
+        }
+      },
+      "notes": "O corpo da Evolution vai inteiro, sem mexer: quem lê, ignora grupo, status e reação, e decide é a rota. Ela devolve `responder` e `aguardar_ms` (a rajada).\n\nCredencial Header Auth:\n  Name  = Authorization\n  Value = Bearer <ATENDIMENTO_MOTOR_TOKEN>\n\nÉ um segredo PRÓPRIO, não o FUNIL_MOTOR_TOKEN nem o CHATWOOT_WEBHOOK_TOKEN: esta porta escreve conversa e lead e faz o site mandar WhatsApp a cliente."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1000000-0000-4000-8000-0000000000c1",
+              "leftValue": "={{ $json.body.responder }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000000-0000-4000-8000-000000000003",
+      "name": "O assistente responde?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "notes": "Não: mensagem do celular da loja, eco do que o próprio site mandou, equipe, lead entregue ao vendedor ou assistente desligado. Nada a fazer."
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.max(1, Math.round(($('Repassar ao site').item.json.body.aguardar_ms || 12000) / 1000)) }}",
+        "unit": "seconds"
+      },
+      "id": "c1000000-0000-4000-8000-000000000004",
+      "name": "Esperar a rajada",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        200
+      ],
+      "webhookId": "c1000000-0000-4000-8000-0000000000bb",
+      "notes": "Cliente de WhatsApp manda três mensagens curtas em vez de uma longa. Cada uma dispara esta execução; depois da espera, só a da ÚLTIMA mensagem é respondida (a rota devolve `aguardando_mais_novas` para as outras). Uma resposta cobre a rajada inteira."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://motorsstore.com.br/api/atendimento/responder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"lead_id\": $('Repassar ao site').item.json.body.lead, \"mensagem_id\": $('Repassar ao site').item.json.body.mensagem } }}",
+        "options": {
+          "timeout": 70000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "c1000000-0000-4000-8000-000000000005",
+      "name": "Pedir a resposta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUBSTITUIR_NA_IMPORTACAO",
+          "name": "ATENDIMENTO_MOTOR_TOKEN"
+        }
+      },
+      "notes": "O site chama o modelo, manda a resposta pela Evolution, atualiza o aquecimento e, se o lead esquentou, entrega ao vendedor com o resumo. Nada disso mora aqui.\n\nCredencial Header Auth:\n  Name  = Authorization\n  Value = Bearer <ATENDIMENTO_MOTOR_TOKEN>\n\nÉ um segredo PRÓPRIO, não o FUNIL_MOTOR_TOKEN nem o CHATWOOT_WEBHOOK_TOKEN: esta porta escreve conversa e lead e faz o site mandar WhatsApp a cliente."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook da Evolution": {
+      "main": [
+        [
+          {
+            "node": "Repassar ao site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Repassar ao site": {
+      "main": [
+        [
+          {
+            "node": "O assistente responde?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "O assistente responde?": {
+      "main": [
+        [
+          {
+            "node": "Esperar a rajada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Esperar a rajada": {
+      "main": [
+        [
+          {
+            "node": "Pedir a resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "tags": []
+}

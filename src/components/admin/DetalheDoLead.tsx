@@ -39,6 +39,7 @@ import {
 } from "../../lib/carrosDeInteresseNaTela";
 import type { PendenciaDeVeiculo, VeiculoDeInteresse } from "../../lib/veiculosDeInteresse";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
+import AtendimentoDoLead from "./lead/AtendimentoDoLead";
 import CabecalhoDoLead from "./lead/CabecalhoDoLead";
 import CarrosDeInteresse from "./lead/CarrosDeInteresse";
 import DadosDoNegocio from "./lead/DadosDoNegocio";
@@ -57,12 +58,15 @@ import { NivelDoTituloDeBloco } from "./lead/TituloDeBloco";
  *     começado, Esc não fecha, e FECHAR ou a troca de card perguntam antes.
  *   · `pagina`: `/admin/leads/[id]`, o destino dos links e das telas estreitas.
  *
- * Os blocos são os mesmos nos dois: cabeçalho (h), próximo passo (p), carros
- * de interesse (v), registro (c), histórico (t) e dados (d). Na gaveta a ordem
- * é h p v c t d: os carros sobem para junto do próximo passo, porque são
- * ferramenta do atendimento. Na página estreita (tablet) a ordem é a mesma. Na
- * página de três colunas, v fica no alto da coluna dos dados (h p c t v d no
- * HTML), e os blocos se reposicionam por `grid-template-areas`.
+ * Os blocos são os mesmos nos dois: cabeçalho (h), atendimento (a — a
+ * conversa do WhatsApp, o resumo e o aquecimento, desde 2026-10-20), próximo
+ * passo (p), carros de interesse (v), registro (c), histórico (t) e dados (d).
+ * Na gaveta a ordem é h a p v c t d: o atendimento logo abaixo do cabeçalho,
+ * porque é onde a conversa acontece; os carros sobem para junto do próximo
+ * passo, porque são ferramenta do atendimento. Na página estreita (tablet) a
+ * ordem é a mesma. Na página de três colunas, v fica no alto da coluna dos
+ * dados (h a p c t v d no HTML), e os blocos se reposicionam por
+ * `grid-template-areas`.
  *
  * Os dados vêm de `GET /api/leads/[id]`. Etapa, responsável e desfecho gravam
  * pelo `PATCH /api/leads/gerenciar`, com as travas de sempre; o registro, o
@@ -87,8 +91,11 @@ class ErroDeLeitura extends Error {
 }
 
 /** Onde cada bloco cai na página larga. Na gaveta e na página estreita, a ordem do HTML. */
-const AREA: Record<"h" | "p" | "c" | "t" | "d" | "v", string> = {
+const AREA: Record<"h" | "a" | "p" | "c" | "t" | "d" | "v", string> = {
   h: "xl:[grid-area:h]",
+  // O atendimento (2026-10-20) abre a coluna do meio: é onde o vendedor
+  // trabalha — a conversa, o resumo e o aquecimento —, e o registro desce.
+  a: "xl:[grid-area:a]",
   p: "xl:[grid-area:p] xl:border-l xl:border-mt-regua-fina",
   c: "xl:[grid-area:c] xl:border-t-0",
   t: "xl:[grid-area:t]",
@@ -746,7 +753,7 @@ export default function DetalheDoLead({
             data-blocos
             className={
               naPagina
-                ? "grid grid-cols-1 border border-mt-regua-fina xl:grid-cols-[320px_minmax(0,1fr)_320px] xl:grid-rows-[auto_auto_1fr] xl:[grid-template-areas:'h_h_h'_'d_c_p'_'d_t_p']"
+                ? "grid grid-cols-1 border border-mt-regua-fina xl:grid-cols-[320px_minmax(0,1fr)_320px] xl:grid-rows-[auto_auto_auto_1fr] xl:[grid-template-areas:'h_h_h'_'d_a_p'_'d_c_p'_'d_t_p']"
                 : "flex flex-col"
             }
           >
@@ -773,6 +780,7 @@ export default function DetalheDoLead({
               aoLigar={() => mudarForm(comTipo(form, "ligacao"))}
               aoChegar={() => void chegou()}
             />
+            <AtendimentoDoLead leadId={lead.id} className={area("a")} aoMudarOLead={() => void recarregar()} />
             <ProximoPassoDoLead
               lead={lead}
               aberto={aberto}

@@ -56,6 +56,10 @@ export interface LeadDaFila extends LeadDoFunil {
   proximo_passo_definido_em?: string | null;
   proximo_passo_definido_por?: string | null;
   ultima_interacao?: UltimaInteracao | null;
+  /** O atendimento por IA (2026-10-20): a nota, a temperatura e a fase do assistente. */
+  aquecimento?: number | null;
+  temperatura?: "frio" | "morno" | "quente" | null;
+  assistente_fase?: "qualificando" | "entregue" | "pausado" | "reaquecendo" | null;
 }
 
 /** O que o aviso de estagnação diz, por nível. `null`: não há aviso. */

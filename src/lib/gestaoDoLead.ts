@@ -669,6 +669,8 @@ const ROTULO_DO_EVENTO: Record<string, string> = {
 const ROTULO_DO_CANAL: Record<string, string> = {
   whatsapp: "WhatsApp",
   chatwoot: "Chatwoot",
+  // A resposta de gente pelo número da loja, no painel ou no celular (2026-10-20).
+  evolution: "WhatsApp da loja",
   telefone: "telefone",
   ligacao: "telefone",
 };

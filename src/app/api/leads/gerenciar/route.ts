@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
-import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { createAdminSupabaseClient, createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { avisarEntregaPendente } from "../../../../lib/atendimento-servidor";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import {
   AVISO_DE_RESPONSAVEL_OBRIGATORIO,
@@ -715,6 +716,22 @@ export async function PATCH(request: NextRequest) {
     const atribuicao = novoDono
       ? atribuirConversasDoLead(supabase, String(id), novoDono, configDoChatwoot())
       : null;
+
+    // ------------------------------------------------------------------------
+    // O resumo do assistente para o dono escolhido (2026-10-20)
+    // ------------------------------------------------------------------------
+    // O lead que o assistente entregou sem dono (distribuição pelo
+    // administrador) ganhou dono agora: o resumo vai a ele já, e não na
+    // próxima rodada do n8n — velocidade de resposta é o que decide o lead
+    // quente. Lead que não veio do assistente sai na primeira leitura. Com a
+    // chave de serviço porque o envio é do servidor; falhar não desfaz a troca.
+    if (novoDono) {
+      try {
+        await avisarEntregaPendente(createAdminSupabaseClient(), String(id));
+      } catch (erro) {
+        console.warn("[Leads] Resumo do assistente não enviado ao dono novo:", erro instanceof Error ? erro.message : erro);
+      }
+    }
 
     // ------------------------------------------------------------------------
     // Os veículos de interesse depois do desfecho (2026-10-05)

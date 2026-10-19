@@ -324,6 +324,9 @@ o emissor. Quem bate é o n8n, sem sessão, com um Bearer próprio.
 | `POST /api/ciclo/motor/fila` | `CICLO_MOTOR_TOKEN` | A fila de gatilhos do Motors Ciclo (manual §4.1). |
 | `POST /api/funil/alertas` | `FUNIL_MOTOR_TOKEN` | A fila de avisos do funil de leads: lead sem dono, lead parado e lead a transferir. |
 | `POST /api/chatwoot/eventos` | `CHATWOOT_WEBHOOK_TOKEN` | Nada de útil no corpo — é o Chatwoot **contando** o que houve. Cria o lead e para o relógio da estagnação. |
+| `POST /api/atendimento/evolution` | `ATENDIMENTO_MOTOR_TOKEN` | A mensagem do WhatsApp pela Evolution (2026-10-20): grava a conversa, cria o lead e diz se o assistente responde (`responder`, `aguardar_ms`). |
+| `POST /api/atendimento/responder` | `ATENDIMENTO_MOTOR_TOKEN` | O assistente responde, depois da rajada. `{ lead_id, mensagem_id }`. |
+| `POST /api/atendimento/rodada` | `ATENDIMENTO_MOTOR_TOKEN` | Os resumos pendentes ao vendedor e os toques das cadências. `{ reservar: true }`; sem ele é prévia. |
 
 **Cada uma tem o SEU segredo, sem fallback entre eles.** Segredo mede acesso: a
 base de leads do site e a base de clientes do Ciclo são dois conjuntos de dados
@@ -384,6 +387,39 @@ aviso de vendedor não for entregue — a rota já transferiu o lead nesse ponto
 entrega que falha calada é transferência sem aviso.
 
 A régua completa está em `docs/FUNIL_DE_VENDAS.md`.
+
+### `POST /api/atendimento/*` (2026-10-20)
+
+O atendimento por IA, sem Chatwoot: a Evolution manda o webhook ao workflow
+"Motors Atendimento — Entrada" do n8n, que repassa o corpo **sem mexer** para
+`/api/atendimento/evolution`, espera a rajada e chama `/api/atendimento/responder`.
+O workflow "Motors Atendimento — Rodada" chama `/api/atendimento/rodada` a cada
+15 minutos. As três rotas usam `ATENDIMENTO_MOTOR_TOKEN` (Bearer, ou `?token=`
+para um webhook que só tenha URL) — segredo próprio, sem fallback para o do
+funil nem para o do Chatwoot.
+
+```jsonc
+// POST /api/atendimento/evolution — o corpo da Evolution (messages.upsert), inteiro
+{ "ok": true, "acao": "mensagem_registrada", "lead": "…", "mensagem": "…",
+  "responder": true, "aguardar_ms": 12000 }
+```
+
+**Aqui o site ENVIA.** Diferente de tudo acima, a resposta do assistente, a
+mensagem escrita no painel, o toque da cadência e o resumo ao vendedor saem
+do próprio site, pela Evolution (`src/lib/evolution.ts`, com
+`EVOLUTION_API_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_INSTANCIA`). O n8n
+continua dono do tempo (rajada e relógio); o site, do envio e da decisão. Toda
+mensagem enviada fica gravada em `atendimento_mensagens` antes de sair, com o
+id que a Evolution devolve — é assim que o eco do webhook é reconhecido.
+
+A entrada **nunca devolve erro fora de autenticação**, pelo mesmo motivo da
+entrada do Chatwoot. A recusa de quem trouxe credencial vai ao WhatsApp como
+parada (`atendimento-entrada-recusada`), e a falta do token, como
+`atendimento-sem-token`.
+
+O desenho inteiro — a régua do aquecimento, a entrega, as cadências, o que tira
+o assistente da conversa e o passo a passo para ligar — está em
+`docs/ATENDIMENTO_IA.md`.
 
 ### `POST /api/chatwoot/eventos` (2026-09-15)
 
@@ -509,8 +545,11 @@ não houve pedido para isso.
 
 O `AUDITORIA.md §1.7` já registra: *"Evolution API, Typebot e Chatwoot são
 citados em `CLAUDE.md` mas vivem inteiramente no n8n — o repositório não os
-toca."* Continua verdade, com uma exceção nova e estreita: a rota de entrada
-acima, que só **escuta** o Chatwoot. O site nunca ENVIA mensagem.
+toca."* Continua verdade para o Chatwoot, com uma exceção nova e estreita: a
+rota de entrada acima, que só **escuta** o Chatwoot. O site nunca ENVIA
+mensagem pelo Chatwoot. (Desde 2026-10-20 ele envia pela **Evolution**, no
+atendimento por IA — ver `POST /api/atendimento/*` acima. O caminho do
+Chatwoot não mudou.)
 
 Consequência prática, registrada em 2026-09-15 a partir do relato do dono de
 que *"o chatwoot não envia mensagem com foto ou vídeo em anexo para os

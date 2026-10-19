@@ -1,0 +1,96 @@
+import { describe, expect, it } from "vitest";
+import {
+  acoesDisponiveis,
+  horaDaMensagem,
+  lerConversaDaApi,
+  linhaDaCadencia,
+  linhasDaFicha,
+  marcasDaMensagem,
+  quemEscreveu,
+  seloDaTemperatura,
+  situacaoDoAssistente,
+  textoDaMensagem,
+} from "../src/lib/atendimentoNaTela";
+
+/**
+ * O que a aba de atendimento do lead diz (2026-10-20), em funções puras.
+ */
+
+const AGORA = new Date("2026-10-20T13:00:00Z");
+
+describe("a leitura da rota", () => {
+  it("resposta torta vira vazio, e a aba não derruba o detalhe", () => {
+    expect(lerConversaDaApi({ lead: { id: "x" } })).toEqual({ atendimento: null, mensagens: [], retratos: [], assistente: null, migracaoPendente: false, aviso: undefined });
+    expect(lerConversaDaApi(null).mensagens).toEqual([]);
+    expect(lerConversaDaApi({ mensagens: [{ id: "a" }, null, { texto: "sem id" }] }).mensagens).toHaveLength(1);
+  });
+});
+
+describe("a conversa", () => {
+  it("quem escreveu", () => {
+    expect(quemEscreveu({ autor: "cliente", autor_nome: "Rafael" }, "Ney")).toBe("Cliente");
+    expect(quemEscreveu({ autor: "assistente", autor_nome: null }, "Ney")).toBe("Ney · assistente");
+    expect(quemEscreveu({ autor: "vendedor", autor_nome: "Carla" }, "Ney")).toBe("Carla");
+  });
+
+  it("mídia sem legenda aparece dita", () => {
+    expect(textoDaMensagem({ conteudo: "audio", texto: null })).toBe("[Áudio]");
+    expect(textoDaMensagem({ conteudo: "imagem", texto: "esse" })).toBe("[Foto] esse");
+    expect(textoDaMensagem({ conteudo: "texto", texto: "oi" })).toBe("oi");
+  });
+
+  it("marcas: cadência, passagem, celular, enviando, não saiu", () => {
+    expect(marcasDaMensagem({ gatilho: "cadencia", situacao: "falhou" })).toEqual(["cadência", "não saiu"]);
+    expect(marcasDaMensagem({ gatilho: "resposta", situacao: "enviada" })).toEqual([]);
+  });
+
+  it("hora da loja: só a hora hoje, com a data em outro dia", () => {
+    expect(horaDaMensagem("2026-10-20T12:30:00Z", AGORA)).toBe("09:30");
+    expect(horaDaMensagem("2026-10-18T12:30:00Z", AGORA)).toBe("18/10 09:30");
+  });
+});
+
+describe("o estado do assistente", () => {
+  const base = { assistente_fase: null, aviso_de_entrega_para: null, entregue_em: null, optout_em: null, cadencia: null } as const;
+  const ligado = { ativo: true, nome: "Ney" };
+
+  it("cada fase numa frase", () => {
+    expect(situacaoDoAssistente({ ...base, assistente_fase: "qualificando" }, ligado)).toBe("Ney está atendendo");
+    expect(situacaoDoAssistente({ ...base, assistente_fase: "qualificando" }, { ...ligado, ativo: false })).toContain("desligado");
+    expect(situacaoDoAssistente({ ...base, assistente_fase: "pausado" }, ligado)).toBe("Ney pausado: a equipe atende");
+    expect(situacaoDoAssistente({ ...base, assistente_fase: "entregue", aviso_de_entrega_para: "Carla", entregue_em: "2026-10-20T12:00:00Z" }, ligado, AGORA.getTime())).toBe(
+      "Entregue a Carla há 1 h",
+    );
+    expect(situacaoDoAssistente({ ...base, assistente_fase: "entregue", entregue_em: "2026-10-20T12:00:00Z" }, ligado, AGORA.getTime())).toContain("o resumo sai na abertura");
+    expect(situacaoDoAssistente({ ...base, optout_em: "2026-10-20T12:00:00Z" }, ligado)).toBe("O cliente pediu para não receber mensagens");
+  });
+
+  it("os botões de cada fase", () => {
+    expect(acoesDisponiveis({ assistente_fase: "qualificando", optout_em: null })).toEqual(["entregar", "pausar"]);
+    expect(acoesDisponiveis({ assistente_fase: "entregue", optout_em: null })).toEqual(["devolver"]);
+    expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: null })).toEqual(["retomar", "devolver"]);
+    expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: "x" })).toEqual([]);
+  });
+});
+
+describe("resumo e aquecimento", () => {
+  it("a ficha na ordem de leitura, com o não dito vazio", () => {
+    const linhas = linhasDaFicha({ ficha: { interesse: "Onix", pagamento: "financiado", prazo: "imediato" } });
+    expect(linhas.slice(0, 3)).toEqual([
+      { rotulo: "Procura", valor: "Onix" },
+      { rotulo: "Quer investir", valor: null },
+      { rotulo: "Pagamento", valor: "Financiado" },
+    ]);
+    expect(linhas.find((l) => l.rotulo === "Prazo")!.valor).toBe("Imediato (até 15 dias)");
+  });
+
+  it("o selo e a cadência", () => {
+    expect(seloDaTemperatura("quente", 82)).toBe("Quente · 82");
+    expect(seloDaTemperatura(null, 82)).toBeNull();
+    expect(linhaDaCadencia({ cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: "2026-10-22T12:00:00Z" }, 3, AGORA)).toBe(
+      "Follow-up · toque 2 de 3 · próximo 22/10 09:00",
+    );
+    expect(linhaDaCadencia({ cadencia: "reativacao", cadencia_passo: 3, cadencia_proximo_em: null }, 3, AGORA)).toBe("Reativação · concluída (3 de 3)");
+    expect(linhaDaCadencia({ cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }, 3, AGORA)).toBeNull();
+  });
+});

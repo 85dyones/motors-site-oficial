@@ -431,16 +431,19 @@ describe("a Lista do dia", () => {
 });
 
 describe("o detalhe: um componente, dois layouts", () => {
-  it("na gaveta, uma coluna na ordem h p v c t d (os carros logo depois do próximo passo), com o nome em h2", async () => {
+  it("na gaveta, uma coluna na ordem h a p v c t d (o atendimento logo abaixo do cabeçalho, os carros depois do próximo passo), com o nome em h2", async () => {
     await montarQuadro("Ana");
     await clicar(cardDe(container, "l1"));
     const g = gaveta()!;
 
-    expect(blocos(g)).toEqual(["h", "p", "v", "c", "t", "d"]);
+    // O atendimento (a) entrou em 2026-10-20: a conversa do WhatsApp, o resumo
+    // e o aquecimento ficam logo abaixo do cabeçalho, onde o vendedor trabalha.
+    expect(blocos(g)).toEqual(["h", "a", "p", "v", "c", "t", "d"]);
     expect(g.querySelector("[data-blocos]")!.className).toBe("flex flex-col");
     expect(g.querySelector("h2")!.textContent).toBe("Joana Atrasada");
     expect(g.querySelector("h1")).toBeNull();
     expect([...g.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
+      "Atendimento",
       "Próximo passo",
       "Carro de interesse",
       "Registrar interação",
@@ -458,12 +461,13 @@ describe("o detalhe: um componente, dois layouts", () => {
     await montarPagina("l1");
     const pagina = container.querySelector<HTMLElement>('[data-layout="pagina"]')!;
 
-    // Os carros de interesse ficam no alto da coluna dos dados.
-    expect(blocos(pagina)).toEqual(["h", "p", "c", "t", "v", "d"]);
+    // Os carros de interesse ficam no alto da coluna dos dados; o atendimento
+    // abre a coluna do meio, acima do registro.
+    expect(blocos(pagina)).toEqual(["h", "a", "p", "c", "t", "v", "d"]);
     const grade = pagina.querySelector("[data-blocos]")!.className;
     expect(grade).toContain("xl:grid-cols-[320px_minmax(0,1fr)_320px]");
-    expect(grade).toContain("xl:[grid-template-areas:'h_h_h'_'d_c_p'_'d_t_p']");
-    for (const b of ["h", "p", "c", "t"]) {
+    expect(grade).toContain("xl:[grid-template-areas:'h_h_h'_'d_a_p'_'d_c_p'_'d_t_p']");
+    for (const b of ["h", "a", "p", "c", "t"]) {
       expect(pagina.querySelector(`[data-bloco="${b}"]`)!.className, b).toContain(`xl:[grid-area:${b}]`);
     }
     const colunaDosDados = pagina.querySelector<HTMLElement>('[data-coluna="d"]')!;

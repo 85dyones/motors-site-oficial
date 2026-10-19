@@ -318,6 +318,13 @@ const CADEIA = [
   // `org_padrao`, `nucleo_so_encerra_vigencia` e `orgs`; o andaime não
   // precisou de nada novo.
   "20261019120000_niveis_da_consulta_de_placa.sql",
+  // O atendimento por IA (2026-10-20): conversa, retratos do aquecimento,
+  // configuração e as colunas de estado no lead. Entra na cadeia porque a
+  // leitura da conversa HERDA o escopo de `leads` por subconsulta — o aceite
+  // veste dois vendedores, o marketing e o anônimo para provar que um não lê
+  // a conversa do outro — e porque recria `registrar_contato_do_lead`, que a
+  // 20261014120000, logo acima, deixou com o `chatwoot` tirando de "Novo".
+  "20261020120000_atendimento_ia.sql",
 ];
 
 /**
