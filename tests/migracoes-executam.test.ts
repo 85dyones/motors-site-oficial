@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PASSOS_DO_FUNIL } from "../src/lib/funilDoProfiler";
@@ -14,6 +14,7 @@ import {
 } from "../src/lib/smsCampanhas";
 import { ORIGENS_DE_IMPORTACAO } from "../src/lib/baseDeMarketing";
 import { gerarTokenDoLink, hashDoToken, tokenTemForma } from "../src/lib/linkDoRelatorio";
+import { supabaseDeTeste, type Chamada, type Resposta } from "./supabaseDaConsultaDeDocumento";
 
 /**
  * As migrações rodam de verdade — e o aceite delas é cobrado (AUDITORIA §5.7).
@@ -3077,6 +3078,221 @@ describe.skipIf(!temBanco)("os níveis da consulta de placa e o aprofundar, pelo
     expect(saida).toContain("vigentes_por_loja=2");
     expect(saida).toContain("consultas_vistas=1");
     expect(saida).toContain("parametros_vistos=1:true");
+  });
+});
+
+/**
+ * Os níveis da consulta de placa, pela porta de verdade (19/10/2026): a linha
+ * que `gravar()` de `niveisDaPlaca-servidor.ts` monta — leitores e
+ * `montarRetratoPorNivel` sobre as respostas da doc (tests/fixtures/apibrasil/
+ * placa-niveis.json) — vai ao banco vestida de COMERCIAL, como o PostgREST a
+ * levaria, e tem de passar em todas as regras e no gatilho do
+ * reaproveitamento. O aceite da migração prova as regras com linhas escritas
+ * à mão; aqui é o app que escreve.
+ *
+ * O "PostgREST" é um tradutor mínimo: cada cadeia do dublê do supabase-js
+ * (select com eq/is/gte/order/limit, e insert…select) vira SQL rodado pelo
+ * psql na sessão do comercial. A trava contra repetição, a leitura dos
+ * parâmetros e a leitura da guardada no aprofundar também passam por ele —
+ * contra o banco de verdade.
+ *
+ * Diferente dos blocos acima, as linhas aqui são GRAVADAS (o aprofundar lê a
+ * básica em outra conexão); o `afterAll` apaga o que este bloco criou.
+ */
+describe.skipIf(!temBanco)("os níveis da consulta de placa, gravados pela porta do app", () => {
+  const UID = "00000000-0000-0000-0000-00000000ae13";
+  const PLACA = "QOZ7702";
+  const PLACA_COMPLETO = "ABC1D23";
+  const COLUNAS = "id, placa, nivel, produtos, fragmentos, retrato, custo, homologacao, criado_em, consultado_por_nome";
+  const respostas = JSON.parse(readFileSync(join(__dirname, "fixtures", "apibrasil", "placa-niveis.json"), "utf8")) as Record<string, unknown>;
+  const veiculosTotal = JSON.parse(readFileSync(join(__dirname, "fixtures", "apibrasil", "veiculos-total-mg-com-alienacao.json"), "utf8")) as unknown;
+
+  type Servidor = typeof import("../src/lib/niveisDaPlaca-servidor");
+  let servidor: Servidor;
+  let fetchOriginal: typeof globalThis.fetch;
+
+  const literal = (v: unknown): string =>
+    v === null ? "null" : typeof v === "boolean" || typeof v === "number" ? String(v) : `$v$${String(v)}$v$`;
+
+  /** A cadeia do dublê em SQL: um comando que devolve a lista de linhas em JSON, entre marcas `@@`. */
+  function emSql(c: Chamada): string {
+    if (c.operacao === "insert") {
+      const valores = c.valores as Record<string, unknown>;
+      const colunas = Object.keys(valores).join(", ");
+      return `with ins as (
+                insert into public.${c.tabela} (${colunas})
+                select ${colunas} from jsonb_populate_record(null::public.${c.tabela}, $j$${JSON.stringify(valores)}$j$::jsonb)
+                returning ${COLUNAS})
+              select '@@' || coalesce(jsonb_agg(to_jsonb(ins)), '[]'::jsonb)::text || '@@' from ins`;
+    }
+    const onde: string[] = [];
+    let ordem = "";
+    let limite = "";
+    for (const [nome, coluna, valor] of c.filtros as Array<[string, string, unknown]>) {
+      if (nome === "eq") onde.push(`${coluna} = ${literal(valor)}`);
+      else if (nome === "gte") onde.push(`${coluna} >= ${literal(valor)}`);
+      else if (nome === "is") onde.push(`${coluna} is ${literal(valor)}`);
+      else if (nome === "order") ordem = ` order by ${coluna} ${(valor as { ascending?: boolean })?.ascending === false ? "desc" : "asc"}`;
+      else if (nome === "limit") limite = ` limit ${Number(coluna)}`;
+      else throw new Error(`filtro não traduzido: ${nome}`);
+    }
+    return `select '@@' || coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb)::text || '@@'
+              from (select ${c.colunas ?? "*"} from public.${c.tabela}${onde.length ? ` where ${onde.join(" and ")}` : ""}${ordem}${limite}) t`;
+  }
+
+  /** O banco que o app vê: cada chamada numa transação própria, na sessão do comercial. */
+  const banco = supabaseDeTeste({
+    responder: (c: Chamada): Resposta => {
+      try {
+        const saida = psql!(
+          `begin;
+           select set_config('request.jwt.claims', json_build_object('sub', '${UID}', 'role', 'authenticated')::text, true);
+           set local role authenticated;
+           ${emSql(c)};
+           commit;`,
+        );
+        const linhas = JSON.parse(saida.match(/@@([\s\S]*?)@@/)![1]) as unknown[];
+        return { data: c.fim === null ? linhas : (linhas[0] ?? null), error: null };
+      } catch (e) {
+        const mensagem = String((e as Error).message);
+        return { data: null, error: { message: mensagem, code: mensagem.match(/\b(23514|23503|42501|P0001)\b/)?.[1] } };
+      }
+    },
+  });
+  const cliente = banco.cliente as unknown as Parameters<Servidor["consultarPlacaPorNivel"]>[0];
+
+  /** O gateway: as respostas da doc, por produto, e o que foi pedido. */
+  function gateway() {
+    const tipos: string[] = [];
+    const buscar = async (_url: string, init: { body: string }) => {
+      const tipo = String((JSON.parse(init.body) as { tipo: string }).tipo);
+      tipos.push(tipo);
+      return { status: 200, json: async () => structuredClone(tipo === "veiculos-total" ? veiculosTotal : respostas[tipo]) };
+    };
+    return { buscar, tipos };
+  }
+
+  /** Consulta como a rota: parâmetros lidos do banco, token, modo de produção. Devolve também o erro do banco, se a gravação falhou. */
+  async function consultar(pedido: { placa: string; nivel: "basico" | "intermediario" | "economico" | "completo"; aprofundarDe?: string | null; repetir?: boolean }) {
+    const parametros = await servidor.lerParametrosDaPlaca(cliente);
+    if (!parametros.ok) throw new Error(parametros.motivo);
+    const gw = gateway();
+    const erros: string[] = [];
+    const espia = vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => void erros.push(a.map(String).join(" ")));
+    try {
+      const r = await servidor.consultarPlacaPorNivel(cliente, pedido, { token: "tok", homologacao: false, parametros: parametros.parametros, buscar: gw.buscar as never });
+      return { r, gw, erroDoBanco: erros.join(" | ") };
+    } finally {
+      espia.mockRestore();
+    }
+  }
+
+  /** A linha gravada, lida como dono (sem RLS), em JSON. */
+  const linhaNoBanco = (id: string) =>
+    JSON.parse(
+      psql!(
+        `select '@@' || to_jsonb(c)::text || '@@' from public.consultas_de_placa c where id = '${id}'`,
+      ).match(/@@([\s\S]*?)@@/)![1],
+    ) as Record<string, unknown>;
+
+  const limpar = () =>
+    psql!(
+      `delete from public.consultas_de_placa where placa in ('${PLACA}', '${PLACA_COMPLETO}') and consultado_por = '${UID}';
+       delete from public.profiles where id = '${UID}';
+       delete from auth.users where id = '${UID}'`,
+    );
+
+  let idDaBasica = "";
+
+  beforeAll(async () => {
+    servidor = await import("../src/lib/niveisDaPlaca-servidor");
+    limpar();
+    psql!(
+      `insert into auth.users (id, instance_id, aud, role, email)
+         values ('${UID}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'niveis-porta@exemplo.invalido');
+       update public.profiles set full_name = 'Comercial da porta', papeis = array['comercial'], role = 'comercial', is_active = true
+        where id = '${UID}'`,
+    );
+    // A parte sem custo (BrasilAPI) não sai da máquina: a falha dela vira aviso, como em produção.
+    fetchOriginal = globalThis.fetch;
+    globalThis.fetch = (async () => ({ ok: false, status: 503, json: async () => null })) as never;
+  });
+
+  afterAll(() => {
+    globalThis.fetch = fetchOriginal;
+    limpar();
+  });
+
+  it("os parâmetros vêm do banco, na sessão do comercial, com os preços da semente", async () => {
+    const p = await servidor.lerParametrosDaPlaca(cliente);
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.parametros).toMatchObject({ tabelaDePrecosEm: "2026-10-19", diasParaAprofundar: 7, minutosContraRepeticao: 30 });
+    expect(servidor.niveisComPreco(p.parametros.precos).map((n) => n.preco)).toEqual([3.18, 5.58, 10.58, 30]);
+  });
+
+  it("básico: a linha que gravar() monta passa em todas as regras, e o carimbo é do comercial", async () => {
+    const { r, gw, erroDoBanco } = await consultar({ placa: PLACA, nivel: "basico" });
+    expect(erroDoBanco, "o banco recusou a linha do básico").toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+    expect(gw.tipos.sort()).toEqual(["estadual", "fipe", "recall"]);
+    if (!r.ok) return;
+    idDaBasica = r.consulta.id!;
+    const linha = linhaNoBanco(idDaBasica);
+    expect(linha).toMatchObject({
+      produto: "niveis",
+      nivel: "basico",
+      produtos: ["estadual", "recall", "fipe"],
+      custo: 3.18,
+      homologacao: false,
+      aproveitou_de: null,
+      consultado_por: UID,
+      consultado_por_nome: "Comercial da porta",
+    });
+    expect((linha.tentativas as unknown[]).length).toBe(3);
+  });
+
+  it("o aprofundar para o econômico (aproveitou_de da básica) passa nas regras e no gatilho, pagando só o que falta", async () => {
+    expect(idDaBasica).not.toBe("");
+    const { r, gw, erroDoBanco } = await consultar({ placa: PLACA, nivel: "economico", aprofundarDe: idDaBasica });
+    expect(erroDoBanco, "o banco recusou o aprofundar").toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+    expect(gw.tipos.sort()).toEqual(["check-list", "historico-proprietarios"]);
+    if (!r.ok) return;
+    const linha = linhaNoBanco(r.consulta.id!);
+    expect(linha).toMatchObject({
+      nivel: "economico",
+      produtos: ["estadual", "recall", "fipe", "check-list", "historico-proprietarios"],
+      aproveitou_de: idDaBasica,
+      custo: 7.4,
+    });
+    const tentativas = linha.tentativas as Array<{ produto: string; reaproveitado: boolean }>;
+    expect(tentativas.filter((t) => t.reaproveitado).map((t) => t.produto)).toEqual(["estadual", "recall", "fipe"]);
+    // A guardada nova já é a mais recente da placa, com as dez checagens.
+    expect((linha.retrato as { naoVeio: unknown[] }).naoVeio).toEqual([]);
+  });
+
+  it("o intermediário a partir da mesma básica também passa", async () => {
+    const { r, erroDoBanco } = await consultar({ placa: PLACA, nivel: "intermediario", aprofundarDe: idDaBasica });
+    expect(erroDoBanco).toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+  });
+
+  it("a trava de verdade: o básico de novo, há pouco, volta 409 sem chamar o gateway; com `repetir`, grava", async () => {
+    const trava = await consultar({ placa: PLACA, nivel: "basico" });
+    expect(trava.r).toMatchObject({ ok: false, status: 409 });
+    expect(trava.gw.tipos).toEqual([]);
+    const repetida = await consultar({ placa: PLACA, nivel: "basico", repetir: true });
+    expect(repetida.erroDoBanco).toBe("");
+    expect(repetida.r.ok && repetida.r.gravada).toBe(true);
+  });
+
+  it("completo: o Veículos Total gravado como produto veiculos-total passa nas regras", async () => {
+    const { r, gw, erroDoBanco } = await consultar({ placa: PLACA_COMPLETO, nivel: "completo" });
+    expect(erroDoBanco).toBe("");
+    expect(r.ok && r.gravada).toBe(true);
+    expect(gw.tipos).toEqual(["veiculos-total"]);
+    if (r.ok) expect(linhaNoBanco(r.consulta.id!)).toMatchObject({ produto: "veiculos-total", nivel: "completo", produtos: ["veiculos-total"], fragmentos: {} });
   });
 });
 

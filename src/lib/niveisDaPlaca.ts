@@ -490,7 +490,9 @@ export function lerCheckList(d: unknown): FragmentoCheckList | null {
   for (const [chave, valor] of Object.entries(raiz)) {
     const o = objeto(valor);
     if (!o || !("quantidade_ocorrencias" in o || "ocorrencias" in o)) continue;
-    const quantidade = inteiro(o.quantidade_ocorrencias) ?? (Array.isArray(o.ocorrencias) ? o.ocorrencias.length : null);
+    // A lista de ocorrências vem vazia mesmo quando há registro (exemplo da doc): ela só vale
+    // como contagem quando traz alguma coisa. Quantidade ilegível com lista vazia é "não informado".
+    const quantidade = inteiro(o.quantidade_ocorrencias) ?? (Array.isArray(o.ocorrencias) && o.ocorrencias.length > 0 ? o.ocorrencias.length : null);
     const descricao = texto(o.descricao);
     itens.push({ chave, descricao: descricao ? semDocumentos(descricao).slice(0, 200) : null, quantidade });
   }
@@ -717,7 +719,17 @@ export function montarRetratoPorNivel(placa: string, nivel: NivelDaPlaca, fragme
     roubo_furto: est?.restricao.rouboFurto != null,
     renajud: est?.restricao.renajud != null,
     restricoes: est != null && est.restricao.geral !== null && est.baixado !== null && est.situacao !== null,
-    debitos: est != null && (["ipva", "licenciamento", "multas", "dpvat"] as const).every((k) => est.debitos[k] !== null || est.debitosSemValor.length > 0),
+    // Item a item: o débito conferido é o que tem valor, ou pendência confirmada sem valor.
+    debitos:
+      est != null &&
+      (
+        [
+          ["ipva", "IPVA"],
+          ["licenciamento", "licenciamento"],
+          ["multas", "multas"],
+          ["dpvat", "DPVAT"],
+        ] as const
+      ).every(([k, nome]) => est.debitos[k] !== null || est.debitosSemValor.includes(nome)),
     donos: his?.total != null,
     chassi: Boolean(est?.situacaoDoChassi) || quantidadeDo("indicio_chassi_adulterado") !== null,
     recall: rec?.pendentes != null,

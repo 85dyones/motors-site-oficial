@@ -364,6 +364,7 @@ export default function ConsultaDePlaca({
             </button>
           </div>
           {avisoDosNiveis && <p className={`${dica} font-bold`}>{avisoDosNiveis}</p>}
+          {!temToken && <p className={`${dica} font-bold`}>Falta configurar APIBRASIL_TOKEN na Vercel: dá para ver os níveis e os preços, mas não consultar.</p>}
           {niveis && (
             <>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

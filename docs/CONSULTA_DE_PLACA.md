@@ -116,7 +116,7 @@ A consulta de placa tem quatro níveis, escolhidos antes de cobrar, como a de CP
   - Subir para o completo paga o Veículos Total inteiro: ele é um produto só.
 - **Checagem não coberta:** o que o nível não cobre aparece como "Não conferido" no quadro e deixa o veredito em "Comprar só com ressalvas", nunca como "ok".
 - **Trava contra repetição:** a mesma placa no mesmo nível, consultada há menos de 30 minutos (parâmetro), pede confirmação antes de pagar de novo.
-- **Toda tentativa fica registrada:** cada produto chamado, com status, custo e se pode ter cobrado (`tentativas`).
+- **Tentativas:** cada consulta guardada registra cada produto chamado, com status, custo e se pode ter cobrado (`tentativas`), inclusive os que falharam. Quando nenhum produto volta, não há consulta para guardar: a falha vai para a fila de falhas do painel, com o aviso de que pode ter sido cobrada.
 - **Dado pessoal:** a Base Estadual e o Histórico de Proprietários trazem nome e documento do dono e do financiado. O leitor não lê esses campos. As mensagens de restrição do Detran, que podem citar comprador ou financiado pelo nome, viram só a categoria ("Restrição judicial", "Comunicação de venda" etc.). Os outros textos do fornecedor perdem qualquer número de CPF ou CNPJ. Do histórico ficam só a quantidade de donos e, de cada transferência, a data, a cidade e se o dono era pessoa ou empresa.
 - **A confirmar em homologação:** os formatos de resposta vêm dos exemplos da documentação. O Histórico de Proprietários anuncia R$ 5, mas o exemplo mostra 16 debitado. A página da Base Estadual não diz quais UFs ela atende.
 
