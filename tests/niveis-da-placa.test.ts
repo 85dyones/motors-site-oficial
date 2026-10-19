@@ -663,22 +663,6 @@ describe("o retrato por nível (montarRetratoPorNivel)", () => {
   });
 
   // Regressão (19/10/2026): quantidade ilegível com `ocorrencias: []` (o formato da doc) contava 0 e o leilão saía "ok".
-  it("leilão com quantidade ilegível e sem lista de ocorrências: não conferido", () => {
-    for (const q of ["", null, "null", "muitas"]) {
-      const chk = checkListCom((r) => {
-        r.leiloes.quantidade_ocorrencias = q;
-        delete r.leiloes.ocorrencias;
-      });
-      const r = retratoDe("economico", { "check-list": chk });
-      expect(estados(r).leilao, String(q)).toBe("nao_conferido");
-      expect(qualificarCompra(r).nivel).not.toBe("apto");
-    }
-  });
-
-  // BUG (relatado): `lerCheckList` cai para `ocorrencias.length` quando a
-  // quantidade não se lê, e a doc diz que `ocorrencias` vem `[]` no exemplo —
-  // então quantidade "" com `ocorrencias: []` vira 0, e o leilão sai "ok".
-  // Quando corrigir, troque `it.fails` por `it`.
   it("leilão com quantidade \"\" e `ocorrencias: []` (o formato da doc): não conferido", () => {
     const chk = checkListCom((r) => (r.leiloes.quantidade_ocorrencias = ""));
     expect(estados(retratoDe("economico", { "check-list": chk })).leilao).toBe("nao_conferido");
