@@ -440,7 +440,7 @@ export function lerRecall(d: unknown): FragmentoRecall | null {
     if (!/recall/i.test(trecho)) continue;
     const negaPendencia =
       /\bn[aã]o\s+(possui|h[aá]|consta|existe|tem)\s+(nenhum\s+|outros?\s+)?recalls?\b/i.test(trecho) ||
-      /\bnenhum\s+recalls?(\s+(pendentes?|encontrados?|em aberto))?\s*$/i.test(trecho.trim()) ||
+      /\bnenhum\s+recalls?(\s+(pendentes?|encontrados?|em aberto|cadastrados?))*\s*$/i.test(trecho.trim()) ||
       /\bsem\s+recalls?\s+pendentes?\b/i.test(trecho);
     if (negaPendencia) semPendencia = true;
     else if (/\b(possui|h[aá]|consta|tem|existe)\b[^.]*\brecall|\brecall[^.]*\b(pendente|em aberto)\b/i.test(trecho) && !/\bn[aã]o\b/i.test(trecho)) pendente = true;
