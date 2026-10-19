@@ -714,3 +714,23 @@ describe("o retrato por nível (montarRetratoPorNivel)", () => {
     expect(semCor.veiculo.cor).toBe("PRATA");
   });
 });
+
+describe("recall: 'sem pendência' só com a negação explícita (2ª revisão, 19/10/2026)", () => {
+  const casos: Array<[string, number | null]> = [
+    ["Não foi possível consultar recall no momento", null],
+    ["Serviço de recall não disponível", null],
+    ["Recall não informado pela montadora", null],
+    ["O chassi não foi localizado na base de recall", null],
+    ["Não há recall pendente, mas possui recall em aberto", 1],
+    ["possui recall pendente. Não há outros recalls", 1],
+    ["O veículo não possui recall pendente desde 17/03/2011", 0],
+    ["Veículo possui 2 recalls pendentes", 1],
+    ["Nenhum recall pendente encontrado", 0],
+    ["Sem recall pendente", 0],
+  ];
+  for (const [msg, esperado] of casos) {
+    it(`"${msg}" → ${esperado === null ? "não informado" : esperado}`, () => {
+      expect(lerRecall({ msg })?.pendentes).toBe(esperado);
+    });
+  }
+});

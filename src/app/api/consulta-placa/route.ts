@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       await registrarFalha("parada", "apibrasil-sem-saldo", "A consulta de placa parou: a conta da APIBrasil está sem saldo.", { rota: "/api/consulta-placa", metodo: "POST", origem: "servidor" });
     }
     // Nada voltou, mas pode ter cobrado: não há linha no banco para contar, então fica o registro da falha.
-    if (r.status !== 402 && r.podeTerCobrado) {
+    if (r.podeTerCobrado) {
       await registrarFalha("quebra", "consulta-de-placa-sem-retorno", `A consulta de ${placa} (${nivel.rotulo}) não voltou e pode ter sido cobrada.`, { rota: "/api/consulta-placa", metodo: "POST", origem: "servidor" });
     }
     return NextResponse.json({ error: r.motivo, podeTerCobrado: r.podeTerCobrado }, { status: r.status, headers: SEM_CACHE });

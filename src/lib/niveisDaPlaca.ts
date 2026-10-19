@@ -431,14 +431,19 @@ export function lerRecall(d: unknown): FragmentoRecall | null {
   const pendentesListados = lista(o.recallsPendente).length + lista(pegar(o, "recall.recallsPendente")).length;
   if (pendentesListados > 0) return { pendentes: pendentesListados, texto: msg };
   if (!msg) return { pendentes: null, texto: null };
-  // Frase por frase, e a pendência primeiro: "possui recall pendente. Não há outros recalls" é pendente.
+  // Trecho por trecho, e a pendência primeiro: "possui recall pendente. Não há outros recalls" é pendente.
+  // "Sem pendência" só com a negação EXPLÍCITA dela; "não foi possível consultar recall",
+  // "serviço de recall não disponível" e parecidos são "não informado" (revisão de 19/10/2026).
   let pendente = false;
   let semPendencia = false;
-  for (const frase of msg.split(/[.;!\n]+/)) {
-    if (!/recall/i.test(frase)) continue;
-    const negada = /\bn[aã]o\b|\bnenhum/i.test(frase);
-    if (!negada && /(possui|h[aá]|consta|tem|existe)[^.]*recall|recall[^.]*(pendente|em aberto)/i.test(frase)) pendente = true;
-    else if (negada) semPendencia = true;
+  for (const trecho of msg.split(/[.;!\n,]+|\bmas\b/i)) {
+    if (!/recall/i.test(trecho)) continue;
+    const negaPendencia =
+      /\bn[aã]o\s+(possui|h[aá]|consta|existe|tem)\s+(nenhum\s+|outros?\s+)?recalls?\b/i.test(trecho) ||
+      /\bnenhum\s+recall\b/i.test(trecho) ||
+      /\bsem\s+recalls?\s+pendentes?\b/i.test(trecho);
+    if (negaPendencia) semPendencia = true;
+    else if (/\b(possui|h[aá]|consta|tem|existe)\b[^.]*\brecall|\brecall[^.]*\b(pendente|em aberto)\b/i.test(trecho) && !/\bn[aã]o\b/i.test(trecho)) pendente = true;
   }
   return { pendentes: pendente ? 1 : semPendencia ? 0 : null, texto: msg };
 }

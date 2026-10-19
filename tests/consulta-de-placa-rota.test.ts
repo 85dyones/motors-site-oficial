@@ -248,13 +248,22 @@ describe("a consulta paga", () => {
     expect(registrarFalha).not.toHaveBeenCalled();
   });
 
-  it("sem saldo é 402, e vai ao WhatsApp como parada (e só como parada)", async () => {
-    consultarPlacaPorNivel.mockResolvedValue({ ok: false, status: 402, motivo: "A conta da APIBrasil está sem saldo.", podeTerCobrado: true });
+  it("sem saldo é 402, e vai ao WhatsApp como parada (e só como parada, quando nada pode ter cobrado)", async () => {
+    consultarPlacaPorNivel.mockResolvedValue({ ok: false, status: 402, motivo: "A conta da APIBrasil está sem saldo.", podeTerCobrado: false });
     const { status, json } = await enviar({ placa: "ABC1D23", nivel: "basico" });
     expect(status).toBe(402);
-    expect(json).toEqual({ error: "A conta da APIBrasil está sem saldo.", podeTerCobrado: true });
+    expect(json).toEqual({ error: "A conta da APIBrasil está sem saldo.", podeTerCobrado: false });
     expect(registrarFalha).toHaveBeenCalledTimes(1);
     expect(registrarFalha).toHaveBeenCalledWith("parada", "apibrasil-sem-saldo", expect.stringContaining("sem saldo"), expect.any(Object));
+  });
+
+  it("sem saldo com outro produto que pode ter cobrado: a parada E a quebra 'sem retorno' vão para a fila", async () => {
+    consultarPlacaPorNivel.mockResolvedValue({ ok: false, status: 402, motivo: "A conta da APIBrasil está sem saldo.", podeTerCobrado: true });
+    const { status } = await enviar({ placa: "ABC1D23", nivel: "basico" });
+    expect(status).toBe(402);
+    expect(registrarFalha).toHaveBeenCalledTimes(2);
+    expect(registrarFalha).toHaveBeenCalledWith("parada", "apibrasil-sem-saldo", expect.any(String), expect.any(Object));
+    expect(registrarFalha).toHaveBeenCalledWith("quebra", "consulta-de-placa-sem-retorno", expect.any(String), expect.any(Object));
   });
 
   it("502 que pode ter cobrado entra na fila como quebra 'sem retorno'; o que não cobrou, não", async () => {
