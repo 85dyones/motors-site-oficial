@@ -99,6 +99,27 @@ existem na aba da placa.
 Miolo em `src/lib/mercadoPorModelo.ts` (puro) e
 `src/lib/mercadoPorModelo-servidor.ts`; rota `POST /api/consulta-placa/modelo`.
 
+## Níveis e aprofundar (desde 19/10/2026)
+
+A consulta de placa tem quatro níveis, escolhidos antes de cobrar, como a de CPF e CNPJ. O preço de referência vem da tabela vigente em `parametros_consulta_veiculo`, semeada com a tabela pública da APIBrasil de 19/10/2026.
+
+| Nível | Produtos da APIBrasil | Referência | O que fica de fora |
+|---|---|---|---|
+| Básico | Base Estadual + Recall + FIPE | R$ 3,18 | leilão, sinistro e donos anteriores |
+| Intermediário | o básico + Check List | R$ 5,58 | donos anteriores |
+| Econômico 10/10 | o intermediário + Histórico de Proprietários | R$ 10,58 | leilão e sinistro só como indício; sem KM, anúncios e precificador |
+| Completo | Veículos Total | R$ 30,00 | nada |
+
+- **Placa nova:** a tela mostra os cartões dos níveis, e a consulta só sai depois da escolha e da confirmação.
+- **Aprofundar:** numa consulta guardada, há um botão para cada nível acima, com o preço do que falta. Os produtos já comprados são reaproveitados (ficam guardados como `fragmentos`, sem dado pessoal) e só os que faltam são pagos.
+  - Isso vale para consultas com até 7 dias (parâmetro) e do mesmo modo do fornecedor.
+  - Subir para o completo paga o Veículos Total inteiro: ele é um produto só.
+- **Checagem não coberta:** o que o nível não cobre aparece como "Não conferido" no quadro e deixa o veredito em "Comprar só com ressalvas", nunca como "ok".
+- **Trava contra repetição:** a mesma placa no mesmo nível, consultada há menos de 30 minutos (parâmetro), pede confirmação antes de pagar de novo.
+- **Toda tentativa fica registrada:** cada produto chamado, com status, custo e se pode ter cobrado (`tentativas`).
+- **Dado pessoal:** a Base Estadual e o Histórico de Proprietários trazem nome e documento do dono e do financiado. O leitor descarta esses campos. Do histórico ficam só a quantidade de donos e, de cada transferência, a data, a cidade e se o dono era pessoa ou empresa.
+- **A confirmar em homologação:** os formatos de resposta vêm dos exemplos da documentação. O Histórico de Proprietários anuncia R$ 5, mas o exemplo mostra 16 debitado. A página da Base Estadual não diz quais UFs ela atende.
+
 ## De onde vem cada dado
 
 | Dado | Fonte | Custo |
