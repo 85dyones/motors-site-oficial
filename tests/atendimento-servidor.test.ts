@@ -1549,6 +1549,35 @@ describe("as fotos, depois da segunda revisão", () => {
     expect(banco.tabelas.atendimento_fotos).toHaveLength(1);
   });
 
+  it("a foto vai DENTRO do pedido (data URL), não como link: o servidor da DeepSeek não baixava do carro57", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([], { visao: todas("externa") });
+    const r = await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base(galeria(2)) }));
+    expect(t.fotosBaixadas).toEqual([url(1), url(2)]);
+    expect(t.imagensDaVisao).toHaveLength(1);
+    for (const imagem of t.imagensDaVisao[0]) expect(imagem.startsWith("data:image/jpeg;base64,"), imagem.slice(0, 40)).toBe(true);
+    expect(t.pedidosDeVisao).toEqual([[url(1), url(2)]]);
+    expect(r).toMatchObject({ ok: true, fotos_classificadas: 2, falhas: 0 });
+  });
+
+  it("a foto que não baixa nem para o site fica fora do pedido e, com o pedido das outras dando certo, sai do envio", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([], { visao: todas("externa"), fotoQueNaoBaixa: (u) => u === url(2) });
+    const r = await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base(galeria(3)) }));
+    expect(t.pedidosDeVisao).toEqual([[url(1), url(3)]]);
+    expect(banco.tabelas.atendimento_fotos.find((f) => f.url === url(2))).toMatchObject({ aproveitavel: false, modelo: "inacessivel" });
+    expect(r).toMatchObject({ ok: true, fotos_classificadas: 2, falhas: 0 });
+  });
+
+  it("nenhuma foto baixa e não há controle: nada é marcado, e a falha diz qual foto e o HTTP", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([], { visao: todas("externa"), fotoQueNaoBaixa: () => true });
+    const r = await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base(galeria(1)) }));
+    expect(t.pedidosDeVisao).toEqual([]);
+    expect(r).toMatchObject({ falhas: 1, motivo: `foto sem classificar: a foto não baixou (HTTP 404): ${url(1)}` });
+    expect(banco.tabelas.atendimento_fotos ?? []).toHaveLength(0);
+  });
+
   it("o pedido de fotos de uma entrega não volta numa entrega pelo painel semanas depois", async () => {
     const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })], atendimento_mensagens: [jaEscreveu()] });
     const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Olha 👇"], fotos: { veiculo: ONIX, camada: "externa" }, sinais: { pediu_humano: true } })]);

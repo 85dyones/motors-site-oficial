@@ -273,12 +273,18 @@ export function transporteDeTeste(
     aoEnviarFoto?: (n: number) => void;
     /** A Evolution não responde a tempo no envio da foto de número n (o `fetch` aborta). */
     fotoSemResposta?: (n: number) => boolean;
+    /** A foto do estoque que não baixa nem para o site (o classificador a baixa antes de mandar ao modelo). */
+    fotoQueNaoBaixa?: (url: string) => boolean;
   } = {},
 ) {
   const enviados: { numero: string; texto: string }[] = [];
   const recusados: { numero: string; texto: string }[] = [];
   const pedidosAoModelo: any[] = [];
   const pedidosDeVisao: string[][] = [];
+  /** O `image_url.url` como saiu, sem decodificar: a foto vai embutida (data URL), não como link. */
+  const imagensDaVisao: string[][] = [];
+  /** As fotos que o classificador baixou, na ordem. */
+  const fotosBaixadas: string[] = [];
   const modelosDaVisao: string[] = [];
   /** Tudo o que saiu pela Evolution, na ordem: texto e foto. */
   const saidas: ({ tipo: "texto"; numero: string; texto: string } | { tipo: "foto"; numero: string; url: string; legenda: string | null })[] = [];
@@ -304,7 +310,10 @@ export function transporteDeTeste(
     if (url.endsWith("/chat/completions")) {
       const imagens = (corpo.messages as any[]).flatMap((m) => (Array.isArray(m.content) ? m.content : [])).filter((p: any) => p.type === "image_url");
       if (imagens.length > 0) {
-        const urls = imagens.map((p: any) => p.image_url.url);
+        const cruas: string[] = imagens.map((p: any) => p.image_url.url);
+        imagensDaVisao.push(cruas);
+        // A foto embutida traz no corpo a própria URL (ver o GET abaixo): o dublê lê de volta.
+        const urls = cruas.map((u) => (u.startsWith("data:") ? Buffer.from(u.slice(u.indexOf(",") + 1), "base64").toString() : u));
         pedidosDeVisao.push(urls);
         modelosDaVisao.push(corpo.model);
         const r = opcoes.visao ? opcoes.visao(urls) : { erro: "sem visão no dublê" };
@@ -333,7 +342,24 @@ export function transporteDeTeste(
         { status: 200 },
       );
     }
+    if (!init?.method || init.method === "GET") {
+      // A foto do estoque, que o classificador baixa para embutir no pedido.
+      // O corpo é a própria URL, para o dublê da visão saber qual foto é.
+      fotosBaixadas.push(url);
+      if (opcoes.fotoQueNaoBaixa?.(url)) return new Response("Not Found", { status: 404 });
+      return new Response(url, { status: 200, headers: { "content-type": "image/jpeg" } });
+    }
     throw new Error(`URL inesperada no dublê: ${url}`);
   };
-  return { transporte: transporte as unknown as typeof fetch, enviados, recusados, pedidosAoModelo, pedidosDeVisao, modelosDaVisao, saidas };
+  return {
+    transporte: transporte as unknown as typeof fetch,
+    enviados,
+    recusados,
+    pedidosAoModelo,
+    pedidosDeVisao,
+    imagensDaVisao,
+    fotosBaixadas,
+    modelosDaVisao,
+    saidas,
+  };
 }

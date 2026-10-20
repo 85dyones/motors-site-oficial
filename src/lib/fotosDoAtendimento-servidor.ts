@@ -46,6 +46,42 @@ const PAGINA = 1000;
 const IDS_POR_LEITURA = 100;
 /** Dois pedidos de classificação ao mesmo tempo: um carro de 24 fotos em uma ida. */
 const PEDIDOS_EM_PARALELO = 2;
+/** A DeepSeek aceita até 32 MiB por foto; foto de anúncio passa longe disso, e mais que isto é arquivo errado. */
+const TETO_DA_FOTO_EMBUTIDA = 8 * 1024 * 1024;
+const TEMPO_PARA_BAIXAR_A_FOTO_MS = 10_000;
+
+type FotoEmbutida = { url: string; posicao: number; conteudo: string };
+
+/**
+ * Baixa a foto e a devolve como data URL, para ir DENTRO do pedido ao modelo
+ * (2026-10-20). No branch de teste, a DeepSeek recusou toda rodada com
+ * "Failed to download image from https://s3.carro57.com.br/...": o servidor
+ * dela não baixa do carro57, que abre normalmente para o site. Baixando aqui,
+ * a classificação não depende do caminho entre os dois. Nunca lança.
+ */
+async function embutirFoto(
+  url: string,
+  transporte: Transporte,
+  timeoutMs: number,
+): Promise<{ ok: true; conteudo: string } | { ok: false; motivo: string }> {
+  const controle = new AbortController();
+  const relogio = setTimeout(() => controle.abort(), timeoutMs);
+  try {
+    const resposta = await transporte(url, { signal: controle.signal });
+    if (!resposta.ok) return { ok: false, motivo: `a foto não baixou (HTTP ${resposta.status}): ${url}` };
+    const bytes = Buffer.from(await resposta.arrayBuffer());
+    if (bytes.length === 0) return { ok: false, motivo: `a foto veio vazia: ${url}` };
+    if (bytes.length > TETO_DA_FOTO_EMBUTIDA) return { ok: false, motivo: `a foto passa de 8 MB: ${url}` };
+    // A DeepSeek reconhece o formato pelo conteúdo; o tipo declarado é só o rótulo.
+    const tipo = (resposta.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    return { ok: true, conteudo: `data:${tipo.startsWith("image/") ? tipo : "image/jpeg"};base64,${bytes.toString("base64")}` };
+  } catch (erro) {
+    const abortou = erro instanceof Error && erro.name === "AbortError";
+    return { ok: false, motivo: abortou ? `a foto não baixou a tempo: ${url}` : `a foto não baixou: ${url}` };
+  } finally {
+    clearTimeout(relogio);
+  }
+}
 
 /**
  * As fotos já classificadas destes carros, por carro. Em páginas: o PostgREST
@@ -114,7 +150,8 @@ type Lote = { url: string; posicao: number }[];
 /**
  * Recusa que é da FOTO, e não do pedido: 4xx, menos credencial (401), saldo
  * (402) e limite de uso (429). É o que a DeepSeek devolve quando não consegue
- * baixar uma das imagens — e aí o lote inteiro cai por causa de uma.
+ * abrir uma das imagens (desde 2026-10-20 elas vão embutidas, então é arquivo
+ * que ela não lê) — e aí o lote inteiro cai por causa de uma.
  */
 function recusaDaFoto(status: number | undefined): boolean {
   return typeof status === "number" && status >= 400 && status < 500 && ![401, 402, 429].includes(status);
@@ -176,6 +213,8 @@ export async function classificarCarro(
   const suspeitas: Lote = [];
   /** O que a DeepSeek disse na última recusa — vai junto da falha, que sem isso não diz o porquê. */
   let recusa: string | undefined;
+  /** A última foto que não baixou nem para o site, com o porquê. */
+  let semDownload: string | undefined;
 
   const gravar = async (lidas: FotoClassificada[], uso: { entrada: number; saida: number }, modelo: string, contar = true) => {
     const linha = (f: FotoClassificada) => ({
@@ -232,7 +271,40 @@ export async function classificarCarro(
     if (contar) novas += lidas.length;
   };
 
-  const classificarLote = async (lote: Lote): Promise<void> => {
+  const transporte = opcoes.transporte ?? fetch;
+  const pedido = (lote: readonly FotoEmbutida[]) =>
+    montarPedidoDeClassificacao(
+      carro,
+      lote.map((f) => ({ url: f.conteudo, posicao: f.posicao })),
+    );
+
+  /**
+   * Baixa as fotos do lote. A que não baixa nem aqui fica de fora do pedido e
+   * vai para as suspeitas, como a que a DeepSeek recusa: só é marcada com a
+   * prova de que o pedido funciona.
+   */
+  const embutir = async (lote: Lote): Promise<FotoEmbutida[]> => {
+    const sobra = opcoes.prazo === undefined ? teto : Math.min(teto, opcoes.prazo - relogio());
+    if (sobra < 5_000) {
+      falhas += 1;
+      motivo = "sem tempo para classificar";
+      return [];
+    }
+    const baixadas = await Promise.all(
+      lote.map(async (f) => ({ f, r: await embutirFoto(f.url, transporte, Math.min(TEMPO_PARA_BAIXAR_A_FOTO_MS, sobra)) })),
+    );
+    const prontas: FotoEmbutida[] = [];
+    for (const { f, r } of baixadas) {
+      if (r.ok) prontas.push({ ...f, conteudo: r.conteudo });
+      else {
+        suspeitas.push(f);
+        semDownload = r.motivo;
+      }
+    }
+    return prontas;
+  };
+
+  const classificarLote = async (lote: FotoEmbutida[]): Promise<void> => {
     const sobra = opcoes.prazo === undefined ? teto : Math.min(teto, opcoes.prazo - relogio());
     if (sobra < 5_000) {
       falhas += 1;
@@ -241,7 +313,7 @@ export async function classificarCarro(
     }
     const chamada = await completarEmJson({
       cfg: opcoes.modelo,
-      mensagens: montarPedidoDeClassificacao(carro, lote),
+      mensagens: pedido(lote),
       maxTokens: 1500,
       temperatura: 0.1,
       modoJson: false,
@@ -251,7 +323,7 @@ export async function classificarCarro(
     if (!chamada.ok) {
       if (recusaDaFoto(chamada.status)) {
         if (lote.length === 1) {
-          suspeitas.push(lote[0]);
+          suspeitas.push({ url: lote[0].url, posicao: lote[0].posicao });
           recusa = chamada.motivo;
           return;
         }
@@ -280,7 +352,12 @@ export async function classificarCarro(
   const lotes: Lote[] = [];
   for (let i = 0; i < pendentes.length; i += FOTOS_POR_PEDIDO_AO_MODELO) lotes.push(pendentes.slice(i, i + FOTOS_POR_PEDIDO_AO_MODELO));
   for (let i = 0; i < lotes.length; i += PEDIDOS_EM_PARALELO) {
-    await Promise.all(lotes.slice(i, i + PEDIDOS_EM_PARALELO).map(classificarLote));
+    await Promise.all(
+      lotes.slice(i, i + PEDIDOS_EM_PARALELO).map(async (lote) => {
+        const prontas = await embutir(lote);
+        if (prontas.length > 0) await classificarLote(prontas);
+      }),
+    );
   }
 
   // Marca a foto que o modelo não abre só com prova de que o PEDIDO de agora
@@ -295,15 +372,18 @@ export async function classificarCarro(
     if (!provado) {
       const controle = jaClassificadas.find((f) => f.aproveitavel && !f.corrigida && carro.urls.includes(f.url));
       const sobra = opcoes.prazo === undefined ? teto : Math.min(teto, opcoes.prazo - relogio());
-      if (controle && sobra >= 5_000) {
+      const embutida = controle && sobra >= 5_000 ? await embutirFoto(controle.url, transporte, Math.min(TEMPO_PARA_BAIXAR_A_FOTO_MS, sobra)) : null;
+      if (controle && embutida && !embutida.ok) semDownload = embutida.motivo;
+      if (controle && embutida?.ok) {
         const chamada = await completarEmJson({
           cfg: opcoes.modelo,
-          mensagens: montarPedidoDeClassificacao(carro, [{ url: controle.url, posicao: controle.posicao }]),
+          mensagens: pedido([{ url: controle.url, posicao: controle.posicao, conteudo: embutida.conteudo }]),
           maxTokens: 300,
           temperatura: 0.1,
           modoJson: false,
           transporte: opcoes.transporte,
-          timeoutMs: sobra,
+          // O que sobrou depois de baixar a foto de controle.
+          timeoutMs: Math.max(1_000, opcoes.prazo === undefined ? teto : Math.min(teto, opcoes.prazo - relogio())),
         });
         provado = chamada.ok && lerClassificacao(chamada.conteudo, [{ url: controle.url, posicao: controle.posicao }]) !== null;
         if (!chamada.ok) recusa = chamada.motivo;
@@ -314,7 +394,11 @@ export async function classificarCarro(
       await gravar(suspeitas.map(fotoInacessivel), { entrada: 0, saida: 0 }, "inacessivel", false);
     } else {
       falhas += 1;
-      motivo = recusa ? `o modelo de visão recusou o pedido (${recusa})` : "o modelo de visão recusou o pedido";
+      motivo = recusa
+        ? `o modelo de visão recusou o pedido (${recusa})`
+        : semDownload
+          ? `foto sem classificar: ${semDownload}`
+          : "o modelo de visão recusou o pedido";
     }
   }
   return { fotos, novas, falhas, ...(motivo ? { motivo } : {}) };
