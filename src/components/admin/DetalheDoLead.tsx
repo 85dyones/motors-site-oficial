@@ -39,12 +39,14 @@ import {
 } from "../../lib/carrosDeInteresseNaTela";
 import type { PendenciaDeVeiculo, VeiculoDeInteresse } from "../../lib/veiculosDeInteresse";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
+import AquecimentoDoLead from "./lead/AquecimentoDoLead";
 import AtendimentoDoLead from "./lead/AtendimentoDoLead";
 import CabecalhoDoLead from "./lead/CabecalhoDoLead";
 import CarrosDeInteresse from "./lead/CarrosDeInteresse";
 import DadosDoNegocio from "./lead/DadosDoNegocio";
 import HistoricoDoLead from "./lead/HistoricoDoLead";
 import ProximoPassoDoLead from "./lead/ProximoPassoDoLead";
+import { useConversaDoLead } from "./lead/useConversaDoLead";
 import RegistroDeInteracao from "./lead/RegistroDeInteracao";
 import { NivelDoTituloDeBloco } from "./lead/TituloDeBloco";
 
@@ -59,14 +61,19 @@ import { NivelDoTituloDeBloco } from "./lead/TituloDeBloco";
  *   · `pagina`: `/admin/leads/[id]`, o destino dos links e das telas estreitas.
  *
  * Os blocos são os mesmos nos dois: cabeçalho (h), atendimento (a — a
- * conversa do WhatsApp, o resumo e o aquecimento, desde 2026-10-20), próximo
+ * conversa do WhatsApp e o resumo, desde 2026-10-20), aquecimento (q), próximo
  * passo (p), carros de interesse (v), registro (c), histórico (t) e dados (d).
- * Na gaveta a ordem é h a p v c t d: o atendimento logo abaixo do cabeçalho,
+ * Na gaveta a ordem é h a q p v c t d: o atendimento logo abaixo do cabeçalho,
  * porque é onde a conversa acontece; os carros sobem para junto do próximo
  * passo, porque são ferramenta do atendimento. Na página estreita (tablet) a
  * ordem é a mesma. Na página de três colunas, v fica no alto da coluna dos
- * dados (h a p c t v d no HTML), e os blocos se reposicionam por
+ * dados (h a q p c t v d no HTML), e os blocos se reposicionam por
  * `grid-template-areas`.
+ *
+ * O aquecimento (q) fica sempre à vista, no alto da coluna da direita, com o
+ * próximo passo logo embaixo — pedido do dono no teste do atendimento 2.0
+ * (2026-10-20): *"assim sempre vamos saber como está o aquecimento do
+ * lead"*. Ele e o atendimento leem a mesma conversa (`useConversaDoLead`).
  *
  * Os dados vêm de `GET /api/leads/[id]`. Etapa, responsável e desfecho gravam
  * pelo `PATCH /api/leads/gerenciar`, com as travas de sempre; o registro, o
@@ -91,12 +98,14 @@ class ErroDeLeitura extends Error {
 }
 
 /** Onde cada bloco cai na página larga. Na gaveta e na página estreita, a ordem do HTML. */
-const AREA: Record<"h" | "a" | "p" | "c" | "t" | "d" | "v", string> = {
+const AREA: Record<"h" | "a" | "p" | "q" | "c" | "t" | "d" | "v", string> = {
   h: "xl:[grid-area:h]",
   // O atendimento (2026-10-20) abre a coluna do meio: é onde o vendedor
   // trabalha — a conversa, o resumo e o aquecimento —, e o registro desce.
   a: "xl:[grid-area:a]",
+  // A coluna da direita: o aquecimento em cima, sempre à vista, e o próximo passo embaixo.
   p: "xl:[grid-area:p] xl:border-l xl:border-mt-regua-fina",
+  q: "xl:border-t-0",
   c: "xl:[grid-area:c] xl:border-t-0",
   t: "xl:[grid-area:t]",
   // A coluna dos dados: os carros de interesse em cima, os dados embaixo.
@@ -337,6 +346,8 @@ export default function DetalheDoLead({
 
   const etapas = useMemo(() => ordenarEtapas(dados?.etapas ?? []), [dados?.etapas]);
   const lead = dados?.lead ?? null;
+  /** A conversa do WhatsApp, lida depois do lead: serve ao atendimento (a) e ao aquecimento (q). */
+  const conversa = useConversaDoLead(lead?.id ?? null);
 
   /** Junta campos no lead da tela e avisa o quadro. */
   const aplicar = useCallback(
@@ -780,15 +791,17 @@ export default function DetalheDoLead({
               aoLigar={() => mudarForm(comTipo(form, "ligacao"))}
               aoChegar={() => void chegou()}
             />
-            <AtendimentoDoLead leadId={lead.id} className={area("a")} aoMudarOLead={() => void recarregar()} />
-            <ProximoPassoDoLead
-              lead={lead}
-              aberto={aberto}
-              agora={agora}
-              className={area("p")}
-              aoConcluir={(passo) => comecarRegistro(formAoConcluir(passo, lead.proximo_passo_definido_em))}
-              aoRemarcar={(passo) => comecarRegistro(formAoRemarcar(passo))}
-            />
+            <AtendimentoDoLead leadId={lead.id} conversa={conversa} className={area("a")} aoMudarOLead={() => void recarregar()} />
+            <div data-coluna="p" className={`flex min-w-0 flex-col ${area("p")}`}>
+              <AquecimentoDoLead conversa={conversa} className={area("q")} />
+              <ProximoPassoDoLead
+                lead={lead}
+                aberto={aberto}
+                agora={agora}
+                aoConcluir={(passo) => comecarRegistro(formAoConcluir(passo, lead.proximo_passo_definido_em))}
+                aoRemarcar={(passo) => comecarRegistro(formAoRemarcar(passo))}
+              />
+            </div>
             {!(naPagina && emColunas) && blocoDosCarros}
             <RegistroDeInteracao
               form={form}

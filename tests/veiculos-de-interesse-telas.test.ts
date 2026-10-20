@@ -903,7 +903,7 @@ describe("o aviso do desfecho e a página estreita", () => {
     const ordem = () => [...container.querySelectorAll<HTMLElement>("[data-bloco]")].map((b) => b.dataset.bloco);
     // O atendimento (a, 2026-10-20) fica logo abaixo do cabeçalho; os carros
     // seguem logo depois do próximo passo.
-    expect(ordem()).toEqual(["h", "a", "p", "v", "c", "t", "d"]);
+    expect(ordem()).toEqual(["h", "a", "q", "p", "v", "c", "t", "d"]);
     expect(carros().closest('[data-coluna="d"]')).toBeNull();
   });
 

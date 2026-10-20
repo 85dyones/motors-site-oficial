@@ -1,18 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ROTULO_DA_TEMPERATURA, type Temperatura } from "../../../lib/aquecimento";
+import { useEffect, useRef, useState } from "react";
+import type { Temperatura } from "../../../lib/aquecimento";
 import {
   ABAS_DO_ATENDIMENTO,
   ROTULO_DA_ACAO,
   acoesDisponiveis,
   horaDaMensagem,
-  lerConversaDaApi,
-  linhaDaCadencia,
   linhasDaFicha,
   fotoDaMensagem,
   marcasDaMensagem,
-  posicaoNaRegua,
   quemEscreveu,
   rotuloDaEntrega,
   seloDaTemperatura,
@@ -20,32 +17,29 @@ import {
   textoDaMensagem,
   type AbaDoAtendimento,
   type AcaoNaTela,
-  type ConversaDaApi,
 } from "../../../lib/atendimentoNaTela";
 import { espera } from "../../../lib/funil";
 import { Segmentado } from "../SegmentadoDoPainel";
 import TituloDeBloco from "./TituloDeBloco";
+import type { ConversaDoLead } from "./useConversaDoLead";
 
 /**
  * Bloco a do detalhe: o atendimento pelo WhatsApp da loja (2026-10-20).
  *
  * Pedido do dono, a partir do manobrAI: *"a tela dos leads tem atendimentos
- * direto no painel, com uma aba resumo e aquecimento do lead"*. Três abas:
+ * direto no painel, com uma aba resumo e aquecimento do lead"*. Duas abas:
  *
  *   · **Conversa** — a conversa inteira (cliente, assistente, equipe e os
  *     toques de cadência), e a caixa para responder pelo número da loja.
  *     Responder aqui tira o assistente da conversa, como no manobrAI.
  *   · **Resumo** — o resumo do assistente e a ficha (o que o cliente DISSE),
  *     a origem e a entrega.
- *   · **Aquecimento** — a nota com a régua (frio, morno, quente), os motivos
- *     que somaram e tiraram, a linha do tempo e a cadência.
  *
- * A conversa se relê a cada 15 s enquanto a aba está visível — é a forma
- * simples de ver a resposta do cliente chegar sem um canal em tempo real.
- * Falhou a leitura, o bloco diz e o resto do detalhe segue de pé.
+ * O aquecimento era a terceira aba; desde 2026-10-20 é o bloco q, sempre à
+ * vista (`AquecimentoDoLead`). Os dois leem a mesma conversa, que o detalhe
+ * busca uma vez (`useConversaDoLead`) e relê a cada 15 s. Falhou a leitura, o
+ * bloco diz e o resto do detalhe segue de pé.
  */
-
-const RELEITURA_MS = 15_000;
 
 const FAIXA_DE_ERRO = "border-l-[3px] border-mt-accent bg-mt-accent-100 px-4 py-3 text-xs text-mt-accent-800";
 const FAIXA_DE_AVISO = "border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800";
@@ -60,67 +54,24 @@ const COR_DA_TEMPERATURA: Record<Temperatura, string> = {
 
 export default function AtendimentoDoLead({
   leadId,
+  conversa,
   className = "",
   aoMudarOLead,
 }: {
   leadId: string;
+  conversa: ConversaDoLead;
   className?: string;
   /** Depois de entregar ou devolver, o detalhe relê o lead (o dono pode ter mudado). */
   aoMudarOLead?: () => void;
 }) {
-  const [dados, setDados] = useState<ConversaDaApi | null>(null);
+  const { dados, erroDeLeitura, agora, ler } = conversa;
   /** O que a pessoa fez e não deu certo (enviar, pausar): alerta. */
   const [erro, setErro] = useState<string | null>(null);
-  /**
-   * A leitura que falhou: aviso discreto, e não alerta. É uma releitura em
-   * segundo plano de um bloco do detalhe; gritar a cada 15 s por ela tomaria o
-   * lugar dos avisos que pedem ação, e o resto do detalhe segue de pé.
-   */
-  const [erroDeLeitura, setErroDeLeitura] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [aba, setAba] = useState<AbaDoAtendimento>("conversa");
   const [texto, setTexto] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const [agora, setAgora] = useState(() => Date.now());
   const fim = useRef<HTMLLIElement>(null);
-  const vivo = useRef(true);
-
-  /** Só busca: quem muda o estado é quem chama, quando a resposta chega. */
-  const buscar = useCallback(async (): Promise<{ dados: ConversaDaApi } | { erro: string }> => {
-    try {
-      const r = await fetch(`/api/leads/${encodeURIComponent(leadId)}/conversa`, { cache: "no-store" });
-      const corpo = await r.json().catch(() => null);
-      if (!r.ok) return { erro: (corpo as { error?: string } | null)?.error ?? "Não deu para ler a conversa." };
-      return { dados: lerConversaDaApi(corpo) };
-    } catch {
-      return { erro: "Não deu para ler a conversa." };
-    }
-  }, [leadId]);
-
-  const aplicar = useCallback((r: { dados: ConversaDaApi } | { erro: string }) => {
-    if (!vivo.current) return;
-    if ("erro" in r) {
-      setErroDeLeitura(r.erro);
-      return;
-    }
-    setErroDeLeitura(null);
-    setDados(r.dados);
-    setAgora(Date.now());
-  }, []);
-
-  const ler = useCallback(async () => aplicar(await buscar()), [aplicar, buscar]);
-
-  useEffect(() => {
-    vivo.current = true;
-    void buscar().then(aplicar);
-    const relogio = window.setInterval(() => {
-      if (document.visibilityState === "visible") void buscar().then(aplicar);
-    }, RELEITURA_MS);
-    return () => {
-      vivo.current = false;
-      window.clearInterval(relogio);
-    };
-  }, [buscar, aplicar]);
 
   const totalDeMensagens = dados?.mensagens.length ?? 0;
   useEffect(() => {
@@ -357,77 +308,6 @@ export default function AtendimentoDoLead({
         </div>
       )}
 
-      {aba === "aquecimento" && (
-        <div className="flex flex-col gap-4">
-          {estado?.aquecimento === null || estado?.aquecimento === undefined ? (
-            <p className="m-0 border border-dashed border-mt-regua-fina bg-mt-surface p-3.5 text-xs leading-relaxed text-mt-neutral-700">
-              O assistente ainda não leu esta conversa. A nota aparece depois da primeira resposta dele.
-            </p>
-          ) : (
-            <>
-              <div className="flex items-baseline gap-3">
-                <span className="text-[34px] font-extrabold leading-none tracking-[-.03em] text-mt-ink tabular-nums">
-                  {estado.aquecimento}
-                </span>
-                <span className="text-[11px] font-semibold uppercase tracking-[.1em] text-mt-neutral-700">
-                  de 100 · {estado.temperatura ? ROTULO_DA_TEMPERATURA[estado.temperatura] : "sem leitura"}
-                </span>
-              </div>
-              <div className="relative h-2 w-full bg-mt-surface" role="img" aria-label={`Aquecimento ${estado.aquecimento} de 100`}>
-                <div className="absolute inset-y-0 left-0 bg-mt-ink" style={{ width: `${posicaoNaRegua(estado.aquecimento)}%` }} />
-                {assistente?.limiares && (
-                  <>
-                    <span className="absolute -top-1 h-4 w-px bg-mt-neutral-600" style={{ left: `${assistente.limiares.morno}%` }} />
-                    <span className="absolute -top-1 h-4 w-px bg-mt-accent" style={{ left: `${assistente.limiares.quente}%` }} />
-                  </>
-                )}
-              </div>
-              {assistente?.limiares && (
-                <p className="m-0 text-[10px] uppercase tracking-[.08em] text-mt-neutral-600 tabular-nums">
-                  Morno a partir de {assistente.limiares.morno} · quente a partir de {assistente.limiares.quente}
-                </p>
-              )}
-
-              <ul aria-label="Por que esta nota" className="m-0 flex list-none flex-col gap-1.5 p-0">
-                {(estado.qualificacao?.motivos ?? []).map((m) => (
-                  <li key={m.chave} className="flex items-baseline gap-2 text-[12px] leading-snug">
-                    <span className={`w-9 shrink-0 text-right font-extrabold tabular-nums ${m.pontos < 0 ? "text-mt-accent-800" : "text-mt-ink"}`}>
-                      {m.pontos > 0 ? `+${m.pontos}` : m.pontos}
-                    </span>
-                    <span className="text-mt-neutral-800 [overflow-wrap:anywhere]">{m.texto}</span>
-                  </li>
-                ))}
-                {(estado.qualificacao?.motivos ?? []).length === 0 && (
-                  <li className="text-xs text-mt-neutral-600">Nada que some pontos ainda: o cliente não disse o que procura.</li>
-                )}
-              </ul>
-            </>
-          )}
-
-          {(dados?.retratos.length ?? 0) > 1 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-mt-neutral-600">A nota ao longo da conversa</span>
-              <ol aria-label="Linha do tempo do aquecimento" className="m-0 flex h-10 list-none items-end gap-[3px] p-0">
-                {dados!.retratos.map((r, i) => (
-                  <li
-                    key={`${r.criado_em}-${i}`}
-                    title={`${r.aquecimento} · ${horaDaMensagem(r.criado_em, new Date(agora))}${r.origem === "cadencia" ? " · cadência" : ""}`}
-                    className={`w-2 ${r.temperatura === "quente" ? "bg-mt-accent" : r.temperatura === "morno" ? "bg-mt-ink" : "bg-mt-neutral-500"}`}
-                    style={{ height: `${Math.max(8, posicaoNaRegua(r.aquecimento))}%` }}
-                  />
-                ))}
-              </ol>
-            </div>
-          )}
-
-          {estado && (
-            <p className="m-0 border-t border-mt-regua-fina pt-3 text-[11px] leading-relaxed text-mt-neutral-800">
-              {linhaDaCadencia(estado, (estado.cadencia && assistente?.passos?.[estado.cadencia]) || 3, new Date(agora)) ??
-                "Nenhuma cadência em andamento."}
-            </p>
-          )}
-        </div>
-      )}
     </section>
   );
 }

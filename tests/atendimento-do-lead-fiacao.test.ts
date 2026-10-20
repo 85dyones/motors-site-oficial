@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { act, createElement } from "react";
+import { Fragment, act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 /**
- * O bloco de atendimento do lead, montado (2026-10-20): as três abas, a
- * conversa, a resposta pelo painel e os botões do assistente. Só o `fetch` é
- * dublê.
+ * O bloco de atendimento do lead, montado (2026-10-20): as duas abas, a
+ * conversa, a resposta pelo painel e os botões do assistente — e o bloco do
+ * aquecimento, sempre à vista, lendo a mesma conversa. Só o `fetch` é dublê.
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -66,10 +66,22 @@ afterEach(() => {
   container.remove();
 });
 
+/** Como o detalhe monta: uma leitura da conversa para os dois blocos. */
 async function montar() {
   const { default: AtendimentoDoLead } = await import("../src/components/admin/lead/AtendimentoDoLead");
+  const { default: AquecimentoDoLead } = await import("../src/components/admin/lead/AquecimentoDoLead");
+  const { useConversaDoLead } = await import("../src/components/admin/lead/useConversaDoLead");
+  function Blocos() {
+    const conversa = useConversaDoLead("lead-1");
+    return createElement(
+      Fragment,
+      null,
+      createElement(AtendimentoDoLead, { leadId: "lead-1", conversa }),
+      createElement(AquecimentoDoLead, { conversa }),
+    );
+  }
   await act(async () => {
-    root.render(createElement(AtendimentoDoLead, { leadId: "lead-1" }));
+    root.render(createElement(Blocos));
   });
 }
 
@@ -135,13 +147,30 @@ describe("o bloco de atendimento", () => {
     expect(texto()).toContain("Veio do anúncio: SUVs a partir de 79 mil");
   });
 
-  it("aba Aquecimento: a nota, a régua, os motivos com sinal e a cadência", async () => {
+  it("o aquecimento fica à vista, sem aba: a nota, a régua, os motivos com sinal e a cadência", async () => {
     await montar();
-    await clicar(botao("Aquecimento"));
-    expect(texto()).toContain("80de 100 · Quente");
-    expect(texto()).toContain("Morno a partir de 35 · quente a partir de 65");
-    const motivos = [...container.querySelectorAll('[aria-label="Por que esta nota"] li')].map((li) => li.textContent);
+    // Uma leitura serve aos dois blocos.
+    expect(chamadas.filter((c) => c.url === "/api/leads/lead-1/conversa")).toHaveLength(1);
+    expect(botao("Aquecimento")).toBeUndefined();
+    const q = () => container.querySelector('[data-bloco="q"]')!.textContent ?? "";
+    expect(q()).toContain("80de 100 · Quente");
+    expect(q()).toContain("Morno a partir de 35 · quente a partir de 65");
+    const motivos = [...container.querySelectorAll('[data-bloco="q"] [aria-label="Por que esta nota"] li')].map((li) => li.textContent);
     expect(motivos).toEqual(["+25Quer visitar a loja ou fazer test-drive", "-15Disse que só está pesquisando"]);
-    expect(texto()).toContain("Follow-up · toque 1 de 3");
+    expect(q()).toContain("Follow-up · toque 1 de 3");
+    // Trocar a aba do atendimento não esconde o aquecimento.
+    await clicar(botao("Resumo"));
+    expect(q()).toContain("80de 100 · Quente");
+  });
+
+  it("antes de a conversa chegar, o aquecimento diz que está lendo", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (() => new Promise(() => {})) as never;
+    try {
+      await montar();
+      expect(container.querySelector('[data-bloco="q"]')!.textContent).toContain("Lendo o aquecimento…");
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });

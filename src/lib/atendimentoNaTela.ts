@@ -18,12 +18,12 @@ import { espera } from "./funil";
  * desenha. Mesmo desenho de `filaDoFunil.ts` para o quadro.
  */
 
-export type AbaDoAtendimento = "conversa" | "resumo" | "aquecimento";
+/** O aquecimento saiu das abas em 2026-10-20: é um bloco sempre à vista (`AquecimentoDoLead`). */
+export type AbaDoAtendimento = "conversa" | "resumo";
 
 export const ABAS_DO_ATENDIMENTO: readonly { valor: AbaDoAtendimento; rotulo: string }[] = [
   { valor: "conversa", rotulo: "Conversa" },
   { valor: "resumo", rotulo: "Resumo" },
-  { valor: "aquecimento", rotulo: "Aquecimento" },
 ];
 
 export interface MensagemNaTela {

@@ -431,19 +431,21 @@ describe("a Lista do dia", () => {
 });
 
 describe("o detalhe: um componente, dois layouts", () => {
-  it("na gaveta, uma coluna na ordem h a p v c t d (o atendimento logo abaixo do cabeçalho, os carros depois do próximo passo), com o nome em h2", async () => {
+  it("na gaveta, uma coluna na ordem h a q p v c t d (o atendimento logo abaixo do cabeçalho, o aquecimento à vista, os carros depois do próximo passo), com o nome em h2", async () => {
     await montarQuadro("Ana");
     await clicar(cardDe(container, "l1"));
     const g = gaveta()!;
 
-    // O atendimento (a) entrou em 2026-10-20: a conversa do WhatsApp, o resumo
-    // e o aquecimento ficam logo abaixo do cabeçalho, onde o vendedor trabalha.
-    expect(blocos(g)).toEqual(["h", "a", "p", "v", "c", "t", "d"]);
+    // O atendimento (a) entrou em 2026-10-20: a conversa do WhatsApp e o resumo
+    // ficam logo abaixo do cabeçalho, onde o vendedor trabalha; o aquecimento
+    // (q) vem logo depois, sempre à vista.
+    expect(blocos(g)).toEqual(["h", "a", "q", "p", "v", "c", "t", "d"]);
     expect(g.querySelector("[data-blocos]")!.className).toBe("flex flex-col");
     expect(g.querySelector("h2")!.textContent).toBe("Joana Atrasada");
     expect(g.querySelector("h1")).toBeNull();
     expect([...g.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
       "Atendimento",
+      "Aquecimento",
       "Próximo passo",
       "Carro de interesse",
       "Registrar interação",
@@ -462,14 +464,18 @@ describe("o detalhe: um componente, dois layouts", () => {
     const pagina = container.querySelector<HTMLElement>('[data-layout="pagina"]')!;
 
     // Os carros de interesse ficam no alto da coluna dos dados; o atendimento
-    // abre a coluna do meio, acima do registro.
-    expect(blocos(pagina)).toEqual(["h", "a", "p", "c", "t", "v", "d"]);
+    // abre a coluna do meio, acima do registro; o aquecimento abre a da
+    // direita, com o próximo passo embaixo (pedido do dono, 2026-10-20).
+    expect(blocos(pagina)).toEqual(["h", "a", "q", "p", "c", "t", "v", "d"]);
     const grade = pagina.querySelector("[data-blocos]")!.className;
     expect(grade).toContain("xl:grid-cols-[320px_minmax(0,1fr)_320px]");
     expect(grade).toContain("xl:[grid-template-areas:'h_h_h'_'d_a_p'_'d_c_p'_'d_t_p']");
-    for (const b of ["h", "a", "p", "c", "t"]) {
+    for (const b of ["h", "a", "c", "t"]) {
       expect(pagina.querySelector(`[data-bloco="${b}"]`)!.className, b).toContain(`xl:[grid-area:${b}]`);
     }
+    const colunaDaDireita = pagina.querySelector<HTMLElement>('[data-coluna="p"]')!;
+    expect(colunaDaDireita.className).toContain("xl:[grid-area:p]");
+    expect(blocos(colunaDaDireita)).toEqual(["q", "p"]);
     const colunaDosDados = pagina.querySelector<HTMLElement>('[data-coluna="d"]')!;
     expect(colunaDosDados.className).toContain("xl:[grid-area:d]");
     expect(blocos(colunaDosDados)).toEqual(["v", "d"]);

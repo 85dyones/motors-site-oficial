@@ -114,7 +114,7 @@ O painel mostra o custo estimado do período em **Leads → Atendimento IA**
 **O modelo preenche a ficha; a régua soma.** Pedir "dê uma nota de 0 a 100" a
 um modelo produz um número que muda entre duas chamadas iguais e que ninguém
 audita. Somar pesos sobre o que o cliente disse produz o mesmo número para a
-mesma ficha, e cada ponto vira **motivo** na aba Aquecimento
+mesma ficha, e cada ponto vira **motivo** no bloco Aquecimento
 (`src/lib/aquecimento.ts`).
 
 | Sinal | Pontos |
@@ -383,7 +383,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 ## 7. O painel
 
 - **Detalhe do lead → bloco Atendimento**, logo abaixo do cabeçalho (na página
-  larga, abre a coluna do meio), com três abas:
+  larga, abre a coluna do meio), com duas abas:
   - **Conversa**: cliente, assistente, equipe e cadência, com as marcas
     "cadência", "passagem ao vendedor", "pelo celular da loja", "não saiu"; a
     caixa para responder pelo número da loja; e os botões *Entregar ao
@@ -391,8 +391,13 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
     *Devolver para reaquecer*.
   - **Resumo**: o resumo do assistente e a ficha (o que o cliente disse, com
     "não disse" à vista), a origem do anúncio e a entrega.
-  - **Aquecimento**: a nota com a régua (marcas do morno e do quente), os
-    motivos com o sinal, a linha do tempo e a cadência.
+- **Detalhe do lead → bloco Aquecimento**, sempre à vista (era a terceira
+  aba; mudou no teste de 20/10/2026, a pedido do dono: *"deixe a tela do
+  aquecimento sempre visível, do lado direito, no lugar do próximo passo"*).
+  Na página larga abre a coluna da direita, com o próximo passo logo embaixo;
+  na gaveta, vem logo depois do atendimento. Mostra a nota com a régua
+  (marcas do morno e do quente), os motivos com o sinal, a linha do tempo e
+  a cadência. Os dois blocos leem a mesma conversa, relida a cada 15 s.
 - **Card do quadro**: selo "Quente · 82" e "Com o assistente".
 - **Leads → Atendimento IA** (`/admin/leads/atendimento`): o assistente
   (conversas, entregas por motivo, tempo até a entrega, custo, opt-outs), a
