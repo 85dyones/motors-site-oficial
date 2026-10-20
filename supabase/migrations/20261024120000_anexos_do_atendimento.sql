@@ -150,7 +150,7 @@ begin
     begin
       insert into public.atendimento_mensagens (lead_id, telefone, direcao, autor, conteudo, situacao, midia_tipo)
       values (v_lead, '5541900005001', 'entrada', 'cliente', 'documento', 'recebida', 'não é mimetype');
-      v_falhou := v_falhou || 'aceitou mimetype torto';
+      v_falhou := v_falhou || 'aceitou mimetype torto'::text;
     exception when check_violation then
       null;
     end;

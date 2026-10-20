@@ -192,3 +192,28 @@ export function trocaParaLer(troca: string | null): string | null {
   if (!troca) return null;
   return semCarroNaTroca(troca) ? "não tem" : troca;
 }
+
+// ----------------------------------------------------------------------------
+// As etiquetas de intenção (2026-10-20)
+// ----------------------------------------------------------------------------
+
+/**
+ * As etiquetas que o assistente põe a partir do que descobriu — as mesmas
+ * que o Chatwoot punha (decisão do dono, 20/10: *"Sim, o Ney etiqueta"*).
+ * Só acrescenta: tirar é da equipe, no card.
+ *
+ *   quer-comprar    ← falou de um carro
+ *   quer-financiar  ← vai financiar
+ *   quer-avaliar    ← tem carro na troca
+ *   negociando      ← pediu condição, fechou visita ou está pronto para simular
+ */
+export const ETIQUETAS_DE_INTENCAO = ["quer-comprar", "quer-financiar", "quer-avaliar", "negociando"] as const;
+
+export function etiquetasDaConversa(ficha: FichaDoLead, motivoDaEntrega?: string | null): string[] {
+  const etiquetas: string[] = [];
+  if (ficha.interesse?.trim()) etiquetas.push("quer-comprar");
+  if (ficha.pagamento === "financiado") etiquetas.push("quer-financiar");
+  if (ficha.troca?.trim() && !semCarroNaTroca(ficha.troca)) etiquetas.push("quer-avaliar");
+  if (motivoDaEntrega === "pediu_condicao" || motivoDaEntrega === "agendou" || motivoDaEntrega === "simulacao") etiquetas.push("negociando");
+  return etiquetas;
+}

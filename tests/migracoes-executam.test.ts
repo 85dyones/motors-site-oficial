@@ -339,6 +339,7 @@ const CADEIA = [
   // cadeia porque usa `registrar_etiquetas_do_lead` e `atendimentos.tags`.
   "20261023120000_etiquetas_no_lead.sql",
   "20261024120000_anexos_do_atendimento.sql",
+  "20261025120000_etiquetas_automaticas.sql",
 ];
 
 /**

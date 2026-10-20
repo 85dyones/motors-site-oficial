@@ -1862,3 +1862,67 @@ describe("as fotos, depois da segunda revisão", () => {
     expect(t.pedidosDeVisao.map((p) => p[0])).toEqual(["https://f.teste/b2.jpg", "https://f.teste/a2.jpg"]);
   });
 });
+
+describe("as etiquetas do assistente e a etapa Visita (decisões do dono, 20/10)", () => {
+  const VISITA = { visita: "sábado às 10h", visita_data: "2026-10-24", visita_hora: "10:00" };
+  const ONIX = { interesse: "Onix LT 2020", interesse_especifico: true };
+  const ETAPAS = [
+    { chave: "novo", tipo: "aberta", ordem: 1, ativa: true },
+    { chave: "em_contato", tipo: "aberta", ordem: 2, ativa: true },
+    { chave: "visita", tipo: "aberta", ordem: 4, ativa: true },
+    { chave: "negociacao", tipo: "aberta", ordem: 5, ativa: true },
+    { chave: "ganho", tipo: "ganho", ordem: 9, ativa: true },
+  ];
+  const etiquetagens = (banco: BancoDeTeste) => banco.rpcs.filter((r) => r.nome === "etiquetar_lead_pelo_sistema").map((r) => r.args);
+
+  it("o que o cliente disse vira etiqueta de intenção, pelo nome do assistente", async () => {
+    const banco = montar({ leads: [leadAberto()] });
+    const t = transporteDeTeste([
+      respostaDoModelo({ ficha: { interesse: "Onix LT 2020", interesse_especifico: true, pagamento: "financiado", troca: "Uno 2014, 90 mil km" } }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "quero financiar e dar meu Uno");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(etiquetagens(banco)).toEqual([{ p_lead: "lead-1", p_incluir: ["quer-comprar", "quer-financiar", "quer-avaliar"], p_autor: "Ney" }]);
+  });
+
+  it("\"sem troca\" não é carro para avaliar; ficha vazia não chama o banco", async () => {
+    const banco = montar({ leads: [leadAberto()] });
+    const t = transporteDeTeste([respostaDoModelo({ ficha: { troca: "sem troca" } })]);
+    const entrada = await clienteEscreve(banco, t, "não tenho carro pra dar");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(etiquetagens(banco)).toEqual([]);
+  });
+
+  it("visita marcada: o lead vai para a etapa Visita, ganha \"negociando\", e o rastro diz", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })], funil_etapas: ETAPAS });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Fechado, sábado às 10h!"], ficha: { ...ONIX, ...VISITA } })]);
+    const entrada = await clienteEscreve(banco, t, "sábado às 10h pode ser");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "visita", entregue_motivo: "agendou" });
+    expect(etiquetagens(banco).at(-1)).toEqual({ p_lead: "lead-1", p_incluir: ["quer-comprar", "negociando"], p_autor: "Ney" });
+    expect(banco.tabelas.leads_eventos.some((e) => String(e.para ?? e.texto ?? JSON.stringify(e)).includes("O lead foi para a etapa Visita."))).toBe(true);
+  });
+
+  it("só para a frente: o lead já em Negociação fica lá; sem a etapa ativa, ninguém se move", async () => {
+    for (const [situacao, etapas] of [
+      ["negociacao", ETAPAS],
+      ["novo", ETAPAS.map((e) => (e.chave === "visita" ? { ...e, ativa: false } : e))],
+    ] as const) {
+      const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza", situacao })], funil_etapas: [...etapas] });
+      const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Fechado, sábado às 10h!"], ficha: { ...ONIX, ...VISITA } })]);
+      const entrada = await clienteEscreve(banco, t, "sábado às 10h pode ser");
+      await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+      expect(banco.tabelas.leads[0].situacao, situacao).toBe(situacao);
+      expect(banco.tabelas.leads[0].entregue_motivo).toBe("agendou");
+    }
+  });
+
+  it("entrega que não é visita (quente) não move a etapa", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })], funil_etapas: ETAPAS });
+    const t = transporteDeTeste([respostaDoModelo({ ficha: ONIX, sinais: { pediu_humano: true } })]);
+    const entrada = await clienteEscreve(banco, t, "quero falar com alguém");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "novo", assistente_fase: "entregue" });
+  });
+});

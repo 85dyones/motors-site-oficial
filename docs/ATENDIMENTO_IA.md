@@ -585,7 +585,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — `20261020120000_atendimento_ia.sql`, `20261021120000_fotos_do_atendimento.sql`, `20261022120000_atendimento_entrega_pronta.sql`, `20261023120000_etiquetas_no_lead.sql` e `20261024120000_anexos_do_atendimento.sql`
+## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261025120000_etiquetas_automaticas.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -637,6 +637,22 @@ caminho que sobe de pasta), `midia_tipo`, `midia_nome`, `midia_bytes` e
 assina), com teto de 50 MB. Sem a quinta, a conversa aparece igual, com o
 rótulo "[Foto]".
 
+A sexta põe as **etiquetas que o sistema dá** (pedido do dono: *"os contatos
+precisam continuar recebendo a identificação de origem com as tags"*). A régua
+de origem é a que o Chatwoot aplicava, lida dos dados da produção em 20/10:
+clique do Google (`gclid`, `gbraid`, `wbraid`) → `origem-ads-google`; clique
+da Meta (`fbclid`, `fbc`) ou conversa que nasceu de anúncio de clique para o
+WhatsApp (`origem_conversa`) → `origem-ads-meta`; passou pelo site (`ag_uid`)
+→ `origem-site`; o resto → `origem-organico`. Um gatilho põe a etiqueta em
+todo lead que nasce (site, WhatsApp, à mão) e sobe o "orgânico" quando se
+descobre o anúncio; a origem posta à mão, ou já de anúncio ou site, fica. A
+carga etiqueta os leads abertos que ainda não têm origem.
+`etiquetar_lead_pelo_sistema` (só a chave de serviço) é por onde o assistente
+põe as de **intenção**, só acrescentando e com evento no rastro:
+`quer-comprar` (falou de um carro), `quer-financiar` (vai financiar),
+`quer-avaliar` (tem carro na troca) e `negociando` (pediu condição, fechou
+visita ou está pronto para simular).
+
 ---
 
 ## 10. Como ligar
@@ -644,8 +660,9 @@ rótulo "[Foto]".
 1. **Banco**: aplicar as migrações `20261020120000_atendimento_ia.sql`,
    `20261021120000_fotos_do_atendimento.sql`,
    `20261022120000_atendimento_entrega_pronta.sql`,
-   `20261023120000_etiquetas_no_lead.sql` e
-   `20261024120000_anexos_do_atendimento.sql`, nesta ordem.
+   `20261023120000_etiquetas_no_lead.sql`,
+   `20261024120000_anexos_do_atendimento.sql` e
+   `20261025120000_etiquetas_automaticas.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -755,6 +772,17 @@ em **Usuários e permissões**, no preview.
   depois de um mês de atendimento novo. Os fluxos do n8n que dependem do
   Chatwoot (Espelho do Chatwoot, Fila de Resgate do SDR e o Ney do Captain)
   são desligados no mesmo dia: as cadências do assistente assumem o resgate.
+- **O retorno ao Meta e ao Google não muda com a troca** (conferido em 20/10,
+  na produção, só leitura). O Meta recebe o `Lead` do formulário do site, o
+  `LeadQualificado` de hora em hora pela etapa (Visita, Negociação — e agora a
+  visita que o assistente marca) e o `Purchase` no ganho com valor; nada disso
+  passava pelo Chatwoot. O Google é só do navegador (gtag/GTM). O que segue
+  em aberto, e já era assim com o Chatwoot: o lead que nasce no WhatsApp (dois
+  terços dos últimos 7 dias) não manda o `Lead`, e o `ctwa_clid` do anúncio de
+  clique para o WhatsApp (em `origem_conversa`) não vai ao Meta. Mandar exige o
+  evento de mensagens da Conversions API (`business_messaging`, com a conta do
+  WhatsApp Business ligada ao conjunto de dados) — outra entrega, com decisão
+  do dono. A conversão offline do Google (upload do `gclid`) também.
 - **Agenda de test-drive com lembrete, pós-visita e "carro compatível chegou".**
   São cadências do manobrAI que dependem de agenda e de casar estoque novo com
   interesse; a estrutura de cadência suporta, e entram na próxima rodada.
@@ -793,6 +821,13 @@ tela, em **Leads → Atendimento IA → Configuração**.
    Ver §9 e §11.
 8. **As cadências assumem o resgate**: a Fila de Resgate do SDR (n8n) sai com o
    Chatwoot; o lead que esfria volta pelas cadências do assistente.
+9. **Visita marcada pelo assistente vai para a etapa Visita**: *"Sim, mover
+   para Visita"*. É a etapa que conta como qualificado para o Meta
+   (`ETAPAS_QUALIFICADAS`): o envio de hora em hora manda o `LeadQualificado`
+   depois de 10 minutos nela. Só para a frente, só com a etapa ativa no funil.
+   Risco aceito: a visita a que o cliente não vem já terá ido ao Meta.
+10. **O assistente põe as etiquetas de intenção** que o Chatwoot punha
+    (*"Sim, o Ney etiqueta"*); a de origem, o banco põe (§9).
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

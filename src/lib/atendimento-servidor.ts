@@ -97,7 +97,8 @@ import {
   type ResultadoDaClassificacao,
 } from "./fotosDoAtendimento-servidor";
 import { numeroDiscavel } from "./funil";
-import { metodoNoEstado, momentoDaVisita, prontidao, proximosDias, rotuloDaVisita } from "./metodoDeQualificacao";
+import { etiquetasDaConversa, metodoNoEstado, momentoDaVisita, prontidao, proximosDias, rotuloDaVisita } from "./metodoDeQualificacao";
+import { ETAPA_DE_VISITA } from "./gestaoDoLead";
 import {
   mensagemDeEntrega,
   mensagemDePassagemAoCliente,
@@ -1361,6 +1362,10 @@ async function responderUmaVez(
     config.nome_do_assistente,
   );
 
+  // O que o cliente disse vira etiqueta de intenção (quer-comprar,
+  // quer-financiar, quer-avaliar). "negociando" é da entrega.
+  await etiquetarPeloAssistente(supabase, leadId, etiquetasDaConversa(ficha), config.nome_do_assistente);
+
   // As fotos que o modelo pediu saem depois do texto — e depois de o lead
   // estar gravado: se a Evolution demorar baixando a mídia, a ficha, a nota e
   // a cadência já estão salvas. Com prazo, para a entrega caber no tempo da
@@ -1746,6 +1751,54 @@ async function vendedorDoRodizio(supabase: Banco, equipe: readonly PessoaDaEquip
   return [...candidatos].sort((a, b) => (carga.get(a.nome) ?? 0) - (carga.get(b.nome) ?? 0) || a.nome.localeCompare(b.nome, "pt-BR"))[0];
 }
 
+/**
+ * As etiquetas que o assistente põe (só acrescenta), pela função do banco que
+ * só a chave de serviço chama. Nunca lança nem segura a conversa: banco sem a
+ * migração 20261025120000 só vai ao log.
+ */
+async function etiquetarPeloAssistente(supabase: Banco, leadId: string, etiquetas: string[], autor: string): Promise<void> {
+  if (etiquetas.length === 0) return;
+  try {
+    const { error } = await supabase.rpc("etiquetar_lead_pelo_sistema", { p_lead: leadId, p_incluir: etiquetas, p_autor: autor });
+    if (error) console.warn("[Atendimento] Etiquetas do assistente não gravadas:", error.message);
+  } catch (erro) {
+    console.warn("[Atendimento] Etiquetas do assistente não gravadas:", erro instanceof Error ? erro.message : String(erro));
+  }
+}
+
+/**
+ * Leva o lead para a etapa de visita — só para a frente, só lead aberto, só
+ * se o funil tem a etapa ativa (o funil é editável). A mesma régua do
+ * "Chegou na loja". A troca de etapa grava o rastro pelo gatilho do banco,
+ * e é esse rastro que o envio ao Meta lê. Nunca lança.
+ */
+async function moverParaVisita(supabase: Banco, lead: Linha): Promise<boolean> {
+  try {
+    if (lead.desfecho) return false;
+    const { data: etapas, error } = await supabase.from("funil_etapas").select("chave, tipo, ordem, ativa");
+    if (error) return false;
+    const lista = (etapas ?? []) as Linha[];
+    const visita = lista.find((e) => e.chave === ETAPA_DE_VISITA);
+    if (!visita || visita.ativa !== true || visita.tipo !== "aberta") return false;
+    const atual = lista.find((e) => e.chave === lead.situacao);
+    if (atual && (atual.tipo !== "aberta" || Number(atual.ordem) >= Number(visita.ordem))) return false;
+    const { data: movidos, error: erroAoMover } = await supabase
+      .from("leads")
+      .update({ situacao: ETAPA_DE_VISITA })
+      .eq("id", String(lead.id))
+      .eq("situacao", lead.situacao)
+      .is("desfecho", null)
+      .select("id");
+    if (erroAoMover) {
+      console.error("[Atendimento] Lead não foi para a Visita:", erroAoMover.message);
+      return false;
+    }
+    return ((movidos ?? []) as Linha[]).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function entregarAoVendedor(
   supabase: Banco,
   lead: Linha,
@@ -1834,12 +1887,20 @@ async function entregarAoVendedor(
     if (error) console.error("[Atendimento] Próximo passo da visita não gravado:", error.message);
   }
 
+  // Visita com dia e hora marcada pelo assistente: o lead vai para a etapa
+  // Visita (decisão do dono, 20/10). É a etapa que conta como qualificado
+  // para o Meta (`ETAPAS_QUALIFICADAS`): o envio de hora em hora a vê.
+  const foiParaVisita = momento ? await moverParaVisita(supabase, lead) : false;
+
+  // Pediu condição, fechou visita ou está pronto para simular: negociando.
+  await etiquetarPeloAssistente(supabase, leadId, etiquetasDaConversa(ficha, motivo), config.nome_do_assistente);
+
   const rotulo = motivo === "painel" ? "Entregue pelo painel" : ROTULO_DO_MOTIVO_DA_ENTREGA[motivo];
   const peloRodizio = Boolean(responsavel) && !String(lead.responsavel ?? "").trim();
   await anotarNoRastro(
     supabase,
     leadId,
-    `Assistente entregou o lead${responsavel ? ` a ${responsavel}${peloRodizio ? " (rodízio; o administrador pode trocar no quadro)" : ""}` : " (aguardando o responsável)"}: ${rotulo.toLowerCase()} (${aquecimento.pontos}/100).`,
+    `Assistente entregou o lead${responsavel ? ` a ${responsavel}${peloRodizio ? " (rodízio; o administrador pode trocar no quadro)" : ""}` : " (aguardando o responsável)"}: ${rotulo.toLowerCase()} (${aquecimento.pontos}/100).${foiParaVisita ? " O lead foi para a etapa Visita." : ""}`,
     { acao: "entrega", motivo, para: responsavel ?? PARA_QUEM_DISTRIBUI, aquecimento: aquecimento.pontos },
   );
 

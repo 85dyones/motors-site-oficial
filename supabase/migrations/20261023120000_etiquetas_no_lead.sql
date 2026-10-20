@@ -201,14 +201,16 @@ begin
 
   begin
     select chave into v_etapa from public.funil_etapas where tipo = 'aberta' and ativa order by ordem limit 1;
+    -- Com a origem já posta: a etiqueta de origem automática (20261025120000)
+    -- não entra, e a lista é só a deste aceite.
     insert into public.leads (nome, telefone, situacao, etiquetas)
-      values ('Aceite Etiquetas', '5541900004001', coalesce(v_etapa, 'novo'), array['Lead Quente'])
+      values ('Aceite Etiquetas', '5541900004001', coalesce(v_etapa, 'novo'), array['origem-site', 'Lead Quente'])
       returning id into v_lead;
 
     -- Sem sessão, não grava.
     begin
       perform public.editar_etiquetas_do_lead(v_lead, array['vip'], '{}');
-      v_falhou := v_falhou || 'sem sessão, gravou';
+      v_falhou := v_falhou || 'sem sessão, gravou'::text;
     exception when insufficient_privilege then
       null;
     end;
@@ -226,12 +228,12 @@ begin
 
     -- Põe "vip", tira "lead quente" (outra caixa): a mudança, não a lista.
     v_lista := public.editar_etiquetas_do_lead(v_lead, array['vip', 'VIP'], array['lead quente']);
-    if v_lista is distinct from array['vip'] then
-      v_falhou := v_falhou || format('a mudança deu %s, e não {vip}', v_lista);
+    if v_lista is distinct from array['origem-site', 'vip'] then
+      v_falhou := v_falhou || format('a mudança deu %s, e não {origem-site,vip}', v_lista);
     end if;
     -- Repetir não muda nada nem deixa rastro novo.
     v_lista := public.editar_etiquetas_do_lead(v_lead, array['Vip'], '{}');
-    if v_lista is distinct from array['vip'] then
+    if v_lista is distinct from array['origem-site', 'vip'] then
       v_falhou := v_falhou || format('repetir deu %s', v_lista);
     end if;
 
@@ -242,8 +244,8 @@ begin
     if v_n <> 1 then
       v_falhou := v_falhou || format('o rastro tem %s evento(s) de etiqueta, e não 1', v_n);
     end if;
-    if (select etiquetas from public.leads where id = v_lead) is distinct from array['vip'] then
-      v_falhou := v_falhou || 'o lead não guardou a lista';
+    if (select etiquetas from public.leads where id = v_lead) is distinct from array['origem-site', 'vip'] then
+      v_falhou := v_falhou || 'o lead não guardou a lista'::text;
     end if;
 
     -- Pedido grande demais é recusado.
@@ -251,7 +253,7 @@ begin
       perform set_config('request.jwt.claims', json_build_object('sub', v_id, 'role', 'authenticated')::text, true);
       set local role authenticated;
       perform public.editar_etiquetas_do_lead(v_lead, array[repeat('x', 256)], '{}');
-      v_falhou := v_falhou || 'aceitou etiqueta de 256 caracteres';
+      v_falhou := v_falhou || 'aceitou etiqueta de 256 caracteres'::text;
     exception when check_violation then
       null;
     end;

@@ -317,3 +317,17 @@ describe("o WhatsApp do vendedor retoma de onde o assistente parou", () => {
     expect(retomada({ orcamento: "até 50 mil" })).toBeNull();
   });
 });
+
+describe("as etiquetas de intenção (decisão do dono, 20/10)", () => {
+  it("o que o cliente disse e como a entrega saiu viram as etiquetas que o Chatwoot punha", async () => {
+    const { etiquetasDaConversa } = await import("../src/lib/metodoDeQualificacao");
+    const ficha = (parcial: Partial<FichaDoLead>): FichaDoLead => ({ ...FICHA_VAZIA, ...parcial });
+    expect(etiquetasDaConversa(ficha({ interesse: "Onix", pagamento: "financiado", troca: "Uno 2014" }))).toEqual(["quer-comprar", "quer-financiar", "quer-avaliar"]);
+    expect(etiquetasDaConversa(ficha({ troca: "sem troca", pagamento: "a_vista" }))).toEqual([]);
+    expect(etiquetasDaConversa(ficha({ interesse: "  " }), "quente")).toEqual([]);
+    for (const motivo of ["pediu_condicao", "agendou", "simulacao"]) {
+      expect(etiquetasDaConversa(ficha({}), motivo)).toEqual(["negociando"]);
+    }
+    expect(etiquetasDaConversa(ficha({}), "pediu_humano")).toEqual([]);
+  });
+});
