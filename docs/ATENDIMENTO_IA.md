@@ -189,7 +189,17 @@ cliente perguntou** (com as informações da loja), depois **uma pergunta só**
 assunto. Pergunta sobre financiamento conta como querer financiar (o
 assistente explica e segue para a entrada); correção do WhatsApp ("Como *")
 é lida como correção; "isso" responde à última pergunta dele. A conversa vai
-ao modelo com temperatura 0,3 (era 0,5). As
+ao modelo com temperatura 0,3 (era 0,5).
+
+**A última resposta antes da passagem não deixa pergunta no ar.** No teste, o
+cliente marcou a visita e pediu o HB20 na mesma mensagem ("13h. Me fala do
+hb20"); o assistente respondeu do HB20 com "Quer que eu te mande as fotos?" e
+a passagem saiu em seguida. Agora a instrução diz que, com a visita marcada ou
+a simulação completa, aquela é a última resposta (confirma, responde o resto
+em uma frase e diz que o consultor segue), e `baloesSemPergunta` tira as
+frases que terminam em pergunta de toda resposta que entrega. Interesse em
+outro carro vai junto no `interesse` ("Onix…; também o HB20…"), sem apagar o
+da negociação. As
 instruções dizem o objetivo e que **toda resposta termina com uma pergunta que
 avança ou uma proposta concreta**. Pedido de simulação ou de parcela não entrega
 na hora: o assistente coleta os dados da simulação, que é o que faz o

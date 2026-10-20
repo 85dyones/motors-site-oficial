@@ -16,6 +16,7 @@ import {
 } from "./aquecimento";
 import {
   baloesSemDisposicao,
+  baloesSemPergunta,
   lerRespostaDoAgente,
   lerToque,
   montarInstrucoesFixas,
@@ -1122,8 +1123,10 @@ async function responderUmaVez(
     valoresDoCliente(ficha, doCliente.map((m) => m.texto)),
     config.informar_preco,
   ).mensagens;
-  // E nada de "fico à disposição" (pedido do dono, 2026-10-20).
-  const mensagens = baloesSemDisposicao(vigiados);
+  // E nada de "fico à disposição" (pedido do dono, 2026-10-20). Na entrega,
+  // nenhuma pergunta: o assistente sai da conversa logo depois.
+  const semDisposicaoNenhuma = baloesSemDisposicao(vigiados);
+  const mensagens = decisao.entregar ? baloesSemPergunta(semDisposicaoNenhuma) : semDisposicaoNenhuma;
 
   const atendimento = await garantirAtendimento(supabase, leadId, agora);
   let enviadas = 0;

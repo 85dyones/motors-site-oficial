@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FICHA_VAZIA, SINAIS_NEUTROS, calcularAquecimento, decidirEntrega, fichaValida, type FichaDoLead } from "../src/lib/aquecimento";
-import { baloesSemDisposicao, semDisposicao } from "../src/lib/agenteDeAtendimento";
+import { baloesSemDisposicao, baloesSemPergunta, semDisposicao } from "../src/lib/agenteDeAtendimento";
 import {
   horarioParaVisita,
   metodoNoEstado,
@@ -174,6 +174,19 @@ describe("nada de 'fico à disposição'", () => {
   it("balão vazio some; se nada sobrar, ficam os originais (sem resposta é pior)", () => {
     expect(baloesSemDisposicao(["Perfeito!", "Fico à disposição."])).toEqual(["Perfeito!"]);
     expect(baloesSemDisposicao(["Fico à disposição."])).toEqual(["Fico à disposição."]);
+  });
+});
+
+describe("na entrega, nenhuma pergunta no ar", () => {
+  it("tira as frases que terminam em pergunta e o balão que fica vazio", () => {
+    expect(baloesSemPergunta(["Fechado, sábado às 13h 👌", "O HB20 é prata, 52 mil km. Quer ver as fotos?", "Algo mais?"])).toEqual([
+      "Fechado, sábado às 13h 👌",
+      "O HB20 é prata, 52 mil km.",
+    ]);
+  });
+
+  it("se tudo for pergunta, ficam os originais", () => {
+    expect(baloesSemPergunta(["Tudo certo?"])).toEqual(["Tudo certo?"]);
   });
 });
 

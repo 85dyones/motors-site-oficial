@@ -194,6 +194,7 @@ export function montarInstrucoesFixas(entrada: {
     "4. Pergunta sobre financiamento (\"como fica o financiamento?\", \"dá pra financiar?\") é sinal de que ele quer financiar: explique em uma frase como funciona (o consultor simula com os bancos parceiros, e a aprovação depende da análise do banco) e siga para os dados da simulação, começando pela entrada. Registre pagamento \"financiado\". Não pergunte \"à vista ou financiado?\" a quem acabou de perguntar de financiamento.",
     "5. Correção do WhatsApp: uma palavra com asterisco (\"Como *\" ou \"*Como\") corrige a mensagem anterior do cliente. Troque a palavra e leia a frase corrigida antes de responder (\"Comigo fica o financiamento?\" + \"Como *\" = \"Como fica o financiamento?\").",
     "6. Resposta curta do cliente (\"isso\", \"sim\", \"pode ser\") responde à SUA última pergunta.",
+    "7. Quando a visita fica marcada nesta resposta (você preenche visita_data e visita_hora) ou os dados da simulação ficam completos, esta é a sua ÚLTIMA resposta: logo depois o sistema passa o cliente ao consultor. Confirme o combinado, responda em uma frase o que mais ele perguntou e diga que o consultor segue com isso (fotos, outro carro, valores). Não faça pergunta e não ofereça nada.",
     `Horário para marcar visita: ${horarioParaVisita()}.`,
     "",
     "## Regras",
@@ -227,6 +228,7 @@ export function montarInstrucoesFixas(entrada: {
     `- "pagamento": um de ${PAGAMENTOS_DA_FICHA.map((p) => `"${p}"`).join(", ")} ou null.`,
     `- "prazo": um de ${PRAZOS_DA_FICHA.map((p) => `"${p}"`).join(", ")} ou null ("imediato" = até 15 dias).`,
     '- "interesse_especifico": true só quando o cliente falou de um carro identificado (do catálogo, ou modelo e ano).',
+    '- "interesse": se ele se interessar por outro carro, escreva os dois (ex.: "Onix Hatch 2025; também o HB20 Sense 2025") — o consultor precisa saber de ambos.',
     '- "nome": como o cliente disse que se chama. "uso": para que vai usar o carro. "decisor": quem decide junto ou em nome de quem fica o carro. "parcela": a parcela que cabe ou em quantas vezes, como ele disse.',
     '- "troca": o carro da troca como ele descreveu, ou "sem troca" quando ele disser que não tem. "entrada": o valor, ou "sem entrada".',
     '- Com carro na troca, "pagamento" é como ele paga a DIFERENÇA (à vista, financiado ou consórcio); "com_troca" só quando a troca cobre o valor todo ou ele ainda não disse como paga a diferença.',
@@ -549,6 +551,27 @@ export function semDisposicao(texto: string): string {
 /** Os balões sem as frases de disposição; se nada sobrar, os originais (resposta nenhuma é pior). */
 export function baloesSemDisposicao(baloes: readonly string[]): string[] {
   const limpos = baloes.map(semDisposicao).filter(Boolean);
+  return limpos.length > 0 ? limpos : [...baloes];
+}
+
+/**
+ * Na entrega, o assistente sai da conversa logo depois desta resposta: uma
+ * pergunta dele ficaria sem ninguém para ler a resposta. No teste do branch, o
+ * cliente marcou a visita e pediu o HB20 na mesma mensagem; o assistente
+ * respondeu "Quer que eu te mande as fotos dele?" e a passagem saiu em
+ * seguida. Tira as frases que terminam em pergunta; balão vazio some; se nada
+ * sobrar, ficam os originais.
+ */
+export function baloesSemPergunta(baloes: readonly string[]): string[] {
+  const limpos = baloes
+    .map((b) =>
+      b
+        .split(/(?<=[.!?…])\s+|\n+/)
+        .filter((frase) => !frase.trim().endsWith("?"))
+        .join(" ")
+        .trim(),
+    )
+    .filter(Boolean);
   return limpos.length > 0 ? limpos : [...baloes];
 }
 
