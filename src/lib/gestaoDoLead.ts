@@ -795,8 +795,8 @@ function fraseDoEvento(e: EventoDoLead, contexto: ContextoDoHistorico): string {
         ...(incluidas.length ? [`incluiu ${enumerar(incluidas)}`] : []),
         ...(retiradas.length ? [`retirou ${enumerar(retiradas)}`] : []),
       ];
-      if (partes.length) return `Etiquetas da conversa: ${partes.join("; ")}.`;
-      return para ? `Etiquetas da conversa: ${para}.` : "Etiquetas da conversa alteradas.";
+      if (partes.length) return `Etiquetas: ${partes.join("; ")}.`;
+      return para ? `Etiquetas: ${para}.` : "Etiquetas alteradas.";
     }
 
     case "nota": {

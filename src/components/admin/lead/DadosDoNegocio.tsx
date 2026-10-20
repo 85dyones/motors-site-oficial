@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { destinoDaConversa } from "../../../lib/funil";
 import { FAIXAS_DE_ENTRADA, PAGAMENTOS_PRETENDIDOS, type CampoDosDados } from "../../../lib/gestaoDoLead";
 import {
   formatarTelefone,
@@ -68,7 +67,6 @@ export default function DadosDoNegocio({
   const mostra = (preenchido: boolean) => preenchido || mostrandoVazios;
 
   const etiquetas = lead.etiquetas ?? [];
-  const temConversa = destinoDaConversa(lead.telefone, lead.chatwoot_conversation_id) === "chatwoot";
   const origem = origemDoLead(lead);
   const telefone = formatarTelefone(lead.telefone);
 
@@ -180,14 +178,13 @@ export default function DadosDoNegocio({
         )}
       </div>
 
-      {(etiquetas.length > 0 || (etiquetasEditaveis && temConversa)) && (
+      {(etiquetas.length > 0 || etiquetasEditaveis) && (
         <div className="flex flex-col gap-1 border-t border-mt-regua-fina pt-3">
-          <span className={ROTULO}>Etiquetas da conversa</span>
+          <span className={ROTULO}>Etiquetas</span>
           <EtiquetasDoLead
             nome={lead.nome}
             etiquetas={etiquetas}
             disponiveis={etiquetasDisponiveis}
-            temConversa={temConversa}
             editavel={etiquetasEditaveis}
             ocupado={ocupado}
             onIncluir={aoIncluirEtiqueta}

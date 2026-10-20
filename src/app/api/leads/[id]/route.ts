@@ -2,8 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { comEscopoDeLeads, leadNoEscopo, podeRemoverResponsavel } from "../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
-import { maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
-import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
+import { leadsGuardamEtiquetas, maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
 import { atendentesDoFluxo, type PerfilDoFluxo } from "../../../../lib/responsavelDoLead";
 import { nomeComAno } from "../../../../lib/nomeDoVeiculo";
 import {
@@ -35,7 +34,7 @@ export const dynamic = "force-dynamic";
  * O detalhe de UM lead (gaveta e página `/admin/leads/[id]`, 03/10/2026).
  *
  * Contrato em `docs/GESTAO_DO_LEAD.md`. A resposta traz o lead como a fila o
- * traz (a linha inteira, com a conversa do Chatwoot e as etiquetas anexadas),
+ * traz (a linha inteira, com a conversa mais recente e as etiquetas),
  * mais o que só o detalhe precisa: o histórico unificado, as sugestões de
  * próximo passo, a estagnação já calculada, o carro de interesse e os vizinhos
  * da coluna.
@@ -140,7 +139,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       : null;
     lead.com_assistente = atendimento?.com_assistente === true;
     lead.humano_assumiu_em = atendimento?.humano_assumiu_em ?? null;
-    lead.etiquetas = limparEtiquetas(atendimento?.tags);
+    // A lista do lead (migração 20261023120000); sem a coluna, a da conversa.
+    const etiquetasNoLead = leadsGuardamEtiquetas([lead]);
+    lead.etiquetas = limparEtiquetas(etiquetasNoLead ? lead.etiquetas : atendimento?.tags);
     lead.ref = refDoLead(lead.ag_uid as string | null);
     lead.transferencias = Number(lead.transferencias ?? 0) || 0;
 
@@ -227,7 +228,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       atendentes: perfis.data ? atendentesDoFluxo(perfis.data as PerfilDoFluxo[]) : [],
       escopo: visao.escopo,
       podeRemoverResponsavel: podeRemoverResponsavel(visao),
-      etiquetasEditaveis: configDoChatwoot() !== null,
+      etiquetasEditaveis: etiquetasNoLead,
       funilPendente,
       avisos,
     });

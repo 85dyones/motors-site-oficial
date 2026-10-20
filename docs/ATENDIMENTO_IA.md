@@ -565,7 +565,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — `20261020120000_atendimento_ia.sql`, `20261021120000_fotos_do_atendimento.sql` e `20261022120000_atendimento_entrega_pronta.sql`
+## 9. O banco — `20261020120000_atendimento_ia.sql`, `20261021120000_fotos_do_atendimento.sql`, `20261022120000_atendimento_entrega_pronta.sql` e `20261023120000_etiquetas_no_lead.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -597,12 +597,27 @@ dois finais do método (`agendou`, `simulacao`). A ficha do método mora em
 `leads.qualificacao` (jsonb): não precisou de coluna. Enquanto o banco não tem
 a terceira, a entrega pronta grava `quente` em vez de falhar pela metade.
 
+A quarta leva as **etiquetas para o lead** (decisão do dono: *"neste cenário o
+chatwoot sai de cena"* e *"gostaria de manter a questão das tags no lead"*):
+`leads.etiquetas text[]` (até 50), carregada com as da conversa mais recente e,
+no lead que o SDR já passou com crédito, com "resgate" e "reaquecido". Grava-se
+só por `editar_etiquetas_do_lead(lead, incluir, retirar, rastro)`: aplica a
+**mudança** sob trava da linha, sem distinguir caixa, e deixa o mesmo evento
+`etiqueta` no rastro de antes. Guarda: admin, gestor, comercial e sdr ativos; o
+escopo de cada um é da rota. O card do lead oferece as etiquetas que existem
+nos leads e **"nova etiqueta…"** (a lista da conta do Chatwoot deixou de
+existir); a passagem do SDR grava as duas no lead, inclusive no lead que nunca
+teve conversa. Sem a quarta, o painel mostra as etiquetas da conversa e não
+oferece editar.
+
 ---
 
 ## 10. Como ligar
 
-1. **Banco**: aplicar as migrações `20261020120000_atendimento_ia.sql` e
-   `20261021120000_fotos_do_atendimento.sql`.
+1. **Banco**: aplicar as migrações `20261020120000_atendimento_ia.sql`,
+   `20261021120000_fotos_do_atendimento.sql`,
+   `20261022120000_atendimento_entrega_pronta.sql` e
+   `20261023120000_etiquetas_no_lead.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -703,10 +718,15 @@ em **Usuários e permissões**, no preview.
 
 ## 11. O que ficou de fora, e por quê
 
-- **Desligar o código do Chatwoot.** Fica no repositório, intocado: a troca é
-  estrangulamento, não big-bang (HANDOFF, decisão 6). Desligada a integração na
-  Evolution, a rota do Chatwoot simplesmente para de receber. Remover o código
-  é outra entrega, depois de um mês de atendimento novo.
+- **Remover o código do Chatwoot.** As etiquetas já saíram dele (moram no
+  lead, §9). O resto — a rota que recebe os eventos, a atribuição da conversa
+  ao vendedor e a conversa resolvida no desfecho — só age com
+  `CHATWOOT_API_TOKEN` configurado: no dia da troca, tirar as variáveis do
+  Chatwoot da Vercel desliga tudo sem mexer em código, e desligar a integração
+  na Evolution faz a rota parar de receber. Remover o código é outra entrega,
+  depois de um mês de atendimento novo. Os fluxos do n8n que dependem do
+  Chatwoot (Espelho do Chatwoot, Fila de Resgate do SDR e o Ney do Captain)
+  são desligados no mesmo dia: as cadências do assistente assumem o resgate.
 - **Agenda de test-drive com lembrete, pós-visita e "carro compatível chegou".**
   São cadências do manobrAI que dependem de agenda e de casar estoque novo com
   interesse; a estrutura de cadência suporta, e entram na próxima rodada.
@@ -740,6 +760,11 @@ tela, em **Leads → Atendimento IA → Configuração**.
    entregue pronto — visita com dia e hora, ou simulação — e nada de "fico à
    disposição". Ver §3.1. O resumo para o comercial fica sempre pronto, junto
    do aquecimento, na coluna da direita do lead (com botão de copiar).
+7. **O Chatwoot sai de cena, as etiquetas ficam no lead**: *"neste cenário o
+   chatwoot sai de cena"*; *"gostaria de manter a questão das tags no lead"*.
+   Ver §9 e §11.
+8. **As cadências assumem o resgate**: a Fila de Resgate do SDR (n8n) sai com o
+   Chatwoot; o lead que esfria volta pelas cadências do assistente.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

@@ -19,7 +19,9 @@ import { cardDe, detalheDeTeste, filaDeTeste, gaveta, leadDaUrl, zerarRota, defi
  *   - resgate e reaquecido não têm ×;
  *   - enquanto o lead tem escrita no ar (etiqueta OU passagem), o select de
  *     responsável e as etiquetas dele travam;
- *   - sem token no servidor, as etiquetas aparecem e a edição não é oferecida;
+ *   - banco sem a coluna das etiquetas (20261023120000), elas aparecem e a
+ *     edição não é oferecida;
+ *   - "nova etiqueta…" cria uma etiqueta que nenhum lead tem ainda;
  *   - a passagem do SDR que volta com as etiquetas pinta o card, e a que volta
  *     com aviso mostra o aviso sem desfazer a passagem.
  *
@@ -59,9 +61,8 @@ const COM_CONVERSA = lead("l1", "Joana", {
 const SEM_CONVERSA = lead("l2", "Pedro", { chatwoot_conversation_id: null, etiquetas: [] });
 
 let editaveis: boolean;
-/** O que a conversa tem de fato no Chatwoot — pode estar À FRENTE do card. */
+/** O que o lead tem de fato no servidor — pode estar À FRENTE do card. */
 let naConversa: string[];
-let faltamNaConta: string[];
 /** Quando não nulo, o PATCH só responde quando o teste soltar. */
 let segurarPatch: Promise<void> | null;
 let chamadas: Array<{ metodo: string; url: string; corpo?: Record<string, unknown> }>;
@@ -84,7 +85,7 @@ function dublarFetch() {
       return responder(200, {
         etiquetas: ["negociando", "origem-site", "reaquecido", "resgate"],
         daConta: true,
-        faltamNaConta,
+        faltamNaConta: [],
       });
     }
     if (url === "/api/leads/etiquetas" && metodo === "POST") {
@@ -153,6 +154,11 @@ async function montar(abrir: "l1" | "l2" | null = "l1") {
   }
 }
 
+function digitar(el: HTMLInputElement, valor: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, valor);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 function mudar(el: HTMLSelectElement, valor: string) {
   Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(el, valor);
   el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -169,7 +175,6 @@ const posts = () => chamadas.filter((c) => c.metodo === "POST");
 beforeEach(() => {
   editaveis = true;
   naConversa = ["origem-site", "resgate"];
-  faltamNaConta = [];
   segurarPatch = null;
   chamadas = [];
   respostaDoPatch = { status: 200, corpo: { ok: true } };
@@ -207,11 +212,17 @@ describe("as etiquetas do lead", () => {
     expect(resgate!.className).toContain("border-mt-accent");
   });
 
-  it("lead sem conversa e sem etiqueta não ganha bloco", async () => {
+  it("lead sem conversa e sem etiqueta ganha o bloco para pôr — a etiqueta é do lead (20/10)", async () => {
     await montar("l2");
     expect(gaveta()!.getAttribute("aria-label")).toBe("Detalhe do lead Pedro");
+    expect(chips("Pedro")).toEqual([]);
+    expect(naGaveta('[aria-label="Pôr etiqueta em Pedro"]')).not.toBeNull();
+  });
+
+  it("sem etiqueta e sem edição, nem bloco", async () => {
+    editaveis = false;
+    await montar("l2");
     expect(grupo("Pedro")).toBeNull();
-    expect(gaveta()!.textContent).not.toContain("Etiquetas da conversa");
   });
 
   it("o × manda só a que sai — e o card mostra o que ficou na conversa", async () => {
@@ -245,9 +256,11 @@ describe("as etiquetas do lead", () => {
     await montar();
     const pôr = naGaveta<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!;
     const opcoes = [...pôr.options].map((o) => o.value).filter(Boolean);
-    // As da conta que faltam — nunca as que já estão, nem as duas da passagem,
-    // que entram sozinhas (a rota as devolve na lista e o card as filtra).
-    expect(opcoes).toEqual(["negociando"]);
+    // As que existem nos leads e faltam neste — nunca as que já estão, nem as
+    // duas da passagem, que entram sozinhas (a rota as devolve na lista e o
+    // card as filtra) —, e por último a etiqueta nova.
+    expect(opcoes).toEqual(["negociando", "__nova__"]);
+    expect(pôr.options[pôr.options.length - 1].textContent).toBe("nova etiqueta…");
 
     await act(async () => mudar(pôr, "negociando"));
     await assentar();
@@ -255,13 +268,29 @@ describe("as etiquetas do lead", () => {
     expect(chips("Joana")).toEqual(["origem-site", "resgate", "negociando"]);
   });
 
-  it("etiqueta da passagem que falta na conta do Chatwoot vira aviso na tela", async () => {
-    faltamNaConta = ["reaquecido"];
+  it("nova etiqueta: digita, o espaço vira hífen, e manda só a que entra", async () => {
     await montar();
-    expect(container.textContent).toContain("No Chatwoot, falta criar a etiqueta reaquecido na conta.");
+    await act(async () => mudar(naGaveta<HTMLSelectElement>('[aria-label="Pôr etiqueta em Joana"]')!, "__nova__"));
+    const campo = naGaveta<HTMLInputElement>('[aria-label="Nova etiqueta para Joana"]')!;
+    const botao = () => [...gaveta()!.querySelectorAll("button")].find((b) => b.textContent === "Pôr")!;
+
+    // A da passagem não entra nem digitada.
+    await act(async () => digitar(campo, "Resgate"));
+    expect(gaveta()!.textContent).toContain("Resgate e reaquecido entram sozinhas");
+    expect(botao().disabled).toBe(true);
+
+    await act(async () => digitar(campo, "Test Drive"));
+    expect(botao().disabled).toBe(false);
+    await act(async () => botao().click());
+    await assentar();
+    expect(posts()[0].corpo).toEqual({ id: "l1", incluir: ["test-drive"] });
+    expect(chips("Joana")).toEqual(["origem-site", "resgate", "test-drive"]);
+    // O campo fecha e o "+ etiqueta" volta.
+    expect(naGaveta('[aria-label="Nova etiqueta para Joana"]')).toBeNull();
+    expect(naGaveta('[aria-label="Pôr etiqueta em Joana"]')).not.toBeNull();
   });
 
-  it("sem token no servidor: mostra, não oferece editar, e nem pergunta as da conta", async () => {
+  it("banco sem a coluna: mostra, não oferece editar, e nem pergunta as que existem", async () => {
     editaveis = false;
     await montar();
     expect(chips("Joana")).toEqual(["origem-site", "resgate"]);
@@ -271,7 +300,7 @@ describe("as etiquetas do lead", () => {
   });
 
   it("gravação recusada: mostra o erro e relê a fila", async () => {
-    respostaDoPost = { status: 502, corpo: { error: "o Chatwoot respondeu 500" } };
+    respostaDoPost = { status: 503, corpo: { error: "A edição de etiquetas espera a migração 20261023120000" } };
     await montar();
     const antes = chamadas.filter((c) => c.url === "/api/leads/gerenciar").length;
     const leiturasDoLead = () => chamadas.filter((c) => c.url === "/api/leads/l1" && c.metodo === "GET").length;
@@ -281,7 +310,7 @@ describe("as etiquetas do lead", () => {
     await assentar();
 
     // O erro aparece onde a pessoa está olhando: na faixa do detalhe.
-    expect(gaveta()!.querySelector('[role="alert"]')!.textContent).toContain("o Chatwoot respondeu 500");
+    expect(gaveta()!.querySelector('[role="alert"]')!.textContent).toContain("espera a migração 20261023120000");
     // O detalhe relê o lead, e o quadro relê a fila.
     expect(leiturasDoLead()).toBe(antesDoLead + 1);
     expect(chamadas.filter((c) => c.url === "/api/leads/gerenciar").length).toBe(antes + 1);
@@ -333,7 +362,7 @@ describe("a passagem do SDR no detalhe", () => {
 
   it("volta com aviso: mostra o aviso, como status, e a passagem fica", async () => {
     const aviso =
-      "Resgate e reaquecido não foram para o Chatwoot: falta configurar CHATWOOT_API_TOKEN. O crédito do SDR ficou registrado no lead.";
+      "A passagem foi gravada, mas resgate e reaquecido não entraram no lead: Seu perfil não edita etiquetas.";
     respostaDoPatch = { status: 200, corpo: { ok: true, aviso } };
     await montar();
     await passarPara("Ana");

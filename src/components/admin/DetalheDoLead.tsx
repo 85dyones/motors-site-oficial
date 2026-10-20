@@ -270,7 +270,7 @@ export default function DetalheDoLead({
     [recarregar, aoSairDeSincronia],
   );
 
-  // As etiquetas da conta do Chatwoot, quando quem montou não as trouxe (a
+  // As etiquetas que existem nos leads, quando quem montou não as trouxe (a
   // página). Falhou, o select fica com as que o lead já tem.
   const precisaLerEtiquetas = etiquetasDaConta === undefined && dados?.etiquetasEditaveis === true;
   useEffect(() => {
@@ -446,7 +446,7 @@ export default function DetalheDoLead({
     });
   };
 
-  /** Põe ou tira etiqueta da conversa. Manda a MUDANÇA, nunca a lista. */
+  /** Põe ou tira etiqueta do lead. Manda a MUDANÇA, nunca a lista. */
   const salvarEtiquetas = async (mudanca: MudancaDeEtiquetas) => {
     if (!lead) return;
     setOcupado(true);

@@ -189,16 +189,13 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   const [soOsMeus, setSoOsMeus] = useState(false);
   /** O `escopo` da rota: "todos" é o Administrador, o único que vê lead sem dono. */
   const [escopoDoServidor, setEscopoDoServidor] = useState<string | null>(null);
-  // As etiquetas (2026-09-25): as vistas nas conversas vêm com a fila; as
-  // criadas na conta do Chatwoot vêm depois, numa leitura à parte, para a fila
-  // não esperar a API. Guardadas separadas porque `carregar` renova a
-  // primeira e não pode apagar a segunda.
+  // As etiquetas (2026-09-25; no lead desde 20/10): as vistas nos leads da
+  // fila vêm com ela; as de todos os leads etiquetados vêm depois, numa
+  // leitura à parte, para a fila não esperar. Guardadas separadas porque
+  // `carregar` renova a primeira e não pode apagar a segunda.
   const [etiquetasVistas, setEtiquetasVistas] = useState<string[]>([]);
   const [etiquetasDaConta, setEtiquetasDaConta] = useState<string[]>([]);
   const [etiquetasEditaveis, setEtiquetasEditaveis] = useState(false);
-  // Das duas da passagem, as que não existem na conta do Chatwoot — gravadas
-  // na conversa, mas invisíveis na tela de lá. Ver GET `/api/leads/etiquetas`.
-  const [faltamNaConta, setFaltamNaConta] = useState<string[]>([]);
   const [primeiraCarga, setPrimeiraCarga] = useState(true);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -342,9 +339,8 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
     carregar();
   }, [carregar]);
 
-  // As etiquetas criadas na conta do Chatwoot, uma vez, e só se dá para
-  // editar. Falhou, o detalhe fica com as vistas nas conversas e as duas da
-  // passagem — que é o que a rota devolve de qualquer jeito.
+  // As etiquetas de todos os leads etiquetados, uma vez, e só se dá para
+  // editar. Falhou, o detalhe fica com as vistas na fila.
   useEffect(() => {
     if (!etiquetasEditaveis) return;
     let vivo = true;
@@ -353,7 +349,6 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
       .then((d) => {
         if (!vivo) return;
         if (Array.isArray(d?.etiquetas)) setEtiquetasDaConta(d.etiquetas);
-        if (Array.isArray(d?.faltamNaConta)) setFaltamNaConta(d.faltamNaConta);
       })
       .catch(() => {});
     return () => {
@@ -793,14 +788,6 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
           {aviso}
         </div>
       ))}
-
-      {faltamNaConta.length > 0 && (
-        <div className="border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 text-xs text-mt-neutral-800">
-          No Chatwoot, falta criar a etiqueta {faltamNaConta.join(" e ")} na conta. A passagem do SDR
-          grava {faltamNaConta.length > 1 ? "as duas" : "ela"} na conversa, mas o Chatwoot só mostra
-          etiqueta criada.
-        </div>
-      )}
 
       {avisoDaGravacao && (
         <div

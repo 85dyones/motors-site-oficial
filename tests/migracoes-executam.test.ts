@@ -334,6 +334,10 @@ const CADEIA = [
   // motivo de entrega da 20261020120000 pela que aceita `agendou` e
   // `simulacao`. Entra na cadeia porque depende da regra criada lá.
   "20261022120000_atendimento_entrega_pronta.sql",
+  // As etiquetas moram no lead (2026-10-20, o Chatwoot sai de cena): a coluna,
+  // a carga a partir do atendimento e a função que edita com rastro. Entra na
+  // cadeia porque usa `registrar_etiquetas_do_lead` e `atendimentos.tags`.
+  "20261023120000_etiquetas_no_lead.sql",
 ];
 
 /**
