@@ -80,9 +80,18 @@ export async function PUT(request: NextRequest) {
       const mensagem = ehTabelaOuColunaAusente(erroLer) ? mensagemDeMigracaoPendente(MIGRACAO_DO_ATENDIMENTO) : erroLer.message;
       return NextResponse.json({ error: mensagem }, { status: ehTabelaOuColunaAusente(erroLer) ? 503 : 500 });
     }
-    const gravacao = atual?.id
-      ? await supabase.from("atendimento_config").update(linha).eq("id", atual.id).select("*").single()
-      : await supabase.from("atendimento_config").insert(linha).select("*").single();
+    const gravar = (campos: Record<string, unknown>) =>
+      atual?.id
+        ? supabase.from("atendimento_config").update(campos).eq("id", atual.id).select("*").single()
+        : supabase.from("atendimento_config").insert(campos).select("*").single();
+    let gravacao = await gravar(linha);
+    // Banco sem a 20261026120000 não tem a coluna da base parada: o resto da
+    // configuração grava igual, e a base fica para quando a migração entrar.
+    if (gravacao.error && "base" in linha && ehTabelaOuColunaAusente(gravacao.error)) {
+      const semBase: Record<string, unknown> = { ...linha };
+      delete semBase.base;
+      gravacao = await gravar(semBase);
+    }
     if (gravacao.error) {
       // 23514: um CHECK do banco recusou — é a mesma regra da tela, dita pelo banco.
       const status = gravacao.error.code === "23514" ? 400 : 500;

@@ -87,3 +87,23 @@ describe("a gravação recusa em vez de corrigir calada", () => {
     expect(decidirConfig(corpo).ok).toBe(false);
   });
 });
+
+describe("a base parada (decisão do dono, 20/10)", () => {
+  it("a leitura: desligada de fábrica; a linha da loja vale, e o torto vira o padrão", () => {
+    expect(CONFIG_DE_FABRICA.base).toEqual({ ativa: false, por_dia: 30, dias_parado: 7 });
+    expect(configValida({ base: { ativa: true, por_dia: 30, dias_parado: 7 } }).base).toEqual({ ativa: true, por_dia: 30, dias_parado: 7 });
+    expect(configValida({ base: { ativa: "sim", por_dia: 500, dias_parado: 1 } }).base).toEqual({ ativa: false, por_dia: 30, dias_parado: 7 });
+    // Banco sem a coluna: desligada.
+    expect(configValida({}).base.ativa).toBe(false);
+  });
+
+  it("a gravação: recusa teto e dias fora da faixa; sem `base` no corpo, não mexe na coluna", () => {
+    const base = { limiar_morno: 35, limiar_quente: 65 };
+    const ok = decidirConfig({ ...base, base: { ativa: true, por_dia: 30, dias_parado: 7 } });
+    expect(ok).toMatchObject({ ok: true, linha: { base: { ativa: true, por_dia: 30, dias_parado: 7 } } });
+    expect(decidirConfig({ ...base, base: { ativa: true, por_dia: 0, dias_parado: 7 } })).toEqual({ ok: false, erro: "Base parada: de 1 a 100 leads por dia." });
+    expect(decidirConfig({ ...base, base: { ativa: true, por_dia: 30, dias_parado: 1 } })).toEqual({ ok: false, erro: "Base parada: de 2 a 90 dias sem contato." });
+    const semBase = decidirConfig(base);
+    expect(semBase.ok && "base" in semBase.linha).toBe(false);
+  });
+});

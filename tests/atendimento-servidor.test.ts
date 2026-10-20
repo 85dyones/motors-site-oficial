@@ -1926,3 +1926,141 @@ describe("as etiquetas do assistente e a etapa Visita (decisões do dono, 20/10)
     expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "novo", assistente_fase: "entregue" });
   });
 });
+
+describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
+  const BASE = { ativa: true, por_dia: 30, dias_parado: 7 };
+  // Um lead do Chatwoot: aberto, nunca com o assistente, parado há 10 dias.
+  const parado = (id: string, parcial: Record<string, unknown> = {}) =>
+    leadAberto({
+      id,
+      telefone: `55419999900${id.slice(-2).padStart(2, "0")}`,
+      assistente_fase: null,
+      responsavel: "Carla Souza",
+      interesse: "Onix LT 2020",
+      created_at: "2026-09-20T12:00:00.000Z",
+      ultimo_contato_em: "2026-10-10T12:00:00.000Z",
+      ...parcial,
+    });
+  const conversaDoChatwoot = (leadId: string, quando = "2026-10-10T12:00:00") => ({
+    id: `at-${leadId}`,
+    lead_id: leadId,
+    chatwoot_conversation_id: 4821,
+    created_at: quando,
+    updated_at: quando,
+    com_assistente: false,
+  });
+  const montarBase = (leads: Record<string, unknown>[], atendimentos: Record<string, unknown>[], extra: Record<string, Record<string, unknown>[]> = {}, base = BASE) =>
+    montar({ leads, atendimentos, ...extra }, { config: { base } });
+
+  it("puxa o parado que já conversou: follow-up (tem carro), primeiro toque já vencido, nota no rastro", async () => {
+    const banco = montarBase([parado("lead-01")], [conversaDoChatwoot("lead-01")]);
+    const t = transporteDeTeste();
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    expect(rodada.base).toEqual([{ lead_id: "lead-01", cadencia: "follow_up" }]);
+    expect(banco.tabelas.leads[0]).toMatchObject({
+      assistente_fase: "reaquecendo",
+      cadencia: "follow_up",
+      cadencia_passo: 0,
+      cadencia_proximo_em: TERCA_10H.toISOString(),
+      // O responsável fica: se esquentar, volta para ele.
+      responsavel: "Carla Souza",
+    });
+    const nota = banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "base");
+    expect(nota?.detalhe).toMatchObject({ cadencia: "follow_up", dias_parado: 10 });
+    expect(nota?.detalhe?.texto).toContain("Ney puxou o lead da base parada (10 dias sem contato)");
+    // Nesta rodada não sai nada: o toque é da próxima.
+    expect(t.enviados).toHaveLength(0);
+  });
+
+  it("na rodada seguinte, o toque sai pela conversa do Chatwoot, e a resposta do cliente volta ao assistente", async () => {
+    const banco = montarBase([parado("lead-01")], [conversaDoChatwoot("lead-01")]);
+    const t = transporteDeTeste();
+    await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    relogio = new Date(TERCA_10H.getTime() + 15 * 60 * 1000);
+    const segunda = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    expect(segunda.toques).toEqual([expect.objectContaining({ lead_id: "lead-01", cadencia: "follow_up", passo: 0, enviado: true })]);
+    expect(t.enviados.map((e) => e.numero)).toEqual(["5541999990001"]);
+
+    relogio = new Date(TERCA_10H.getTime() + 60 * 60 * 1000);
+    const resposta = await registrarEntrada(banco.cliente, evento({ texto: "ainda quero sim", telefone: "5541999990001" }), deps(t));
+    expect(resposta).toMatchObject({ acao: "mensagem_registrada", lead: "lead-01", responder: true });
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "qualificando", cadencia: null });
+  });
+
+  it("sem carro de interesse, reativação", async () => {
+    const banco = montarBase([parado("lead-01", { interesse: null })], [conversaDoChatwoot("lead-01")]);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.base).toEqual([{ lead_id: "lead-01", cadencia: "reativacao" }]);
+  });
+
+  it("quem não entra: contato recente, conversa recente, nunca conversou, fechado, opt-out, já com o assistente", async () => {
+    const banco = montarBase(
+      [
+        parado("lead-01", { ultimo_contato_em: "2026-10-18T12:00:00.000Z" }),
+        parado("lead-02"),
+        parado("lead-03"),
+        parado("lead-04", { desfecho: "perdido" }),
+        parado("lead-05", { optout_em: "2026-10-01T12:00:00.000Z" }),
+        parado("lead-06", { assistente_fase: "pausado" }),
+        parado("lead-07", { created_at: "2026-10-18T12:00:00.000Z", ultimo_contato_em: null }),
+      ],
+      [
+        conversaDoChatwoot("lead-01"),
+        // A conversa andou anteontem no Chatwoot: não está parado.
+        conversaDoChatwoot("lead-02", "2026-10-18T12:00:00"),
+        // lead-03: nenhuma conversa com a loja.
+        conversaDoChatwoot("lead-04"),
+        conversaDoChatwoot("lead-05"),
+        conversaDoChatwoot("lead-06"),
+        conversaDoChatwoot("lead-07"),
+      ],
+    );
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.base).toEqual([]);
+    expect(banco.tabelas.leads.filter((l) => l.assistente_fase === "reaquecendo")).toHaveLength(0);
+  });
+
+  it("a conversa pelo assistente também conta como já ter conversado", async () => {
+    const banco = montarBase([parado("lead-01")], [], {
+      atendimento_mensagens: [jaEscreveu({ lead_id: "lead-01", telefone: "5541999990001", criado_em: "2026-10-09T12:00:00.000Z" })],
+    });
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.base).toEqual([{ lead_id: "lead-01", cadencia: "follow_up" }]);
+  });
+
+  it("no máximo 3 por rodada, e o teto do dia conta os já puxados hoje", async () => {
+    const ids = ["lead-01", "lead-02", "lead-03", "lead-04", "lead-05"];
+    const banco = montarBase(ids.map((id) => parado(id)), ids.map((id) => conversaDoChatwoot(id)));
+    const primeira = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(primeira.base).toHaveLength(3);
+
+    const comTeto = montarBase(ids.map((id) => parado(id)), ids.map((id) => conversaDoChatwoot(id)), {
+      leads_eventos: [
+        { lead_id: "x", tipo: "nota", detalhe: { acao: "base" }, criado_em: "2026-10-20T11:00:00.000Z" },
+        // De ontem: não conta para hoje.
+        { lead_id: "y", tipo: "nota", detalhe: { acao: "base" }, criado_em: "2026-10-19T20:00:00.000Z" },
+      ],
+    }, { ativa: true, por_dia: 2, dias_parado: 7 });
+    const segunda = await executarRodada(comTeto.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(segunda.base).toHaveLength(1);
+  });
+
+  it("fora do horário da loja, desligada na configuração, ou na prévia: ninguém muda", async () => {
+    const leads = [parado("lead-01")];
+    const conversas = [conversaDoChatwoot("lead-01")];
+
+    relogio = TERCA_23H;
+    const noite = montarBase(leads, conversas);
+    expect((await executarRodada(noite.cliente, { reservar: true }, deps(transporteDeTeste()))).base).toEqual([]);
+
+    relogio = TERCA_10H;
+    const desligada = montarBase(leads, conversas, {}, { ativa: false, por_dia: 30, dias_parado: 7 });
+    expect((await executarRodada(desligada.cliente, { reservar: true }, deps(transporteDeTeste()))).base).toEqual([]);
+
+    const previa = montarBase(leads, conversas);
+    expect((await executarRodada(previa.cliente, { reservar: false }, deps(transporteDeTeste()))).base).toEqual([{ lead_id: "lead-01", cadencia: "follow_up" }]);
+    expect(previa.tabelas.leads[0].assistente_fase).toBeNull();
+  });
+});

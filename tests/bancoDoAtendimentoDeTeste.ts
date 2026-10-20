@@ -12,7 +12,7 @@
  * Suporta: select (as colunas são ignoradas, volta a linha inteira), insert,
  * update, delete, upsert (com `ignoreDuplicates`, pula a linha que já existe
  * nas colunas de `onConflict`; sem ele, sobrescreve), range, os filtros eq, neq, in, is, gte, lte, lt,
- * gt, not(col, "is", null),
+ * gt, not(col, "is", null), or("col.is.null,col.lt.X"),
  * order (uma ou mais, na ordem em que foram pedidas), limit, single/maybeSingle
  * e o `await` direto; `rpc` por função registrada. O índice único de
  * `atendimento_mensagens (wa_id)` é simulado, com o código 23505 que o
@@ -192,6 +192,18 @@ export function bancoDeTeste(
       lte: (c: string, v: unknown) => (filtros.push((l) => l[c] !== null && l[c] !== undefined && String(l[c]) <= String(v)), api),
       gt: (c: string, v: unknown) => (filtros.push((l) => l[c] !== null && l[c] !== undefined && String(l[c]) > String(v)), api),
       lt: (c: string, v: unknown) => (filtros.push((l) => l[c] !== null && l[c] !== undefined && String(l[c]) < String(v)), api),
+      // Só o que o servidor usa: "col.is.null,col.lt.VALOR" (qualquer um dos termos vale).
+      or: (expressao: string) => {
+        const termos = expressao.split(",").map((t) => {
+          const [c, op, ...resto] = t.split(".");
+          const v = resto.join(".");
+          if (op === "is" && v === "null") return (l: Linha) => l[c] === null || l[c] === undefined;
+          if (op === "lt") return (l: Linha) => l[c] !== null && l[c] !== undefined && String(l[c]) < v;
+          throw new Error(`or: o dublê não conhece "${t}"`);
+        });
+        filtros.push((l) => termos.some((f) => f(l)));
+        return api;
+      },
       not: (c: string, op: string, v: unknown) => {
         if (op !== "is" || v !== null) throw new Error(`not(${op}) não suportado no dublê`);
         filtros.push((l) => l[c] !== null && l[c] !== undefined);

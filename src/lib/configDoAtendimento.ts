@@ -64,8 +64,44 @@ export interface ConfigDoAtendimento {
    */
   regras_da_loja: string;
   cadencias: ReguaDeCadencias;
+  /** A base parada que o assistente puxa para a cadência (2026-10-20). */
+  base: BaseParada;
   atualizado_em: string | null;
   atualizado_por: string | null;
+}
+
+/**
+ * Os leads que já estavam no painel entram na cadência do assistente
+ * (decisão do dono, 20/10: *"os leads já existentes no painel precisam
+ * entrar na cadência do Ney também"*). Só o lead aberto, parado há
+ * `dias_parado` dias, que JÁ CONVERSOU com o WhatsApp da loja — mensagem em
+ * massa para quem nunca escreveu é o caminho mais curto para o número ser
+ * bloqueado — e no máximo `por_dia` por dia, no horário da loja.
+ */
+export interface BaseParada {
+  ativa: boolean;
+  por_dia: number;
+  dias_parado: number;
+}
+
+export const LIMITES_DA_BASE = { por_dia: { min: 1, max: 100 }, dias_parado: { min: 2, max: 90 } } as const;
+
+/** O de fábrica é desligado; a linha desta loja nasce ligada, 30 por dia e 7 dias (decisão de 20/10). */
+export const BASE_DE_FABRICA: BaseParada = { ativa: false, por_dia: 30, dias_parado: 7 };
+
+function inteiroNaFaixa(v: unknown, faixa: { min: number; max: number }, padrao: number): number {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= faixa.min && n <= faixa.max ? n : padrao;
+}
+
+export function baseValida(bruto: unknown): BaseParada {
+  if (!bruto || typeof bruto !== "object") return { ...BASE_DE_FABRICA };
+  const b = bruto as Record<string, unknown>;
+  return {
+    ativa: b.ativa === true,
+    por_dia: inteiroNaFaixa(b.por_dia, LIMITES_DA_BASE.por_dia, BASE_DE_FABRICA.por_dia),
+    dias_parado: inteiroNaFaixa(b.dias_parado, LIMITES_DA_BASE.dias_parado, BASE_DE_FABRICA.dias_parado),
+  };
 }
 
 export const NOME_PADRAO_DO_ASSISTENTE = "Ney";
@@ -90,6 +126,7 @@ export const CONFIG_DE_FABRICA: ConfigDoAtendimento = {
   pesos: { ...PESOS_DE_FABRICA },
   regras_da_loja: "",
   cadencias: structuredClone(CADENCIAS_DE_FABRICA),
+  base: { ...BASE_DE_FABRICA },
   atualizado_em: null,
   atualizado_por: null,
 };
@@ -123,6 +160,7 @@ export function configValida(linha: unknown): ConfigDoAtendimento {
     pesos: pesosValidos(l.pesos),
     regras_da_loja: typeof l.regras_da_loja === "string" ? l.regras_da_loja.trim().slice(0, TETO_DAS_REGRAS_DA_LOJA) : "",
     cadencias: reguaValida(l.cadencias),
+    base: baseValida(l.base),
     atualizado_em: typeof l.atualizado_em === "string" ? l.atualizado_em : null,
     atualizado_por: typeof l.atualizado_por === "string" ? l.atualizado_por : null,
   };
@@ -177,9 +215,25 @@ export function decidirConfig(corpo: unknown): DecisaoDaConfig {
     return { ok: false, erro: `A apresentação do assistente precisa ser uma frase de até ${TETO_DA_APRESENTACAO} caracteres, sem instrução para o modelo.` };
   }
 
+  let base: BaseParada | undefined;
+  if (c.base !== undefined) {
+    const b = (c.base ?? {}) as Record<string, unknown>;
+    const porDia = Number(b.por_dia);
+    const dias = Number(b.dias_parado);
+    const { por_dia: fp, dias_parado: fd } = LIMITES_DA_BASE;
+    if (!Number.isInteger(porDia) || porDia < fp.min || porDia > fp.max) {
+      return { ok: false, erro: `Base parada: de ${fp.min} a ${fp.max} leads por dia.` };
+    }
+    if (!Number.isInteger(dias) || dias < fd.min || dias > fd.max) {
+      return { ok: false, erro: `Base parada: de ${fd.min} a ${fd.max} dias sem contato.` };
+    }
+    base = { ativa: b.ativa === true, por_dia: porDia, dias_parado: dias };
+  }
+
   return {
     ok: true,
     linha: {
+      ...(base ? { base } : {}),
       ativo: c.ativo === true,
       nome_do_assistente: nome,
       apresentacao,

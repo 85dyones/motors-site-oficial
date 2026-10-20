@@ -383,6 +383,21 @@ modelo não está disponível), com a mesma trava de preço da conversa. Depois 
 último toque, o cliente tem um dia para responder; sem resposta, o lead volta
 para a equipe.
 
+**A base parada** (decisão do dono, 20/10: *"os leads já existentes no painel
+precisam entrar na cadência do Ney também"*). A cada rodada, no horário da
+loja, o assistente puxa até 3 leads (até **30 por dia**) que já estavam no
+painel: abertos, nunca pegos por ele, **sem contato há 7 dias ou mais** (nem
+registro do vendedor, nem conversa) e que **já conversaram** com o WhatsApp da
+loja — pelo Chatwoot ou por ele. Entram no follow-up (com carro de interesse)
+ou na reativação, com o primeiro toque na rodada seguinte. Se o cliente
+responder, o assistente qualifica e entrega ao **mesmo responsável**; se não,
+o lead volta para a equipe quando a cadência acaba. Cada lead puxado deixa uma
+nota no rastro. Tudo editável em **Configuração → Base parada** (liga e
+desliga, por dia, dias sem contato); a linha desta loja nasce ligada
+(`20261026120000_base_parada_no_assistente.sql`). Em 20/10, a base aberta era
+de 73 leads com conversa, nenhum parado há 7 dias (13 há 3 dias): a base entra
+conforme os leads param.
+
 **A trava de preço** (com *informar preço* desligado): nenhum balão sai com
 valor em dinheiro — "R$ 79.900", "79.900", "79,9 mil", "80k", "1890 reais" —
 além do orçamento e da entrada que o cliente disse (na ficha **e** nas
@@ -585,7 +600,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261025120000_etiquetas_automaticas.sql`
+## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261026120000_base_parada_no_assistente.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -653,6 +668,9 @@ põe as de **intenção**, só acrescentando e com evento no rastro:
 `quer-avaliar` (tem carro na troca) e `negociando` (pediu condição, fechou
 visita ou está pronto para simular).
 
+A sétima guarda a régua da **base parada** em `atendimento_config.base`
+(ligada, 30 por dia, 7 dias — a decisão do dono; §6).
+
 ---
 
 ## 10. Como ligar
@@ -661,8 +679,9 @@ visita ou está pronto para simular).
    `20261021120000_fotos_do_atendimento.sql`,
    `20261022120000_atendimento_entrega_pronta.sql`,
    `20261023120000_etiquetas_no_lead.sql`,
-   `20261024120000_anexos_do_atendimento.sql` e
-   `20261025120000_etiquetas_automaticas.sql`, nesta ordem.
+   `20261024120000_anexos_do_atendimento.sql`,
+   `20261025120000_etiquetas_automaticas.sql` e
+   `20261026120000_base_parada_no_assistente.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -783,6 +802,8 @@ em **Usuários e permissões**, no preview.
   evento de mensagens da Conversions API (`business_messaging`, com a conta do
   WhatsApp Business ligada ao conjunto de dados) — outra entrega, com decisão
   do dono. A conversão offline do Google (upload do `gclid`) também.
+  **Decisão do dono (20/10): os leads que nascem no clique do WhatsApp
+  precisam ir ao Meta** — anotado como a próxima entrega depois do main.
 - **Agenda de test-drive com lembrete, pós-visita e "carro compatível chegou".**
   São cadências do manobrAI que dependem de agenda e de casar estoque novo com
   interesse; a estrutura de cadência suporta, e entram na próxima rodada.
@@ -828,6 +849,10 @@ tela, em **Leads → Atendimento IA → Configuração**.
    Risco aceito: a visita a que o cliente não vem já terá ido ao Meta.
 10. **O assistente põe as etiquetas de intenção** que o Chatwoot punha
     (*"Sim, o Ney etiqueta"*); a de origem, o banco põe (§9).
+11. **A base parada entra na cadência**: só o lead parado que já conversou com
+    o WhatsApp da loja, 7 dias sem contato, até 30 por dia (§6).
+12. **Os leads do clique no WhatsApp vão ao Meta** — anotado para a próxima
+    entrega (§11).
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

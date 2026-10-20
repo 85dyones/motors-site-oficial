@@ -33,6 +33,7 @@ import {
 } from "./agenteDeAtendimento";
 import type { BaseDaLoja } from "./baseDoAtendimento-servidor";
 import {
+  ROTULO_DA_CADENCIA,
   cadenciaDoSilencio,
   decidirToque,
   dentroDoExpediente,
@@ -357,7 +358,16 @@ async function clienteJaEscreveu(supabase: Banco, leadId: string, telefone: stri
     .eq("direcao", "entrada")
     .in("telefone", formas)
     .limit(1);
-  return ((data ?? []) as Linha[]).length > 0;
+  if (((data ?? []) as Linha[]).length > 0) return true;
+  // A conversa de antes, no Chatwoot, com o mesmo número da loja: também é
+  // uma conversa que existiu (a base parada, 2026-10-20).
+  const { data: doChatwoot } = await supabase
+    .from("atendimentos")
+    .select("id")
+    .eq("lead_id", leadId)
+    .not("chatwoot_conversation_id", "is", null)
+    .limit(1);
+  return ((doChatwoot ?? []) as Linha[]).length > 0;
 }
 
 function fichaDoLead(lead: Linha): FichaDoLead {
@@ -2078,6 +2088,8 @@ export interface ResultadoDaRodada {
   devolvidos: { lead_id: string; motivo: string }[];
   toques: ToqueDaRodada[];
   suprimidos: { lead_id: string; motivo: MotivoSemToque | "sem_conversa" | "outra_rodada"; texto: string }[];
+  /** Os leads da base parada que entraram na cadência nesta rodada (ou entrariam, na prévia). */
+  base: { lead_id: string; cadencia: NomeDaCadencia }[];
   falhas: number;
 }
 
@@ -2089,7 +2101,7 @@ export async function executarRodada(
   const agora = deps.agora ?? new Date();
   const relogio = relogioDe(deps);
   const inicio = relogio();
-  const resultado: ResultadoDaRodada = { ativo: false, reservado: opcoes.reservar, entregas: [], devolvidos: [], toques: [], suprimidos: [], falhas: 0 };
+  const resultado: ResultadoDaRodada = { ativo: false, reservado: opcoes.reservar, entregas: [], devolvidos: [], toques: [], suprimidos: [], base: [], falhas: 0 };
   const { config, legivel } = await lerConfigDoAtendimento(supabase);
   if (!config.ativo) {
     // Desligado por fora (ou a rota não conseguiu liberar): os leads que
@@ -2329,7 +2341,129 @@ export async function executarRodada(
     resultado.toques.push(toque);
   }
 
+  // A base parada, por último: os puxados agora recebem o primeiro toque na
+  // próxima rodada, e o orçamento desta já foi das cadências em andamento.
+  if (config.base.ativa && dentroDoExpediente(agora) && relogio() - inicio <= ORCAMENTO_DA_RODADA_MS) {
+    resultado.base = await puxarABase(supabase, config, agora, opcoes.reservar && Boolean(evolution));
+  }
+
   return resultado;
+}
+
+/** Quantos leads da base uma rodada puxa: o teto do dia se espalha pelo expediente. */
+const BASE_POR_RODADA = 3;
+
+/** Meia-noite de hoje no fuso da loja, em ISO. */
+function inicioDoDiaNaLoja(agora: Date): string {
+  const dia = agora.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  return new Date(`${dia}T00:00:00-03:00`).toISOString();
+}
+
+/**
+ * A base parada entra na cadência (decisão do dono, 20/10): o lead aberto,
+ * nunca pego pelo assistente, sem contato há `dias_parado` dias, que JÁ
+ * CONVERSOU com o WhatsApp da loja (pelo Chatwoot ou pelo assistente) — até
+ * `por_dia` por dia e `BASE_POR_RODADA` por rodada.
+ *
+ * Entra como o lead que o cliente deixou no silêncio: follow-up se tem carro
+ * de interesse, reativação se não tem, com o primeiro toque já vencido. Se o
+ * cliente responder, o assistente qualifica e entrega ao MESMO responsável;
+ * se não, a cadência acaba e o lead volta para a equipe, como qualquer outro.
+ *
+ * Sem `reservar`, só diz quem entraria. Nunca lança.
+ */
+async function puxarABase(
+  supabase: Banco,
+  config: ConfigDoAtendimento,
+  agora: Date,
+  reservar: boolean,
+): Promise<{ lead_id: string; cadencia: NomeDaCadencia }[]> {
+  try {
+    const puxados: { lead_id: string; cadencia: NomeDaCadencia }[] = [];
+    const { data: eventosDeHoje } = await supabase
+      .from("leads_eventos")
+      .select("id, detalhe")
+      .eq("tipo", "nota")
+      .gte("criado_em", inicioDoDiaNaLoja(agora))
+      .limit(1000);
+    const jaHoje = ((eventosDeHoje ?? []) as Linha[]).filter((e) => e.detalhe?.acao === "base").length;
+    const lote = Math.min(config.base.por_dia - jaHoje, BASE_POR_RODADA);
+    if (lote <= 0) return puxados;
+
+    const limite = new Date(agora.getTime() - config.base.dias_parado * 24 * 60 * 60 * 1000).toISOString();
+    const { data: candidatos, error } = await supabase
+      .from("leads")
+      .select("id, nome, telefone, interesse, ultimo_contato_em, created_at")
+      .is("desfecho", null)
+      .is("optout_em", null)
+      .is("assistente_fase", null)
+      .is("cadencia", null)
+      .not("telefone", "is", null)
+      .lt("created_at", limite)
+      .or(`ultimo_contato_em.is.null,ultimo_contato_em.lt.${limite}`)
+      .order("created_at", { ascending: false })
+      .limit(60);
+    if (error || !candidatos?.length) return puxados;
+    const ids = (candidatos as Linha[]).map((l) => String(l.id));
+
+    // A conversa: a última atividade dela também tem de ser antiga, e ela tem
+    // de existir — do Chatwoot (o número da loja de antes) ou do assistente.
+    const [doChatwoot, mensagens] = await Promise.all([
+      supabase.from("atendimentos").select("lead_id, chatwoot_conversation_id, created_at, updated_at").in("lead_id", ids),
+      supabase.from("atendimento_mensagens").select("lead_id, direcao, criado_em").in("lead_id", ids).order("criado_em", { ascending: false }).limit(500),
+    ]);
+    const conversou = new Set<string>();
+    const ultimaAtividade = new Map<string, number>();
+    const anotar = (leadId: string, quando: unknown) => {
+      const t = typeof quando === "string" ? new Date(quando).getTime() : NaN;
+      if (Number.isFinite(t)) ultimaAtividade.set(leadId, Math.max(ultimaAtividade.get(leadId) ?? 0, t));
+    };
+    for (const a of (doChatwoot.data ?? []) as Linha[]) {
+      if (a.chatwoot_conversation_id) conversou.add(String(a.lead_id));
+      anotar(String(a.lead_id), a.updated_at ?? a.created_at);
+    }
+    for (const m of (mensagens.data ?? []) as Linha[]) {
+      if (m.direcao === "entrada") conversou.add(String(m.lead_id));
+      anotar(String(m.lead_id), m.criado_em);
+    }
+    const limiteMs = new Date(limite).getTime();
+
+    for (const lead of candidatos as Linha[]) {
+      if (puxados.length >= lote) break;
+      const leadId = String(lead.id);
+      if (!conversou.has(leadId) || (ultimaAtividade.get(leadId) ?? 0) >= limiteMs) continue;
+      const cadencia = cadenciaDoSilencio(Boolean(String(lead.interesse ?? "").trim()));
+      if (!config.cadencias[cadencia].ativa) continue;
+      if (!reservar) {
+        puxados.push({ lead_id: leadId, cadencia });
+        continue;
+      }
+      // Só quem acerta a linha como foi lida: outra rodada, ou o vendedor
+      // atendendo neste meio-tempo, não ganha um robô por cima.
+      const { data: reservado } = await supabase
+        .from("leads")
+        .update({ assistente_fase: "reaquecendo", cadencia, cadencia_passo: 0, cadencia_proximo_em: agora.toISOString() })
+        .eq("id", leadId)
+        .is("assistente_fase", null)
+        .is("cadencia", null)
+        .is("desfecho", null)
+        .select("id");
+      if (!reservado || (reservado as Linha[]).length === 0) continue;
+      await assistenteNoSla(supabase, leadId, true, agora);
+      const dias = Math.floor((agora.getTime() - (ultimaAtividade.get(leadId) ?? new Date(String(lead.created_at)).getTime())) / (24 * 60 * 60 * 1000));
+      await anotarNoRastro(
+        supabase,
+        leadId,
+        `${config.nome_do_assistente} puxou o lead da base parada (${dias} dias sem contato) para a cadência de ${ROTULO_DA_CADENCIA[cadencia].toLowerCase()}. Se o cliente responder, ele qualifica e devolve ao mesmo responsável.`,
+        { acao: "base", cadencia, dias_parado: dias },
+      );
+      puxados.push({ lead_id: leadId, cadencia });
+    }
+    return puxados;
+  } catch (erro) {
+    console.warn("[Atendimento] Base parada não puxada:", erro instanceof Error ? erro.message : String(erro));
+    return [];
+  }
 }
 
 // ----------------------------------------------------------------------------

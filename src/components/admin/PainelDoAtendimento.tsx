@@ -9,7 +9,7 @@ import {
   ROTULO_DA_CADENCIA,
   type ReguaDeCadencias,
 } from "../../lib/cadencias";
-import type { ConfigDoAtendimento } from "../../lib/configDoAtendimento";
+import { LIMITES_DA_BASE, type ConfigDoAtendimento } from "../../lib/configDoAtendimento";
 import { formatarPrazo } from "../../lib/funil";
 import type { RelatorioDoAtendimento } from "../../lib/relatorioDoAtendimento";
 import { Segmentado } from "./SegmentadoDoPainel";
@@ -431,6 +431,7 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
           pesos: c.pesos,
           regras_da_loja: c.regras_da_loja,
           cadencias: c.cadencias,
+          base: c.base,
         }),
       });
       const corpo = await r.json().catch(() => null);
@@ -666,6 +667,47 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
             ))}
           </fieldset>
         ))}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="mt-rotulo border-b border-mt-regua-fina pb-2">Base parada</h2>
+        <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-700">
+          Os leads que já estavam no painel também entram na cadência: o assistente puxa o lead aberto, parado, que{" "}
+          <strong>já conversou</strong> com o WhatsApp da loja (pelo Chatwoot ou por ele) — mensagem para quem nunca
+          escreveu arrisca o bloqueio do número. Entra no follow-up (tem carro de interesse) ou na reativação, no horário da
+          loja, poucos por vez. Se o cliente responder, ele qualifica e devolve ao mesmo responsável; se não, o lead volta
+          para a equipe quando a cadência acaba.
+        </p>
+        <label className="flex items-center gap-2 text-[12px]">
+          <input type="checkbox" checked={c.base.ativa} onChange={(e) => mudar("base", { ...c.base, ativa: e.target.checked })} />
+          Puxar a base parada para a cadência
+        </label>
+        <div className="flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-[11px] text-mt-neutral-700">
+            Até
+            <input
+              type="number"
+              min={LIMITES_DA_BASE.por_dia.min}
+              max={LIMITES_DA_BASE.por_dia.max}
+              value={c.base.por_dia}
+              onChange={(e) => mudar("base", { ...c.base, por_dia: Number(e.target.value) })}
+              className={`${CAMPO} w-20 tabular-nums`}
+            />
+            leads por dia
+          </label>
+          <label className="flex items-center gap-2 text-[11px] text-mt-neutral-700">
+            Parado há
+            <input
+              type="number"
+              min={LIMITES_DA_BASE.dias_parado.min}
+              max={LIMITES_DA_BASE.dias_parado.max}
+              value={c.base.dias_parado}
+              onChange={(e) => mudar("base", { ...c.base, dias_parado: Number(e.target.value) })}
+              className={`${CAMPO} w-20 tabular-nums`}
+            />
+            dias ou mais, sem contato
+          </label>
+        </div>
       </section>
 
       <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t-2 border-mt-regua bg-mt-bg py-4">
