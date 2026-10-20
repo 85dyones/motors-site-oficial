@@ -128,6 +128,9 @@ mesma ficha, e cada ponto vira **motivo** no bloco Aquecimento
 | Prazo: até 15 dias / este mês / próximos meses / sem pressa | +25 / +15 / +5 / −10 |
 | Quer visitar ou fazer test-drive | +25 |
 | Combinou o dia da visita | +10 |
+| Marcou dia **e** hora da visita | +15 |
+| Disse a parcela ou o prazo do financiamento | +5 |
+| Disse quem decide (ou em nome de quem fica o carro) | +5 |
 | Pediu desconto, avaliação ou financiamento | +10 |
 | Mandou 3 mensagens ou mais | +5 |
 | Disse que só está pesquisando | −15 |
@@ -136,22 +139,79 @@ mesma ficha, e cada ponto vira **motivo** no bloco Aquecimento
 **Morno a partir de 35, quente a partir de 65.** A conta, para conferir de
 cabeça: "quero o Onix 2020" (20, frio) → "financiado, 15 mil de entrada" (35,
 morno) → "tenho um Uno pra troca, quero resolver esse mês" (60, morno) →
-"posso passar aí sábado" (85, quente).
+"posso passar aí sábado" (85, quente) → "sábado às 10h então" (100). "Sem troca"
+é resposta, não oferta: não soma.
 
 Pesos e limiares são **dado** (`atendimento_config`), editáveis na tela — ponto
 de partida declarado, como os prazos do funil. Opt-out zera a nota.
 
 ---
 
+## 3.1 O método da loja: os 5P
+
+Pedido do dono no teste do branch (20/10/2026): *"o Ney precisa ser mais
+incisivo no objetivo, nada de dizer que fica à disposição, qualifique os leads
+usando uma ou várias metodologias como BANT ou CHAMP ou desenvolva uma própria
+nossa... a meta é entregar o lead pronto para o comercial, com data de
+agendamento e horário ou com dados para simulação"*.
+
+BANT e CHAMP nasceram para venda entre empresas; numa loja de seminovos os
+eixos são os mesmos, com nomes de balcão, e falta o que os dois deixam
+implícito — o compromisso de um próximo passo. Daí os **5P**
+(`src/lib/metodoDeQualificacao.ts`):
+
+| P | De onde vem | O que o assistente descobre |
+|---|---|---|
+| **Produto** | Need (BANT) / Challenges (CHAMP) | qual carro (modelo e ano) e para que vai usar |
+| **Pagamento** | Budget / Money | à vista, financiado ou consórcio; entrada; carro na troca; a parcela que cabe |
+| **Pessoa** | Authority | como ele se chama; quem decide junto (ou em nome de quem fica o carro) |
+| **Prazo** | Timing / Prioritization | quando pretende comprar |
+| **Passo** | o compromisso | a visita ou o test-drive com **dia e hora** — ou, no financiamento, os dados para a simulação |
+
+**Pronto para o comercial** é chegar a um dos dois finais do Passo:
+
+- **visita marcada** — dia e hora confirmados pelo cliente, dentro do horário
+  da loja e nos próximos 30 dias (domingo, sábado depois das 15h, data
+  passada ou longe demais não contam, e o assistente propõe outro horário);
+- **simulação pronta** — carro exato, financiado, entrada (ou "sem entrada") e
+  a parcela que cabe ou em quantas vezes. CPF, RG, comprovante e dado
+  bancário **continuam fora**: o consultor coleta no canal próprio.
+
+**Como o assistente conduz.** A cada resposta, o estado que vai ao modelo diz
+o **próximo movimento** ("marcar a visita com dia e hora — proponha duas
+opções concretas") e o que ainda falta, na ordem do método, com a tabela dos
+próximos dias ("sábado 24/10 = 2026-10-24") para ele não errar a data. As
+instruções dizem o objetivo e que **toda resposta termina com uma pergunta que
+avança ou uma proposta concreta**. Pedido de simulação ou de parcela não entrega
+na hora: o assistente coleta os dados da simulação, que é o que faz o
+consultor responder rápido. Desconto, valor final, avaliação da troca e
+aprovação continuam entregando.
+
+**Nada de "fico à disposição".** Além da regra no prompt, `semDisposicao` tira
+do balão (e do toque da cadência) a frase de quem larga a conversa — "fico à
+disposição", "qualquer dúvida estou aqui", "é só chamar". A frase que termina
+em pergunta fica (é ela que conduz); se nada sobrar, vai o texto original.
+
+---
+
 ## 4. A entrega ao vendedor
 
-Passa ao vendedor quando (`decidirEntrega`):
+Passa ao vendedor quando (`decidirEntrega`, nesta ordem):
 
 - **pediu para falar com uma pessoa** — sempre, com qualquer nota;
+- **está pronto para o comercial** (§3.1): **visita marcada** (`agendou`) ou
+  **simulação pronta** (`simulacao`) — com qualquer nota;
 - **pediu o que só o vendedor resolve** (desconto, valor final, avaliação da
-  troca, financiamento) — sempre;
+  troca, aprovação) — sempre;
 - **a temperatura alcançou a mínima** (quente por padrão; a loja pode escolher
   morno, como no manobrAI).
+
+Na **visita marcada**, a passagem ao cliente repete o dia e a hora ("Visita
+marcada: sábado, 24/10, às 10h"), o resumo ao vendedor abre com "📅 VISITA
+MARCADA" e a visita na primeira linha, e a visita vira o **próximo passo** do
+lead com a hora (aparece no card e na Lista do dia) — só no lead sem próximo
+passo: o que a equipe combinou não é trocado. Na **simulação pronta**, o
+resumo abre com "🧮 PRONTO PARA SIMULAR", com parcela, troca e quem decide.
 
 **Para quem:**
 
@@ -171,10 +231,12 @@ funil não reenviam o resumo: o vendedor que o funil trocou tem o aviso de
 transferência dele. A configuração de **fábrica** (loja sem linha) continua
 "o administrador escolhe", a mais conservadora.
 
-**O resumo** (`resumoParaOVendedor.ts`): "🔥 LEAD QUENTE — nome", telefone com
-`wa.me`, procura, quanto quer investir, pagamento e entrada, troca, prazo,
-visita, a nota com o motivo principal, a origem, o resumo da conversa e o link
-do lead. Campo que o cliente não disse não aparece.
+**O resumo** (`resumoParaOVendedor.ts`): o cabeçalho do motivo ("🔥 LEAD
+QUENTE — nome", "📅 VISITA MARCADA", "🧮 PRONTO PARA SIMULAR"…), telefone com
+`wa.me`, a visita marcada, o nome que ele disse, procura, uso, quanto quer
+investir, pagamento e entrada, parcela, troca, prazo, quem decide, a nota com o
+motivo principal, a origem, o resumo da conversa e o link do lead. Campo que o
+cliente não disse não aparece.
 
 **O cliente** lê, na mesma hora, quem vai atender e de que número vem a
 chamada — senão ele recebe mensagem de um número desconhecido e não responde.
@@ -383,21 +445,23 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 ## 7. O painel
 
 - **Detalhe do lead → bloco Atendimento**, logo abaixo do cabeçalho (na página
-  larga, abre a coluna do meio), com duas abas:
-  - **Conversa**: cliente, assistente, equipe e cadência, com as marcas
-    "cadência", "passagem ao vendedor", "pelo celular da loja", "não saiu"; a
-    caixa para responder pelo número da loja; e os botões *Entregar ao
-    vendedor agora*, *Pausar assistente*, *Devolver a conversa ao assistente*,
-    *Devolver para reaquecer*.
-  - **Resumo**: o resumo do assistente e a ficha (o que o cliente disse, com
-    "não disse" à vista), a origem do anúncio e a entrega.
-- **Detalhe do lead → bloco Aquecimento**, sempre à vista (era a terceira
-  aba; mudou no teste de 20/10/2026, a pedido do dono: *"deixe a tela do
-  aquecimento sempre visível, do lado direito, no lugar do próximo passo"*).
-  Na página larga abre a coluna da direita, com o próximo passo logo embaixo;
-  na gaveta, vem logo depois do atendimento. Mostra a nota com a régua
-  (marcas do morno e do quente), os motivos com o sinal, a linha do tempo e
-  a cadência. Os dois blocos leem a mesma conversa, relida a cada 15 s.
+  larga, abre a coluna do meio): a conversa — cliente, assistente, equipe e
+  cadência, com as marcas "cadência", "passagem ao vendedor", "pelo celular
+  da loja", "não saiu"; a caixa para responder pelo número da loja; e os
+  botões *Entregar ao vendedor agora*, *Pausar assistente*, *Devolver a
+  conversa ao assistente*, *Devolver para reaquecer*.
+- **Detalhe do lead → bloco Aquecimento**, sempre à vista (resumo e
+  aquecimento eram abas do atendimento; mudou no teste de 20/10/2026, a pedido
+  do dono: *"deixe a tela do aquecimento sempre visível, do lado direito, no
+  lugar do próximo passo"* e *"deixar sempre um resumo da conversa pronto,
+  junto com os dados de aquecimento"*). Na página larga abre a coluna da
+  direita, com o próximo passo logo embaixo; na gaveta, vem logo depois do
+  atendimento. Mostra a nota com a régua (marcas do morno e do quente); o
+  **resumo para o comercial** — onde o lead está no método (✓ visita marcada,
+  ✓ pronto para simular, ou o que falta), o resumo do assistente, a ficha dos
+  5P com "não disse" à vista, a origem do anúncio, a entrega e o botão
+  **Copiar** (o resumo em texto); os motivos com o sinal; a linha do tempo e a
+  cadência. Os dois blocos leem a mesma conversa, relida a cada 15 s.
 - **Card do quadro**: selo "Quente · 82" e "Com o assistente".
 - **Leads → Atendimento IA** (`/admin/leads/atendimento`): o assistente
   (conversas, entregas por motivo, tempo até a entrega, custo, opt-outs), a
@@ -430,7 +494,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — `20261020120000_atendimento_ia.sql` e `20261021120000_fotos_do_atendimento.sql`
+## 9. O banco — `20261020120000_atendimento_ia.sql`, `20261021120000_fotos_do_atendimento.sql` e `20261022120000_atendimento_entrega_pronta.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -456,6 +520,11 @@ linha por URL de foto de cada carro, leitura da equipe e escrita só do
 servidor) e acrescenta a
 `atendimento_mensagens` a foto que saiu na conversa (`midia_url`,
 `veiculo_id`, `camada` — só na saída, só imagem, com endereço http(s)).
+
+A terceira troca a regra `leads_entregue_motivo_valido` pela que aceita os
+dois finais do método (`agendou`, `simulacao`). A ficha do método mora em
+`leads.qualificacao` (jsonb): não precisou de coluna. Enquanto o banco não tem
+a terceira, a entrega pronta grava `quente` em vez de falhar pela metade.
 
 ---
 
@@ -596,6 +665,10 @@ tela, em **Leads → Atendimento IA → Configuração**.
    **virtual** e **nunca diz que é uma pessoa** — se perguntarem, diz isso com
    naturalidade.
 5. **Pesos e cadências**: rever depois do primeiro mês, com o relatório.
+6. **O assistente conduz, com método** (no teste do branch): os 5P, o lead
+   entregue pronto — visita com dia e hora, ou simulação — e nada de "fico à
+   disposição". Ver §3.1. O resumo para o comercial fica sempre pronto, junto
+   do aquecimento, na coluna da direita do lead (com botão de copiar).
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

@@ -5,6 +5,7 @@ import {
   fichaValida,
   mesclarFicha,
   mesclarSinais,
+  semCarroNaTroca,
   sinaisValidos,
   ROTULO_DO_MOTIVO_DA_ENTREGA,
   type Aquecimento,
@@ -13,11 +14,13 @@ import {
   type SinaisDaConversa,
 } from "./aquecimento";
 import {
+  baloesSemDisposicao,
   lerRespostaDoAgente,
   lerToque,
   montarInstrucoesFixas,
   montarMensagensDoAgente,
   montarMensagensDoToque,
+  semDisposicao,
   semLinks,
   valoresDoCliente,
   valoresEmDinheiro,
@@ -76,6 +79,7 @@ import {
   type ResultadoDaClassificacao,
 } from "./fotosDoAtendimento-servidor";
 import { numeroDiscavel } from "./funil";
+import { metodoNoEstado, momentoDaVisita, prontidao, proximosDias, rotuloDaVisita } from "./metodoDeQualificacao";
 import {
   mensagemDeEntrega,
   mensagemDePassagemAoCliente,
@@ -1071,6 +1075,8 @@ async function responderUmaVez(
         lojaAberta: dentroDoExpediente(agora),
         origem: origemLegivel(lead),
         fotos: fotosDoEstado,
+        calendario: proximosDias(agora),
+        metodo: metodoNoEstado(prontidao(fichaAntes, agora, { nomeNoWhatsApp: lead.nome })),
       },
     }),
     transporte: deps.transporte,
@@ -1091,14 +1097,19 @@ async function responderUmaVez(
     limiares: config.limiares,
     mensagensDoCliente: doCliente.length,
   });
-  const decisao = decidirEntrega(aquecimento, sinais, config.avisar_a_partir);
+  // Pronto para o comercial (visita marcada ou simulação completa) entrega
+  // com qualquer nota: é o objetivo do método (`metodoDeQualificacao.ts`).
+  const pronto = prontidao(ficha, agora, { nomeNoWhatsApp: lead.nome }).pronto;
+  const decisao = decidirEntrega(aquecimento, sinais, config.avisar_a_partir, pronto);
   // O que pode aparecer em reais é o orçamento e a entrada que o cliente
   // disse — nunca um preço que ele "viu" e pede para confirmar.
-  const { mensagens } = vigiarPreco(
+  const vigiados = vigiarPreco(
     resposta.mensagens,
     valoresDoCliente(ficha, doCliente.map((m) => m.texto)),
     config.informar_preco,
-  );
+  ).mensagens;
+  // E nada de "fico à disposição" (pedido do dono, 2026-10-20).
+  const mensagens = baloesSemDisposicao(vigiados);
 
   const atendimento = await garantirAtendimento(supabase, leadId, agora);
   let enviadas = 0;
@@ -1144,7 +1155,8 @@ async function responderUmaVez(
     // O que o cliente disse preenche o VAZIO dos dados do negócio — nunca
     // sobrescreve o que o vendedor escreveu (a régua de "o feed preenche o
     // vazio", 2026-09-29).
-    ...(!lead.carro_na_troca && ficha.troca ? { carro_na_troca: ficha.troca } : {}),
+    // "Sem troca" é a resposta do cliente, não um carro: não vai para o campo.
+    ...(!lead.carro_na_troca && ficha.troca && !semCarroNaTroca(ficha.troca) ? { carro_na_troca: ficha.troca } : {}),
     ...(!lead.pagamento_pretendido && ficha.pagamento ? { pagamento_pretendido: ficha.pagamento } : {}),
     ...(!lead.interesse && ficha.interesse ? { interesse: ficha.interesse } : {}),
   };
@@ -1532,26 +1544,52 @@ async function entregarAoVendedor(
       vendedor: vendedor ? { nome: vendedor.nome, whatsapp: vendedor.whatsapp } : null,
       equipeDisponivel,
       comFotos: fotosPedidasDaEntrega(lead, agora.toISOString()) !== null,
+      visita: motivo === "agendou" ? rotuloDaVisita(ficha) : null,
+      simulacao: motivo === "simulacao",
     });
     const atendimento = await garantirAtendimento(supabase, leadId, agora);
     await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto: passagem, gatilho: "passagem", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
   }
 
-  await supabase
-    .from("leads")
-    .update({
-      assistente_fase: "entregue",
-      entregue_em: agora.toISOString(),
-      entregue_motivo: motivo,
-      // A entrega é nova: o aviso dela também.
-      aviso_de_entrega_em: null,
-      aviso_de_entrega_para: null,
-      entrega_confirmada_em: null,
-      cadencia: null,
-      cadencia_passo: 0,
-      cadencia_proximo_em: null,
-    })
-    .eq("id", leadId);
+  const marcarEntregue = (gravado: string) =>
+    supabase
+      .from("leads")
+      .update({
+        assistente_fase: "entregue",
+        entregue_em: agora.toISOString(),
+        entregue_motivo: gravado,
+        // A entrega é nova: o aviso dela também.
+        aviso_de_entrega_em: null,
+        aviso_de_entrega_para: null,
+        entrega_confirmada_em: null,
+        cadencia: null,
+        cadencia_passo: 0,
+        cadencia_proximo_em: null,
+      })
+      .eq("id", leadId);
+  let { error: erroDaEntrega } = await marcarEntregue(motivo);
+  // Banco sem a 20261022120000 só conhece os motivos de antes: a entrega não
+  // pode ficar pela metade (o cliente já leu a passagem) por causa disso.
+  if (erroDaEntrega && (motivo === "agendou" || motivo === "simulacao")) ({ error: erroDaEntrega } = await marcarEntregue("quente"));
+  if (erroDaEntrega) console.error("[Atendimento] Entrega não gravada:", erroDaEntrega.message);
+
+  // A visita marcada vira o próximo passo do lead, com a hora — aparece no
+  // card e na Lista do dia do vendedor. Só no lead sem passo: o que a equipe
+  // combinou não é trocado pelo assistente.
+  const momento = motivo === "agendou" ? momentoDaVisita(ficha) : null;
+  if (momento) {
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        proximo_passo: `Receber na loja: visita marcada pelo ${config.nome_do_assistente} para ${rotuloDaVisita(ficha)}`.slice(0, 160),
+        proximo_passo_vence_em: momento.toISOString(),
+        proximo_passo_definido_em: agora.toISOString(),
+        proximo_passo_definido_por: config.nome_do_assistente,
+      })
+      .eq("id", leadId)
+      .is("proximo_passo", null);
+    if (error) console.error("[Atendimento] Próximo passo da visita não gravado:", error.message);
+  }
 
   const rotulo = motivo === "painel" ? "Entregue pelo painel" : ROTULO_DO_MOTIVO_DA_ENTREGA[motivo];
   const peloRodizio = Boolean(responsavel) && !String(lead.responsavel ?? "").trim();
@@ -1920,7 +1958,9 @@ export async function executarRodada(
         maxTokens: 300,
         transporte: deps.transporte,
       });
-      const escrita = chamada.ok ? lerToque(chamada.conteudo) : null;
+      const lida = chamada.ok ? lerToque(chamada.conteudo) : null;
+      // O toque também não larga a conversa: sem "fico à disposição".
+      const escrita = lida ? semDisposicao(lida) || lida : null;
       if (escrita) {
         const ditos = conversa.filter((m) => m.direcao === "entrada").map((m) => m.texto);
         const vigiado = vigiarPreco([escrita], valoresDoCliente(ficha, ditos), config.informar_preco);

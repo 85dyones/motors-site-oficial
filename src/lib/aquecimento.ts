@@ -65,21 +65,37 @@ export const ROTULO_DO_PAGAMENTO: Record<PagamentoDaFicha, string> = {
  * O que o cliente DISSE. Nada aqui é dedução: campo que o cliente não falou
  * fica nulo, e o prompt do agente manda registrar só o que foi dito — a mesma
  * régua do manobrAI ("registrar só o que o cliente disse").
+ *
+ * Os campos seguem o método de qualificação da loja (`metodoDeQualificacao.ts`,
+ * 2026-10-20): Produto, Pagamento, Pessoa, Prazo e Passo.
  */
 export interface FichaDoLead {
+  /** Como o cliente disse que se chama (o nome do WhatsApp nem sempre é o dele). */
+  nome: string | null;
   /** O carro, modelo ou categoria que ele procura, nas palavras dele. */
   interesse: string | null;
   /** O interesse é um carro identificado (do estoque, ou modelo + ano)? */
   interesse_especifico: boolean;
+  /** Para que vai usar o carro ("família", "trabalho de aplicativo"). */
+  uso: string | null;
   orcamento: string | null;
   pagamento: PagamentoDaFicha | null;
+  /** "15 mil", ou "sem entrada" — a resposta conta, mesmo negativa. */
   entrada: string | null;
-  /** O carro que ele quer dar na troca, como descreveu. */
+  /** A parcela que cabe ou em quantas vezes ("até 1.500", "48x"). */
+  parcela: string | null;
+  /** O carro que ele quer dar na troca, como descreveu — ou "sem troca". */
   troca: string | null;
   prazo: PrazoDaFicha | null;
+  /** Quem decide junto, ou em nome de quem fica o carro ("com a esposa", "no nome do pai"). */
+  decisor: string | null;
   cidade: string | null;
   /** Quando combinou de vir à loja, como foi dito ("sábado de manhã"). */
   visita: string | null;
+  /** A visita com dia marcado, "AAAA-MM-DD" — só quando o cliente confirmou o dia. */
+  visita_data: string | null;
+  /** A hora marcada, "HH:MM" — só quando o cliente confirmou a hora. */
+  visita_hora: string | null;
 }
 
 /** O que a conversa mostra, além da ficha. Estado ATUAL, não histórico. */
@@ -101,16 +117,27 @@ export interface SinaisDaConversa {
 }
 
 export const FICHA_VAZIA: FichaDoLead = {
+  nome: null,
   interesse: null,
   interesse_especifico: false,
+  uso: null,
   orcamento: null,
   pagamento: null,
   entrada: null,
+  parcela: null,
   troca: null,
   prazo: null,
+  decisor: null,
   cidade: null,
   visita: null,
+  visita_data: null,
+  visita_hora: null,
 };
+
+/** "sem troca", "não tenho", "nenhum": o cliente respondeu que NÃO tem carro na troca. */
+export function semCarroNaTroca(troca: string | null | undefined): boolean {
+  return /^\s*(sem|n[aã]o|nenhum|nada)\b/i.test(troca ?? "");
+}
 
 export const SINAIS_NEUTROS: SinaisDaConversa = {
   pediu_humano: false,
@@ -135,6 +162,10 @@ export interface PesosDoAquecimento {
   prazo_sem_pressa: number;
   quer_visitar: number;
   visita_combinada: number;
+  /** Dia E hora marcados (2026-10-20): o passo que o método persegue. */
+  visita_agendada: number;
+  parcela: number;
+  decisor: number;
   pediu_condicao: number;
   engajamento: number;
   so_pesquisando: number;
@@ -152,6 +183,7 @@ export interface PesosDoAquecimento {
  *   - + "financiado, dou 15 mil de entrada" ........................... 35 → morno
  *   - + "tenho um Uno 2014 pra troca" + "quero resolver esse mês" ..... 60 → morno
  *   - + "posso passar aí sábado" ...................................... 85 → quente
+ *   - + "sábado às 10h então" (dia e hora marcados) .................. 100 → quente
  *
  * Visita pesa mais que tudo porque é o sinal que o funil já trata como
  * compromisso (etapa protegida: avisa, nunca transfere). Troca pesa 10 porque
@@ -171,6 +203,9 @@ export const PESOS_DE_FABRICA: PesosDoAquecimento = {
   prazo_sem_pressa: -10,
   quer_visitar: 25,
   visita_combinada: 10,
+  visita_agendada: 15,
+  parcela: 5,
+  decisor: 5,
   pediu_condicao: 10,
   engajamento: 5,
   so_pesquisando: -15,
@@ -285,13 +320,19 @@ export function calcularAquecimento(
   if (ficha.orcamento) somar("orcamento", `Disse quanto quer gastar: ${aparar(ficha.orcamento, 40)}`);
   if (ficha.pagamento) somar("pagamento", `Forma de pagamento: ${ROTULO_DO_PAGAMENTO[ficha.pagamento]}`);
   if (ficha.entrada) somar("entrada", `Disse a entrada: ${aparar(ficha.entrada, 40)}`);
-  if (ficha.troca) somar("troca", `Ofereceu carro na troca: ${aparar(ficha.troca)}`);
+  if (ficha.parcela) somar("parcela", `Disse a parcela ou o prazo: ${aparar(ficha.parcela, 40)}`);
+  // "Sem troca" é resposta, não oferta: não soma.
+  if (ficha.troca && !semCarroNaTroca(ficha.troca)) somar("troca", `Ofereceu carro na troca: ${aparar(ficha.troca)}`);
   if (ficha.prazo) {
     const chave = `prazo_${ficha.prazo}` as keyof PesosDoAquecimento;
     somar(chave, `Prazo: ${ROTULO_DO_PRAZO[ficha.prazo]}`);
   }
   if (sinais.quer_visitar) somar("quer_visitar", "Quer visitar a loja ou fazer test-drive");
   if (ficha.visita) somar("visita_combinada", `Combinou a visita: ${aparar(ficha.visita, 40)}`);
+  if (ficha.visita_data && ficha.visita_hora) {
+    somar("visita_agendada", `Visita marcada: ${ficha.visita_data.slice(8, 10)}/${ficha.visita_data.slice(5, 7)} às ${ficha.visita_hora}`);
+  }
+  if (ficha.decisor) somar("decisor", `Disse quem decide: ${aparar(ficha.decisor, 40)}`);
   if (sinais.pediu_condicao) somar("pediu_condicao", "Pediu condição, desconto ou avaliação");
   if ((opcoes.mensagensDoCliente ?? 0) >= MENSAGENS_PARA_ENGAJAMENTO) {
     somar("engajamento", "Está conversando (3 mensagens ou mais)");
@@ -371,16 +412,38 @@ export function fichaValida(bruto: unknown): FichaDoLead {
   const prazo = PRAZOS_DA_FICHA.includes(b.prazo as PrazoDaFicha) ? (b.prazo as PrazoDaFicha) : null;
   const interesse = textoOuNulo(b.interesse, 120);
   return {
+    nome: textoOuNulo(b.nome, 60),
     interesse,
     interesse_especifico: Boolean(interesse) && b.interesse_especifico === true,
+    uso: textoOuNulo(b.uso, 80),
     orcamento: textoOuNulo(b.orcamento, 80),
     pagamento,
     entrada: textoOuNulo(b.entrada, 80),
+    parcela: textoOuNulo(b.parcela, 80),
     troca: textoOuNulo(b.troca, 120),
     prazo,
+    decisor: textoOuNulo(b.decisor, 80),
     cidade: textoOuNulo(b.cidade, 60),
     visita: textoOuNulo(b.visita, 80),
+    visita_data: dataValida(b.visita_data),
+    visita_hora: horaValida(b.visita_hora),
   };
+}
+
+/** "AAAA-MM-DD" de um dia que existe ("2026-02-30" não passa), ou nulo. */
+function dataValida(v: unknown): string | null {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return null;
+  const t = v.trim();
+  const d = new Date(`${t}T12:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === t ? t : null;
+}
+
+/** "HH:MM" de 00:00 a 23:59 ("9:30" vira "09:30"), ou nulo. */
+function horaValida(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const m = /^(\d{1,2}):([0-5]\d)$/.exec(v.trim());
+  if (!m || Number(m[1]) > 23) return null;
+  return `${m[1].padStart(2, "0")}:${m[2]}`;
 }
 
 export function sinaisValidos(bruto: unknown): SinaisDaConversa {
@@ -400,9 +463,16 @@ export function sinaisValidos(bruto: unknown): SinaisDaConversa {
 // A entrega ao vendedor
 // ----------------------------------------------------------------------------
 
-export type MotivoDaEntrega = "quente" | "pediu_humano" | "pediu_condicao";
+/**
+ * Por que o lead foi ao vendedor. `agendou` e `simulacao` (2026-10-20) são os
+ * dois finais que o método de qualificação persegue: a visita com dia e hora,
+ * ou os dados prontos para o consultor simular o financiamento.
+ */
+export type MotivoDaEntrega = "agendou" | "simulacao" | "quente" | "pediu_humano" | "pediu_condicao";
 
 export const ROTULO_DO_MOTIVO_DA_ENTREGA: Record<MotivoDaEntrega, string> = {
+  agendou: "Visita marcada com dia e hora",
+  simulacao: "Pronto para simular o financiamento",
   quente: "Lead quente",
   pediu_humano: "Pediu para falar com um consultor",
   pediu_condicao: "Pediu o que só o consultor resolve",
@@ -418,6 +488,9 @@ export type DecisaoDeEntrega = { entregar: true; motivo: MotivoDaEntrega } | { e
  *   - **pediu condição** (desconto, valor final, avaliação da troca,
  *     aprovação de financiamento): sempre. O assistente não decide nada disso,
  *     e enrolar quem quer negociar esfria o lead mais quente.
+ *   - **pronto** (2026-10-20): a visita marcada com dia e hora, ou os dados
+ *     da simulação completos — o lead pronto para o comercial, com qualquer
+ *     nota. Quem decide se está pronto é `prontidao` (`metodoDeQualificacao.ts`).
  *   - **temperatura**: a partir da mínima configurada (`avisar_a_partir`:
  *     quente por padrão; a loja pode escolher morno, como no manobrAI).
  *
@@ -427,9 +500,11 @@ export function decidirEntrega(
   aquecimento: Pick<Aquecimento, "temperatura">,
   sinais: SinaisDaConversa,
   avisarAPartir: Temperatura = "quente",
+  pronto: "agendou" | "simulacao" | null = null,
 ): DecisaoDeEntrega {
   if (sinais.optout) return { entregar: false, motivo: null };
   if (sinais.pediu_humano) return { entregar: true, motivo: "pediu_humano" };
+  if (pronto) return { entregar: true, motivo: pronto };
   if (sinais.pediu_condicao) return { entregar: true, motivo: "pediu_condicao" };
   if (temperaturaAlcanca(aquecimento.temperatura, avisarAPartir)) return { entregar: true, motivo: "quente" };
   return { entregar: false, motivo: null };

@@ -11,6 +11,7 @@ import type { ConfigDoAtendimento } from "./configDoAtendimento";
 import type { MensagemDoModelo } from "./deepseek";
 import { ROTULO_DO_CONTEUDO, type ConteudoDaMensagem } from "./evolutionEventos";
 import { ehCamada, fotosNoHistorico, pedidoDeFotosValido, type CamadaDaFoto, type PedidoDeFotos } from "./fotosDoAtendimento";
+import { PILARES, horarioParaVisita } from "./metodoDeQualificacao";
 import { nomeComAno } from "./nomeDoVeiculo";
 import type { Veiculo } from "../types";
 
@@ -118,15 +119,21 @@ export function catalogoParaOAgente(
 const ESQUEMA_DA_RESPOSTA = `{
   "mensagens": ["primeiro balão", "segundo balão (opcional)"],
   "ficha": {
+    "nome": null,
     "interesse": null,
     "interesse_especifico": false,
+    "uso": null,
     "orcamento": null,
     "pagamento": null,
     "entrada": null,
+    "parcela": null,
     "troca": null,
     "prazo": null,
+    "decisor": null,
     "cidade": null,
-    "visita": null
+    "visita": null,
+    "visita_data": null,
+    "visita_hora": null
   },
   "sinais": {
     "pediu_humano": false,
@@ -137,7 +144,7 @@ const ESQUEMA_DA_RESPOSTA = `{
     "optout": false
   },
   "fotos": null,
-  "resumo": "duas a quatro frases para a equipe de vendas"
+  "resumo": "o resumo para a equipe de vendas"
 }`;
 
 /**
@@ -147,6 +154,11 @@ const ESQUEMA_DA_RESPOSTA = `{
  * concordam: uma pergunta por vez, registrar só o que foi dito, nunca decidir
  * desconto, valor final, troca ou financiamento, nunca dizer "não temos" por
  * um carro que não está na lista.
+ *
+ * Desde 2026-10-20 o assistente CONDUZ: tem um objetivo (o lead pronto para o
+ * comercial — visita com dia e hora, ou simulação pronta), segue o método da
+ * loja (`metodoDeQualificacao.ts`) e não encerra com "fico à disposição" —
+ * pedido do dono no teste do branch.
  */
 export function montarInstrucoesFixas(entrada: {
   config: Pick<ConfigDoAtendimento, "nome_do_assistente" | "informar_preco" | "regras_da_loja"> & Partial<Pick<ConfigDoAtendimento, "apresentacao">>;
@@ -165,14 +177,25 @@ export function montarInstrucoesFixas(entrada: {
   return [
     `Você é ${config.nome_do_assistente}${apresentacao ? `${apresentacao} no` : ", do"} atendimento da ${entrada.nomeDaLoja} no WhatsApp. A loja vende carros seminovos.`,
     "",
-    "## Seu trabalho",
-    "Atender com rapidez e simpatia, tirar dúvidas do anúncio e entender o que o cliente precisa para a equipe de consultores chegar com tudo pronto. As informações que importam: carro de interesse, quanto quer investir, forma de pagamento, entrada, carro na troca, prazo para comprar e se quer visitar a loja ou fazer test-drive.",
+    "## Seu objetivo",
+    "Entregar o cliente PRONTO para a equipe de consultores, com um destes dois finais:",
+    "- a visita à loja ou o test-drive MARCADO, com dia e hora confirmados pelo cliente; ou",
+    "- no financiamento, os dados da simulação completos: o carro exato, a entrada (ou sem entrada), o carro na troca e a parcela que cabe ou em quantas vezes.",
+    "Cada resposta sua anda um passo nessa direção. Você é simpático, mas objetivo: conduz a conversa, não espera o cliente decidir o que fazer.",
+    "",
+    "## O método da loja: os 5P",
+    ...PILARES.map((p) => `- ${p.rotulo}: ${p.descricao}.`),
+    "O estado no fim diz o que já se sabe, o que falta e o próximo movimento. Não pergunte o que já está na ficha.",
+    `Horário para marcar visita: ${horarioParaVisita()}.`,
     "",
     "## Regras",
     "1. Português do Brasil, tom informal e próximo, frases curtas, no máximo um emoji de vez em quando. É WhatsApp: no máximo 3 balões curtos por resposta.",
     "2. Pergunte UM assunto por vez. Não faça interrogatório nem formulário; responda o que o cliente perguntou antes de perguntar algo.",
+    "2a. Toda resposta termina com UMA pergunta que avança o método ou com uma proposta concreta. Nunca encerre com \"fico à disposição\", \"qualquer dúvida estou aqui\", \"qualquer coisa é só chamar\" ou parecido: isso devolve a conversa ao cliente e esfria o lead.",
+    "2b. Para marcar a visita, proponha duas opções concretas de dia e hora dentro do horário da loja (ex.: \"Consegue passar sábado às 10h, ou prefere quinta no fim da tarde?\"). Preencha visita_data e visita_hora só quando o cliente confirmar um dia E uma hora.",
+    "2c. No financiamento, deixe a simulação pronta para o consultor: carro exato, entrada, carro na troca (modelo, ano e km) e a parcela que cabe ou em quantas vezes. Não peça CPF, RG, comprovante nem dado bancário: o consultor coleta no canal próprio.",
     "3. Na ficha, registre só o que o cliente DISSE. Não deduza nem complete. Campo não dito fica null.",
-    "4. Você NÃO decide desconto, preço final, valor da troca, aprovação de financiamento nem parcela. Nunca diga que um financiamento foi ou será aprovado. Quando pedirem isso, marque `pediu_condicao`.",
+    "4. Você NÃO decide desconto, preço final, valor da troca, aprovação de financiamento nem parcela. Nunca diga que um financiamento foi ou será aprovado. Quando pedirem desconto, valor final, avaliação da troca ou aprovação, marque `pediu_condicao`. Quando pedirem simulação ou valor de parcela, NÃO marque: colete os dados da simulação (regra 2c) — é isso que faz o consultor responder rápido.",
     `5. Preço: ${preco}`,
     "6. Estoque: use só o CATÁLOGO abaixo. Se o carro pedido não estiver nele, não diga que a loja não tem: diga que vai confirmar com a equipe e ofereça os mais parecidos do catálogo.",
     "7. Não garanta reserva nem disponibilidade, não prometa prazo, frete, brinde ou condição especial.",
@@ -196,9 +219,12 @@ export function montarInstrucoesFixas(entrada: {
     `- "pagamento": um de ${PAGAMENTOS_DA_FICHA.map((p) => `"${p}"`).join(", ")} ou null.`,
     `- "prazo": um de ${PRAZOS_DA_FICHA.map((p) => `"${p}"`).join(", ")} ou null ("imediato" = até 15 dias).`,
     '- "interesse_especifico": true só quando o cliente falou de um carro identificado (do catálogo, ou modelo e ano).',
+    '- "nome": como o cliente disse que se chama. "uso": para que vai usar o carro. "decisor": quem decide junto ou em nome de quem fica o carro. "parcela": a parcela que cabe ou em quantas vezes, como ele disse.',
+    '- "troca": o carro da troca como ele descreveu, ou "sem troca" quando ele disser que não tem. "entrada": o valor, ou "sem entrada".',
+    '- "visita": como ele disse ("sábado de manhã"). "visita_data" ("AAAA-MM-DD", pela tabela de dias do estado) e "visita_hora" ("HH:MM"): só com dia E hora confirmados pelo cliente.',
     '- "fotos": null, ou {"veiculo": "o número do carro no catálogo (depois do #)", "camada": "externa" | "interior" | "detalhes" | "rodas" | "motor" | "porta_malas"} para mandar fotos de UM carro.',
     '- "ficha" é a ficha INTEIRA atualizada: copie o que já estava e acrescente o que o cliente disse agora.',
-    '- "resumo": para a equipe de vendas, em terceira pessoa: quem é, o que quer, o que já disse e o que falta.',
+    '- "resumo": para a equipe de vendas, em terceira pessoa, direto e sempre da conversa inteira: quem é, o que quer, como vai pagar (entrada, troca, parcela), o prazo, o que ficou combinado e o que falta.',
     "",
     ...(config.regras_da_loja.trim()
       ? ["## O que a loja quer que você saiba", config.regras_da_loja.trim(), ""]
@@ -275,6 +301,10 @@ export interface EstadoDaConversa {
   origem: string | null;
   /** Uma linha por carro que já teve foto na conversa (`linhaDasFotosNoEstado`). */
   fotos?: readonly string[];
+  /** Os próximos dias com a data (`proximosDias`): de onde sai a `visita_data`. */
+  calendario?: readonly string[];
+  /** O próximo movimento e o que falta no método (`metodoNoEstado`). */
+  metodo?: readonly string[];
 }
 
 /** O que muda a cada mensagem — vai por último, depois da conversa. */
@@ -288,6 +318,8 @@ export function montarEstado(estado: EstadoDaConversa): string {
     JSON.stringify(estado.ficha),
     "Sinais até aqui:",
     JSON.stringify(estado.sinais),
+    ...(estado.metodo && estado.metodo.length > 0 ? estado.metodo : []),
+    ...(estado.calendario && estado.calendario.length > 0 ? ["Próximos dias:", ...estado.calendario] : []),
     ...(estado.fotos && estado.fotos.length > 0 ? ["Fotos já enviadas nesta conversa:", ...estado.fotos] : []),
     "Responda à última mensagem do cliente, no formato JSON combinado.",
   ]
@@ -481,6 +513,36 @@ export function semLinks(texto: string): string {
  * O pedido de UMA mensagem de acompanhamento. A instrução fixa é a mesma do
  * atendimento (e cai no mesmo cache); o pedido vai por último.
  */
+/**
+ * A frase de quem larga a conversa: "fico à disposição", "qualquer dúvida
+ * estou aqui", "é só chamar". O dono vetou (2026-10-20, *"nada de dizer que
+ * fica à disposição"*) — devolve a conversa ao cliente e esfria o lead.
+ */
+const FRASE_DE_DISPOSICAO =
+  /\b(fico|estou|estamos|ficamos|sigo|seguimos|permane[çc]o)\b[^.!?\n]{0,20}disposi[çc][ãa]o|(^|\s)à\s+disposi[çc][ãa]o|\bqualquer\s+(coisa|d[úu]vida)|(^|\s)[ée]\s+s[óo]\s+(me\s+)?(chamar|chama|avisar|falar|mandar)\b|\bme\s+chama\s+(aqui|quando|se)\b/i;
+
+/**
+ * Tira do balão as frases de disposição — a regra já está no prompt; isto é
+ * a rede para quando o modelo escorrega. Frase a frase: "Fechado! Qualquer
+ * dúvida estou aqui." vira "Fechado!". Balão que fica vazio some; frase que
+ * termina em pergunta fica.
+ */
+export function semDisposicao(texto: string): string {
+  return texto
+    .split(/(?<=[.!?…])\s+|\n+/)
+    // A pergunta fica mesmo com a frase colada: ela é o que conduz a conversa.
+    .filter((frase) => frase.trim().endsWith("?") || !FRASE_DE_DISPOSICAO.test(frase))
+    .join(" ")
+    .replace(/\s+([.!?,])/g, "$1")
+    .trim();
+}
+
+/** Os balões sem as frases de disposição; se nada sobrar, os originais (resposta nenhuma é pior). */
+export function baloesSemDisposicao(baloes: readonly string[]): string[] {
+  const limpos = baloes.map(semDisposicao).filter(Boolean);
+  return limpos.length > 0 ? limpos : [...baloes];
+}
+
 export function montarMensagensDoToque(entrada: {
   instrucoes: string;
   historico: readonly MensagemDaConversa[];
@@ -496,7 +558,7 @@ export function montarMensagensDoToque(entrada: {
       role: "system",
       content: [
         "## Mensagem de acompanhamento (não é resposta a uma pergunta)",
-        "O cliente parou de responder. Escreva UMA mensagem curta para retomar o contato, sem cobrar e sem pressionar.",
+        "O cliente parou de responder. Escreva UMA mensagem curta para retomar o contato, sem cobrar e sem pressionar — e terminando com uma pergunta objetiva que retome o próximo passo (de preferência o dia e a hora da visita). Nunca \"fico à disposição\" nem \"qualquer coisa é só chamar\".",
         `Objetivo deste toque: ${entrada.objetivo}`,
         `Use como base o tom deste texto: "${entrada.modelo}"`,
         `Nome no WhatsApp: ${nomeSeguro(entrada.nomeDoCliente) ?? "(sem nome)"}.`,

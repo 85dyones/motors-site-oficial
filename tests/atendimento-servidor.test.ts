@@ -439,6 +439,109 @@ describe("a resposta", () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// O método 5P: o lead pronto para o comercial (2026-10-20)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("o método 5P: o lead pronto para o comercial", () => {
+  // Terça, 20/10: o sábado é 24/10, das 8h30 às 15h.
+  const VISITA = { visita: "sábado às 10h", visita_data: "2026-10-24", visita_hora: "10:00" };
+  const ONIX = { interesse: "Onix LT 2020", interesse_especifico: true };
+
+  it("o estado de cada resposta leva o próximo movimento, o que falta e a tabela de dias", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([respostaDoModelo()]);
+    const entrada = await clienteEscreve(banco, t, "oi");
+    await responderAoLead(banco.cliente, { leadId: entrada.lead!, mensagemId: entrada.mensagem }, deps(t));
+    const estado = t.pedidosAoModelo[0].messages.at(-1).content as string;
+    expect(estado).toContain("Próximo movimento: descobrir qual carro ele procura");
+    expect(estado).toContain("Ainda falta saber (na ordem do método 5P): qual carro ele procura [Produto]");
+    expect(estado).toContain("Próximos dias:\nhoje, terça-feira 20/10 = 2026-10-20");
+    expect(estado).toContain("sábado 24/10 = 2026-10-24");
+    // E as instruções dizem o objetivo e vetam a frase de quem larga a conversa.
+    const instrucoes = t.pedidosAoModelo[0].messages[0].content as string;
+    expect(instrucoes).toContain("## Seu objetivo");
+    expect(instrucoes).toContain("Nunca encerre com \"fico à disposição\"");
+  });
+
+  it("visita com dia e hora: entrega como 'agendou' mesmo morno, a passagem repete a visita e ela vira o próximo passo", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    const t = transporteDeTeste([
+      respostaDoModelo({ mensagens: ["Fechado, sábado às 10h! Qualquer dúvida estou aqui."], ficha: { ...ONIX, ...VISITA } }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "sábado às 10h pode ser");
+    const r = await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    // 20 (carro) + 10 (combinou) + 15 (dia e hora) = 45: morno, e entrega pelo método.
+    expect(r).toMatchObject({ aquecimento: 45, temperatura: "morno", entregue: true });
+    expect(t.enviados[0].texto).toBe("Fechado, sábado às 10h!");
+    expect(t.enviados[1].texto).toBe(
+      "Perfeito, Rafael! Visita marcada: sábado, 24/10, às 10h. Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777.",
+    );
+    const aoVendedor = t.enviados[2].texto;
+    expect(aoVendedor).toMatch(/^📅 VISITA MARCADA — Rafael/);
+    expect(aoVendedor.split("\n")[3]).toBe("📅 Visita marcada: sábado, 24/10, às 10h");
+    expect(banco.tabelas.leads[0]).toMatchObject({
+      assistente_fase: "entregue",
+      entregue_motivo: "agendou",
+      proximo_passo: "Receber na loja: visita marcada pelo Ney para sábado, 24/10, às 10h",
+      proximo_passo_vence_em: "2026-10-24T13:00:00.000Z",
+      proximo_passo_definido_por: "Ney",
+    });
+  });
+
+  it("o próximo passo que a equipe combinou não é trocado pela visita", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza", proximo_passo: "Ligar às 15h", proximo_passo_vence_em: "2026-10-20T18:00:00.000Z" })] });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Fechado!"], ficha: { ...ONIX, ...VISITA } })]);
+    const entrada = await clienteEscreve(banco, t, "sábado às 10h");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0]).toMatchObject({ entregue_motivo: "agendou", proximo_passo: "Ligar às 15h", proximo_passo_vence_em: "2026-10-20T18:00:00.000Z" });
+  });
+
+  it("visita no domingo (loja fechada) não é compromisso: não entrega, e o próximo estado pede outro horário", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    const t = transporteDeTeste([
+      respostaDoModelo({ mensagens: ["Domingo às 10h então?"], ficha: { ...ONIX, visita: "domingo 10h", visita_data: "2026-10-25", visita_hora: "10:00" } }),
+      respostaDoModelo({ mensagens: ["Domingo a loja fecha. Sábado às 10h ou segunda às 9h?"], ficha: ONIX }),
+    ]);
+    const primeira = await clienteEscreve(banco, t, "domingo às 10h");
+    const r = await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: primeira.mensagem }, deps(t));
+    expect(r).toMatchObject({ entregue: false });
+    relogio = new Date(TERCA_10H.getTime() + 60_000);
+    const segunda = await clienteEscreve(banco, t, "pode ser?");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: segunda.mensagem }, deps(t));
+    expect(t.pedidosAoModelo[1].messages.at(-1).content).toContain(
+      "Próximo movimento: a visita anotada (domingo, 25/10, às 10h) está fora do horário da loja: proponha outro dia e hora dentro do horário da loja.",
+    );
+  });
+
+  it("simulação pronta (carro exato, financiado, entrada e parcela): entrega como 'simulacao', e o vendedor recebe os dados", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    const t = transporteDeTeste([
+      respostaDoModelo({
+        mensagens: ["Anotado! Já deixo tudo pronto para a simulação."],
+        ficha: { ...ONIX, pagamento: "financiado", entrada: "10 mil", parcela: "até 1.200 por mês", troca: "sem troca", decisor: "no nome da esposa" },
+      }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "financiado, 10 mil de entrada, parcela até 1200, sem troca, no nome da minha esposa");
+    const r = await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    // "Sem troca" é resposta, não oferta: não soma. 20 + 10 + 5 + 5 + 5 = 45.
+    expect(r).toMatchObject({ aquecimento: 45, entregue: true });
+    expect(t.enviados[1].texto).toBe(
+      "Perfeito, Rafael! Já deixei os dados da sua simulação com a equipe. Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777.",
+    );
+    const aoVendedor = t.enviados[2].texto;
+    expect(aoVendedor).toMatch(/^🧮 PRONTO PARA SIMULAR — Rafael/);
+    for (const linha of ["Pagamento: Financiado · entrada 10 mil", "Parcela: até 1.200 por mês", "Troca: não tem", "Quem decide: no nome da esposa"]) {
+      expect(aoVendedor).toContain(linha);
+    }
+    expect(banco.tabelas.leads[0]).toMatchObject({ entregue_motivo: "simulacao" });
+    // "Sem troca" não vira carro na troca nos dados do negócio.
+    expect(banco.tabelas.leads[0].carro_na_troca ?? null).toBeNull();
+  });
+});
+
 describe("a rodada das cadências", () => {
   const vencido = () =>
     leadAberto({

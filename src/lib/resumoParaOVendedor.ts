@@ -9,6 +9,7 @@ import {
 import { nomeParaTratar } from "./cadencias";
 import { formatarTelefone } from "./filaDoFunil";
 import { linkDeConversa, numeroDiscavel, primeiroNome } from "./funil";
+import { rotuloDaVisita, trocaParaLer } from "./metodoDeQualificacao";
 
 /**
  * O que vai para o WhatsApp do vendedor quando o assistente entrega o lead, e
@@ -30,6 +31,8 @@ import { linkDeConversa, numeroDiscavel, primeiroNome } from "./funil";
  */
 
 export const CABECALHO_DA_ENTREGA: Record<MotivoDaEntrega | "painel", string> = {
+  agendou: "📅 VISITA MARCADA",
+  simulacao: "🧮 PRONTO PARA SIMULAR",
   quente: "🔥 LEAD QUENTE",
   pediu_humano: "🙋 PEDIU UM CONSULTOR",
   pediu_condicao: "💰 PEDIU CONDIÇÃO",
@@ -57,22 +60,29 @@ export interface DadosDaEntrega {
 export function mensagemDeEntrega(d: DadosDaEntrega): string {
   const nome = d.lead.nome?.trim() || "Cliente sem nome";
   const numero = numeroDiscavel(d.lead.telefone);
+  const visitaMarcada = rotuloDaVisita(d.ficha);
+  const disseQueSeChama = d.ficha.nome && d.ficha.nome.trim().toLowerCase() !== nome.toLowerCase() ? d.ficha.nome.trim() : null;
   const linhas: string[] = [
     `${CABECALHO_DA_ENTREGA[d.motivo]} — ${nome}`,
     // O link do CLIENTE pelo montador único do repositório (`linkDeConversa`):
     // link de WhatsApp montado à mão é o que `whatsapp-numero-unico` barra.
     numero ? `📱 ${formatarTelefone(numero)} · ${linkDeConversa(numero)}` : "",
     "",
+    // A visita vem primeiro: é o compromisso que o vendedor precisa honrar.
+    visitaMarcada ? `📅 Visita marcada: ${visitaMarcada}` : d.ficha.visita ? `Visita: ${d.ficha.visita}` : "",
+    disseQueSeChama ? `Se apresentou como: ${disseQueSeChama}` : "",
     d.ficha.interesse ? `Procura: ${d.ficha.interesse}` : "",
+    d.ficha.uso ? `Uso: ${d.ficha.uso}` : "",
     d.ficha.orcamento ? `Quer investir: ${d.ficha.orcamento}` : "",
     d.ficha.pagamento
       ? `Pagamento: ${ROTULO_DO_PAGAMENTO[d.ficha.pagamento]}${d.ficha.entrada ? ` · entrada ${d.ficha.entrada}` : ""}`
       : d.ficha.entrada
         ? `Entrada: ${d.ficha.entrada}`
         : "",
-    d.ficha.troca ? `Troca: ${d.ficha.troca}` : "",
+    d.ficha.parcela ? `Parcela: ${d.ficha.parcela}` : "",
+    d.ficha.troca ? `Troca: ${trocaParaLer(d.ficha.troca)}` : "",
     d.ficha.prazo ? `Prazo: ${ROTULO_DO_PRAZO[d.ficha.prazo]}` : "",
-    d.ficha.visita ? `Visita: ${d.ficha.visita}` : "",
+    d.ficha.decisor ? `Quem decide: ${d.ficha.decisor}` : "",
     d.ficha.cidade ? `Cidade: ${d.ficha.cidade}` : "",
     `Aquecimento: ${d.aquecimento.pontos}/100${motivoPrincipal(d.aquecimento) ? ` (${motivoPrincipal(d.aquecimento)})` : ""}`,
     d.origem ? `Origem: ${d.origem}` : "",
@@ -108,9 +118,15 @@ export function mensagemDePassagemAoCliente(dados: {
   equipeDisponivel: boolean;
   /** O cliente pediu fotos nesta mensagem: quem manda é o vendedor, e a frase diz. */
   comFotos?: boolean;
+  /** "sábado, 24/10, às 10h": a visita marcada, repetida para o cliente anotar. */
+  visita?: string | null;
+  /** Os dados da simulação estão completos: o cliente sabe o que vem. */
+  simulacao?: boolean;
 }): string {
   const nome = nomeParaTratar(dados.nomeDoCliente);
-  const abertura = nome ? `Perfeito, ${nome}!` : "Perfeito!";
+  const abertura = `${nome ? `Perfeito, ${nome}!` : "Perfeito!"}${
+    dados.visita ? ` Visita marcada: ${dados.visita}.` : dados.simulacao ? " Já deixei os dados da sua simulação com a equipe." : ""
+  }`;
   const fotos = dados.comFotos ? (dados.equipeDisponivel ? " e te mandar as fotos" : " e te manda as fotos") : "";
   // Sem "o consultor" nem "dele": quem vende pode ser Carla ou Bruno, e o
   // texto não sabe. O nome resolve sem adivinhar.

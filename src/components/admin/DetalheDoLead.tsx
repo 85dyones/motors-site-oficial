@@ -793,7 +793,7 @@ export default function DetalheDoLead({
             />
             <AtendimentoDoLead leadId={lead.id} conversa={conversa} className={area("a")} aoMudarOLead={() => void recarregar()} />
             <div data-coluna="p" className={`flex min-w-0 flex-col ${area("p")}`}>
-              <AquecimentoDoLead conversa={conversa} className={area("q")} />
+              <AquecimentoDoLead conversa={conversa} nomeDoLead={lead.nome} className={area("q")} />
               <ProximoPassoDoLead
                 lead={lead}
                 aberto={aberto}

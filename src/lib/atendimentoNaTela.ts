@@ -9,6 +9,7 @@ import {
   type Temperatura,
 } from "./aquecimento";
 import { ROTULO_DA_CADENCIA, type NomeDaCadencia } from "./cadencias";
+import { prontidao, rotuloDaVisita, trocaParaLer } from "./metodoDeQualificacao";
 import { ROTULO_DO_CONTEUDO, type ConteudoDaMensagem } from "./evolutionEventos";
 import { ROTULO_DA_CAMADA, ehCamada } from "./fotosDoAtendimento";
 import { espera } from "./funil";
@@ -18,13 +19,6 @@ import { espera } from "./funil";
  * desenha. Mesmo desenho de `filaDoFunil.ts` para o quadro.
  */
 
-/** O aquecimento saiu das abas em 2026-10-20: é um bloco sempre à vista (`AquecimentoDoLead`). */
-export type AbaDoAtendimento = "conversa" | "resumo";
-
-export const ABAS_DO_ATENDIMENTO: readonly { valor: AbaDoAtendimento; rotulo: string }[] = [
-  { valor: "conversa", rotulo: "Conversa" },
-  { valor: "resumo", rotulo: "Resumo" },
-];
 
 export interface MensagemNaTela {
   id: string;
@@ -200,19 +194,68 @@ export interface LinhaDaFicha {
   valor: string | null;
 }
 
-/** A ficha, na ordem em que o vendedor lê. Campo não dito vem nulo. */
+/**
+ * A ficha, na ordem do método da loja (os 5P: Produto, Pagamento, Pessoa,
+ * Prazo e Passo — `metodoDeQualificacao.ts`). Campo não dito vem nulo.
+ */
 export function linhasDaFicha(qualificacao: EstadoDoAtendimento["qualificacao"]): LinhaDaFicha[] {
   const f = fichaValida(qualificacao?.ficha);
   return [
+    { rotulo: "Nome", valor: f.nome },
     { rotulo: "Procura", valor: f.interesse },
+    { rotulo: "Uso", valor: f.uso },
     { rotulo: "Quer investir", valor: f.orcamento },
     { rotulo: "Pagamento", valor: f.pagamento ? ROTULO_DO_PAGAMENTO[f.pagamento] : null },
     { rotulo: "Entrada", valor: f.entrada },
-    { rotulo: "Carro na troca", valor: f.troca },
+    { rotulo: "Parcela", valor: f.parcela },
+    { rotulo: "Carro na troca", valor: trocaParaLer(f.troca) },
+    { rotulo: "Quem decide", valor: f.decisor },
     { rotulo: "Prazo", valor: f.prazo ? ROTULO_DO_PRAZO[f.prazo] : null },
-    { rotulo: "Visita", valor: f.visita },
+    { rotulo: "Visita", valor: rotuloDaVisita(f) ?? f.visita },
     { rotulo: "Cidade", valor: f.cidade },
   ];
+}
+
+/**
+ * Onde o lead está no método, numa linha: a visita marcada, a simulação
+ * pronta, ou o que falta (os três primeiros itens). `pronto` acende a marca.
+ */
+export function situacaoDoMetodo(
+  estado: EstadoDoAtendimento | null,
+  agora: Date,
+  /** O nome do lead: com ele, "como ele se chama" não entra no que falta. */
+  nomeDoLead?: string | null,
+): { texto: string; pronto: boolean } {
+  const f = fichaValida(estado?.qualificacao?.ficha);
+  const visita = rotuloDaVisita(f);
+  const p = prontidao(f, agora, { nomeNoWhatsApp: nomeDoLead });
+  if (estado?.entregue_motivo === "agendou" && visita) return { texto: `Visita marcada: ${visita}`, pronto: true };
+  if (estado?.entregue_motivo === "simulacao") return { texto: "Pronto para simular o financiamento", pronto: true };
+  if (p.pronto === "agendou" && visita) return { texto: `Visita marcada: ${visita}`, pronto: true };
+  if (p.pronto === "simulacao") return { texto: "Pronto para simular o financiamento", pronto: true };
+  const itens = p.faltam.slice(0, 3).map((x) => x.item);
+  return { texto: itens.length > 0 ? `Falta: ${itens.join("; ")}` : "Os 5P estão completos", pronto: false };
+}
+
+/**
+ * O resumo para o comercial, em texto, para colar no WhatsApp ou numa
+ * planilha: a nota, onde está no método, a ficha dita e o resumo do
+ * assistente. Campo não dito fica de fora.
+ */
+export function textoDoResumo(estado: EstadoDoAtendimento | null, agora: Date, nomeDoLead?: string | null): string {
+  if (!estado) return "";
+  const linhas = [
+    estado.aquecimento !== null && estado.temperatura
+      ? `Aquecimento: ${estado.aquecimento}/100 (${ROTULO_DA_TEMPERATURA[estado.temperatura]})`
+      : "",
+    situacaoDoMetodo(estado, agora, nomeDoLead).texto,
+    ...linhasDaFicha(estado.qualificacao)
+      .filter((l) => l.valor)
+      .map((l) => `${l.rotulo}: ${l.valor}`),
+    estado.origem_conversa?.titulo ? `Veio do anúncio: ${estado.origem_conversa.titulo}` : "",
+    estado.resumo_ia?.trim() ? `Resumo: ${estado.resumo_ia.trim()}` : "",
+  ];
+  return linhas.filter(Boolean).join("\n");
 }
 
 export function rotuloDaEntrega(motivo: EstadoDoAtendimento["entregue_motivo"]): string | null {

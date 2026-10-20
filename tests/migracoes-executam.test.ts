@@ -330,6 +330,10 @@ const CADEIA = [
   // cadeia porque acrescenta restrições a `atendimento_mensagens`, da
   // migração logo acima, e o aceite prova que a sessão só lê.
   "20261021120000_fotos_do_atendimento.sql",
+  // A entrega do lead pronto para o comercial (2026-10-20): troca a regra do
+  // motivo de entrega da 20261020120000 pela que aceita `agendou` e
+  // `simulacao`. Entra na cadeia porque depende da regra criada lá.
+  "20261022120000_atendimento_entrega_pronta.sql",
 ];
 
 /**

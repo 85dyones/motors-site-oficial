@@ -4,9 +4,10 @@ import { Fragment, act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 /**
- * O bloco de atendimento do lead, montado (2026-10-20): as duas abas, a
- * conversa, a resposta pelo painel e os botões do assistente — e o bloco do
- * aquecimento, sempre à vista, lendo a mesma conversa. Só o `fetch` é dublê.
+ * O bloco de atendimento do lead, montado (2026-10-20): a conversa, a
+ * resposta pelo painel e os botões do assistente — e o bloco do aquecimento,
+ * sempre à vista, com o resumo para o comercial, lendo a mesma conversa. Só o
+ * `fetch` é dublê.
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -77,7 +78,7 @@ async function montar() {
       Fragment,
       null,
       createElement(AtendimentoDoLead, { leadId: "lead-1", conversa }),
-      createElement(AquecimentoDoLead, { conversa }),
+      createElement(AquecimentoDoLead, { conversa, nomeDoLead: "Rafael" }),
     );
   }
   await act(async () => {
@@ -138,13 +139,40 @@ describe("o bloco de atendimento", () => {
     expect(chamadas.find((c) => c.url === "/api/leads/lead-1/assistente")).toMatchObject({ metodo: "POST", corpo: { acao: "entregar" } });
   });
 
-  it("aba Resumo: o resumo, a ficha com o não dito e a origem do anúncio", async () => {
+  it("o resumo para o comercial fica junto do aquecimento, sem aba: onde está no método, o resumo, a ficha com o não dito e a origem", async () => {
     await montar();
-    await clicar(botao("Resumo"));
-    expect(texto()).toContain("Rafael quer o Onix, com o Uno na troca.");
-    expect(texto()).toContain("ProcuraOnix LT 2020");
-    expect(texto()).toContain("Quer investirnão disse");
-    expect(texto()).toContain("Veio do anúncio: SUVs a partir de 79 mil");
+    expect(botao("Resumo")).toBeUndefined();
+    const resumo = container.querySelector('[data-bloco="q"] [data-resumo]')!;
+    const t = resumo.textContent ?? "";
+    expect(resumo.querySelector("[data-metodo]")!.textContent).toBe("Falta: se paga à vista, financiado ou no consórcio; quem decide junto (ou em nome de quem fica o carro); o dia e a hora da visita ou do test-drive");
+    expect(t).toContain("Rafael quer o Onix, com o Uno na troca.");
+    expect(t).toContain("ProcuraOnix LT 2020");
+    expect(t).toContain("Carro na trocaUno 2014");
+    expect(t).toContain("Quer investirnão disse");
+    expect(t).toContain("Veio do anúncio: SUVs a partir de 79 mil");
+  });
+
+  it("visita marcada aparece como pronta, e Copiar leva o resumo em texto", async () => {
+    const original = RESPOSTA.atendimento;
+    RESPOSTA.atendimento = {
+      ...original,
+      entregue_motivo: "agendou",
+      qualificacao: { ...original.qualificacao, ficha: { ...original.qualificacao.ficha, visita_data: "2026-10-24", visita_hora: "10:00" } },
+    } as unknown as typeof original;
+    let copiado = "";
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: async (v: string) => void (copiado = v) }, configurable: true });
+    try {
+      await montar();
+      const metodo = container.querySelector('[data-bloco="q"] [data-metodo]')!;
+      expect(metodo.getAttribute("data-metodo")).toBe("pronto");
+      expect(metodo.textContent).toBe("✓ Visita marcada: sábado, 24/10, às 10h");
+      await clicar(botao("Copiar"));
+      expect(botao("Copiado ✓")).toBeTruthy();
+      expect(copiado.split("\n").slice(0, 3)).toEqual(["Aquecimento: 80/100 (Quente)", "Visita marcada: sábado, 24/10, às 10h", "Procura: Onix LT 2020"]);
+      expect(copiado).toContain("Resumo: Rafael quer o Onix, com o Uno na troca.");
+    } finally {
+      RESPOSTA.atendimento = original;
+    }
   });
 
   it("o aquecimento fica à vista, sem aba: a nota, a régua, os motivos com sinal e a cadência", async () => {
@@ -158,9 +186,6 @@ describe("o bloco de atendimento", () => {
     const motivos = [...container.querySelectorAll('[data-bloco="q"] [aria-label="Por que esta nota"] li')].map((li) => li.textContent);
     expect(motivos).toEqual(["+25Quer visitar a loja ou fazer test-drive", "-15Disse que só está pesquisando"]);
     expect(q()).toContain("Follow-up · toque 1 de 3");
-    // Trocar a aba do atendimento não esconde o aquecimento.
-    await clicar(botao("Resumo"));
-    expect(q()).toContain("80de 100 · Quente");
   });
 
   it("antes de a conversa chegar, o aquecimento diz que está lendo", async () => {

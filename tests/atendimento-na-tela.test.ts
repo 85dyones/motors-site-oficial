@@ -87,14 +87,31 @@ describe("o estado do assistente", () => {
 });
 
 describe("resumo e aquecimento", () => {
-  it("a ficha na ordem de leitura, com o não dito vazio", () => {
-    const linhas = linhasDaFicha({ ficha: { interesse: "Onix", pagamento: "financiado", prazo: "imediato" } });
-    expect(linhas.slice(0, 3)).toEqual([
-      { rotulo: "Procura", valor: "Onix" },
-      { rotulo: "Quer investir", valor: null },
-      { rotulo: "Pagamento", valor: "Financiado" },
+  it("a ficha na ordem do método (os 5P), com o não dito vazio", () => {
+    const linhas = linhasDaFicha({
+      ficha: { interesse: "Onix", pagamento: "financiado", prazo: "imediato", troca: "sem troca", visita_data: "2026-10-24", visita_hora: "10:00" },
+    });
+    expect(linhas.map((l) => l.rotulo)).toEqual([
+      "Nome",
+      "Procura",
+      "Uso",
+      "Quer investir",
+      "Pagamento",
+      "Entrada",
+      "Parcela",
+      "Carro na troca",
+      "Quem decide",
+      "Prazo",
+      "Visita",
+      "Cidade",
     ]);
-    expect(linhas.find((l) => l.rotulo === "Prazo")!.valor).toBe("Imediato (até 15 dias)");
+    const valor = (rotulo: string) => linhas.find((l) => l.rotulo === rotulo)!.valor;
+    expect(valor("Procura")).toBe("Onix");
+    expect(valor("Quer investir")).toBeNull();
+    expect(valor("Pagamento")).toBe("Financiado");
+    expect(valor("Carro na troca")).toBe("não tem");
+    expect(valor("Prazo")).toBe("Imediato (até 15 dias)");
+    expect(valor("Visita")).toBe("sábado, 24/10, às 10h");
   });
 
   it("o selo e a cadência", () => {
