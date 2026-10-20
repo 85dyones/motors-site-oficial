@@ -50,6 +50,19 @@ export interface OrigemDaConversa {
   entrada: string | null;
 }
 
+/**
+ * O arquivo da mensagem, como o WhatsApp descreve (2026-10-20, os anexos). O
+ * arquivo em si NÃO vem no webhook — a URL do WhatsApp é cifrada —: o
+ * servidor pede à Evolution (`baixarMidia`) e guarda no bucket.
+ */
+export interface MidiaDaMensagem {
+  /** O mimetype, como veio ("audio/ogg; codecs=opus"). */
+  tipo: string | null;
+  /** O nome do documento; foto, vídeo e áudio não têm. */
+  nome: string | null;
+  bytes: number | null;
+}
+
 export interface MensagemDaEvolution {
   tipo: "mensagem";
   /** O id da mensagem no WhatsApp (`key.id`). Chave de idempotência. */
@@ -63,6 +76,8 @@ export interface MensagemDaEvolution {
   conteudo: ConteudoDaMensagem;
   /** Texto, legenda ou transcrição. Nulo em mídia sem legenda. */
   texto: string | null;
+  /** Foto, vídeo, áudio ou documento: o que se sabe do arquivo. */
+  midia: MidiaDaMensagem | null;
   origem: OrigemDaConversa | null;
   /** ISO 8601. O horário do WhatsApp quando veio, senão o de agora. */
   em: string;
@@ -147,8 +162,30 @@ function desembrulhar(mensagem: Record<string, unknown>): Record<string, unknown
   return atual;
 }
 
+/** `fileLength` vem como número, texto ou `{ low, high }` (o Long do protobuf). */
+function bytesDe(bruto: unknown): number | null {
+  if (typeof bruto === "number") return Number.isFinite(bruto) && bruto >= 0 ? Math.round(bruto) : null;
+  if (typeof bruto === "string" && /^\d{1,12}$/.test(bruto)) return Number(bruto);
+  const longo = objeto(bruto);
+  if (longo && typeof longo.low === "number") {
+    const alto = typeof longo.high === "number" ? longo.high : 0;
+    return (longo.low >>> 0) + alto * 2 ** 32;
+  }
+  return null;
+}
+
+function midiaDe(m: Record<string, unknown> | null, comNome = false): MidiaDaMensagem {
+  return {
+    tipo: texto(m?.mimetype, 120),
+    nome: comNome ? texto(m?.fileName, 255) : null,
+    bytes: bytesDe(m?.fileLength),
+  };
+}
+
+type Lido = { conteudo: ConteudoDaMensagem; texto: string | null; midia?: MidiaDaMensagem };
+
 /** O que a mensagem diz, e de que tipo ela é. */
-function lerConteudo(mensagem: Record<string, unknown>): { conteudo: ConteudoDaMensagem; texto: string | null } | null {
+function lerConteudo(mensagem: Record<string, unknown>): Lido | null {
   const m = desembrulhar(mensagem);
 
   // Reação, apagar, editar e confirmações de protocolo não são fala do cliente.
@@ -168,13 +205,21 @@ function lerConteudo(mensagem: Record<string, unknown>): { conteudo: ConteudoDaM
     texto(objeto(m.listResponseMessage)?.title);
   if (botao) return { conteudo: "texto", texto: botao };
 
-  if (m.audioMessage) return { conteudo: "audio", texto: transcricao };
+  const audio = objeto(m.audioMessage);
+  if (audio) return { conteudo: "audio", texto: transcricao, midia: midiaDe(audio) };
   const imagem = objeto(m.imageMessage);
-  if (imagem) return { conteudo: "imagem", texto: texto(imagem.caption) };
-  const video = objeto(m.videoMessage);
-  if (video) return { conteudo: "video", texto: texto(video.caption) };
+  if (imagem) return { conteudo: "imagem", texto: texto(imagem.caption), midia: midiaDe(imagem) };
+  // `ptvMessage` é o vídeo redondo (a "bolinha"): vídeo, para o painel.
+  const video = objeto(m.videoMessage) ?? objeto(m.ptvMessage);
+  if (video) return { conteudo: "video", texto: texto(video.caption), midia: midiaDe(video) };
   const documento = objeto(m.documentMessage);
-  if (documento) return { conteudo: "documento", texto: texto(documento.caption) ?? texto(documento.fileName, 200) };
+  if (documento) {
+    return {
+      conteudo: "documento",
+      texto: texto(documento.caption) ?? texto(documento.fileName, 200),
+      midia: midiaDe(documento, true),
+    };
+  }
   if (m.stickerMessage) return { conteudo: "figurinha", texto: null };
   if (m.locationMessage || m.liveLocationMessage) return { conteudo: "localizacao", texto: null };
   if (m.contactMessage || m.contactsArrayMessage) return { conteudo: "contato", texto: null };
@@ -268,6 +313,7 @@ export function interpretarEventoDaEvolution(bruto: unknown, agora: Date = new D
     deMim,
     conteudo: lido.conteudo,
     texto: lido.texto,
+    midia: lido.midia ?? null,
     origem: deMim ? null : lerOrigem(dados, mensagem),
     em: quando(dados.messageTimestamp, agora),
     aparelho: texto(dados.source, 20)?.toLowerCase() ?? null,

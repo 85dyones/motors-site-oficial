@@ -1,10 +1,13 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { registrarEntrada } from "../../../../lib/atendimento-servidor";
 import { autorizarMotorDoAtendimento } from "../../../../lib/autorizacaoDoAtendimento";
 import { interpretarEventoDaEvolution } from "../../../../lib/evolutionEventos";
 import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
+// O arquivo que o cliente manda (vídeo, documento) desce da Evolution depois
+// da resposta, dentro desta mesma função: folga para isso.
+export const maxDuration = 60;
 
 /**
  * A mensagem do WhatsApp entra no painel (2026-10-20).
@@ -40,7 +43,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const desfecho = await registrarEntrada(supabase, evento);
+    // O arquivo da mensagem (foto, vídeo, áudio, documento) é guardado depois
+    // da resposta: o n8n não espera um vídeo descer para seguir a rajada.
+    const desfecho = await registrarEntrada(supabase, evento, { depois: (tarefa) => after(tarefa) });
     console.info(
       "[Atendimento]",
       JSON.stringify({ acao: desfecho.acao, com_lead: Boolean(desfecho.lead), responder: desfecho.responder ?? false }),

@@ -338,6 +338,7 @@ const CADEIA = [
   // a carga a partir do atendimento e a função que edita com rastro. Entra na
   // cadeia porque usa `registrar_etiquetas_do_lead` e `atendimentos.tags`.
   "20261023120000_etiquetas_no_lead.sql",
+  "20261024120000_anexos_do_atendimento.sql",
 ];
 
 /**

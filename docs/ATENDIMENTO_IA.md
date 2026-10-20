@@ -526,6 +526,24 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   única cor fora da paleta da marca).
 - **Na conversa, o cliente aparece pelo nome do lead** (o do cabeçalho), em vez
   de "Cliente".
+- **Anexos nos dois sentidos** (pedido do dono, 20/10/2026: *"envio de anexos,
+  fotos, vídeos e documentos"*). O que o cliente manda — foto, vídeo, áudio,
+  documento — aparece como arquivo: a foto e o vídeo na própria conversa, o
+  áudio com o tocador, o documento num cartão que baixa com o nome. O arquivo
+  é pedido à Evolution (`getBase64FromMediaMessage`; o áudio convertido para
+  MP4, que o Safari toca) logo depois de a mensagem ser gravada — depois da
+  resposta ao n8n, pelo `after()` — e guardado no bucket **privado**
+  `atendimento-midia`, na pasta do lead. Não veio (acima de 50 MB, a Evolution
+  não entregou), a conversa mostra o rótulo de sempre e a marca "arquivo só no
+  celular da loja". O vendedor anexa pelo **📎 Anexar**: foto JPG/PNG (até
+  10 MB), vídeo MP4 (16 MB), áudio (16 MB, sai como nota de voz) ou documento
+  (PDF, Word, Excel, até 50 MB; o .mov do iPhone e o WebP saem como
+  documento), com o texto como legenda. O arquivo sobe **direto do navegador**
+  para o bucket (URL assinada de upload: a função da Vercel recusa corpo acima
+  de ~4,5 MB), e o servidor confere o tipo e o tamanho **pelo que o bucket
+  recebeu** antes de mandar a Evolution buscá-lo por uma URL assinada de 10
+  minutos. O arquivo abre sempre pela porta do painel, que confere o escopo do
+  lead; a exclusão do titular (LGPD) apaga a pasta do lead.
 - **O botão de WhatsApp do cabeçalho retoma de onde o assistente parou**: com
   a ficha preenchida, o rascunho se apresenta, lista o que o cliente disse
   (carro, troca, pagamento, visita) para ele confirmar e termina no próximo
@@ -558,14 +576,16 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/evolution` | n8n (`ATENDIMENTO_MOTOR_TOKEN`, só `Authorization: Bearer`) | Grava a mensagem, cria o lead, devolve `responder` e `aguardar_ms`. Nunca erra fora de autenticação. |
 | `POST /api/atendimento/responder` | n8n | `{ lead_id, mensagem_id }`. Só a última da rajada responde; até 120 s (duas voltas). |
 | `POST /api/atendimento/rodada` | n8n, a cada 15 min | `{ reservar: true }` envia e devolve; sem ele é **prévia**. |
-| `GET/POST /api/leads/[id]/conversa` | painel | Lê a conversa (pela sessão, com o escopo do lead) / responde pelo número da loja. |
+| `GET/POST /api/leads/[id]/conversa` | painel | Lê a conversa (pela sessão, com o escopo do lead) / responde pelo número da loja — texto, ou `anexo.caminho` com a legenda. |
+| `POST /api/leads/[id]/conversa/anexo` | painel | `{ nome, tipo, bytes }` → `{ caminho, token }`: a URL assinada de upload na pasta do lead, só para o que o WhatsApp aceita. |
+| `GET /api/leads/[id]/conversa/midia/[mensagem]` | painel | O arquivo da mensagem: confere o escopo, lê a mensagem pela sessão e responde 307 para a URL assinada de 5 min (`?baixar=1` baixa com o nome). |
 | `POST /api/leads/[id]/assistente` | painel | `pausar`, `retomar`, `entregar`, `devolver`. |
 | `GET/PUT /api/atendimento/config` | painel (Admin, Gestor) | A configuração da loja, e o que falta nas integrações. Desligar devolve os leads do assistente à equipe. |
 | `GET /api/atendimento/relatorio?dias=30` | painel | O relatório, recortado pelo escopo de quem pede. |
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — `20261020120000_atendimento_ia.sql`, `20261021120000_fotos_do_atendimento.sql`, `20261022120000_atendimento_entrega_pronta.sql` e `20261023120000_etiquetas_no_lead.sql`
+## 9. O banco — `20261020120000_atendimento_ia.sql`, `20261021120000_fotos_do_atendimento.sql`, `20261022120000_atendimento_entrega_pronta.sql`, `20261023120000_etiquetas_no_lead.sql` e `20261024120000_anexos_do_atendimento.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -610,14 +630,22 @@ existir); a passagem do SDR grava as duas no lead, inclusive no lead que nunca
 teve conversa. Sem a quarta, o painel mostra as etiquetas da conversa e não
 oferece editar.
 
+A quinta guarda o **arquivo da mensagem** (§7, anexos): `midia_caminho` (no
+bucket privado `atendimento-midia`, sempre `{lead}/{arquivo}` — a regra recusa
+caminho que sobe de pasta), `midia_tipo`, `midia_nome`, `midia_bytes` e
+`midia_erro`, e cria o bucket, privado, sem policy (só o servidor grava e
+assina), com teto de 50 MB. Sem a quinta, a conversa aparece igual, com o
+rótulo "[Foto]".
+
 ---
 
 ## 10. Como ligar
 
 1. **Banco**: aplicar as migrações `20261020120000_atendimento_ia.sql`,
    `20261021120000_fotos_do_atendimento.sql`,
-   `20261022120000_atendimento_entrega_pronta.sql` e
-   `20261023120000_etiquetas_no_lead.sql`, nesta ordem.
+   `20261022120000_atendimento_entrega_pronta.sql`,
+   `20261023120000_etiquetas_no_lead.sql` e
+   `20261024120000_anexos_do_atendimento.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.

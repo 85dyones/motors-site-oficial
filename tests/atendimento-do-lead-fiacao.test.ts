@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Fragment, act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
@@ -11,6 +11,16 @@ import { createRoot, type Root } from "react-dom/client";
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+/** O upload direto para o bucket: o Storage não existe no teste. */
+const subidas: { caminho: string; token: string; nome: string }[] = [];
+let falhaDaSubida: string | null = null;
+vi.mock("../src/lib/anexoDoPainel-navegador", () => ({
+  subirAnexo: async (caminho: string, token: string, arquivo: File) => {
+    subidas.push({ caminho, token, nome: arquivo.name });
+    return falhaDaSubida ? { ok: false, erro: falhaDaSubida } : { ok: true };
+  },
+}));
 
 const RESPOSTA = {
   atendimento: {
@@ -217,5 +227,134 @@ describe("o bloco de atendimento", () => {
     } finally {
       globalThis.fetch = original;
     }
+  });
+});
+
+describe("os anexos na conversa", () => {
+  const LEAD = "lead-1";
+  const comMensagens = async (extras: Record<string, unknown>[], corpo: () => Promise<void>) => {
+    const original = RESPOSTA.mensagens;
+    RESPOSTA.mensagens = [...original, ...(extras as (typeof original)[number][])];
+    try {
+      await montar();
+      await corpo();
+    } finally {
+      RESPOSTA.mensagens = original;
+    }
+  };
+  const doCliente = (id: string, conteudo: string, extra: Record<string, unknown>) => ({
+    id,
+    direcao: "entrada",
+    autor: "cliente",
+    autor_nome: "Rafael",
+    conteudo,
+    texto: null,
+    situacao: "recebida",
+    gatilho: null,
+    erro: null,
+    criado_em: new Date().toISOString(),
+    ...extra,
+  });
+
+  it("foto, vídeo, áudio e documento do cliente aparecem como arquivo, pela porta do painel", async () => {
+    await comMensagens(
+      [
+        doCliente("f1", "imagem", { texto: "minha CNH", midia_caminho: `${LEAD}/f1.jpg`, midia_tipo: "image/jpeg" }),
+        doCliente("v1", "video", { midia_caminho: `${LEAD}/v1.mp4`, midia_tipo: "video/mp4" }),
+        doCliente("a1", "audio", { midia_caminho: `${LEAD}/a1.m4a`, midia_tipo: "audio/mp4" }),
+        doCliente("d1", "documento", { texto: "holerite.pdf", midia_caminho: `${LEAD}/d1.pdf`, midia_nome: "holerite.pdf", midia_bytes: 204800 }),
+        doCliente("x1", "video", { texto: "olha", midia_erro: "a Evolution não entregou o arquivo" }),
+      ],
+      async () => {
+        const porta = (id: string) => `/api/leads/${LEAD}/conversa/midia/${id}`;
+        expect(container.querySelector(`img[src="${porta("f1")}"]`)!.getAttribute("alt")).toBe("minha CNH");
+        expect(container.querySelector("video")!.getAttribute("src")).toBe(porta("v1"));
+        expect(container.querySelector("audio")!.getAttribute("src")).toBe(porta("a1"));
+        const doc = container.querySelector(`a[href="${porta("d1")}?baixar=1"]`)!;
+        expect(doc.textContent).toContain("holerite.pdf");
+        expect(doc.textContent).toContain("200 KB");
+        // O arquivo que não veio: o rótulo e onde ele está.
+        expect(texto()).toContain("[Vídeo] olha");
+        expect(texto()).toContain("arquivo só no celular da loja");
+      },
+    );
+  });
+
+  it("o clipe: escolhe, confere, sobe direto ao bucket e manda o caminho com a legenda", async () => {
+    subidas.length = 0;
+    falhaDaSubida = null;
+    await montar();
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const metodo = opcoes?.method ?? "GET";
+      chamadas.push({ metodo, url, corpo: opcoes?.body ? JSON.parse(String(opcoes.body)) : undefined });
+      if (url.endsWith("/conversa/anexo")) return { ok: true, status: 200, json: async () => ({ ok: true, caminho: `${LEAD}/painel-abc12345.pdf`, token: "tok-1" }) };
+      return { ok: true, status: 200, json: async () => (metodo === "GET" ? RESPOSTA : { ok: true }) };
+    }) as never;
+
+    const campo = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(campo.getAttribute("accept")).toContain("application/pdf");
+    const arquivo = new File(["%PDF-1.7"], "Proposta Onix.pdf", { type: "application/pdf" });
+    await act(async () => {
+      Object.defineProperty(campo, "files", { value: [arquivo], configurable: true });
+      campo.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(container.querySelector("[data-anexo-escolhido]")!.textContent).toContain("Proposta Onix.pdf");
+    // Com o anexo, o texto é legenda e o ENVIAR já vale sem texto.
+    expect(container.querySelector("textarea")!.getAttribute("placeholder")).toBe("Legenda (opcional)…");
+    expect(botao("ENVIAR →").disabled).toBe(false);
+
+    const caixa = container.querySelector("textarea")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(caixa, "Segue a proposta");
+      caixa.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await clicar(botao("ENVIAR →"));
+
+    const posts = chamadas.filter((c) => c.metodo === "POST");
+    expect(posts).toEqual([
+      { metodo: "POST", url: `/api/leads/${LEAD}/conversa/anexo`, corpo: { nome: "Proposta Onix.pdf", tipo: "application/pdf", bytes: 8 } },
+      { metodo: "POST", url: `/api/leads/${LEAD}/conversa`, corpo: { texto: "Segue a proposta", anexo: { caminho: `${LEAD}/painel-abc12345.pdf`, nome: "Proposta Onix.pdf" } } },
+    ]);
+    expect(subidas).toEqual([{ caminho: `${LEAD}/painel-abc12345.pdf`, token: "tok-1", nome: "Proposta Onix.pdf" }]);
+    // Saiu: o anexo e a legenda somem da caixa.
+    expect(container.querySelector("[data-anexo-escolhido]")).toBeNull();
+  });
+
+  it("arquivo que o WhatsApp não aceita é recusado na escolha, sem subir nada", async () => {
+    subidas.length = 0;
+    await montar();
+    const campo = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const grande = new File([new Uint8Array(17 * 1024 * 1024)], "test-drive.mp4", { type: "video/mp4" });
+    await act(async () => {
+      Object.defineProperty(campo, "files", { value: [grande], configurable: true });
+      campo.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("O vídeo passa de 16 MB");
+    expect(container.querySelector("[data-anexo-escolhido]")).toBeNull();
+    expect(chamadas.filter((c) => c.metodo === "POST")).toHaveLength(0);
+    expect(subidas).toHaveLength(0);
+  });
+
+  it("o upload falhou: o erro aparece e a mensagem não é enviada", async () => {
+    subidas.length = 0;
+    falhaDaSubida = "The object exceeded the maximum allowed size";
+    await montar();
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const metodo = opcoes?.method ?? "GET";
+      chamadas.push({ metodo, url, corpo: opcoes?.body ? JSON.parse(String(opcoes.body)) : undefined });
+      if (url.endsWith("/conversa/anexo")) return { ok: true, status: 200, json: async () => ({ ok: true, caminho: `${LEAD}/painel-abc12345.jpg`, token: "t" }) };
+      return { ok: true, status: 200, json: async () => (metodo === "GET" ? RESPOSTA : { ok: true }) };
+    }) as never;
+    const campo = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await act(async () => {
+      Object.defineProperty(campo, "files", { value: [new File(["jpg"], "carro.jpg", { type: "image/jpeg" })], configurable: true });
+      campo.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await clicar(botao("ENVIAR →"));
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("O anexo não subiu: The object exceeded");
+    expect(chamadas.filter((c) => c.metodo === "POST").map((c) => c.url)).toEqual([`/api/leads/${LEAD}/conversa/anexo`]);
+    // O anexo continua escolhido, para tentar de novo.
+    expect(container.querySelector("[data-anexo-escolhido]")!.textContent).toContain("carro.jpg");
+    falhaDaSubida = null;
   });
 });

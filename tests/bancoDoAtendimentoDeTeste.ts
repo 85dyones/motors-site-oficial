@@ -40,6 +40,14 @@ export interface BancoDeTeste {
    * trecho — para provar o que acontece quando UMA leitura cai.
    */
   quebrarLeitura: (tabela: string, trechoDasColunas: string) => void;
+  /**
+   * O Storage em memória (os anexos, 2026-10-20): `bucket/caminho` → o
+   * arquivo. `upload`, `list` (com `search`), `createSignedUrl`,
+   * `createSignedUploadUrl` e `remove`. `quebrarStorage` faz a próxima
+   * operação daquele nome falhar.
+   */
+  objetos: Map<string, { bytes: number; tipo: string }>;
+  quebrarStorage: (operacao: "upload" | "list" | "createSignedUrl" | "createSignedUploadUrl" | "remove") => void;
 }
 
 let sequencia = 0;
@@ -241,7 +249,51 @@ export function bancoDeTeste(
     },
   };
 
+  const objetos = new Map<string, { bytes: number; tipo: string }>();
+  const quebrasDoStorage = new Set<string>();
+  const falhou = (operacao: string) => {
+    if (!quebrasDoStorage.has(operacao)) return false;
+    quebrasDoStorage.delete(operacao);
+    return true;
+  };
+  const storage = {
+    from: (bucket: string) => ({
+      upload: async (caminho: string, corpo: any, opcoes: { contentType?: string } = {}) => {
+        if (falhou("upload")) return { data: null, error: { message: "falha simulada do upload" } };
+        const bytes = typeof corpo?.byteLength === "number" ? corpo.byteLength : typeof corpo?.size === "number" ? corpo.size : 0;
+        objetos.set(`${bucket}/${caminho}`, { bytes, tipo: opcoes.contentType ?? "application/octet-stream" });
+        return { data: { path: caminho }, error: null };
+      },
+      list: async (pasta: string, opcoes: { search?: string } = {}) => {
+        if (falhou("list")) return { data: null, error: { message: "falha simulada da listagem" } };
+        const prefixo = `${bucket}/${pasta}/`;
+        const data = [...objetos.entries()]
+          .filter(([k]) => k.startsWith(prefixo) && !k.slice(prefixo.length).includes("/"))
+          .map(([k, v]) => ({ name: k.slice(prefixo.length), metadata: { size: v.bytes, mimetype: v.tipo } }))
+          .filter((o) => !opcoes.search || o.name.includes(opcoes.search));
+        return { data, error: null };
+      },
+      createSignedUrl: async (caminho: string, segundos: number, opcoes?: { download?: string | boolean }) => {
+        if (falhou("createSignedUrl") || !objetos.has(`${bucket}/${caminho}`)) {
+          return { data: null, error: { message: "Object not found" } };
+        }
+        const baixar = opcoes?.download ? `&download=${encodeURIComponent(String(opcoes.download))}` : "";
+        return { data: { signedUrl: `https://storage.teste/${bucket}/${caminho}?token=assinado&ttl=${segundos}${baixar}` }, error: null };
+      },
+      createSignedUploadUrl: async (caminho: string) => {
+        if (falhou("createSignedUploadUrl")) return { data: null, error: { message: "Bucket not found" } };
+        return { data: { path: caminho, token: `tok-${caminho}`, signedUrl: `https://storage.teste/upload/${bucket}/${caminho}?token=tok` }, error: null };
+      },
+      remove: async (caminhos: string[]) => {
+        if (falhou("remove")) return { data: null, error: { message: "falha simulada da remoção" } };
+        for (const c of caminhos) objetos.delete(`${bucket}/${c}`);
+        return { data: caminhos.map((name) => ({ name })), error: null };
+      },
+    }),
+  };
+
   const cliente = {
+    storage,
     from: (t: string) => cadeia(t),
     rpc: async (nome: string, args: any) => {
       chamadasRpc.push({ nome, args });
@@ -250,7 +302,14 @@ export function bancoDeTeste(
       return { data: f(args, tabelas), error: null };
     },
   };
-  return { tabelas, cliente, rpcs: chamadasRpc, quebrarLeitura: (tabela, trecho) => quebradas.push({ tabela, trecho }) };
+  return {
+    tabelas,
+    cliente,
+    rpcs: chamadasRpc,
+    quebrarLeitura: (tabela, trecho) => quebradas.push({ tabela, trecho }),
+    objetos,
+    quebrarStorage: (operacao) => quebrasDoStorage.add(operacao),
+  };
 }
 
 /**
@@ -275,6 +334,14 @@ export function transporteDeTeste(
     fotoSemResposta?: (n: number) => boolean;
     /** A foto do estoque que não baixa nem para o site (o classificador a baixa antes de mandar ao modelo). */
     fotoQueNaoBaixa?: (url: string) => boolean;
+    /**
+     * O arquivo de uma mensagem recebida (`getBase64FromMediaMessage`), pelo
+     * id da mensagem e se pediu a conversão para MP4. Sem a opção, a
+     * Evolution responde 400.
+     */
+    arquivoDaMensagem?: (waId: string, converterParaMp4: boolean) => { conteudo: string; mimetype?: string; fileName?: string } | { erro: string; status?: number };
+    /** A Evolution recusa (500) o anexo de número n (a partir de 1). */
+    anexoRecusado?: (n: number) => boolean;
   } = {},
 ) {
   const enviados: { numero: string; texto: string }[] = [];
@@ -286,13 +353,49 @@ export function transporteDeTeste(
   /** As fotos que o classificador baixou, na ordem. */
   const fotosBaixadas: string[] = [];
   const modelosDaVisao: string[] = [];
-  /** Tudo o que saiu pela Evolution, na ordem: texto e foto. */
-  const saidas: ({ tipo: "texto"; numero: string; texto: string } | { tipo: "foto"; numero: string; url: string; legenda: string | null })[] = [];
+  /** Tudo o que saiu pela Evolution, na ordem: texto, foto, anexo e áudio. */
+  const saidas: (
+    | { tipo: "texto"; numero: string; texto: string }
+    | { tipo: "foto"; numero: string; url: string; legenda: string | null }
+    | { tipo: "anexo"; numero: string; mediatype: string; mimetype: string; url: string; legenda: string | null; nome: string | null }
+    | { tipo: "audio"; numero: string; url: string }
+  )[] = [];
+  /** Os pedidos de arquivo de mensagem recebida: id e conversão. */
+  const arquivosPedidos: { waId: string; converterParaMp4: boolean }[] = [];
+  let tentativasDeAnexo = 0;
   let i = 0;
   let tentativas = 0;
   let tentativasDeFoto = 0;
   const transporte = async (url: string, init?: RequestInit) => {
     const corpo = init?.body ? JSON.parse(String(init.body)) : null;
+    if (url.includes("/chat/getBase64FromMediaMessage/")) {
+      const waId = corpo?.message?.key?.id;
+      arquivosPedidos.push({ waId, converterParaMp4: corpo?.convertToMp4 === true });
+      const r = opcoes.arquivoDaMensagem?.(waId, corpo?.convertToMp4 === true) ?? { erro: "Message not found", status: 400 };
+      if ("erro" in r) return new Response(JSON.stringify({ response: { message: [r.erro] } }), { status: r.status ?? 400 });
+      return new Response(
+        JSON.stringify({ base64: Buffer.from(r.conteudo).toString("base64"), mimetype: r.mimetype ?? null, fileName: r.fileName ?? null }),
+        { status: 200 },
+      );
+    }
+    if (url.includes("/message/sendWhatsAppAudio/") || (url.includes("/message/sendMedia/") && corpo?.mediatype !== "image")) {
+      tentativasDeAnexo += 1;
+      if (opcoes.anexoRecusado?.(tentativasDeAnexo)) {
+        return new Response(JSON.stringify({ message: "media download failed" }), { status: 500 });
+      }
+      if (url.includes("/message/sendWhatsAppAudio/")) saidas.push({ tipo: "audio", numero: corpo.number, url: corpo.audio });
+      else saidas.push({ tipo: "anexo", numero: corpo.number, mediatype: corpo.mediatype, mimetype: corpo.mimetype, url: corpo.media, legenda: corpo.caption ?? null, nome: corpo.fileName ?? null });
+      return new Response(JSON.stringify({ key: { id: `WA-ANEXO-${saidas.length}` } }), { status: 201 });
+    }
+    if (url.includes("/message/sendMedia/") && corpo?.mimetype) {
+      // A foto do PAINEL (com mimetype) é anexo; a do carro, do assistente, não leva mimetype.
+      tentativasDeAnexo += 1;
+      if (opcoes.anexoRecusado?.(tentativasDeAnexo)) {
+        return new Response(JSON.stringify({ message: "media download failed" }), { status: 500 });
+      }
+      saidas.push({ tipo: "anexo", numero: corpo.number, mediatype: corpo.mediatype, mimetype: corpo.mimetype, url: corpo.media, legenda: corpo.caption ?? null, nome: corpo.fileName ?? null });
+      return new Response(JSON.stringify({ key: { id: `WA-ANEXO-${saidas.length}` } }), { status: 201 });
+    }
     if (url.includes("/message/sendMedia/")) {
       tentativasDeFoto += 1;
       opcoes.aoEnviarFoto?.(tentativasDeFoto);
@@ -361,5 +464,6 @@ export function transporteDeTeste(
     fotosBaixadas,
     modelosDaVisao,
     saidas,
+    arquivosPedidos,
   };
 }

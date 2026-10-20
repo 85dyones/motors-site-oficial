@@ -16,14 +16,36 @@ const COLUNAS_DO_ATENDIMENTO =
 
 const MENSAGENS_NA_TELA = 200;
 
+const COLUNAS_DA_MENSAGEM = "id, direcao, autor, autor_nome, conteudo, texto, situacao, gatilho, erro, criado_em, midia_url, camada";
+/** O arquivo da mensagem (migração 20261024120000). */
+const COLUNAS_DO_ANEXO = "midia_caminho, midia_tipo, midia_nome, midia_bytes, midia_erro";
+
 /**
- * A conversa do lead no painel (2026-10-20): GET lê, POST responde.
+ * A conversa do lead no painel (2026-10-20): GET lê, POST responde (texto,
+ * ou anexo com legenda).
  *
  * A porta é a da gestão do lead (`sessaoDeLeads` + `lerLeadNoEscopo`): quem
  * não vê o lead recebe 404. A LEITURA vai pela sessão — a RLS da conversa
  * herda o escopo de `leads` —, e a ESCRITA pela chave de serviço, porque
  * mandar WhatsApp e gravar a mensagem é do servidor (`enviarDoPainel`).
  */
+/**
+ * As mensagens, com o arquivo de cada uma. Num banco sem a migração dos
+ * anexos, sem ele: a conversa aparece igual, com o rótulo "[Foto]".
+ */
+async function lerMensagens(supabase: Awaited<ReturnType<typeof sessaoDeLeads>>["supabase"], leadId: string) {
+  const ler = (colunas: string) =>
+    supabase
+      .from("atendimento_mensagens")
+      .select(colunas)
+      .eq("lead_id", leadId)
+      .order("criado_em", { ascending: false })
+      .limit(MENSAGENS_NA_TELA);
+  const comAnexo = await ler(`${COLUNAS_DA_MENSAGEM}, ${COLUNAS_DO_ANEXO}`);
+  if (comAnexo.error && ehTabelaOuColunaAusente(comAnexo.error)) return ler(COLUNAS_DA_MENSAGEM);
+  return comAnexo;
+}
+
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -34,12 +56,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     const [estado, mensagens, retratos, config] = await Promise.all([
       supabase.from("leads").select(COLUNAS_DO_ATENDIMENTO).eq("id", id).maybeSingle(),
-      supabase
-        .from("atendimento_mensagens")
-        .select("id, direcao, autor, autor_nome, conteudo, texto, situacao, gatilho, erro, criado_em, midia_url, camada")
-        .eq("lead_id", id)
-        .order("criado_em", { ascending: false })
-        .limit(MENSAGENS_NA_TELA),
+      lerMensagens(supabase, id),
       supabase
         .from("atendimento_qualificacoes")
         .select("aquecimento, temperatura, origem, criado_em")
@@ -85,11 +102,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const corpo = (await request.json().catch(() => null)) as Record<string, unknown> | null;
     const texto = typeof corpo?.texto === "string" ? corpo.texto : "";
+    // O anexo já subiu para o bucket (`/conversa/anexo`); aqui vem só o caminho.
+    const anexo = corpo?.anexo && typeof corpo.anexo === "object" ? (corpo.anexo as { caminho?: unknown; nome?: unknown }) : null;
 
     const r = await enviarDoPainel(createAdminSupabaseClient(), {
       leadId: id,
       texto,
       autor: visao.meuNome?.trim() || "Equipe",
+      ...(anexo ? { anexo: { caminho: anexo.caminho, nome: anexo.nome } } : {}),
     });
     if (!r.ok) return NextResponse.json({ error: r.erro }, { status: r.status });
     return NextResponse.json({ ok: true, ...(r.aviso ? { aviso: r.aviso } : {}) });

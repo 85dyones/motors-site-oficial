@@ -49,14 +49,29 @@ import { configValida, type ConfigDoAtendimento } from "./configDoAtendimento";
 import { completarEmJson, configDoModelo, MODELO_DE_VISAO, type ConfigDoModelo, type UsoDoModelo } from "./deepseek";
 import {
   atrasoDeDigitacao,
+  baixarMidia,
   configDaEvolution,
+  enviarAnexo,
   enviarImagem,
   enviarTexto,
   motivoSemEvolution,
   type ConfigDaEvolution,
   type Transporte,
 } from "./evolution";
-import { digitadaNoCelular, mensagemDaLojaAssume, type MensagemDaEvolution } from "./evolutionEventos";
+import { digitadaNoCelular, mensagemDaLojaAssume, type MensagemDaEvolution, type MidiaDaMensagem } from "./evolutionEventos";
+import {
+  BUCKET_DOS_ANEXOS,
+  TETO_DO_BUCKET,
+  anexoDoPainel,
+  caminhoDoAnexo,
+  caminhoDoPainelNoLead,
+  extensaoDoArquivo,
+  nomeDoArquivo,
+  tamanhoLegivel,
+  temArquivo,
+  tipoBase,
+  type ConteudoDoAnexo,
+} from "./anexosDoAtendimento";
 import { urlDoLead } from "./filaDoFunil";
 import {
   escolherFotos,
@@ -144,6 +159,11 @@ export interface Dependencias {
   relogio?: () => number;
   /** A conversa classificou fotos novas: a rota revalida o catálogo do prompt. */
   aoClassificarFotos?: () => void;
+  /**
+   * Trabalho que pode correr depois da resposta (guardar o arquivo que o
+   * cliente mandou). A rota passa o `after()` do Next; sem ele, roda na hora.
+   */
+  depois?: (tarefa: () => Promise<void>) => void | Promise<void>;
 }
 
 /** Quanto o n8n espera, depois da última mensagem, antes de pedir a resposta. */
@@ -186,6 +206,10 @@ const ORCAMENTO_DA_CLASSIFICACAO_MS = 40_000;
 const ESPERA_DA_CLASSIFICACAO_NA_CONVERSA_MS = 30_000;
 /** A Evolution baixa a foto antes de responder; na conversa, cada foto tem este tempo. */
 const ESPERA_DO_ENVIO_DA_FOTO_MS = 15_000;
+/** Quanto se espera a Evolution entregar o arquivo de uma mensagem que chegou. */
+const ESPERA_DO_ARQUIVO_MS = 25_000;
+/** A URL assinada que a Evolution usa para buscar o anexo do painel. */
+const VIDA_DA_URL_DO_ANEXO_S = 10 * 60;
 
 export const PARA_QUEM_DISTRIBUI = "administrador";
 
@@ -437,6 +461,8 @@ interface Envio {
   atendimentoId?: string | null;
   /** Uma foto do carro, em vez de texto. */
   midia?: { url: string; veiculoId: string; camada: CamadaDaFoto | null };
+  /** Um anexo do painel, já no bucket: `url` é a assinada que a Evolution baixa. */
+  anexo?: { url: string; caminho: string; conteudo: ConteudoDoAnexo; tipo: string; nome: string | null; bytes: number };
 }
 
 /**
@@ -460,12 +486,15 @@ async function enviarAoCliente(
       direcao: "saida",
       autor: envio.autor,
       autor_nome: envio.autorNome ?? null,
-      conteudo: envio.midia ? "imagem" : "texto",
+      conteudo: envio.anexo ? envio.anexo.conteudo : envio.midia ? "imagem" : "texto",
       texto: envio.texto.trim() || null,
       gatilho: envio.gatilho,
       situacao: "pendente",
       ...(envio.midia
         ? { midia_url: envio.midia.url, veiculo_id: Number(envio.midia.veiculoId), camada: envio.midia.camada }
+        : {}),
+      ...(envio.anexo
+        ? { midia_caminho: envio.anexo.caminho, midia_tipo: envio.anexo.tipo, midia_nome: envio.anexo.nome, midia_bytes: envio.anexo.bytes }
         : {}),
     })
     .select("id")
@@ -475,7 +504,14 @@ async function enviarAoCliente(
     // mandar e ver a própria mensagem voltar como "gente no celular da loja".
     return { ok: false, id: null, motivo: `mensagem não gravada: ${error?.message ?? "sem linha"}` };
   }
-  const r = envio.midia
+  const r = envio.anexo
+    ? await enviarAnexo(
+        envio.telefone,
+        { url: envio.anexo.url, conteudo: envio.anexo.conteudo, tipo: envio.anexo.tipo, nome: envio.anexo.nome, legenda: envio.texto },
+        cfg,
+        { transporte: deps.transporte },
+      )
+    : envio.midia
     ? await enviarImagem(envio.telefone, { url: envio.midia.url, legenda: envio.texto }, cfg, { transporte: deps.transporte, timeoutMs: ESPERA_DO_ENVIO_DA_FOTO_MS })
     : await enviarTexto(envio.telefone, envio.texto, cfg, {
         atrasoMs: comAtraso ? atrasoDeDigitacao(envio.texto) : undefined,
@@ -600,6 +636,88 @@ export interface DesfechoDaEntrada {
   detalhe?: string;
 }
 
+// ----------------------------------------------------------------------------
+// O arquivo da mensagem (2026-10-20, os anexos)
+// ----------------------------------------------------------------------------
+
+/**
+ * Baixa da Evolution o arquivo de uma mensagem que já está gravada e o guarda
+ * no bucket privado, na pasta do lead. Nunca lança e nunca desfaz a mensagem:
+ * o que não der vira `midia_erro`, e o painel diz "veja no celular da loja".
+ *
+ * Corre DEPOIS de a mensagem estar gravada (e, com `deps.depois`, depois da
+ * resposta ao n8n): a conversa não espera um vídeo descer para seguir.
+ */
+async function guardarArquivoDaMensagem(
+  supabase: Banco,
+  alvo: { mensagemId: string; leadId: string; waId: string; conteudo: ConteudoDoAnexo; midia: MidiaDaMensagem | null },
+  deps: Dependencias,
+): Promise<void> {
+  const anotar = async (campos: Linha) => {
+    const { error } = await supabase.from("atendimento_mensagens").update(campos).eq("id", alvo.mensagemId);
+    if (error) console.warn("[Atendimento] Arquivo da mensagem não anotado:", error.message);
+  };
+  try {
+    const declarados = alvo.midia?.bytes ?? null;
+    if (declarados !== null && declarados > TETO_DO_BUCKET) {
+      await anotar({ midia_erro: `arquivo de ${tamanhoLegivel(declarados)}, acima de ${tamanhoLegivel(TETO_DO_BUCKET)}: veja no celular da loja` });
+      return;
+    }
+    const evolution = evolutionDe(deps);
+    if (!evolution) {
+      await anotar({ midia_erro: `o arquivo não foi guardado: ${motivoSemEvolution()}` });
+      return;
+    }
+    let baixado = await baixarMidia(alvo.waId, evolution, {
+      converterParaMp4: alvo.conteudo === "audio",
+      transporte: deps.transporte,
+      timeoutMs: ESPERA_DO_ARQUIVO_MS,
+    });
+    // A conversão do áudio depende do ffmpeg da Evolution: sem ele, o OGG
+    // original ainda toca no Chrome e no Android.
+    if (!baixado.ok && alvo.conteudo === "audio") {
+      baixado = await baixarMidia(alvo.waId, evolution, { transporte: deps.transporte, timeoutMs: ESPERA_DO_ARQUIVO_MS });
+    }
+    if (!baixado.ok) {
+      await anotar({ midia_erro: baixado.motivo.slice(0, 500) });
+      return;
+    }
+    const arquivo = Buffer.from(baixado.base64, "base64");
+    if (arquivo.byteLength === 0) {
+      await anotar({ midia_erro: "a Evolution entregou um arquivo vazio" });
+      return;
+    }
+    if (arquivo.byteLength > TETO_DO_BUCKET) {
+      await anotar({ midia_erro: `arquivo de ${tamanhoLegivel(arquivo.byteLength)}, acima de ${tamanhoLegivel(TETO_DO_BUCKET)}: veja no celular da loja` });
+      return;
+    }
+    const tipo = tipoBase(baixado.tipo ?? alvo.midia?.tipo) || "application/octet-stream";
+    const nome = nomeDoArquivo(alvo.midia?.nome ?? baixado.nome);
+    const caminho = caminhoDoAnexo(alvo.leadId, alvo.mensagemId, extensaoDoArquivo(tipo, nome));
+    const { error } = await supabase.storage
+      .from(BUCKET_DOS_ANEXOS)
+      .upload(caminho, arquivo, { contentType: tipo, upsert: true });
+    if (error) {
+      await anotar({ midia_erro: `o arquivo não subiu para o bucket: ${error.message}`.slice(0, 500) });
+      return;
+    }
+    await anotar({ midia_caminho: caminho, midia_tipo: tipo, midia_nome: nome, midia_bytes: arquivo.byteLength, midia_erro: null });
+  } catch (erro) {
+    await anotar({ midia_erro: `o arquivo não foi guardado: ${erro instanceof Error ? erro.message : String(erro)}`.slice(0, 500) });
+  }
+}
+
+/** Guarda o arquivo depois da resposta, quando a rota deixa; senão, na hora. */
+async function agendarArquivo(
+  supabase: Banco,
+  alvo: Parameters<typeof guardarArquivoDaMensagem>[1],
+  deps: Dependencias,
+): Promise<void> {
+  const tarefa = () => guardarArquivoDaMensagem(supabase, alvo, deps);
+  if (deps.depois) await deps.depois(tarefa);
+  else await tarefa();
+}
+
 export async function registrarEntrada(
   supabase: Banco,
   evento: MensagemDaEvolution,
@@ -623,7 +741,7 @@ export async function registrarEntrada(
   const equipe = await lerEquipe(supabase);
   const pessoa = daEquipe(equipe, evento.telefone);
 
-  if (evento.deMim) return registrarSaidaDaLoja(supabase, evento, pessoa, agora, loja);
+  if (evento.deMim) return registrarSaidaDaLoja(supabase, evento, pessoa, agora, loja, deps);
   if (pessoa) return registrarMensagemDaEquipe(supabase, pessoa, agora);
 
   const { config } = await lerConfigDoAtendimento(supabase);
@@ -693,6 +811,9 @@ export async function registrarEntrada(
     if (erroGravar.code === "23505") return { acao: "repetida", lead: leadId };
     return { acao: "falhou", lead: leadId, detalhe: erroGravar.message };
   }
+  if (temArquivo(evento.conteudo)) {
+    await agendarArquivo(supabase, { mensagemId: String(gravada!.id), leadId, waId: evento.waId, conteudo: evento.conteudo, midia: evento.midia }, deps);
+  }
 
   // O cliente respondeu: a cadência para (a régua do manobrAI).
   const patch: Linha = {};
@@ -728,6 +849,24 @@ export async function registrarEntrada(
 }
 
 /**
+ * A mensagem que voltou pelo webhook é o eco desta que o site mandou?
+ *
+ * Pelo texto, porque o eco às vezes chega antes de a Evolution devolver o id.
+ * No anexo, o tipo tem de bater, e o "texto" do eco é a legenda — ou, no
+ * documento sem legenda, o nome do arquivo (`lerConteudo`).
+ */
+function ehOEco(m: Linha, evento: MensagemDaEvolution): boolean {
+  const deLa = (evento.texto ?? "").trim();
+  const daqui = (m.texto ?? "").trim();
+  const conteudo = m.conteudo ?? "texto";
+  if (conteudo !== "texto" && evento.conteudo !== "texto") {
+    if (conteudo !== evento.conteudo) return false;
+    return daqui === deLa || (!daqui && Boolean(m.midia_nome) && (m.midia_nome ?? "").trim() === deLa);
+  }
+  return daqui === deLa;
+}
+
+/**
  * Saiu do número da loja. Três casos: o eco do que o próprio site mandou
  * (reconhecido pelo texto, porque o eco às vezes chega antes da Evolution
  * responder o id); aviso para alguém da equipe; ou gente escrevendo no
@@ -739,20 +878,21 @@ async function registrarSaidaDaLoja(
   pessoa: PessoaDaEquipe | null,
   agora: Date,
   loja: string | null,
+  deps: Dependencias,
 ): Promise<DesfechoDaEntrada> {
   if (pessoa) return { acao: "equipe", detalhe: "mensagem da loja para a equipe" };
 
   const desde = new Date(agora.getTime() - JANELA_DO_ECO_MS).toISOString();
   const { data: recentes } = await supabase
     .from("atendimento_mensagens")
-    .select("id, lead_id, texto, wa_id")
+    .select("id, lead_id, texto, wa_id, conteudo, midia_nome")
     .eq("direcao", "saida")
     .in("telefone", variantesDoTelefone(evento.telefone))
     .is("wa_id", null)
     .gte("criado_em", desde)
     .order("criado_em", { ascending: false })
     .limit(10);
-  const eco = ((recentes ?? []) as Linha[]).find((m) => (m.texto ?? "").trim() === (evento.texto ?? "").trim());
+  const eco = ((recentes ?? []) as Linha[]).find((m) => ehOEco(m, evento));
   if (eco) {
     await supabase.from("atendimento_mensagens").update({ wa_id: evento.waId, situacao: "enviada" }).eq("id", eco.id);
     return { acao: "eco", lead: eco.lead_id, mensagem: eco.id };
@@ -763,20 +903,29 @@ async function registrarSaidaDaLoja(
   const leadId = String(lead.id);
   const atendimento = await garantirAtendimento(supabase, leadId, agora);
 
-  await supabase.from("atendimento_mensagens").insert({
-    ...(loja ? { org_id: loja } : {}),
-    lead_id: leadId,
-    atendimento_id: atendimento?.id ?? null,
-    telefone: evento.telefone,
-    direcao: "saida",
-    autor: "vendedor",
-    autor_nome: "Celular da loja",
-    gatilho: "celular",
-    conteudo: evento.conteudo,
-    texto: evento.texto,
-    wa_id: evento.waId,
-    situacao: "enviada",
-  });
+  const { data: doCelular } = await supabase
+    .from("atendimento_mensagens")
+    .insert({
+      ...(loja ? { org_id: loja } : {}),
+      lead_id: leadId,
+      atendimento_id: atendimento?.id ?? null,
+      telefone: evento.telefone,
+      direcao: "saida",
+      autor: "vendedor",
+      autor_nome: "Celular da loja",
+      gatilho: "celular",
+      conteudo: evento.conteudo,
+      texto: evento.texto,
+      wa_id: evento.waId,
+      situacao: "enviada",
+    })
+    .select("id")
+    .single();
+  // A foto ou o documento que alguém mandou do celular da loja aparece no
+  // painel como o do cliente: o arquivo, e não o rótulo.
+  if (doCelular?.id && temArquivo(evento.conteudo)) {
+    await agendarArquivo(supabase, { mensagemId: String(doCelular.id), leadId, waId: evento.waId, conteudo: evento.conteudo, midia: evento.midia }, deps);
+  }
 
   if (!mensagemDaLojaAssume(evento.conteudo)) {
     return { acao: "mensagem_da_loja", lead: leadId, detalhe: "foto, áudio ou documento não tiram o assistente" };
@@ -2131,29 +2280,107 @@ export const ACOES_DO_ASSISTENTE: readonly AcaoDoAssistente[] = ["pausar", "reto
 
 export type ResultadoDoPainel = { ok: true; aviso?: string } | { ok: false; status: number; erro: string };
 
+export type AnexoPreparado = { ok: true; caminho: string; token: string; url: string } | { ok: false; status: number; erro: string };
+
+/**
+ * O primeiro passo do anexo do painel (2026-10-20): confere o arquivo (tipo
+ * e tamanho que o WhatsApp aceita) e devolve uma URL assinada de upload para
+ * a pasta do lead. O navegador sobe o arquivo direto para o bucket — a função
+ * da Vercel recusa corpo acima de ~4,5 MB — e depois pede o envio com o
+ * caminho (`enviarDoPainel`). Quem chama já conferiu o escopo do lead.
+ */
+export async function prepararAnexoDoPainel(
+  supabase: Banco,
+  pedido: { leadId: string; nome: unknown; tipo: unknown; bytes: unknown },
+): Promise<AnexoPreparado> {
+  const aceito = anexoDoPainel({ tipo: typeof pedido.tipo === "string" ? pedido.tipo : null, bytes: Number(pedido.bytes) });
+  if (!aceito.ok) return { ok: false, status: 422, erro: aceito.erro };
+  const nome = typeof pedido.nome === "string" ? nomeDoArquivo(pedido.nome) : null;
+  const caminho = caminhoDoAnexo(pedido.leadId, crypto.randomUUID(), extensaoDoArquivo(aceito.tipo, nome), "painel-");
+  const { data, error } = await supabase.storage.from(BUCKET_DOS_ANEXOS).createSignedUploadUrl(caminho);
+  if (error || !data?.token) {
+    return { ok: false, status: 503, erro: `Não deu para preparar o anexo: ${error?.message ?? "o bucket não respondeu"}. A migração 20261024120000 já foi aplicada?` };
+  }
+  return { ok: true, caminho, token: data.token, url: data.signedUrl };
+}
+
+/** O que se sabe do anexo que o navegador subiu: o bucket diz, não o navegador. */
+async function lerAnexoSubido(
+  supabase: Banco,
+  caminho: string,
+): Promise<{ ok: true; tipo: string; bytes: number } | { ok: false; erro: string }> {
+  const [pasta, arquivo] = caminho.split("/");
+  const { data, error } = await supabase.storage.from(BUCKET_DOS_ANEXOS).list(pasta, { search: arquivo, limit: 5 });
+  if (error) return { ok: false, erro: `o bucket não respondeu: ${error.message}` };
+  const objeto = (data ?? []).find((o) => o.name === arquivo);
+  if (!objeto) return { ok: false, erro: "o arquivo não chegou ao bucket — envie de novo" };
+  const meta = (objeto.metadata ?? {}) as { size?: unknown; mimetype?: unknown };
+  return { ok: true, tipo: tipoBase(typeof meta.mimetype === "string" ? meta.mimetype : null), bytes: Number(meta.size) };
+}
+
 /**
  * O vendedor escreveu no painel: sai pelo número da loja, conta como
  * atendimento (reinicia o relógio, tira de "Novo") e o assistente sai da
  * conversa até alguém retomar — a régua do manobrAI.
+ *
+ * Com `anexo` (o caminho que `prepararAnexoDoPainel` deu e o navegador
+ * subiu), o texto vira a legenda. O áudio não tem legenda no WhatsApp: o
+ * texto sai logo depois, como mensagem.
  */
 export async function enviarDoPainel(
   supabase: Banco,
-  pedido: { leadId: string; texto: string; autor: string },
+  pedido: { leadId: string; texto: string; autor: string; anexo?: { caminho: unknown; nome?: unknown } | null },
   deps: Dependencias = {},
 ): Promise<ResultadoDoPainel> {
   const agora = deps.agora ?? new Date();
   const texto = pedido.texto.trim();
-  if (!texto) return { ok: false, status: 400, erro: "Escreva a mensagem." };
+  const comAnexo = Boolean(pedido.anexo);
+  if (!texto && !comAnexo) return { ok: false, status: 400, erro: "Escreva a mensagem." };
   if (texto.length > 4000) return { ok: false, status: 400, erro: "A mensagem passa de 4000 caracteres." };
+  if (comAnexo && texto.length > 1000) return { ok: false, status: 400, erro: "A legenda do anexo passa de 1000 caracteres." };
+  if (pedido.anexo && !caminhoDoPainelNoLead(pedido.anexo.caminho, pedido.leadId)) {
+    return { ok: false, status: 400, erro: "Anexo inválido para este lead." };
+  }
   const evolution = evolutionDe(deps);
   if (!evolution) return { ok: false, status: 503, erro: `O WhatsApp da loja não está ligado ao painel: ${motivoSemEvolution()}.` };
   const lead = await lerLead(supabase, pedido.leadId);
   if (!lead) return { ok: false, status: 404, erro: "Lead não encontrado" };
   if (!lead.telefone) return { ok: false, status: 400, erro: "O lead não tem telefone." };
 
+  let anexo: Envio["anexo"];
+  if (pedido.anexo) {
+    const caminho = pedido.anexo.caminho as string;
+    const subido = await lerAnexoSubido(supabase, caminho);
+    if (!subido.ok) return { ok: false, status: 409, erro: `O anexo não saiu: ${subido.erro}.` };
+    // O tipo e o tamanho que valem são os do bucket: o navegador pode dizer outro.
+    const aceito = anexoDoPainel({ tipo: subido.tipo, bytes: subido.bytes });
+    if (!aceito.ok) return { ok: false, status: 422, erro: aceito.erro };
+    const { data: assinada, error: erroDaAssinatura } = await supabase.storage
+      .from(BUCKET_DOS_ANEXOS)
+      .createSignedUrl(caminho, VIDA_DA_URL_DO_ANEXO_S);
+    if (erroDaAssinatura || !assinada?.signedUrl) {
+      return { ok: false, status: 502, erro: `O anexo não saiu: o bucket não assinou o arquivo (${erroDaAssinatura?.message ?? "sem URL"}).` };
+    }
+    anexo = {
+      url: assinada.signedUrl,
+      caminho,
+      conteudo: aceito.conteudo,
+      tipo: aceito.tipo,
+      nome: typeof pedido.anexo.nome === "string" ? nomeDoArquivo(pedido.anexo.nome) : null,
+      bytes: subido.bytes,
+    };
+  }
+
   const atendimento = await garantirAtendimento(supabase, String(lead.id), agora);
-  const r = await enviarAoCliente(supabase, { leadId: String(lead.id), telefone: lead.telefone, texto, gatilho: "painel", autor: "vendedor", autorNome: pedido.autor, atendimentoId: atendimento?.id ?? null }, evolution, deps, false);
-  if (!r.ok) return { ok: false, status: 502, erro: `A mensagem não saiu: ${r.motivo}.` };
+  const base = { leadId: String(lead.id), telefone: lead.telefone, gatilho: "painel" as const, autor: "vendedor" as const, autorNome: pedido.autor, atendimentoId: atendimento?.id ?? null };
+  const legendaNoAnexo = anexo && anexo.conteudo !== "audio";
+  const r = await enviarAoCliente(supabase, { ...base, texto: legendaNoAnexo ? texto : anexo ? "" : texto, ...(anexo ? { anexo } : {}) }, evolution, deps, false);
+  if (!r.ok) return { ok: false, status: 502, erro: `${anexo ? "O anexo" : "A mensagem"} não saiu: ${r.motivo}.` };
+  let aviso: string | undefined;
+  if (anexo && !legendaNoAnexo && texto) {
+    const t = await enviarAoCliente(supabase, { ...base, texto }, evolution, deps, false);
+    if (!t.ok) aviso = `O áudio saiu, mas o texto não: ${t.motivo}.`;
+  }
 
   const { error } = await supabase.rpc("registrar_contato_do_lead", { p_lead: lead.id, p_canal: "evolution", p_autor: pedido.autor });
   if (error) console.error("[Atendimento] Contato do painel não registrado:", error.message);
@@ -2162,7 +2389,7 @@ export async function enviarDoPainel(
     await assistenteNoSla(supabase, String(lead.id), false, agora);
     await anotarNoRastro(supabase, String(lead.id), `${pedido.autor} respondeu pelo painel: o assistente saiu da conversa.`, { acao: "pausa", por: "painel" }, pedido.autor);
   }
-  return { ok: true };
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 /**

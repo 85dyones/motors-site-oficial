@@ -31,6 +31,7 @@ import { resolverConversasDoLead } from "../../../../lib/conversaDoDesfecho";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
 import { AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO, atribuirConversasDoLead } from "../../../../lib/donoDaConversa";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
+import { BUCKET_DOS_ANEXOS } from "../../../../lib/anexosDoAtendimento";
 import {
   contarPassagensCreditadas,
   etiquetarPassagemDoSdr,
@@ -878,6 +879,26 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+/** Apaga a pasta do lead no bucket dos anexos. Nunca lança. */
+async function apagarArquivosDoLead(leadId: string): Promise<{ ok: true } | { ok: false; aviso: string }> {
+  const aviso = "O lead foi excluído, mas os arquivos da conversa ficaram no bucket atendimento-midia: repita a exclusão ou apague a pasta do lead.";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(leadId)) return { ok: true };
+  try {
+    const bucket = createAdminSupabaseClient().storage.from(BUCKET_DOS_ANEXOS);
+    for (let volta = 0; volta < 20; volta += 1) {
+      const { data, error } = await bucket.list(leadId, { limit: 100 });
+      if (error) return { ok: false, aviso };
+      const caminhos = (data ?? []).filter((o) => o.name).map((o) => `${leadId}/${o.name}`);
+      if (caminhos.length === 0) return { ok: true };
+      const { error: erroAoApagar } = await bucket.remove(caminhos);
+      if (erroAoApagar) return { ok: false, aviso };
+    }
+    return { ok: false, aviso };
+  } catch {
+    return { ok: false, aviso };
+  }
+}
+
 /**
  * Eliminação a pedido do titular — LGPD art. 18, VI.
  *
@@ -917,7 +938,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    // Os arquivos da conversa (fotos, documentos do cliente — 2026-10-20)
+    // moram na pasta do lead no bucket privado: a conversa sai pelo cascade,
+    // e os arquivos saem aqui. O lead já foi apagado; o que falhar vira aviso,
+    // para o Administrador repetir.
+    const arquivos = await apagarArquivosDoLead(id);
+    return NextResponse.json(arquivos.ok ? { ok: true } : { ok: true, aviso: arquivos.aviso });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ACEITOS_NO_PAINEL, anexoDoPainel, tamanhoLegivel } from "../../../lib/anexosDoAtendimento";
+import { subirAnexo } from "../../../lib/anexoDoPainel-navegador";
 import {
   ROTULO_DA_ACAO,
   acoesDisponiveis,
+  anexoDaMensagem,
   horaDaMensagem,
   fotoDaMensagem,
   marcasDaMensagem,
@@ -25,6 +28,12 @@ import type { ConversaDoLead } from "./useConversaDoLead";
  * conversa inteira (cliente, assistente, equipe e os toques de cadência), e
  * a caixa para responder pelo número da loja. Responder aqui tira o
  * assistente da conversa, como no manobrAI.
+ *
+ * Anexos (2026-10-20, pedido do dono: *"envio de anexos, fotos, vídeos e
+ * documentos"*): o que o cliente manda aparece como arquivo — a foto, o
+ * vídeo e o áudio tocam aqui, o documento abre ou baixa —, e o clipe anexa
+ * um arquivo à resposta, com o texto como legenda. O arquivo sobe direto do
+ * navegador para o bucket privado (`subirAnexo`) e só então vai ao cliente.
  *
  * O resumo e o aquecimento eram abas daqui; desde 2026-10-20 ficam no bloco q,
  * sempre à vista na coluna da direita (`AquecimentoDoLead`) — pedido do dono:
@@ -59,35 +68,67 @@ export default function AtendimentoDoLead({
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
+  const [arquivo, setArquivo] = useState<File | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const fim = useRef<HTMLLIElement>(null);
+  const campoDoArquivo = useRef<HTMLInputElement>(null);
 
   const totalDeMensagens = dados?.mensagens.length ?? 0;
   useEffect(() => {
     fim.current?.scrollIntoView?.({ block: "nearest" });
   }, [totalDeMensagens]);
 
+  /** Escolheu um arquivo: confere tipo e tamanho antes de qualquer envio. */
+  function escolherArquivo(lista: FileList | null) {
+    const escolhido = lista?.[0] ?? null;
+    if (campoDoArquivo.current) campoDoArquivo.current.value = "";
+    if (!escolhido) return;
+    const aceito = anexoDoPainel({ tipo: escolhido.type, bytes: escolhido.size });
+    if (!aceito.ok) {
+      setErro(aceito.erro);
+      return;
+    }
+    setErro(null);
+    setArquivo(escolhido);
+  }
+
+  /** O anexo em dois passos: a URL de upload, e o arquivo direto para o bucket. Devolve o caminho. */
+  async function subir(escolhido: File): Promise<string> {
+    const r = await fetch(`/api/leads/${encodeURIComponent(leadId)}/conversa/anexo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: escolhido.name, tipo: escolhido.type, bytes: escolhido.size }),
+    });
+    const corpo = (await r.json().catch(() => null)) as { error?: string; caminho?: string; token?: string } | null;
+    if (!r.ok || !corpo?.caminho || !corpo.token) throw new Error(corpo?.error ?? "O anexo não subiu.");
+    const subido = await subirAnexo(corpo.caminho, corpo.token, escolhido);
+    if (!subido.ok) throw new Error(`O anexo não subiu: ${subido.erro}`);
+    return corpo.caminho;
+  }
+
   async function enviar() {
     const mensagem = texto.trim();
-    if (!mensagem || ocupado) return;
+    if ((!mensagem && !arquivo) || ocupado) return;
     setOcupado(true);
     setAviso(null);
     try {
+      const anexo = arquivo ? { caminho: await subir(arquivo), nome: arquivo.name } : null;
       const r = await fetch(`/api/leads/${encodeURIComponent(leadId)}/conversa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: mensagem }),
+        body: JSON.stringify(anexo ? { texto: mensagem, anexo } : { texto: mensagem }),
       });
       const corpo = (await r.json().catch(() => null)) as { error?: string; aviso?: string } | null;
       if (!r.ok) {
         setErro(corpo?.error ?? "A mensagem não saiu.");
       } else {
         setTexto("");
+        setArquivo(null);
         setErro(null);
         if (corpo?.aviso) setAviso(corpo.aviso);
       }
-    } catch {
-      setErro("A mensagem não saiu.");
+    } catch (e) {
+      setErro(e instanceof Error && e.message ? e.message : "A mensagem não saiu.");
     } finally {
       setOcupado(false);
       await ler();
@@ -170,6 +211,7 @@ export default function AtendimentoDoLead({
             const doCliente = m.direcao === "entrada";
             const marcas = marcasDaMensagem(m);
             const foto = fotoDaMensagem(m);
+            const anexo = anexoDaMensagem(m, leadId);
             const texto = textoDaMensagem(m);
             return (
               <li key={m.id} data-autor={m.autor} className={`flex flex-col gap-1 ${doCliente ? "items-start" : "items-end"}`}>
@@ -193,7 +235,33 @@ export default function AtendimentoDoLead({
                       <img src={foto} alt={texto || "Foto do carro"} loading="lazy" className="block max-h-40 w-auto max-w-full" />
                     </a>
                   )}
-                  {texto && <span className={foto ? "mt-1 block text-[12px]" : undefined}>{texto}</span>}
+                  {anexo?.conteudo === "imagem" && (
+                    <a href={anexo.src} target="_blank" rel="noopener noreferrer" className="block">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- o arquivo vem de URL assinada, de vida curta */}
+                      <img src={anexo.src} alt={texto || "Foto da conversa"} loading="lazy" className="block max-h-56 w-auto max-w-full" />
+                    </a>
+                  )}
+                  {anexo?.conteudo === "video" && (
+                    <video src={anexo.src} controls preload="metadata" className="block max-h-64 w-auto max-w-full">
+                      <a href={anexo.baixar}>Baixar o vídeo</a>
+                    </video>
+                  )}
+                  {anexo?.conteudo === "audio" && (
+                    <audio src={anexo.src} controls preload="none" className="block w-64 max-w-full">
+                      <a href={anexo.baixar}>Baixar o áudio</a>
+                    </audio>
+                  )}
+                  {anexo?.conteudo === "documento" && (
+                    <a
+                      href={anexo.baixar}
+                      className="mt-foco flex items-center gap-2 border border-current/30 px-2 py-1.5 text-[12px] underline-offset-2 hover:underline"
+                    >
+                      <span aria-hidden="true">📄</span>
+                      <span className="[overflow-wrap:anywhere]">{anexo.nome ?? "Documento"}</span>
+                      {anexo.tamanho && <span className="opacity-70 tabular-nums">· {anexo.tamanho}</span>}
+                    </a>
+                  )}
+                  {texto && <span className={foto || anexo ? "mt-1 block text-[12px]" : undefined}>{texto}</span>}
                 </p>
               </li>
             );
@@ -217,15 +285,50 @@ export default function AtendimentoDoLead({
             placeholder={
               assistente?.whatsapp_ligado === false
                 ? "O WhatsApp da loja ainda não está ligado ao painel."
-                : "Escreva para o cliente…"
+                : arquivo
+                  ? "Legenda (opcional)…"
+                  : "Escreva para o cliente…"
             }
             className="mt-foco w-full resize-y border border-mt-regua bg-mt-surface px-3 py-2 text-[13px] text-mt-ink disabled:opacity-60"
           />
+          {arquivo && (
+            <div className="flex flex-wrap items-center gap-2 text-[12px] text-mt-neutral-800">
+              <span aria-hidden="true">📎</span>
+              <span className="[overflow-wrap:anywhere]" data-anexo-escolhido="">
+                {arquivo.name} · {tamanhoLegivel(arquivo.size)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setArquivo(null)}
+                disabled={ocupado}
+                aria-label={`Tirar o anexo ${arquivo.name}`}
+                className="mt-foco cursor-pointer px-1 text-mt-neutral-600 hover:text-mt-accent disabled:opacity-45"
+              >
+                ×
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={campoDoArquivo}
+              type="file"
+              accept={ACEITOS_NO_PAINEL}
+              className="hidden"
+              aria-label="Escolher o arquivo para anexar"
+              onChange={(e) => escolherArquivo(e.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => campoDoArquivo.current?.click()}
+              disabled={ocupado || assistente?.whatsapp_ligado === false}
+              className={BOTAO_FINO}
+            >
+              📎 Anexar
+            </button>
             <button
               type="button"
               onClick={() => void enviar()}
-              disabled={ocupado || !texto.trim() || assistente?.whatsapp_ligado === false}
+              disabled={ocupado || (!texto.trim() && !arquivo) || assistente?.whatsapp_ligado === false}
               className="mt-btn mt-btn-primario mt-foco px-4 py-[10px] text-[11px] disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11"
             >
               ENVIAR →

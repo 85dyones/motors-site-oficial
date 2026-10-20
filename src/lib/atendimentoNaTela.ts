@@ -11,6 +11,7 @@ import {
 import { ROTULO_DA_CADENCIA, type NomeDaCadencia } from "./cadencias";
 import { prontidao, rotuloDaVisita, trocaParaLer } from "./metodoDeQualificacao";
 import { ROTULO_DO_CONTEUDO, type ConteudoDaMensagem } from "./evolutionEventos";
+import { tamanhoLegivel, temArquivo, type ConteudoDoAnexo } from "./anexosDoAtendimento";
 import { ROTULO_DA_CAMADA, ehCamada } from "./fotosDoAtendimento";
 import { espera } from "./funil";
 
@@ -34,6 +35,13 @@ export interface MensagemNaTela {
   /** A foto do carro que a loja mandou (2026-10-20), e de que camada. */
   midia_url?: string | null;
   camada?: string | null;
+  /** O arquivo da mensagem no bucket (os anexos, 2026-10-20). */
+  midia_caminho?: string | null;
+  midia_tipo?: string | null;
+  midia_nome?: string | null;
+  midia_bytes?: number | null;
+  /** Por que o arquivo não veio. */
+  midia_erro?: string | null;
 }
 
 export interface EstadoDoAtendimento {
@@ -103,9 +111,14 @@ export function quemEscreveu(m: Pick<MensagemNaTela, "autor" | "autor_nome">, no
 }
 
 /** O que a mensagem diz, inclusive a mídia sem legenda. A foto do carro diz só a legenda: a tela já mostra a foto. */
-export function textoDaMensagem(m: Pick<MensagemNaTela, "conteudo" | "texto" | "midia_url">): string {
+export function textoDaMensagem(
+  m: Pick<MensagemNaTela, "conteudo" | "texto" | "midia_url"> & Partial<Pick<MensagemNaTela, "midia_caminho" | "midia_nome">>,
+): string {
   const texto = (m.texto ?? "").trim();
   if (fotoDaMensagem(m)) return texto;
+  // Com o arquivo na tela, fica só a legenda — e o documento sem legenda, cujo
+  // "texto" é o próprio nome do arquivo, não repete o nome que o cartão já mostra.
+  if (m.midia_caminho && temArquivo(m.conteudo)) return texto === (m.midia_nome ?? "").trim() ? "" : texto;
   const conteudo = (m.conteudo ?? "texto") as ConteudoDaMensagem;
   if (conteudo === "texto") return texto || "(mensagem vazia)";
   const rotulo = ROTULO_DO_CONTEUDO[conteudo] ?? "Mensagem";
@@ -118,10 +131,44 @@ export function fotoDaMensagem(m: Pick<MensagemNaTela, "midia_url">): string | n
   return /^https?:\/\//i.test(url) ? url : null;
 }
 
+export interface AnexoNaTela {
+  conteudo: ConteudoDoAnexo;
+  /** A porta do painel, que confere o escopo e redireciona para a URL assinada. */
+  src: string;
+  /** Para o documento: baixar com o nome. */
+  baixar: string;
+  nome: string | null;
+  tamanho: string;
+}
+
+/**
+ * O arquivo da mensagem, quando ele foi guardado: foto, vídeo, áudio ou
+ * documento. Abre pela porta do painel (`/api/leads/[id]/conversa/midia/[m]`),
+ * nunca por um endereço direto do bucket, que é privado.
+ */
+export function anexoDaMensagem(
+  m: Pick<MensagemNaTela, "id" | "conteudo"> & Partial<Pick<MensagemNaTela, "midia_caminho" | "midia_nome" | "midia_bytes">>,
+  leadId: string,
+): AnexoNaTela | null {
+  if (!m.midia_caminho || !temArquivo(m.conteudo)) return null;
+  const src = `/api/leads/${encodeURIComponent(leadId)}/conversa/midia/${encodeURIComponent(m.id)}`;
+  return {
+    conteudo: m.conteudo,
+    src,
+    baixar: `${src}?baixar=1`,
+    nome: m.midia_nome?.trim() || null,
+    tamanho: tamanhoLegivel(m.midia_bytes),
+  };
+}
+
 /** As marcas da mensagem: o que ela foi, e se saiu. */
-export function marcasDaMensagem(m: Pick<MensagemNaTela, "gatilho" | "situacao" | "camada" | "midia_url">): string[] {
+export function marcasDaMensagem(
+  m: Pick<MensagemNaTela, "gatilho" | "situacao" | "camada" | "midia_url"> & Partial<Pick<MensagemNaTela, "conteudo" | "midia_caminho" | "midia_erro">>,
+): string[] {
   const marcas: string[] = [];
   if (fotoDaMensagem(m)) marcas.push(ehCamada(m.camada) ? `foto · ${ROTULO_DA_CAMADA[m.camada]}` : "foto");
+  // O arquivo que não veio: o WhatsApp do celular da loja ainda o tem.
+  if (!m.midia_caminho && m.midia_erro && temArquivo(m.conteudo)) marcas.push("arquivo só no celular da loja");
   if (m.gatilho === "cadencia") marcas.push("cadência");
   if (m.gatilho === "passagem") marcas.push("passagem ao vendedor");
   if (m.gatilho === "celular") marcas.push("pelo celular da loja");
