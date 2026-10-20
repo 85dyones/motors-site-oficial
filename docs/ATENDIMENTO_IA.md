@@ -481,6 +481,64 @@ servidor) e acrescenta a
 Até o passo 7, nada muda para o cliente: com o assistente desligado, a entrada
 só grava a conversa e cria o lead.
 
+### 10.1 Testar no branch, antes do merge
+
+Decisão do dono em 20/10/2026: *"sem merge por enquanto, vamos testar no branch
+paralelo, só entra 100%"*. O teste roda no **preview do branch**, que a Vercel
+atualiza a cada push:
+`https://motors-site-oficial-git-claude-9d2369-dyones-projects-a2f07575.vercel.app`.
+
+O que o preview tem e o que falta (conferido em 20/10):
+
+- **Banco**: o preview usa o **mesmo Supabase da produção**, e as duas migrações
+  ainda não estão nele. Ou elas entram na produção antes do merge (aditivas e
+  com o assistente desligado; a `main` não lê nada delas), ou o teste usa um
+  branch do Supabase. O branch nasce sem dados (sem estoque, sem equipe), e a
+  integração de branches do projeto está em `MIGRATIONS_FAILED`.
+- **Variáveis**: nenhuma das do atendimento existe na Vercel. Cadastrar em
+  **Preview**, só para este branch: `ATENDIMENTO_MOTOR_TOKEN` (um token de
+  teste, diferente do que for para a produção), `DEEPSEEK_API_KEY`,
+  `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA`. Depois,
+  republicar o preview.
+- **Proteção**: os previews ficam atrás do login da Vercel, e o n8n não passa
+  dele. Gerar o segredo de **Protection Bypass for Automation** do projeto.
+- **Evolution**: uma **instância de teste**, com um número de teste, sem
+  Chatwoot. A instância da loja continua com o Ney do Chatwoot até o merge.
+- **n8n**: gerar as cópias de teste dos workflows e importar **desligadas**:
+
+  ```
+  VERCEL_AUTOMATION_BYPASS_SECRET=... node scripts/workflows-do-atendimento-para-teste.js \
+    --site https://motors-site-oficial-git-claude-9d2369-dyones-projects-a2f07575.vercel.app
+  ```
+
+  Elas saem em `n8n-teste/`, que o `.gitignore` ignora, porque levam o segredo
+  e o repositório é público. O webhook da instância de teste aponta para
+  `…/webhook/atendimento-evolution-teste`.
+
+**Cuidado com a equipe**: com o banco da produção, o resumo vai ao WhatsApp de
+um vendedor de verdade. Nos primeiros testes, deixar a distribuição em "o
+administrador escolhe" (o resumo vai para quem distribui e para o gestor). O
+rodízio entra no teste com o vendedor avisado.
+
+**Roteiro** (do número de teste para o da instância de teste):
+
+1. A primeira mensagem cria o lead e o assistente responde como "Ney, a versão
+   digital do Silvio Ney". Perguntar "você é uma pessoa?": ele diz que é
+   virtual.
+2. Perguntar por um carro do estoque: ele manda as fotos de fora e oferece o
+   interior. Aceitar o interior e depois pedir um detalhe (motor, rodas).
+3. Perguntar o preço: ele diz o preço anunciado, como anunciado. Pedir
+   desconto: o lead é entregue.
+4. Esquentar o lead (orçamento, pagamento, prazo, visita): entrega quente, com o
+   resumo no WhatsApp e a passagem ao cliente com o nome de quem atende.
+5. Trocar o dono no quadro: o dono novo recebe o resumo na hora.
+6. Responder "ok" ao resumo: conta como confirmação na aba Desempenho.
+7. O cliente escreve depois da entrega: a mensagem vai ao vendedor.
+8. Prévia da rodada (`{ "reservar": false }`): mostra os toques sem enviar.
+9. Pedir para não receber mais mensagens: opt-out, e nenhum toque depois.
+10. Desligar o assistente na tela: os leads com ele voltam para a equipe.
+11. Aba Fotos: classificar a fila, corrigir uma camada e refazer um carro.
+
 ---
 
 ## 11. O que ficou de fora, e por quê

@@ -84,3 +84,7 @@ conteudo-seo/feed-bruto.xml
 # Restaurar o conteúdo: `npx skills experimental_install`.
 .agents/
 .claude/skills/
+
+# Cópias de teste dos workflows do atendimento (scripts/workflows-do-atendimento-para-teste.js):
+# levam o segredo do bypass da Vercel, e este repositório é PÚBLICO.
+/n8n-teste/
