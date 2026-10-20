@@ -80,6 +80,7 @@ export default function PainelDoAtendimento() {
   const [relatorio, setRelatorio] = useState<RespostaDoRelatorio | null>(null);
   const [erroDoRelatorio, setErroDoRelatorio] = useState("");
   const [config, setConfig] = useState<RespostaDaConfig | null>(null);
+  const [erroDaConfig, setErroDaConfig] = useState("");
 
   useEffect(() => {
     let vivo = true;
@@ -103,10 +104,20 @@ export default function PainelDoAtendimento() {
   }, [dias]);
 
   useEffect(() => {
-    // Quem não configura recebe 403 — e a aba simplesmente não aparece.
+    // Quem não configura recebe 403 — e a aba simplesmente não aparece. Outra
+    // falha, para quem configura, vira aviso: sumir com a aba em silêncio
+    // deixava o dono procurando onde ligar o assistente (teste de 20/10/2026).
     void fetch("/api/atendimento/config", { cache: "no-store" })
-      .then(async (r) => (r.ok ? setConfig(await r.json()) : null))
-      .catch(() => null);
+      .then(async (r) => {
+        if (r.ok) {
+          setConfig(await r.json());
+          return;
+        }
+        if (r.status === 403) return;
+        const corpo = await r.json().catch(() => null);
+        setErroDaConfig(corpo?.error ? `${corpo.error} (HTTP ${r.status})` : `HTTP ${r.status}`);
+      })
+      .catch(() => setErroDaConfig("sem resposta do servidor"));
   }, []);
 
   const abas = [
@@ -145,6 +156,24 @@ export default function PainelDoAtendimento() {
           </Link>
         </div>
       </div>
+
+      {erroDaConfig && (
+        <div role="alert" className={FAIXA_DE_ERRO} data-erro-da-config>
+          Não deu para ler a configuração do assistente: {erroDaConfig}. As abas Configuração e Fotos voltam quando ela
+          responder.
+        </div>
+      )}
+
+      {config && !config.config.ativo && aba !== "configuracao" && (
+        <div className={`${FAIXA_DE_AVISO} flex flex-wrap items-center justify-between gap-3`} data-assistente-desligado>
+          <span>
+            <strong>O assistente está desligado</strong> — ele não responde ninguém no WhatsApp até ser ligado.
+          </span>
+          <button type="button" onClick={() => setAba("configuracao")} className="mt-btn mt-btn-contorno mt-foco cursor-pointer px-3 py-2 text-[11px]">
+            Ligar em Configuração
+          </button>
+        </div>
+      )}
 
       {abas.length > 1 && <Segmentado rotulo="Seção" opcoes={abas} valor={aba} aoEscolher={setAba} />}
 
@@ -374,8 +403,9 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
   const mudarCadencia = (nome: keyof ReguaDeCadencias, mudanca: (atual: ReguaDeCadencias[typeof nome]) => ReguaDeCadencias[typeof nome]) =>
     mudar("cadencias", { ...c.cadencias, [nome]: mudanca(c.cadencias[nome]) });
 
-  async function gravar() {
-    if (c.ativo && !inicial.config.ativo && faltam.length > 0) {
+  /** `ativo` explícito: o botão de ligar/desligar grava na hora, com o resto da tela. */
+  async function gravar(ativo: boolean = c.ativo) {
+    if (ativo && !inicial.config.ativo && faltam.length > 0) {
       setErro(`Antes de ligar, configure na Vercel: ${faltam.join("; ")}.`);
       return;
     }
@@ -387,7 +417,7 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ativo: c.ativo,
+          ativo,
           nome_do_assistente: c.nome_do_assistente,
           apresentacao: c.apresentacao,
           informar_preco: c.informar_preco,
@@ -404,7 +434,13 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
       if (!r.ok) throw new Error(corpo?.error ?? "Não deu para gravar.");
       setC(corpo.config);
       aoGravar({ ...inicial, config: corpo.config, integracoes: corpo.integracoes ?? inicial.integracoes });
-      setOk("Gravado. Vale a partir da próxima mensagem.");
+      setOk(
+        corpo.config.ativo && !inicial.config.ativo
+          ? "Assistente ligado. Ele responde a partir da próxima mensagem."
+          : !corpo.config.ativo && inicial.config.ativo
+            ? "Assistente desligado. Os leads que estavam com ele voltam para a equipe."
+            : "Gravado. Vale a partir da próxima mensagem.",
+      );
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não deu para gravar.");
     } finally {
@@ -424,15 +460,27 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
 
       <section className="flex flex-col gap-3">
         <h2 className="mt-rotulo border-b border-mt-regua-fina pb-2">Ligar</h2>
-        <label className="flex items-start gap-3 text-[13px]">
-          <input type="checkbox" checked={c.ativo} onChange={(e) => mudar("ativo", e.target.checked)} className="mt-1" />
-          <span>
-            <strong>O assistente responde o WhatsApp da loja.</strong>{" "}
-            <span className="text-mt-neutral-700">
-              Ligar é mandar mensagem a cliente de verdade. Enquanto ele qualifica, o prazo do funil não conta para o vendedor.
-            </span>
+        <div className="flex flex-wrap items-center gap-4 text-[13px]" data-ligar>
+          <span
+            className={`border px-2 py-1 text-[10px] font-extrabold uppercase tracking-[.1em] ${
+              inicial.config.ativo ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800" : "border-mt-regua-fina text-mt-neutral-700"
+            }`}
+          >
+            {inicial.config.ativo ? "Ligado" : "Desligado"}
           </span>
-        </label>
+          <button
+            type="button"
+            onClick={() => void gravar(!inicial.config.ativo)}
+            disabled={gravando}
+            className="mt-btn mt-btn-primario mt-foco cursor-pointer px-4 py-2.5 text-[11px] disabled:opacity-60"
+          >
+            {inicial.config.ativo ? "Desligar o assistente" : "Ligar o assistente"}
+          </button>
+          <span className="max-w-[460px] text-mt-neutral-700">
+            Grava na hora, junto com o resto desta tela. Ligado, ele responde o WhatsApp da loja — mensagem a cliente de
+            verdade — e, enquanto qualifica, o prazo do funil não conta para o vendedor.
+          </span>
+        </div>
         <label className="flex flex-col gap-1 text-[12px]">
           <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-mt-neutral-700">Nome do assistente</span>
           <input value={c.nome_do_assistente} maxLength={40} onChange={(e) => mudar("nome_do_assistente", e.target.value)} className={`${CAMPO} max-w-[240px]`} />
