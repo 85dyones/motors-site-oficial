@@ -199,7 +199,25 @@ a simulação completa, aquela é a última resposta (confirma, responde o resto
 em uma frase e diz que o consultor segue), e `baloesSemPergunta` tira as
 frases que terminam em pergunta de toda resposta que entrega. Interesse em
 outro carro vai junto no `interesse` ("Onix…; também o HB20…"), sem apagar o
-da negociação. As
+da negociação.
+
+**Pronto, mas com o cliente pedindo mais, a passagem espera.** Na repetição
+do mesmo teste, a resposta já saiu sem pergunta — e mesmo assim o lead foi
+passado no meio do pedido do HB20. Agora, quando a visita fica marcada (ou a
+simulação completa) e o cliente pediu algo além de confirmar (outro carro,
+fotos, uma dúvida), o modelo marca o sinal `assunto_em_aberto`, atende o
+pedido normalmente e a entrega fica segurada; se o cliente parar de
+responder por 30 minutos, a rodada entrega com o motivo de pronto
+(`agendou`/`simulacao`), com a passagem "Oi, …! Visita marcada: …".
+
+**Os carros da conversa viram carros de interesse do lead** (pedido do dono,
+20/10/2026). O modelo devolve `veiculos` (os números do catálogo em que o
+cliente mostrou interesse), e o carro das fotos pedidas entra junto; o
+servidor confere que o carro está à venda, grava em `leads_veiculos` só o que
+ainda não está no lead (em avaliação, `adicionado_por` = o nome do
+assistente), anota no rastro ("Ney anotou o interesse em …") e, sem carro
+principal, faz do primeiro o principal (`leads.veiculo_id`). Escolher e
+descartar continua com a equipe. As
 instruções dizem o objetivo e que **toda resposta termina com uma pergunta que
 avança ou uma proposta concreta**. Pedido de simulação ou de parcela não entrega
 na hora: o assistente coleta os dados da simulação, que é o que faz o

@@ -150,6 +150,12 @@ describe("a resposta do modelo, conferida", () => {
     });
   });
 
+  it("os carros de interesse: só números do catálogo, sem repetir, no máximo cinco; ausente vira lista vazia", () => {
+    const r = lerRespostaDoAgente(JSON.stringify({ mensagens: ["Oi"], veiculos: ["#8449096", 7950008, "8449096", "abc", "", "1", "2", "3", "4"] }));
+    expect(r!.veiculos).toEqual(["8449096", "7950008", "1", "2", "3"]);
+    expect(lerRespostaDoAgente(JSON.stringify({ mensagens: ["Oi"] }))!.veiculos).toEqual([]);
+  });
+
   it("no máximo três balões", () => {
     const r = lerRespostaDoAgente(JSON.stringify({ mensagens: ["1", "2", "3", "4", "5"] }));
     expect(r!.mensagens).toHaveLength(MAXIMO_DE_BALOES);

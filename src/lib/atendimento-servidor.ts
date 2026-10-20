@@ -89,6 +89,7 @@ import {
   origemLegivel,
 } from "./resumoParaOVendedor";
 import { urlDoSite } from "./site";
+import { ehVeiculosIndisponivel } from "./veiculosDeInteresse";
 
 /**
  * O atendimento por IA, do lado do servidor: o que cada porta faz com o banco.
@@ -191,7 +192,7 @@ const COLUNAS_DO_LEAD =
   "id, nome, telefone, canal, interesse, situacao, responsavel, desfecho, utm_source, utm_campaign, " +
   "aquecimento, temperatura, qualificacao, resumo_ia, assistente_fase, entregue_em, entregue_motivo, " +
   "aviso_de_entrega_em, aviso_de_entrega_para, cadencia, cadencia_passo, cadencia_proximo_em, optout_em, " +
-  "origem_conversa, carro_na_troca, pagamento_pretendido, alertas, ultimo_contato_em, respondendo_desde";
+  "origem_conversa, carro_na_troca, pagamento_pretendido, alertas, ultimo_contato_em, respondendo_desde, veiculo_id";
 
 const FASES_COM_O_ASSISTENTE = ["qualificando", "reaquecendo"];
 
@@ -1115,7 +1116,9 @@ async function responderUmaVez(
   // O cliente acabou de escrever: o assistente CONDUZ, e a temperatura sozinha
   // não corta a conversa no meio (o "sábado" sem hora do teste do branch).
   const decisao = decidirEntrega(aquecimento, sinais, config.avisar_a_partir, pronto, { conduzindo: true });
-  const quenteSegurado = !decisao.entregar && !sinais.optout && temperaturaAlcanca(aquecimento.temperatura, config.avisar_a_partir);
+  // Segurado: quente, ou pronto com um pedido do cliente em andamento. Se o
+  // cliente parar de responder, a rodada entrega.
+  const quenteSegurado = !decisao.entregar && !sinais.optout && (Boolean(pronto) || temperaturaAlcanca(aquecimento.temperatura, config.avisar_a_partir));
   // O que pode aparecer em reais é o orçamento e a entrada que o cliente
   // disse — nunca um preço que ele "viu" e pede para confirmar.
   const vigiados = vigiarPreco(
@@ -1197,6 +1200,16 @@ async function responderUmaVez(
     await anotarNoRastro(supabase, leadId, "O cliente pediu para não receber mais mensagens.", { acao: "optout" });
   }
 
+  // Os carros da conversa viram carros de interesse do lead — os que o modelo
+  // apontou e o das fotos pedidas.
+  await registrarCarrosDaConversa(
+    supabase,
+    lead,
+    [...resposta.veiculos, ...(resposta.fotos ? [resposta.fotos.veiculo] : [])],
+    base,
+    config.nome_do_assistente,
+  );
+
   // As fotos que o modelo pediu saem depois do texto — e depois de o lead
   // estar gravado: se a Evolution demorar baixando a mídia, a ficha, a nota e
   // a cadência já estão salvas. Com prazo, para a entrega caber no tempo da
@@ -1236,6 +1249,61 @@ async function responderUmaVez(
     entregue,
     ...(fotos > 0 ? { fotos } : {}),
   };
+}
+
+// ----------------------------------------------------------------------------
+// Os carros da conversa, como carros de interesse
+// ----------------------------------------------------------------------------
+
+/**
+ * Os carros de que o cliente falou entram nos carros de interesse do lead
+ * (2026-10-20, pedido do dono: *"que ele já inserisse o carro da conversa ou
+ * carros da conversa como carros de interesse"*).
+ *
+ * Só carro do catálogo à venda (a galeria da base), só o que ainda não está
+ * no lead, em avaliação — quem escolhe ou descarta é a equipe. Grava quem
+ * anotou (`adicionado_por`, o nome do assistente) e uma nota no rastro. Sem
+ * carro principal, o primeiro vira principal (`leads.veiculo_id`, que o card
+ * e o quadro leem). NUNCA lança nem segura a conversa: tabela ausente,
+ * carro que saiu do estoque e leitura que falha só vão ao log.
+ */
+async function registrarCarrosDaConversa(
+  supabase: Banco,
+  lead: Linha,
+  ids: readonly string[],
+  base: BaseDaLoja,
+  nomeDoAssistente: string,
+): Promise<void> {
+  try {
+    const leadId = String(lead.id);
+    const doCatalogo = [...new Set(ids)].filter((id) => !base.fotos || id in base.fotos);
+    if (doCatalogo.length === 0) return;
+    const { data: ja, error: erroDaLeitura } = await supabase.from("leads_veiculos").select("veiculo_id").eq("lead_id", leadId);
+    if (erroDaLeitura) {
+      if (!ehVeiculosIndisponivel(erroDaLeitura)) console.warn("[Atendimento] Carros de interesse ilegíveis:", erroDaLeitura.message);
+      return;
+    }
+    const existentes = new Set(((ja ?? []) as Linha[]).map((l) => String(l.veiculo_id)));
+    const novos = doCatalogo.filter((id) => !existentes.has(id));
+    for (const id of novos) {
+      const { error } = await supabase.from("leads_veiculos").insert({ lead_id: leadId, veiculo_id: Number(id), adicionado_por: nomeDoAssistente });
+      if (error) {
+        if (error.code !== "23502" && error.code !== "23505" && !ehVeiculosIndisponivel(error)) {
+          console.warn("[Atendimento] Carro de interesse não registrado:", error.message);
+        }
+        continue;
+      }
+      const nome = base.fotos?.[id]?.nome ?? `o carro #${id}`;
+      await anotarNoRastro(supabase, leadId, `${nomeDoAssistente} anotou o interesse em ${nome} (#${id}).`, { acao: "veiculo_de_interesse", veiculo_id: Number(id) });
+      if (!lead.veiculo_id) {
+        // Sem principal: o primeiro carro da conversa vira o principal.
+        await supabase.from("leads").update({ veiculo_id: Number(id) }).eq("id", leadId).is("veiculo_id", null);
+        lead.veiculo_id = Number(id);
+      }
+    }
+  } catch (erro) {
+    console.warn("[Atendimento] Carros de interesse não registrados:", erro instanceof Error ? erro.message : erro);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -1900,10 +1968,12 @@ export async function executarRodada(
     if (relogio() - inicio > ORCAMENTO_DA_RODADA_MS) break;
     const leadId = String(lead.id);
 
-    // O lead quente que parou de responder vai ao vendedor — não ganha toque.
-    // A passagem fala com o cliente: só no horário da loja (fora dele, espera).
-    const quente =
-      lead.assistente_fase === "qualificando" && !lead.optout_em && lead.temperatura && temperaturaAlcanca(lead.temperatura, config.avisar_a_partir);
+    // O lead quente — ou pronto, segurado enquanto o cliente pedia mais — que
+    // parou de responder vai ao vendedor, e não ganha toque. A passagem fala
+    // com o cliente: só no horário da loja (fora dele, espera).
+    const comOAssistente = lead.assistente_fase === "qualificando" && !lead.optout_em;
+    const prontoSegurado = comOAssistente ? prontidao(fichaDoLead(lead), agora, { nomeNoWhatsApp: lead.nome }).pronto : null;
+    const quente = comOAssistente && (Boolean(prontoSegurado) || (lead.temperatura && temperaturaAlcanca(lead.temperatura, config.avisar_a_partir)));
     if (quente) {
       if (!dentroDoExpediente(agora)) {
         resultado.suprimidos.push({ lead_id: leadId, motivo: "fora_do_expediente", texto: MOTIVO_SEM_TOQUE.fora_do_expediente });
@@ -1931,8 +2001,9 @@ export async function executarRodada(
         continue;
       }
       const aquecimento = { pontos: Number(lead.aquecimento ?? 0), temperatura: lead.temperatura, motivos: lead.qualificacao?.motivos ?? [] } as Aquecimento;
-      await entregarAoVendedor(supabase, lead, "quente", aquecimento, fichaDoLead(lead), config, evolution, deps, agora, true, { retomada: true });
-      resultado.entregas.push({ lead_id: leadId, avisado: true, motivo: "quente_parou_de_responder" });
+      const motivo = prontoSegurado ?? "quente";
+      await entregarAoVendedor(supabase, lead, motivo, aquecimento, fichaDoLead(lead), config, evolution, deps, agora, true, { retomada: true });
+      resultado.entregas.push({ lead_id: leadId, avisado: true, motivo: prontoSegurado ? `${prontoSegurado}_parou_de_responder` : "quente_parou_de_responder" });
       continue;
     }
 

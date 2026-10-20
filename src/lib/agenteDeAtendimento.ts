@@ -141,9 +141,11 @@ const ESQUEMA_DA_RESPOSTA = `{
     "pediu_condicao": false,
     "so_pesquisando": false,
     "desinteresse": false,
-    "optout": false
+    "optout": false,
+    "assunto_em_aberto": false
   },
   "fotos": null,
+  "veiculos": [],
   "resumo": "o resumo para a equipe de vendas"
 }`;
 
@@ -194,7 +196,7 @@ export function montarInstrucoesFixas(entrada: {
     "4. Pergunta sobre financiamento (\"como fica o financiamento?\", \"dá pra financiar?\") é sinal de que ele quer financiar: explique em uma frase como funciona (o consultor simula com os bancos parceiros, e a aprovação depende da análise do banco) e siga para os dados da simulação, começando pela entrada. Registre pagamento \"financiado\". Não pergunte \"à vista ou financiado?\" a quem acabou de perguntar de financiamento.",
     "5. Correção do WhatsApp: uma palavra com asterisco (\"Como *\" ou \"*Como\") corrige a mensagem anterior do cliente. Troque a palavra e leia a frase corrigida antes de responder (\"Comigo fica o financiamento?\" + \"Como *\" = \"Como fica o financiamento?\").",
     "6. Resposta curta do cliente (\"isso\", \"sim\", \"pode ser\") responde à SUA última pergunta.",
-    "7. Quando a visita fica marcada nesta resposta (você preenche visita_data e visita_hora) ou os dados da simulação ficam completos, esta é a sua ÚLTIMA resposta: logo depois o sistema passa o cliente ao consultor. Confirme o combinado, responda em uma frase o que mais ele perguntou e diga que o consultor segue com isso (fotos, outro carro, valores). Não faça pergunta e não ofereça nada.",
+    "7. Quando a visita fica marcada nesta resposta (você preenche visita_data e visita_hora) ou os dados da simulação ficam completos: se o cliente pediu algo além de confirmar (outro carro, fotos, uma dúvida), marque `assunto_em_aberto` e atenda o pedido normalmente — a passagem ao consultor espera ele terminar. Se não pediu nada além, esta é a sua ÚLTIMA resposta: confirme o combinado, sem pergunta e sem oferta, porque logo depois o sistema passa o cliente ao consultor.",
     `Horário para marcar visita: ${horarioParaVisita()}.`,
     "",
     "## Regras",
@@ -233,6 +235,7 @@ export function montarInstrucoesFixas(entrada: {
     '- "troca": o carro da troca como ele descreveu, ou "sem troca" quando ele disser que não tem. "entrada": o valor, ou "sem entrada".',
     '- Com carro na troca, "pagamento" é como ele paga a DIFERENÇA (à vista, financiado ou consórcio); "com_troca" só quando a troca cobre o valor todo ou ele ainda não disse como paga a diferença.',
     '- "visita": como ele disse ("sábado de manhã"). "visita_data" ("AAAA-MM-DD", pela tabela de dias do estado) e "visita_hora" ("HH:MM"): só com dia E hora confirmados pelo cliente.',
+    '- "veiculos": os números (depois do #) dos carros do catálogo em que o cliente mostrou interesse na conversa — perguntou, pediu foto, quer ver. A lista inteira, sem repetir; [] se nenhum.',
     '- "fotos": null, ou {"veiculo": "o número do carro no catálogo (depois do #)", "camada": "externa" | "interior" | "detalhes" | "rodas" | "motor" | "porta_malas"} para mandar fotos de UM carro.',
     '- "ficha" é a ficha INTEIRA atualizada: copie o que já estava e acrescente o que o cliente disse agora.',
     '- "resumo": para a equipe de vendas, em terceira pessoa, direto e sempre da conversa inteira: quem é, o que quer, como vai pagar (entrada, troca, parcela), o prazo, o que ficou combinado e o que falta.',
@@ -357,6 +360,21 @@ export interface RespostaDoAgente {
   resumo: string | null;
   /** As fotos que o modelo pediu — quem confere o carro e escolhe as fotos é o servidor. */
   fotos: PedidoDeFotos | null;
+  /**
+   * Os carros do catálogo em que o cliente mostrou interesse (o número depois
+   * do #), para virarem carros de interesse do lead (2026-10-20). Quem confere
+   * se o carro existe é o servidor.
+   */
+  veiculos: string[];
+}
+
+/** No máximo tantos carros por resposta: mais que isso é o modelo listando o catálogo. */
+export const MAXIMO_DE_VEICULOS_POR_RESPOSTA = 5;
+
+function veiculosValidos(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const ids = v.map((x) => String(x ?? "").trim().replace(/^#/, "")).filter((x) => /^\d{1,15}$/.test(x));
+  return [...new Set(ids)].slice(0, MAXIMO_DE_VEICULOS_POR_RESPOSTA);
 }
 
 /** O JSON às vezes vem dentro de uma cerca de código. */
@@ -397,7 +415,14 @@ export function lerRespostaDoAgente(conteudo: string): RespostaDoAgente | null {
   const sinais = sinaisValidos(b.sinais);
   if (mensagens.length === 0) return null;
   const resumo = typeof b.resumo === "string" && b.resumo.trim() ? b.resumo.trim().slice(0, 900) : null;
-  return { mensagens, ficha: b.ficha ? fichaValida(b.ficha) : { ...FICHA_VAZIA }, sinais, resumo, fotos: pedidoDeFotosValido(b.fotos) };
+  return {
+    mensagens,
+    ficha: b.ficha ? fichaValida(b.ficha) : { ...FICHA_VAZIA },
+    sinais,
+    resumo,
+    fotos: pedidoDeFotosValido(b.fotos),
+    veiculos: veiculosValidos(b.veiculos),
+  };
 }
 
 // ----------------------------------------------------------------------------

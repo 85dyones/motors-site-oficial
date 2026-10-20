@@ -114,6 +114,14 @@ export interface SinaisDaConversa {
   desinteresse: boolean;
   /** Pediu para não receber mais mensagens. Para tudo, e não volta sozinho. */
   optout: boolean;
+  /**
+   * Na última mensagem o cliente pediu algo que o assistente ainda está
+   * atendendo — outro carro, fotos, uma dúvida (2026-10-20). Com ele ligado, a
+   * entrega do lead PRONTO espera a conversa assentar: no teste do branch,
+   * "13h. Me fala do hb20" marcou a visita e o lead foi passado no meio do
+   * pedido do HB20.
+   */
+  assunto_em_aberto?: boolean;
 }
 
 export const FICHA_VAZIA: FichaDoLead = {
@@ -146,6 +154,7 @@ export const SINAIS_NEUTROS: SinaisDaConversa = {
   so_pesquisando: false,
   desinteresse: false,
   optout: false,
+  assunto_em_aberto: false,
 };
 
 /** Cada peso tem nome: é a chave que vira motivo na tela. */
@@ -456,6 +465,7 @@ export function sinaisValidos(bruto: unknown): SinaisDaConversa {
     so_pesquisando: b.so_pesquisando === true,
     desinteresse: b.desinteresse === true,
     optout: b.optout === true,
+    assunto_em_aberto: b.assunto_em_aberto === true,
   };
 }
 
@@ -511,6 +521,10 @@ export function decidirEntrega(
 ): DecisaoDeEntrega {
   if (sinais.optout) return { entregar: false, motivo: null };
   if (sinais.pediu_humano) return { entregar: true, motivo: "pediu_humano" };
+  // Pronto, mas com um pedido do cliente em andamento: o assistente termina o
+  // assunto, e a entrega sai quando a conversa assentar (a rodada, depois de
+  // ESPERA_DO_QUENTE_MS sem resposta).
+  if (pronto && opcoes.conduzindo && sinais.assunto_em_aberto) return { entregar: false, motivo: null };
   if (pronto) return { entregar: true, motivo: pronto };
   if (sinais.pediu_condicao) return { entregar: true, motivo: "pediu_condicao" };
   if (!opcoes.conduzindo && temperaturaAlcanca(aquecimento.temperatura, avisarAPartir)) return { entregar: true, motivo: "quente" };

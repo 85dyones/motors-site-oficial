@@ -106,6 +106,15 @@ describe("pronto para o comercial", () => {
     expect(decidirEntrega(quente, { ...SINAIS_NEUTROS, pediu_humano: true }, "quente", null, { conduzindo: true })).toEqual({ entregar: true, motivo: "pediu_humano" });
   });
 
+  it("pronto com um pedido do cliente em andamento: conduzindo, segura; sem conduzir (a rodada), entrega", () => {
+    const morno = { temperatura: "morno" as const };
+    const aberto = { ...SINAIS_NEUTROS, assunto_em_aberto: true };
+    expect(decidirEntrega(morno, aberto, "quente", "agendou", { conduzindo: true })).toEqual({ entregar: false, motivo: null });
+    expect(decidirEntrega(morno, aberto, "quente", "agendou")).toEqual({ entregar: true, motivo: "agendou" });
+    // Pedir uma pessoa continua entregando na hora.
+    expect(decidirEntrega(morno, { ...aberto, pediu_humano: true }, "quente", "agendou", { conduzindo: true })).toEqual({ entregar: true, motivo: "pediu_humano" });
+  });
+
   it("na entrega, quem pediu gente vem antes; pronto vem antes de pediu condição; opt-out nunca", () => {
     const morno = { temperatura: "morno" as const };
     expect(decidirEntrega(morno, { ...SINAIS_NEUTROS, pediu_humano: true }, "quente", "agendou")).toEqual({ entregar: true, motivo: "pediu_humano" });

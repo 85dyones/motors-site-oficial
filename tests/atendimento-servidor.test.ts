@@ -500,7 +500,8 @@ describe("o método 5P: o lead pronto para o comercial", () => {
     // A ordem de cada resposta: o que o cliente perguntou primeiro, depois UMA pergunta.
     expect(instrucoes).toContain("1. Responda PRIMEIRO o que o cliente perguntou ou disse agora");
     expect(instrucoes).toContain("No máximo um ponto de interrogação por resposta");
-    expect(instrucoes).toContain("esta é a sua ÚLTIMA resposta: logo depois o sistema passa o cliente ao consultor");
+    expect(instrucoes).toContain("marque `assunto_em_aberto` e atenda o pedido normalmente — a passagem ao consultor espera ele terminar");
+    expect(instrucoes).toContain("esta é a sua ÚLTIMA resposta: confirme o combinado, sem pergunta e sem oferta");
     expect(instrucoes).toContain("\"Comigo fica o financiamento?\" + \"Como *\" = \"Como fica o financiamento?\"");
     expect(t.pedidosAoModelo[0].temperature).toBe(0.3);
   });
@@ -547,6 +548,62 @@ describe("o método 5P: o lead pronto para o comercial", () => {
     expect(aoCliente.slice(0, 2)).toEqual(["Fechado, sábado às 13h então 👌", "O HB20 1.0 Sense 2025 é manual, flex, prata."]);
     expect(aoCliente[2]).toMatch(/^Perfeito, Rafael! Visita marcada: sábado, 24\/10, às 13h\./);
     expect(banco.tabelas.leads[0]).toMatchObject({ entregue_motivo: "agendou", interesse: "Onix Hatch 2025; também o HB20 Sense 2025" });
+  });
+
+  it("visita marcada com um pedido em andamento: o Ney atende o pedido, e a passagem sai quando a conversa assentar", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    const t = transporteDeTeste([
+      respostaDoModelo({
+        mensagens: ["Fechado, sábado às 13h 👌", "O HB20 1.0 Sense 2025 é prata, 52 mil km. Quer ver as fotos?"],
+        ficha: { interesse: "Onix Hatch 2025; também o HB20 Sense 2025", interesse_especifico: true, visita: "sábado às 13h", visita_data: "2026-10-24", visita_hora: "13:00" },
+        sinais: { assunto_em_aberto: true },
+      }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "13h. Me fala do hb20");
+    const r = await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    // Não entrega: a pergunta das fotos fica, e quem responde é o Ney.
+    expect(r).toMatchObject({ entregue: false });
+    expect(t.enviados.map((e) => e.texto)).toEqual(["Fechado, sábado às 13h 👌", "O HB20 1.0 Sense 2025 é prata, 52 mil km. Quer ver as fotos?"]);
+    expect(banco.tabelas.leads[0]).toMatchObject({
+      assistente_fase: "qualificando",
+      cadencia: "follow_up",
+      cadencia_proximo_em: new Date(TERCA_10H.getTime() + 30 * 60 * 1000).toISOString(),
+    });
+
+    // O cliente some: meia hora depois, a rodada entrega como visita marcada.
+    relogio = new Date(TERCA_10H.getTime() + 31 * 60 * 1000);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(rodada.entregas).toEqual([{ lead_id: "lead-1", avisado: true, motivo: "agendou_parou_de_responder" }]);
+    expect(t.enviados[2].texto).toBe(
+      "Oi, Rafael! Visita marcada: sábado, 24/10, às 13h. Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777.",
+    );
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", entregue_motivo: "agendou", proximo_passo_vence_em: "2026-10-24T16:00:00.000Z" });
+  });
+
+  it("os carros da conversa viram carros de interesse do lead, sem repetir, e o primeiro vira o principal", async () => {
+    const banco = montar({ leads: [leadAberto({ veiculo_id: null })], leads_veiculos: [{ lead_id: "lead-1", veiculo_id: 111, veiculo_rotulo: "Já estava" }] });
+    const base = async () => ({ ...(await BASE()), fotos: { "111": { nome: "Gol 2019", urls: [] }, "222": { nome: "HB20 Sense 2025", urls: [] }, "333": { nome: "Onix Hatch 2025", urls: [] } } });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Tenho os dois!"], veiculos: ["333", "#222", "111", "999", "333"] })]);
+    const entrada = await clienteEscreve(banco, t, "tem onix ou hb20?");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t, { baseDaLoja: base }));
+    // 999 não está no catálogo; 111 já estava; 333 repetido entra uma vez.
+    const doLead = banco.tabelas.leads_veiculos.filter((v) => v.lead_id === "lead-1");
+    expect(doLead.map((v) => v.veiculo_id)).toEqual([111, 333, 222]);
+    expect(doLead.find((v) => v.veiculo_id === 333)).toMatchObject({ adicionado_por: "Ney" });
+    expect(banco.tabelas.leads[0].veiculo_id).toBe(333);
+    expect(banco.tabelas.leads_eventos.filter((e) => e.detalhe?.acao === "veiculo_de_interesse").map((e) => e.detalhe.texto)).toEqual([
+      "Ney anotou o interesse em Onix Hatch 2025 (#333).",
+      "Ney anotou o interesse em HB20 Sense 2025 (#222).",
+    ]);
+  });
+
+  it("o carro das fotos pedidas também entra; o principal que já existe não muda", async () => {
+    const banco = montar({ leads: [leadAberto({ veiculo_id: 555 })], leads_veiculos: [] });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Olha 👇"], fotos: { veiculo: "444", camada: "externa" } })]);
+    const entrada = await clienteEscreve(banco, t, "manda foto do 444");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads_veiculos.map((v) => v.veiculo_id)).toEqual([444]);
+    expect(banco.tabelas.leads[0].veiculo_id).toBe(555);
   });
 
   it("sem entrega, a pergunta fica: é ela que conduz", async () => {
