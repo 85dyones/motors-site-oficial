@@ -12,7 +12,7 @@
 -- O que nasce
 -- ---------------------------------------------------------------------------
 -- 1. `public.atendimento_config` — uma linha por loja: ligado/desligado (nasce
---    DESLIGADO), nome do assistente, modelo, se diz preço, a partir de que
+--    DESLIGADO), nome do assistente e como ele se apresenta, modelo, se diz preço, a partir de que
 --    temperatura avisa o vendedor, quem escolhe o vendedor, limiares, pesos
 --    e cadências. Regra é dado (HANDOFF, decisão 3): os números da régua
 --    moram aqui, e o código só tem a semente e a rede.
@@ -177,6 +177,9 @@ create table if not exists public.atendimento_config (
   org_id             uuid not null default public.org_padrao(),
   ativo              boolean not null default false,
   nome_do_assistente text not null default 'Ney',
+  -- Como o assistente se apresenta, depois do nome ("a versão digital do
+  -- …"). Vazio = só o nome. Dado da loja, editável na tela.
+  apresentacao       text not null default '',
   modelo             text not null default 'deepseek-flash',
   informar_preco     boolean not null default false,
   avisar_a_partir    text not null default 'quente',
@@ -199,8 +202,20 @@ create table if not exists public.atendimento_config (
   constraint atendimento_config_nome_valido check (length(btrim(nome_do_assistente)) between 1 and 40),
   constraint atendimento_config_pesos_e_objeto check (jsonb_typeof(pesos) = 'object'),
   constraint atendimento_config_cadencias_e_objeto check (jsonb_typeof(cadencias) = 'object'),
-  constraint atendimento_config_regras_no_teto check (length(regras_da_loja) <= 4000)
+  constraint atendimento_config_regras_no_teto check (length(regras_da_loja) <= 4000),
+  constraint atendimento_config_apresentacao_curta check (length(apresentacao) <= 160)
 );
+
+-- A apresentação entrou depois da primeira versão desta migração: num banco
+-- que já tenha a tabela, ela chega por aqui.
+alter table public.atendimento_config add column if not exists apresentacao text not null default '';
+do $apresentacao$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'atendimento_config_apresentacao_curta') then
+    alter table public.atendimento_config add constraint atendimento_config_apresentacao_curta check (length(apresentacao) <= 160);
+  end if;
+end
+$apresentacao$;
 
 comment on table public.atendimento_config is
   'A configuração do assistente de atendimento por IA (2026-10-20), uma linha por loja. '
@@ -219,8 +234,14 @@ revoke insert, update, delete, truncate on public.atendimento_config from authen
 grant select on public.atendimento_config to authenticated;
 grant all on public.atendimento_config to service_role;
 
-insert into public.atendimento_config (org_id)
-select public.org_padrao()
+-- A linha da loja nasce DESLIGADA e com as decisões do dono de 20/10/2026:
+-- rodízio automático (o administrador troca o dono no quadro quando quiser),
+-- o assistente informa o preço anunciado, o vendedor recebe o lead quente, e o
+-- assistente é o Ney — a versão digital do Silvio Ney, gestor da loja. Tudo
+-- editável em Leads → Atendimento IA → Configuração. O padrão de FÁBRICA do
+-- código continua conservador; isto é a escolha desta loja.
+insert into public.atendimento_config (org_id, nome_do_assistente, apresentacao, informar_preco, avisar_a_partir, distribuicao)
+select public.org_padrao(), 'Ney', 'a versão digital do Silvio Ney, gestor da loja', true, 'quente', 'rodizio'
  where not exists (select 1 from public.atendimento_config where org_id = public.org_padrao());
 
 
@@ -696,6 +717,15 @@ begin
     falhas := falhas + 1;
     raise warning 'FALHOU: a configuração da loja deveria nascer uma só e desligada (veio %)', v_n;
   end if;
+  -- As decisões do dono de 20/10/2026 na linha da loja.
+  select count(*) into v_n from public.atendimento_config
+   where org_id = public.org_padrao()
+     and distribuicao = 'rodizio' and informar_preco and avisar_a_partir = 'quente'
+     and apresentacao = 'a versão digital do Silvio Ney, gestor da loja';
+  if v_n <> 1 then
+    falhas := falhas + 1;
+    raise warning 'FALHOU: a linha da loja deveria nascer com rodízio, preço anunciado, aviso a partir de quente e a versão digital do Silvio Ney';
+  end if;
 
   -- 3. As regras recusam o inválido -------------------------------------------
   for v_caso in
@@ -703,6 +733,7 @@ begin
       ('limiar morno >= quente', 'update public.atendimento_config set limiar_morno = 70, limiar_quente = 60 where org_id = public.org_padrao()'),
       ('avisar a partir de frio', 'update public.atendimento_config set avisar_a_partir = ''frio'' where org_id = public.org_padrao()'),
       ('segunda config da loja', 'insert into public.atendimento_config (org_id) values (public.org_padrao())'),
+      ('apresentação longa demais', 'update public.atendimento_config set apresentacao = repeat(''a'', 161) where org_id = public.org_padrao()'),
       ('aquecimento 101', 'insert into public.leads (nome, telefone, aquecimento) values (''Aceite IA'', ''5541900002001'', 101)'),
       ('temperatura inventada', 'insert into public.leads (nome, telefone, temperatura) values (''Aceite IA'', ''5541900002002'', ''fervendo'')'),
       ('fase inventada', 'insert into public.leads (nome, telefone, assistente_fase) values (''Aceite IA'', ''5541900002003'', ''dormindo'')'),

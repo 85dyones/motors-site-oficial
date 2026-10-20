@@ -365,6 +365,9 @@ describe("a resposta", () => {
 
     expect(banco.tabelas.leads[0]).toMatchObject({ responsavel: "Bruno Lima", aviso_de_entrega_para: "Bruno Lima" });
     expect(t.enviados.at(-1)!.numero).toBe("5541955554444");
+    // O rastro diz que foi o rodízio — e que o administrador pode trocar.
+    const nota = banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "entrega");
+    expect(nota!.detalhe.texto).toContain("a Bruno Lima (rodízio; o administrador pode trocar no quadro)");
   });
 
   it("fora do horário: entrega, mas o resumo espera e o SLA segue pausado — a rodada da manhã avisa", async () => {
@@ -634,6 +637,55 @@ describe("o painel", () => {
     expect(banco.tabelas.leads[0].aviso_de_entrega_para).toBe("Carla Souza");
     // Já avisado: a segunda chamada não manda de novo.
     expect(await avisarEntregaPendente(banco.cliente, "lead-1", deps(t))).toEqual({ avisado: false, motivo: "ja_avisado" });
+  });
+
+  // Decisão do dono de 20/10/2026: rodízio automático, com o administrador
+  // podendo trocar o dono no quadro.
+  const entregueAoBrunoPeloRodizio = (extra: Record<string, unknown> = {}) =>
+    leadAberto({
+      assistente_fase: "entregue",
+      entregue_motivo: "quente",
+      entregue_em: "2026-10-20T12:00:00Z",
+      aviso_de_entrega_para: "Bruno Lima",
+      aviso_de_entrega_em: "2026-10-20T12:00:00Z",
+      responsavel: "Carla Souza",
+      aquecimento: 80,
+      temperatura: "quente",
+      qualificacao: { ficha: { interesse: "Onix" }, motivos: [] },
+      ...extra,
+    });
+
+  it("o administrador troca o dono que o rodízio escolheu: o novo dono recebe o resumo", async () => {
+    const banco = montar({ leads: [entregueAoBrunoPeloRodizio()] }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste();
+    expect(await avisarEntregaPendente(banco.cliente, "lead-1", deps(t), { trocaManual: true })).toEqual({ avisado: true });
+    expect(t.enviados).toEqual([{ numero: "5541988887777", texto: expect.stringMatching(/^🔥 LEAD QUENTE — Rafael/) }]);
+    expect(banco.tabelas.leads[0].aviso_de_entrega_para).toBe("Carla Souza");
+    // A mesma troca de novo não repete o resumo.
+    expect(await avisarEntregaPendente(banco.cliente, "lead-1", deps(t), { trocaManual: true })).toEqual({ avisado: false, motivo: "ja_avisado" });
+    expect(t.enviados).toHaveLength(1);
+  });
+
+  it("sem a troca do quadro (a rodada, uma transferência do funil), quem já foi avisado não é trocado", async () => {
+    const banco = montar({ leads: [entregueAoBrunoPeloRodizio()] }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste();
+    expect(await avisarEntregaPendente(banco.cliente, "lead-1", deps(t))).toEqual({ avisado: false, motivo: "ja_avisado" });
+    expect(t.enviados).toEqual([]);
+    expect(banco.tabelas.leads[0].aviso_de_entrega_para).toBe("Bruno Lima");
+  });
+
+  it("a troca do quadro numa entrega velha (mais de 7 dias) não reabre o resumo", async () => {
+    const banco = montar({ leads: [entregueAoBrunoPeloRodizio({ entregue_em: "2026-10-12T12:00:00Z" })] }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste();
+    expect(await avisarEntregaPendente(banco.cliente, "lead-1", deps(t), { trocaManual: true })).toEqual({ avisado: false, motivo: "ja_avisado" });
+    expect(t.enviados).toEqual([]);
+  });
+
+  it("a troca do quadro que tira o dono (fica sem responsável) não manda resumo a ninguém", async () => {
+    const banco = montar({ leads: [entregueAoBrunoPeloRodizio({ responsavel: null })] }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste();
+    expect(await avisarEntregaPendente(banco.cliente, "lead-1", deps(t), { trocaManual: true })).toEqual({ avisado: false, motivo: "ja_avisado" });
+    expect(t.enviados).toEqual([]);
   });
 });
 

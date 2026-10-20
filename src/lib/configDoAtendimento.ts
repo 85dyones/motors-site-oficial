@@ -43,6 +43,12 @@ export const DISTRIBUICOES: readonly DistribuicaoDoAtendimento[] = ["administrad
 export interface ConfigDoAtendimento {
   ativo: boolean;
   nome_do_assistente: string;
+  /**
+   * Como o assistente se apresenta, depois do nome: "a versão digital do
+   * Silvio Ney, gestor da loja" (decisão do dono de 20/10/2026, gravada na
+   * linha da loja). Vazio = só o nome. Ele nunca diz que é uma pessoa.
+   */
+  apresentacao: string;
   modelo: string;
   /** O assistente informa o preço anunciado do catálogo? */
   informar_preco: boolean;
@@ -63,6 +69,7 @@ export interface ConfigDoAtendimento {
 }
 
 export const NOME_PADRAO_DO_ASSISTENTE = "Ney";
+export const TETO_DA_APRESENTACAO = 160;
 
 /** A migração que cria o atendimento — citada quando a tabela ainda não existe. */
 export const MIGRACAO_DO_ATENDIMENTO = "20261020120000_atendimento_ia.sql";
@@ -70,9 +77,12 @@ export const MIGRACAO_DO_ATENDIMENTO = "20261020120000_atendimento_ia.sql";
 export const CONFIG_DE_FABRICA: ConfigDoAtendimento = {
   ativo: false,
   nome_do_assistente: NOME_PADRAO_DO_ASSISTENTE,
+  apresentacao: "",
   modelo: MODELO_PADRAO,
-  // Decisão do dono em 05/09/2026, para o Ney do Chatwoot: *"não vai discutir
-  // valores"*. Continua valendo até ele mudar na tela.
+  // O padrão de FÁBRICA é conservador: não informa preço (a decisão de
+  // 05/09/2026 para o Ney do Chatwoot). A linha desta loja nasce com a
+  // decisão de 20/10/2026 — informar o preço anunciado e o rodízio —, gravada
+  // pela migração e editável na tela.
   informar_preco: false,
   avisar_a_partir: "quente",
   distribuicao: "administrador",
@@ -102,6 +112,7 @@ export function configValida(linha: unknown): ConfigDoAtendimento {
   return {
     ativo: l.ativo === true,
     nome_do_assistente: textoCurto(l.nome_do_assistente, NOME_PADRAO_DO_ASSISTENTE, 40),
+    apresentacao: typeof l.apresentacao === "string" ? l.apresentacao.replace(/\s+/g, " ").trim().slice(0, TETO_DA_APRESENTACAO) : "",
     modelo: textoCurto(l.modelo, MODELO_PADRAO, 60),
     informar_preco: l.informar_preco === true,
     avisar_a_partir: avisar,
@@ -161,12 +172,17 @@ export function decidirConfig(corpo: unknown): DecisaoDaConfig {
   if (!nome || nome.length > 40 || temInjecaoDePrompt(nome)) {
     return { ok: false, erro: "O nome do assistente precisa ter até 40 caracteres." };
   }
+  const apresentacao = typeof c.apresentacao === "string" ? c.apresentacao.replace(/\s+/g, " ").trim() : "";
+  if (apresentacao.length > TETO_DA_APRESENTACAO || temInjecaoDePrompt(apresentacao) || /[\r\n#{}]/.test(String(c.apresentacao ?? ""))) {
+    return { ok: false, erro: `A apresentação do assistente precisa ser uma frase de até ${TETO_DA_APRESENTACAO} caracteres, sem instrução para o modelo.` };
+  }
 
   return {
     ok: true,
     linha: {
       ativo: c.ativo === true,
       nome_do_assistente: nome,
+      apresentacao,
       informar_preco: c.informar_preco === true,
       avisar_a_partir: c.avisar_a_partir ?? CONFIG_DE_FABRICA.avisar_a_partir,
       distribuicao: c.distribuicao ?? CONFIG_DE_FABRICA.distribuicao,

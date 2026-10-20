@@ -389,6 +389,7 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
         body: JSON.stringify({
           ativo: c.ativo,
           nome_do_assistente: c.nome_do_assistente,
+          apresentacao: c.apresentacao,
           informar_preco: c.informar_preco,
           avisar_a_partir: c.avisar_a_partir,
           distribuicao: c.distribuicao,
@@ -435,6 +436,19 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
         <label className="flex flex-col gap-1 text-[12px]">
           <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-mt-neutral-700">Nome do assistente</span>
           <input value={c.nome_do_assistente} maxLength={40} onChange={(e) => mudar("nome_do_assistente", e.target.value)} className={`${CAMPO} max-w-[240px]`} />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px]">
+          <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-mt-neutral-700">Como ele se apresenta</span>
+          <input
+            value={c.apresentacao}
+            maxLength={160}
+            placeholder="a versão digital do …"
+            onChange={(e) => mudar("apresentacao", e.target.value)}
+            className={`${CAMPO} max-w-[480px]`}
+          />
+          <span className="text-[11px] text-mt-neutral-700">
+            Vem depois do nome: &ldquo;{c.nome_do_assistente}{c.apresentacao.trim() ? `, ${c.apresentacao.trim()}` : ""}&rdquo;. Ele sempre diz que é um assistente virtual se perguntarem.
+          </span>
         </label>
         <label className="flex items-start gap-3 text-[13px]">
           <input type="checkbox" checked={c.informar_preco} onChange={(e) => mudar("informar_preco", e.target.checked)} className="mt-1" />

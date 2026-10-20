@@ -158,12 +158,18 @@ Passa ao vendedor quando (`decidirEntrega`):
 | Situação | Quem recebe o resumo |
 |---|---|
 | Lead já tem responsável | O responsável. |
-| Sem responsável, distribuição **"o administrador escolhe"** (padrão) | Quem distribui (administrador do comercial) e o gestor. Escolhido o dono no quadro, o resumo segue para ele na hora (`PATCH /api/leads/gerenciar`). |
-| Sem responsável, **rodízio** | O comercial ativo, com WhatsApp, com menos leads abertos — a régua da transferência do funil. |
+| Sem responsável, **rodízio** (o desta loja) | O comercial ativo, com WhatsApp, com menos leads abertos — a régua da transferência do funil. O rastro diz *"rodízio; o administrador pode trocar no quadro"*. |
+| Sem responsável, distribuição **"o administrador escolhe"** | Quem distribui (administrador do comercial) e o gestor. Escolhido o dono no quadro, o resumo segue para ele na hora (`PATCH /api/leads/gerenciar`). |
 
-O padrão segue a decisão vigente do dono para lead novo (10/10/2026: *"ele vai
-determinar o dono e depois começa a dança"*). O rodízio automático, que é o
-comportamento do manobrAI, está a um clique na configuração.
+**Decisão do dono em 20/10/2026**: *"rodízio, com o adm podendo mudar
+manualmente"*. A linha desta loja nasce com o rodízio (a migração grava), e o
+administrador troca o dono no quadro como sempre: quando troca, o **dono novo
+recebe o resumo na hora**, mesmo que o rodízio já tenha avisado outro vendedor
+(`avisarEntregaPendente(..., { trocaManual: true })`, só para entrega dos
+últimos 7 dias e só quando a troca deixa um dono). A rodada e a transferência do
+funil não reenviam o resumo: o vendedor que o funil trocou tem o aviso de
+transferência dele. A configuração de **fábrica** (loja sem linha) continua
+"o administrador escolhe", a mais conservadora.
 
 **O resumo** (`resumoParaOVendedor.ts`): "🔥 LEAD QUENTE — nome", telefone com
 `wa.me`, procura, quanto quer investir, pagamento e entrada, troca, prazo,
@@ -396,7 +402,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   tempo até o primeiro contato registrado, sem contato, conversão) e as
   cadências (toques, reaquecidos). O vendedor vê só os próprios números.
   A aba **Configuração** (Admin e Gestor) liga o assistente e edita tudo da
-  régua; a aba **Fotos** (Admin e Gestor) mostra e corrige como as fotos de
+  régua — inclusive o nome e **como ele se apresenta** (§12); a aba **Fotos** (Admin e Gestor) mostra e corrige como as fotos de
   cada carro foram separadas em camadas (§6.1).
 
 > Quem atende **do próprio número** não aparece na conversa da loja. O tempo
@@ -492,12 +498,26 @@ só grava a conversa e cria o lead.
   à Evolution daria a conversa dele no painel. É uma instância por pessoa, com
   implicação de privacidade, e precisa da decisão do dono.
 
-## 12. Decisões para o dono
+## 12. Decisões do dono
 
-1. **Distribuição**: o padrão é "o administrador escolhe" (a decisão de 10/10).
-   Passar para o rodízio automático, como no manobrAI?
-2. **Preço**: o padrão é não informar (decisão de 05/09 para o Ney). Com o
-   catálogo vivo, o preço anunciado deixa de ser fotografia velha — liberar?
-3. **Avisar a partir de**: quente (padrão) ou morno?
-4. **Nome do assistente**: segue "Ney"?
+Tomadas em **20/10/2026** e gravadas na linha da loja pela migração
+(`20261020120000_atendimento_ia.sql`, com aceite que confere). Todas mudam na
+tela, em **Leads → Atendimento IA → Configuração**.
+
+1. **Distribuição — rodízio, com o administrador podendo trocar**: *"rodízio,
+   com o adm podendo mudar manualmente"*. Ver §4.
+2. **Preço — sim**: o assistente informa o **preço anunciado** do catálogo,
+   sempre dizendo que é o anunciado; condição final, desconto e parcela
+   continuam com a equipe (e pedir desconto ou valor final entrega o lead).
+3. **Avisar a partir de — quente.**
+4. **Nome — "Ney", a versão digital do Silvio Ney**: *"com o mesmo mote de
+   versão digital do nosso Silvio Ney"*. O assistente se apresenta como "Ney, a
+   versão digital do Silvio Ney, gestor da loja" (campo **Como ele se
+   apresenta**, até 160 caracteres, sem quebra de linha nem instrução para o
+   modelo). A regra 8 do prompt segura o resto: ele é um assistente
+   **virtual** e **nunca diz que é uma pessoa** — se perguntarem, diz isso com
+   naturalidade.
 5. **Pesos e cadências**: rever depois do primeiro mês, com o relatório.
+
+**Merge**: só depois do teste completo no branch paralelo (*"sem merge por
+enquanto, vamos testar no branch paralelo, só entra 100%"*).

@@ -149,7 +149,7 @@ const ESQUEMA_DA_RESPOSTA = `{
  * um carro que não está na lista.
  */
 export function montarInstrucoesFixas(entrada: {
-  config: Pick<ConfigDoAtendimento, "nome_do_assistente" | "informar_preco" | "regras_da_loja">;
+  config: Pick<ConfigDoAtendimento, "nome_do_assistente" | "informar_preco" | "regras_da_loja"> & Partial<Pick<ConfigDoAtendimento, "apresentacao">>;
   nomeDaLoja: string;
   loja: string;
   catalogo: string;
@@ -161,8 +161,9 @@ export function montarInstrucoesFixas(entrada: {
     ? "Você PODE informar o preço anunciado que está no catálogo, sempre dizendo que é o preço anunciado. Condição final, desconto e parcela quem passa é a equipe de consultores."
     : "NÃO informe preço de carro nem valor de parcela, nem estimado. Diga que a equipe de consultores passa o valor atualizado — e siga a conversa.";
 
+  const apresentacao = config.apresentacao?.trim() ? `, ${config.apresentacao.trim()},` : "";
   return [
-    `Você é ${config.nome_do_assistente}, do atendimento da ${entrada.nomeDaLoja} no WhatsApp. A loja vende carros seminovos.`,
+    `Você é ${config.nome_do_assistente}${apresentacao ? `${apresentacao} no` : ", do"} atendimento da ${entrada.nomeDaLoja} no WhatsApp. A loja vende carros seminovos.`,
     "",
     "## Seu trabalho",
     "Atender com rapidez e simpatia, tirar dúvidas do anúncio e entender o que o cliente precisa para a equipe de consultores chegar com tudo pronto. As informações que importam: carro de interesse, quanto quer investir, forma de pagamento, entrada, carro na troca, prazo para comprar e se quer visitar a loja ou fazer test-drive.",
@@ -175,7 +176,7 @@ export function montarInstrucoesFixas(entrada: {
     `5. Preço: ${preco}`,
     "6. Estoque: use só o CATÁLOGO abaixo. Se o carro pedido não estiver nele, não diga que a loja não tem: diga que vai confirmar com a equipe e ofereça os mais parecidos do catálogo.",
     "7. Não garanta reserva nem disponibilidade, não prometa prazo, frete, brinde ou condição especial.",
-    "8. Se perguntarem, você é o assistente virtual da loja e a equipe de consultores assume quando precisar. Não diga que vai transferir: quando for a hora, o sistema avisa o cliente.",
+    `8. Você é um assistente VIRTUAL${apresentacao ? ` — ${config.nome_do_assistente}${apresentacao.replace(/,$/, "")} —` : ""} e nunca diz que é uma pessoa. Se perguntarem, diga isso com naturalidade, e que a equipe de consultores assume quando precisar. Não diga que vai transferir: quando for a hora, o sistema avisa o cliente.`,
     "9. Se o cliente pedir para falar com uma pessoa, marque `pediu_humano` e responda curto.",
     "10. Se o cliente pedir para não receber mais mensagens, marque `optout` e responda só confirmando, com educação.",
     "11. Áudio ou foto sem texto: se não der para entender, peça com gentileza para escrever.",

@@ -727,7 +727,9 @@ export async function PATCH(request: NextRequest) {
     // chave de serviço porque o envio é do servidor; falhar não desfaz a troca.
     if (novoDono) {
       try {
-        await avisarEntregaPendente(createAdminSupabaseClient(), String(id));
+        // Troca feita no quadro: com o rodízio, o dono novo recebe o resumo
+        // mesmo que o rodízio já tenha avisado outro vendedor.
+        await avisarEntregaPendente(createAdminSupabaseClient(), String(id), {}, { trocaManual: true });
       } catch (erro) {
         console.warn("[Leads] Resumo do assistente não enviado ao dono novo:", erro instanceof Error ? erro.message : erro);
       }

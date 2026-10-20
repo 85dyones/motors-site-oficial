@@ -87,6 +87,27 @@ describe("o prompt", () => {
     expect(comPreco).not.toContain("NÃO informe preço");
   });
 
+  it("sem apresentação, só o nome — e ele é assistente virtual, nunca pessoa", () => {
+    expect(instrucoes.split("\n")[0]).toBe("Você é Ney, do atendimento da Loja Teste no WhatsApp. A loja vende carros seminovos.");
+    expect(instrucoes).toContain("8. Você é um assistente VIRTUAL e nunca diz que é uma pessoa.");
+  });
+
+  it("a versão digital do Silvio Ney (decisão do dono de 20/10/2026): se apresenta assim, e continua dizendo que é virtual", () => {
+    const ney = montarInstrucoesFixas({
+      config: { ...configBase, apresentacao: "a versão digital do Silvio Ney, gestor da loja" },
+      nomeDaLoja: "Motors",
+      loja: "",
+      catalogo: "",
+      totalDoCatalogo: 0,
+      geradoEm: "",
+    });
+    expect(ney.split("\n")[0]).toBe("Você é Ney, a versão digital do Silvio Ney, gestor da loja, no atendimento da Motors no WhatsApp. A loja vende carros seminovos.");
+    expect(ney).toContain("8. Você é um assistente VIRTUAL — Ney, a versão digital do Silvio Ney, gestor da loja — e nunca diz que é uma pessoa.");
+    // Apresentação em branco = sem apresentação.
+    const branco = montarInstrucoesFixas({ config: { ...configBase, apresentacao: "   " }, nomeDaLoja: "Motors", loja: "", catalogo: "", totalDoCatalogo: 0, geradoEm: "" });
+    expect(branco.split("\n")[0]).toBe("Você é Ney, do atendimento da Motors no WhatsApp. A loja vende carros seminovos.");
+  });
+
   it("as regras da loja entram como seção própria, só quando existem", () => {
     expect(instrucoes).not.toContain("O que a loja quer que você saiba");
     const com = montarInstrucoesFixas({ config: { ...configBase, regras_da_loja: "Troca só até 2015." }, nomeDaLoja: "L", loja: "", catalogo: "", totalDoCatalogo: 0, geradoEm: "" });

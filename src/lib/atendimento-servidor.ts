@@ -1554,10 +1554,11 @@ async function entregarAoVendedor(
     .eq("id", leadId);
 
   const rotulo = motivo === "painel" ? "Entregue pelo painel" : ROTULO_DO_MOTIVO_DA_ENTREGA[motivo];
+  const peloRodizio = Boolean(responsavel) && !String(lead.responsavel ?? "").trim();
   await anotarNoRastro(
     supabase,
     leadId,
-    `Assistente entregou o lead${responsavel ? ` a ${responsavel}` : " (aguardando o responsável)"}: ${rotulo.toLowerCase()} (${aquecimento.pontos}/100).`,
+    `Assistente entregou o lead${responsavel ? ` a ${responsavel}${peloRodizio ? " (rodízio; o administrador pode trocar no quadro)" : ""}` : " (aguardando o responsável)"}: ${rotulo.toLowerCase()} (${aquecimento.pontos}/100).`,
     { acao: "entrega", motivo, para: responsavel ?? PARA_QUEM_DISTRIBUI, aquecimento: aquecimento.pontos },
   );
 
@@ -1672,6 +1673,13 @@ export async function avisarEntregaPendente(
   supabase: Banco,
   leadId: string,
   deps: Dependencias = {},
+  /**
+   * `trocaManual`: o administrador trocou o dono no quadro (decisão do dono de
+   * 20/10/2026: rodízio automático, com o administrador podendo mudar). O dono
+   * novo recebe o resumo mesmo que o rodízio já tenha avisado outro vendedor —
+   * desde que a entrega seja recente (7 dias).
+   */
+  opcoes: { trocaManual?: boolean } = {},
 ): Promise<{ avisado: boolean; motivo?: string }> {
   const agora = deps.agora ?? new Date();
   // Leitura que falha (inclusive antes da migração, sem as colunas) não é
@@ -1681,7 +1689,9 @@ export async function avisarEntregaPendente(
   const devido = String(lead.responsavel ?? "").trim() || PARA_QUEM_DISTRIBUI;
   const avisado = lead.aviso_de_entrega_para ?? null;
   if (avisado === devido) return { avisado: false, motivo: "ja_avisado" };
-  if (avisado !== null && avisado !== PARA_QUEM_DISTRIBUI) return { avisado: false, motivo: "ja_avisado" };
+  const recente = lead.entregue_em && agora.getTime() - new Date(lead.entregue_em).getTime() <= JANELA_DA_ENTREGA_PENDENTE_MS;
+  const trocaDoAdministrador = opcoes.trocaManual === true && recente && String(lead.responsavel ?? "").trim() !== "";
+  if (avisado !== null && avisado !== PARA_QUEM_DISTRIBUI && !trocaDoAdministrador) return { avisado: false, motivo: "ja_avisado" };
   if (!podeAvisarAEquipe(agora)) return { avisado: false, motivo: "fora_do_horario" };
   const evolution = evolutionDe(deps);
   if (!evolution) return { avisado: false, motivo: motivoSemEvolution() };
