@@ -8,6 +8,7 @@ import {
   ordenarEtapas,
   type EtapaDoFunil,
 } from "../../lib/funil";
+import { fichaValida } from "../../lib/aquecimento";
 import { leadEstaAberto, type CampoDosDados, type ItemDoHistorico } from "../../lib/gestaoDoLead";
 import {
   AVISO_DE_LEAD_FECHADO,
@@ -790,8 +791,19 @@ export default function DetalheDoLead({
               }}
               aoLigar={() => mudarForm(comTipo(form, "ligacao"))}
               aoChegar={() => void chegou()}
+              retomada={
+                conversa.dados?.atendimento?.qualificacao
+                  ? { ficha: fichaValida(conversa.dados.atendimento.qualificacao.ficha), nomeDoAssistente: conversa.dados.assistente?.nome || "o assistente" }
+                  : null
+              }
             />
-            <AtendimentoDoLead leadId={lead.id} conversa={conversa} className={area("a")} aoMudarOLead={() => void recarregar()} />
+            <AtendimentoDoLead
+              leadId={lead.id}
+              conversa={conversa}
+              nomeDoCliente={lead.nome}
+              className={area("a")}
+              aoMudarOLead={() => void recarregar()}
+            />
             <div data-coluna="p" className={`flex min-w-0 flex-col ${area("p")}`}>
               <AquecimentoDoLead conversa={conversa} nomeDoLead={lead.nome} className={area("q")} />
               <ProximoPassoDoLead

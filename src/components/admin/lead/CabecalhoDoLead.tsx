@@ -21,7 +21,9 @@ import {
   seloCurtoDeTransferencias,
   type LeadDoDetalhe,
 } from "../../../lib/filaDoFunil";
+import type { FichaDoLead } from "../../../lib/aquecimento";
 import { iniciais, opcaoSemResponsavel, opcoesDoCard } from "../../../lib/leadsKanban";
+import { mensagemDeRetomadaAoCliente } from "../../../lib/resumoParaOVendedor";
 import { Segmentado } from "../SegmentadoDoPainel";
 
 /**
@@ -49,6 +51,7 @@ export default function CabecalhoDoLead({
   aoConversar,
   aoLigar,
   aoChegar,
+  retomada = null,
 }: {
   lead: LeadDoDetalhe;
   aberto: boolean;
@@ -72,6 +75,12 @@ export default function CabecalhoDoLead({
   /** Pré-seleciona Ligação no registro. */
   aoLigar: () => void;
   aoChegar: () => void;
+  /**
+   * O que o assistente já descobriu (2026-10-20): com isso, o WhatsApp abre com
+   * a retomada — o que o cliente disse, para confirmar, e o próximo passo —, e
+   * o vendedor que atende do próprio número não recomeça do zero.
+   */
+  retomada?: { ficha: FichaDoLead; nomeDoAssistente: string } | null;
 }) {
   const etapaAtual = etapas.find((e) => e.chave === lead.situacao);
   const abertas = etapasDoQuadro(etapas, aberto ? [lead] : []);
@@ -81,7 +90,9 @@ export default function CabecalhoDoLead({
 
   const conversa = linkDeConversa(
     lead.telefone,
-    mensagemParaCliente(lead, { vendedor: lead.responsavel }),
+    (retomada &&
+      mensagemDeRetomadaAoCliente({ nomeDoCliente: lead.nome, vendedor: lead.responsavel, nomeDoAssistente: retomada.nomeDoAssistente, ficha: retomada.ficha })) ||
+      mensagemParaCliente(lead, { vendedor: lead.responsavel }),
     lead.chatwoot_conversation_id,
   );
   const destino = destinoDaConversa(lead.telefone, lead.chatwoot_conversation_id);

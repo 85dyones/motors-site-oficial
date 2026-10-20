@@ -12,6 +12,7 @@ import {
   textoDoResumo,
 } from "../../../lib/atendimentoNaTela";
 import { espera } from "../../../lib/funil";
+import { BARRA_DA_TEMPERATURA, EMOJI_DA_TEMPERATURA, TEXTO_DA_TEMPERATURA } from "./temperaturaNaTela";
 import TituloDeBloco from "./TituloDeBloco";
 import type { ConversaDoLead } from "./useConversaDoLead";
 
@@ -77,13 +78,25 @@ export default function AquecimentoDoLead({
       ) : (
         <>
           <div className="flex items-baseline gap-3">
+            {estado.temperatura && (
+              <span aria-hidden="true" className="self-center text-[26px] leading-none">
+                {EMOJI_DA_TEMPERATURA[estado.temperatura]}
+              </span>
+            )}
             <span className="text-[34px] font-extrabold leading-none tracking-[-.03em] text-mt-ink tabular-nums">{estado.aquecimento}</span>
             <span className="text-[11px] font-semibold uppercase tracking-[.1em] text-mt-neutral-700">
-              de 100 · {estado.temperatura ? ROTULO_DA_TEMPERATURA[estado.temperatura] : "sem leitura"}
+              de 100 ·{" "}
+              <span data-temperatura-do-bloco={estado.temperatura ?? undefined} className={`font-extrabold ${estado.temperatura ? TEXTO_DA_TEMPERATURA[estado.temperatura] : ""}`}>
+                {estado.temperatura ? ROTULO_DA_TEMPERATURA[estado.temperatura] : "sem leitura"}
+              </span>
             </span>
           </div>
-          <div className="relative h-2 w-full bg-mt-surface" role="img" aria-label={`Aquecimento ${estado.aquecimento} de 100`}>
-            <div className="absolute inset-y-0 left-0 bg-mt-ink" style={{ width: `${posicaoNaRegua(estado.aquecimento)}%` }} />
+          <div className="relative h-2.5 w-full bg-mt-surface" role="img" aria-label={`Aquecimento ${estado.aquecimento} de 100`}>
+            <div
+              data-barra={estado.temperatura ?? undefined}
+              className="absolute inset-y-0 left-0"
+              style={{ width: `${posicaoNaRegua(estado.aquecimento)}%`, background: estado.temperatura ? BARRA_DA_TEMPERATURA[estado.temperatura] : "var(--mt-ink)" }}
+            />
             {assistente?.limiares && (
               <>
                 <span className="absolute -top-1 h-4 w-px bg-mt-neutral-600" style={{ left: `${assistente.limiares.morno}%` }} />
@@ -184,7 +197,7 @@ export default function AquecimentoDoLead({
               <li
                 key={`${r.criado_em}-${i}`}
                 title={`${r.aquecimento} · ${horaDaMensagem(r.criado_em, new Date(agora))}${r.origem === "cadencia" ? " · cadência" : ""}`}
-                className={`w-2 ${r.temperatura === "quente" ? "bg-mt-accent" : r.temperatura === "morno" ? "bg-mt-ink" : "bg-mt-neutral-500"}`}
+                className={`w-2 ${r.temperatura === "quente" ? "bg-mt-accent" : r.temperatura === "morno" ? "bg-mt-morno-vivo" : "bg-mt-frio-vivo"}`}
                 style={{ height: `${Math.max(8, posicaoNaRegua(r.aquecimento))}%` }}
               />
             ))}

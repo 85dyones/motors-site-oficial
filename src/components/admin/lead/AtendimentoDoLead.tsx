@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Temperatura } from "../../../lib/aquecimento";
 import {
   ROTULO_DA_ACAO,
   acoesDisponiveis,
@@ -14,6 +13,7 @@ import {
   textoDaMensagem,
   type AcaoNaTela,
 } from "../../../lib/atendimentoNaTela";
+import { EMOJI_DA_TEMPERATURA, SELO_DA_TEMPERATURA } from "./temperaturaNaTela";
 import TituloDeBloco from "./TituloDeBloco";
 import type { ConversaDoLead } from "./useConversaDoLead";
 
@@ -38,20 +38,18 @@ const FAIXA_DE_AVISO = "border-l-[3px] border-mt-regua bg-mt-surface px-4 py-3 t
 const BOTAO_FINO =
   "mt-foco cursor-pointer border border-mt-regua-fina bg-transparent px-3 py-2 text-[11px] text-mt-neutral-800 hover:border-mt-accent hover:text-mt-ink disabled:cursor-not-allowed disabled:opacity-45 pointer-coarse:min-h-11";
 
-const COR_DA_TEMPERATURA: Record<Temperatura, string> = {
-  frio: "border-mt-regua-fina text-mt-neutral-700",
-  morno: "border-mt-regua text-mt-ink",
-  quente: "border-mt-accent bg-mt-accent-100 text-mt-accent-800",
-};
 
 export default function AtendimentoDoLead({
   leadId,
   conversa,
+  nomeDoCliente = null,
   className = "",
   aoMudarOLead,
 }: {
   leadId: string;
   conversa: ConversaDoLead;
+  /** O nome do lead: é como o cliente aparece na conversa, em vez de "Cliente". */
+  nomeDoCliente?: string | null;
   className?: string;
   /** Depois de entregar ou devolver, o detalhe relê o lead (o dono pode ter mudado). */
   aoMudarOLead?: () => void;
@@ -134,8 +132,9 @@ export default function AtendimentoDoLead({
         {selo && estado?.temperatura && (
           <span
             data-temperatura={estado.temperatura}
-            className={`border px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none tracking-[.08em] tabular-nums ${COR_DA_TEMPERATURA[estado.temperatura]}`}
+            className={`border px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none tracking-[.08em] tabular-nums ${SELO_DA_TEMPERATURA[estado.temperatura]}`}
           >
+            <span aria-hidden="true">{EMOJI_DA_TEMPERATURA[estado.temperatura]} </span>
             {selo}
           </span>
         )}
@@ -175,7 +174,7 @@ export default function AtendimentoDoLead({
             return (
               <li key={m.id} data-autor={m.autor} className={`flex flex-col gap-1 ${doCliente ? "items-start" : "items-end"}`}>
                 <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-600 tabular-nums">
-                  {quemEscreveu(m, nomeDoAssistente)} · {horaDaMensagem(m.criado_em, new Date(agora))}
+                  {quemEscreveu(m, nomeDoAssistente, nomeDoCliente)} · {horaDaMensagem(m.criado_em, new Date(agora))}
                   {marcas.length > 0 && ` · ${marcas.join(" · ")}`}
                 </span>
                 <p

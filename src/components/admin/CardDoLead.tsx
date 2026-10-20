@@ -20,6 +20,7 @@ import {
 } from "../../lib/filaDoFunil";
 import { iniciais } from "../../lib/leadsKanban";
 import { seloDaTemperatura } from "../../lib/atendimentoNaTela";
+import { EMOJI_DA_TEMPERATURA, SELO_DA_TEMPERATURA } from "./lead/temperaturaNaTela";
 
 /**
  * O card enxuto do quadro (desenho de 23/09/2026, `docs/design/gestao_do_lead`).
@@ -140,13 +141,10 @@ export default function CardDoLead({
               <span
                 data-temperatura={l.temperatura}
                 className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-[.1em] tabular-nums ${
-                  l.temperatura === "quente"
-                    ? "border-mt-accent bg-mt-accent-100 text-mt-accent-800"
-                    : l.temperatura === "morno"
-                      ? "border-mt-regua text-mt-ink"
-                      : "border-mt-regua-fina text-mt-neutral-700"
+                  l.temperatura ? SELO_DA_TEMPERATURA[l.temperatura] : "border-mt-regua-fina text-mt-neutral-700"
                 }`}
               >
+                {l.temperatura && <span aria-hidden="true">{EMOJI_DA_TEMPERATURA[l.temperatura]} </span>}
                 {temperatura}
               </span>
             )}

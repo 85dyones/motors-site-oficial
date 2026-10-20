@@ -29,7 +29,10 @@ describe("a leitura da rota", () => {
 
 describe("a conversa", () => {
   it("quem escreveu", () => {
-    expect(quemEscreveu({ autor: "cliente", autor_nome: "Rafael" }, "Ney")).toBe("Cliente");
+    // O cliente aparece pelo nome do lead; sem ele, pelo do WhatsApp; sem os dois, "Cliente".
+    expect(quemEscreveu({ autor: "cliente", autor_nome: "Rafael" }, "Ney", "Rafael Souza")).toBe("Rafael Souza");
+    expect(quemEscreveu({ autor: "cliente", autor_nome: "Rafael" }, "Ney")).toBe("Rafael");
+    expect(quemEscreveu({ autor: "cliente", autor_nome: null }, "Ney", "  ")).toBe("Cliente");
     expect(quemEscreveu({ autor: "assistente", autor_nome: null }, "Ney")).toBe("Ney · assistente");
     expect(quemEscreveu({ autor: "vendedor", autor_nome: "Carla" }, "Ney")).toBe("Carla");
   });

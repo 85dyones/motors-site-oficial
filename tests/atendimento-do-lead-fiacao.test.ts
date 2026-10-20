@@ -77,7 +77,7 @@ async function montar() {
     return createElement(
       Fragment,
       null,
-      createElement(AtendimentoDoLead, { leadId: "lead-1", conversa }),
+      createElement(AtendimentoDoLead, { leadId: "lead-1", conversa, nomeDoCliente: "Rafael Souza" }),
       createElement(AquecimentoDoLead, { conversa, nomeDoLead: "Rafael" }),
     );
   }
@@ -95,7 +95,9 @@ describe("o bloco de atendimento", () => {
     await montar();
     expect(chamadas[0]).toEqual({ metodo: "GET", url: "/api/leads/lead-1/conversa", corpo: undefined });
     expect(container.querySelector('[data-bloco="a"]')).not.toBeNull();
-    expect(container.querySelector('[data-temperatura="quente"]')!.textContent).toBe("Quente · 80");
+    expect(container.querySelector('[data-temperatura="quente"]')!.textContent).toBe("🔥 Quente · 80");
+    // O cliente aparece pelo nome do lead, não como "Cliente".
+    expect(container.querySelector('li[data-autor="cliente"] span')!.textContent).toMatch(/^Rafael Souza · /);
     expect(texto()).toContain("Ney está atendendo");
     expect([...container.querySelectorAll("li[data-autor]")].map((li) => li.getAttribute("data-autor"))).toEqual(["cliente", "assistente", "assistente"]);
     expect(texto()).toContain("cadência · não saiu");
@@ -181,11 +183,29 @@ describe("o bloco de atendimento", () => {
     expect(chamadas.filter((c) => c.url === "/api/leads/lead-1/conversa")).toHaveLength(1);
     expect(botao("Aquecimento")).toBeUndefined();
     const q = () => container.querySelector('[data-bloco="q"]')!.textContent ?? "";
-    expect(q()).toContain("80de 100 · Quente");
+    expect(q()).toContain("🔥80de 100 · Quente");
+    // Quente: a barra vai do âmbar ao vermelho, e o rótulo pega a cor do acento.
+    const barra = container.querySelector<HTMLElement>('[data-bloco="q"] [data-barra="quente"]')!;
+    expect(barra.style.background).toContain("linear-gradient");
+    expect(barra.style.width).toBe("80%");
+    expect(container.querySelector('[data-temperatura-do-bloco="quente"]')!.className).toContain("text-mt-accent-800");
     expect(q()).toContain("Morno a partir de 35 · quente a partir de 65");
     const motivos = [...container.querySelectorAll('[data-bloco="q"] [aria-label="Por que esta nota"] li')].map((li) => li.textContent);
     expect(motivos).toEqual(["+25Quer visitar a loja ou fazer test-drive", "-15Disse que só está pesquisando"]);
     expect(q()).toContain("Follow-up · toque 1 de 3");
+  });
+
+  it("frio: barra azul e o gelo no lugar da chama", async () => {
+    const original = RESPOSTA.atendimento;
+    RESPOSTA.atendimento = { ...original, aquecimento: 20, temperatura: "frio" } as unknown as typeof original;
+    try {
+      await montar();
+      expect(container.querySelector('[data-temperatura="frio"]')!.textContent).toBe("🧊 Frio · 20");
+      expect(container.querySelector<HTMLElement>('[data-bloco="q"] [data-barra="frio"]')!.style.background).toBe("var(--mt-frio-vivo)");
+      expect(container.querySelector('[data-temperatura-do-bloco="frio"]')!.className).toContain("text-mt-frio");
+    } finally {
+      RESPOSTA.atendimento = original;
+    }
   });
 
   it("antes de a conversa chegar, o aquecimento diz que está lendo", async () => {

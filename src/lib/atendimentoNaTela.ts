@@ -89,8 +89,14 @@ export function lerConversaDaApi(bruto: unknown): ConversaDaApi {
 }
 
 /** "Ney" quando é o assistente; o nome de quem escreveu, quando é gente. */
-export function quemEscreveu(m: Pick<MensagemNaTela, "autor" | "autor_nome">, nomeDoAssistente: string): string {
-  if (m.autor === "cliente") return "Cliente";
+/**
+ * Quem escreveu, como a conversa mostra. O cliente aparece pelo nome do lead
+ * (o mesmo do cabeçalho, que a equipe pode corrigir), depois pelo nome do
+ * WhatsApp da mensagem, e só sem nenhum dos dois como "Cliente" — pedido do
+ * dono no teste do branch (2026-10-20).
+ */
+export function quemEscreveu(m: Pick<MensagemNaTela, "autor" | "autor_nome">, nomeDoAssistente: string, nomeDoCliente?: string | null): string {
+  if (m.autor === "cliente") return nomeDoCliente?.trim() || m.autor_nome?.trim() || "Cliente";
   if (m.autor === "assistente") return `${m.autor_nome?.trim() || nomeDoAssistente} · assistente`;
   if (m.autor === "sistema") return "Sistema";
   return m.autor_nome?.trim() || "Equipe";

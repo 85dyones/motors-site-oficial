@@ -774,6 +774,28 @@ describe("registrar interação", () => {
     expect(chamadas.find((c) => c.metodo === "PATCH")!.corpo).toEqual({ id: "l1", contato: "whatsapp" });
   });
 
+  it("com o assistente tendo conversado, o WhatsApp abre com a retomada: o que o cliente disse e o próximo passo", async () => {
+    forcar["GET /api/leads/l1/conversa"] = {
+      status: 200,
+      corpo: {
+        atendimento: {
+          aquecimento: 90,
+          temperatura: "quente",
+          qualificacao: { ficha: { interesse: "Onix Hatch 2025", interesse_especifico: true, troca: "Clio 2011", visita: "sábado" }, motivos: [] },
+        },
+        mensagens: [],
+        retratos: [],
+        assistente: { ativo: true, nome: "Ney", limiares: { morno: 35, quente: 65 }, whatsapp_ligado: true, passos: {} },
+      },
+    };
+    await montarPagina("l1");
+    const conversa = [...container.querySelectorAll<HTMLAnchorElement>("a")].find((a) => (a.textContent ?? "").startsWith("WhatsApp"))!;
+    const texto = new URL(conversa.getAttribute("href")!).searchParams.get("text")!;
+    expect(texto).toContain("a partir da sua conversa com Ney");
+    expect(texto).toContain("• Carro: Onix Hatch 2025\n• Troca: Clio 2011\n• Visita: sábado");
+    expect(texto.split("\n").at(-1)).toBe("Você comentou de vir sábado: qual horário fica melhor pra você?");
+  });
+
   it("lead fechado: o próximo passo é opcional e não há sugestões", async () => {
     await montarPagina("l5");
     expect(texto(container.querySelector('[data-bloco="c"] legend'))).toBe("Próximo passo · opcional");

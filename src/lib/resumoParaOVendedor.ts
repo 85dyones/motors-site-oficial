@@ -148,6 +148,60 @@ export function mensagemDePassagemAoCliente(dados: {
 }
 
 /**
+ * O rascunho que o botão de WhatsApp do lead deixa escrito quando o
+ * assistente já conversou (2026-10-20).
+ *
+ * Pedido do dono no teste do branch: o vendedor que atende fora do WhatsApp
+ * da loja (do próprio número) não pode recomeçar do zero — *"um resumo do que
+ * o Ney já descobriu, pra abrir a conversa, ou mesmo levar o resumo comercial
+ * pra validação, como sequência"*. Então a mensagem se apresenta, lista o que
+ * o cliente disse (carro, troca, pagamento, visita) para ele confirmar, e
+ * termina no próximo passo: confirmar a visita marcada, fechar o horário,
+ * completar a simulação ou marcar a visita.
+ *
+ * Só o que o CLIENTE disse vai para ele: nada de nota, temperatura ou
+ * orçamento. Rascunho, não envio — quem aperta enviar é o vendedor. Nulo
+ * quando o assistente não anotou nada de útil (fica a abertura de sempre,
+ * `mensagemParaCliente`).
+ */
+export function mensagemDeRetomadaAoCliente(dados: {
+  nomeDoCliente: string | null;
+  vendedor: string | null;
+  nomeDoAssistente: string;
+  ficha: FichaDoLead;
+}): string | null {
+  const f = dados.ficha;
+  const visitaMarcada = rotuloDaVisita(f);
+  const pagamento = f.pagamento
+    ? `• Pagamento: ${ROTULO_DO_PAGAMENTO[f.pagamento].toLowerCase()}${f.entrada ? `, entrada de ${f.entrada}` : ""}${f.parcela ? `, parcela ${f.parcela}` : ""}`
+    : f.entrada
+      ? `• Entrada: ${f.entrada}`
+      : "";
+  const anotado = [
+    f.interesse ? `• Carro: ${f.interesse}` : "",
+    f.troca ? `• Troca: ${trocaParaLer(f.troca) === "não tem" ? "sem carro na troca" : f.troca}` : "",
+    pagamento,
+    visitaMarcada ? `• Visita: ${visitaMarcada}` : f.visita ? `• Visita: ${f.visita}` : "",
+  ].filter(Boolean);
+  if (anotado.length === 0) return null;
+
+  const nome = nomeParaTratar(dados.nomeDoCliente);
+  const quem = dados.vendedor?.trim() ? `Aqui é ${primeiroNome(dados.vendedor)}, da equipe de consultores.` : "Aqui é da equipe de consultores.";
+  const abertura = `${nome ? `Olá, ${nome}!` : "Olá!"} ${quem} Vou seguir com o seu atendimento a partir da sua conversa com ${dados.nomeDoAssistente}, sem você precisar repetir nada.`;
+  const financiado = f.pagamento === "financiado";
+  const pergunta = visitaMarcada
+    ? `Sua visita está marcada para ${visitaMarcada}. Posso confirmar?`
+    : f.visita
+      ? `Você comentou de vir ${f.visita}: qual horário fica melhor pra você?`
+      : financiado && f.entrada && f.parcela
+        ? "Com esses dados eu já preparo a sua simulação. Está tudo certo?"
+        : financiado
+          ? `Para eu preparar a sua simulação: ${!f.entrada ? "quanto você pensa em dar de entrada" : "qual parcela cabe no seu bolso"}?`
+          : "Está tudo certo? Qual o melhor dia e horário para você vir ver o carro de perto?";
+  return [abertura, "", "Anotei aqui:", ...anotado, "", pergunta].join("\n");
+}
+
+/**
  * A mensagem do cliente que chega no número da loja DEPOIS da entrega.
  *
  * O vendedor atende do próprio número, e o cliente pode continuar

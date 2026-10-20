@@ -469,7 +469,21 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   5P com "não disse" à vista, a origem do anúncio, a entrega e o botão
   **Copiar** (o resumo em texto); os motivos com o sinal; a linha do tempo e a
   cadência. Os dois blocos leem a mesma conversa, relida a cada 15 s.
-- **Card do quadro**: selo "Quente · 82" e "Com o assistente".
+- **A temperatura se lê de relance** (pedido do dono, 20/10/2026): 🔥 e
+  vermelho no quente — a barra vai do âmbar ao vermelho —, 🌡️ e âmbar no
+  morno, 🧊 e azul no frio. No bloco Aquecimento, no selo do atendimento e no
+  card do quadro (tokens `--mt-frio` e `--mt-morno` em `modernist.css`, a
+  única cor fora da paleta da marca).
+- **Na conversa, o cliente aparece pelo nome do lead** (o do cabeçalho), em vez
+  de "Cliente".
+- **O botão de WhatsApp do cabeçalho retoma de onde o assistente parou**: com
+  a ficha preenchida, o rascunho se apresenta, lista o que o cliente disse
+  (carro, troca, pagamento, visita) para ele confirmar e termina no próximo
+  passo — confirmar a visita marcada, fechar o horário, completar a simulação
+  ou marcar a visita (`mensagemDeRetomadaAoCliente`). É para o vendedor que
+  atende do próprio número não recomeçar do zero. Só vai o que o cliente
+  disse: nada de nota nem orçamento.
+- **Card do quadro**: selo "🔥 Quente · 82" e "Com o assistente".
 - **Leads → Atendimento IA** (`/admin/leads/atendimento`): o assistente
   (conversas, entregas por motivo, tempo até a entrega, custo, opt-outs), a
   temperatura dos abertos, **de onde vieram** (anúncio de clique para o

@@ -10,7 +10,7 @@ import {
   rotuloDaVisita,
   trocaParaLer,
 } from "../src/lib/metodoDeQualificacao";
-import { mensagemDeEntrega, mensagemDePassagemAoCliente } from "../src/lib/resumoParaOVendedor";
+import { mensagemDeEntrega, mensagemDePassagemAoCliente, mensagemDeRetomadaAoCliente } from "../src/lib/resumoParaOVendedor";
 
 /**
  * O método de qualificação da loja, os 5P (2026-10-20): o que falta, o
@@ -206,5 +206,48 @@ describe("o que o vendedor e o cliente leem", () => {
     expect(mensagemDePassagemAoCliente({ ...base, simulacao: true })).toBe(
       "Perfeito, Rafael! Já deixei os dados da sua simulação com a equipe. Vou passar seu atendimento para a nossa equipe de consultores, que já te chama.",
     );
+  });
+});
+
+describe("o WhatsApp do vendedor retoma de onde o assistente parou", () => {
+  const retomada = (parcial: Partial<FichaDoLead>, vendedor: string | null = "Carla Souza") =>
+    mensagemDeRetomadaAoCliente({ nomeDoCliente: "Rafael", vendedor, nomeDoAssistente: "Ney", ficha: ficha(parcial) });
+
+  it("lista o que o cliente disse e pergunta o horário da visita que ele comentou", () => {
+    expect(retomada({ ...ONIX, troca: "Renault Clio 2011, 149.000 km", pagamento: "com_troca", visita: "sábado" })).toBe(
+      [
+        "Olá, Rafael! Aqui é Carla, da equipe de consultores. Vou seguir com o seu atendimento a partir da sua conversa com Ney, sem você precisar repetir nada.",
+        "",
+        "Anotei aqui:",
+        "• Carro: Onix LT 2020",
+        "• Troca: Renault Clio 2011, 149.000 km",
+        "• Pagamento: com troca",
+        "• Visita: sábado",
+        "",
+        "Você comentou de vir sábado: qual horário fica melhor pra você?",
+      ].join("\n"),
+    );
+  });
+
+  it("visita marcada: pede a confirmação", () => {
+    expect(retomada({ ...ONIX, visita_data: "2026-10-24", visita_hora: "10:00" })!.split("\n").at(-1)).toBe("Sua visita está marcada para sábado, 24/10, às 10h. Posso confirmar?");
+  });
+
+  it("financiamento: completa a simulação, ou confirma os dados quando estão todos", () => {
+    expect(retomada({ ...ONIX, pagamento: "financiado" })!.split("\n").at(-1)).toBe("Para eu preparar a sua simulação: quanto você pensa em dar de entrada?");
+    const completa = retomada({ ...ONIX, pagamento: "financiado", entrada: "10 mil", parcela: "até 1.200" })!;
+    expect(completa).toContain("• Pagamento: financiado, entrada de 10 mil, parcela até 1.200");
+    expect(completa.split("\n").at(-1)).toBe("Com esses dados eu já preparo a sua simulação. Está tudo certo?");
+  });
+
+  it("nada de nota nem orçamento para o cliente; sem dono, fala pela equipe", () => {
+    const m = retomada({ ...ONIX, orcamento: "até 50 mil", troca: "sem troca" }, null)!;
+    expect(m).not.toContain("50 mil");
+    expect(m).toContain("• Troca: sem carro na troca");
+    expect(m).toContain("Aqui é da equipe de consultores.");
+  });
+
+  it("sem nada anotado, não há retomada (fica a abertura de sempre)", () => {
+    expect(retomada({ orcamento: "até 50 mil" })).toBeNull();
   });
 });
