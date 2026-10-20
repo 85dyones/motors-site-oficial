@@ -18,6 +18,8 @@ import {
   montarInstrucoesFixas,
   montarMensagensDoAgente,
   montarMensagensDoToque,
+  semLinks,
+  valoresDoCliente,
   vigiarPreco,
   MENSAGENS_DO_HISTORICO,
   type MensagemDaConversa,
@@ -55,25 +57,30 @@ import { urlDoSite } from "./site";
  *
  * Quem chama: `/api/atendimento/evolution` (a mensagem chegou),
  * `/api/atendimento/responder` (o n8n esperou a rajada acabar),
- * `/api/atendimento/rodada` (o relógio das entregas e das cadências) e as
- * rotas do painel em `/api/leads/[id]/`. Todas entram aqui com a chave de
- * serviço, depois de conferir quem bateu.
+ * `/api/atendimento/rodada` (o relógio das entregas e das cadências), a rota
+ * de configuração e as rotas do painel em `/api/leads/[id]/`. Todas entram
+ * aqui com a chave de serviço, depois de conferir quem bateu.
  *
- * O desenho está em `docs/ATENDIMENTO_IA.md`. As três regras que atravessam o
+ * O desenho está em `docs/ATENDIMENTO_IA.md`. As regras que atravessam o
  * arquivo inteiro:
  *
  *   1. **Robô não atende.** Mensagem do assistente nunca chama
  *      `registrar_contato_do_lead`, nunca reinicia relógio de vendedor. Quem
  *      pausa o SLA enquanto o assistente qualifica é
- *      `atendimentos.com_assistente`, como desde 05/09.
- *   2. **Na dúvida, devolve ao humano.** Se o modelo cai, responde lixo ou
- *      falta credencial, o lead sai do assistente e o SLA volta a correr: o
- *      motor do funil avisa o administrador como sempre. Silêncio do robô com
- *      o relógio pausado seria o lead parado sem ninguém saber.
- *   3. **Nada sai sem ficar gravado.** Toda mensagem que o site manda entra
- *      em `atendimento_mensagens` ANTES do envio (pendente) e é atualizada
- *      depois (enviada ou falhou, com o id da Evolution). É assim que o eco
- *      do webhook é reconhecido e que a tela mostra o que não saiu.
+ *      `atendimentos.com_assistente`, como desde 05/09 — e só a PRIMEIRA saída
+ *      do assistente carimba `humano_assumiu_em`; reavisar não mexe no relógio.
+ *   2. **Na dúvida, devolve ao humano.** O assistente desligado, o modelo que
+ *      cai ou responde lixo, a credencial que falta, a Evolution que recusa
+ *      tudo, uma exceção no meio, a resposta que travou, a cadência que acabou
+ *      sem resposta: em todos, o lead sai do assistente e o SLA volta a correr
+ *      — o motor do funil avisa como sempre. Silêncio do robô com o relógio
+ *      pausado seria o lead parado sem ninguém saber.
+ *   3. **Nada sai sem ficar gravado, e nada sai duas vezes.** Toda mensagem ao
+ *      cliente entra em `atendimento_mensagens` ANTES do envio; o resumo e o
+ *      toque são RESERVADOS por um update condicional antes de sair; a resposta
+ *      tem trava por lead.
+ *   4. **Nada automático para quem nunca escreveu.** Cadência e passagem só
+ *      saem para o telefone que já mandou mensagem à loja.
  */
 
 type Banco = SupabaseClient;
@@ -93,18 +100,30 @@ export interface Dependencias {
   baseDaLoja?: (comPreco: boolean) => Promise<BaseDaLoja>;
   linkDoLead?: (id: string) => string | null;
   alertar?: (assunto: string, detalhe: string) => Promise<void>;
+  /** O relógio de parede, para os orçamentos de tempo. A suíte o fixa. */
+  relogio?: () => number;
 }
 
 /** Quanto o n8n espera, depois da última mensagem, antes de pedir a resposta. */
 export const ESPERA_DA_RAJADA_MS = 12_000;
-/** Mensagem do cliente depois da entrega: repassa ao vendedor se a anterior foi há mais que isto. */
+/** Mensagem do cliente fora do assistente: repassa ao vendedor se a anterior foi há mais que isto. */
 const INTERVALO_DO_REPASSE_MS = 10 * 60 * 1000;
 /** O eco da mensagem que o site mandou chega em segundos; cinco minutos é folga. */
 const JANELA_DO_ECO_MS = 5 * 60 * 1000;
-/** A confirmação do vendedor ("ok") vale para a entrega das últimas 48 h. */
-const JANELA_DA_CONFIRMACAO_MS = 48 * 60 * 60 * 1000;
+/** O "ok" do vendedor confirma a entrega das últimas 6 h — e não um aviso velho qualquer. */
+const JANELA_DA_CONFIRMACAO_MS = 6 * 60 * 60 * 1000;
 /** Entrega mais velha que isto não procura mais o vendedor. */
 const JANELA_DA_ENTREGA_PENDENTE_MS = 7 * 24 * 60 * 60 * 1000;
+/** A trava da resposta vale isto; depois, a próxima execução assume. */
+const VALIDADE_DA_TRAVA_MS = 90_000;
+/** Mensagem do cliente sem resposta há mais que isto, com o assistente no lead: travou. */
+const RESPOSTA_ATRASADA_MS = 10 * 60 * 1000;
+/** Depois do último toque, o cliente tem um dia para responder antes de o lead voltar à equipe. */
+const FOLGA_DEPOIS_DO_ULTIMO_TOQUE_MS = 24 * 60 * 60 * 1000;
+/** A rodada para de começar toques aqui, para caber nos 60 s da função. */
+const ORCAMENTO_DA_RODADA_MS = 40_000;
+/** A resposta só refaz uma volta (mensagem que chegou durante) se ainda houver tempo. */
+const ORCAMENTO_DA_SEGUNDA_VOLTA_MS = 30_000;
 const TOQUES_POR_RODADA = 30;
 
 export const PARA_QUEM_DISTRIBUI = "administrador";
@@ -113,24 +132,51 @@ const COLUNAS_DO_LEAD =
   "id, nome, telefone, canal, interesse, situacao, responsavel, desfecho, utm_source, utm_campaign, " +
   "aquecimento, temperatura, qualificacao, resumo_ia, assistente_fase, entregue_em, entregue_motivo, " +
   "aviso_de_entrega_em, aviso_de_entrega_para, cadencia, cadencia_passo, cadencia_proximo_em, optout_em, " +
-  "origem_conversa, carro_na_troca, pagamento_pretendido, alertas, ultimo_contato_em";
+  "origem_conversa, carro_na_troca, pagamento_pretendido, alertas, ultimo_contato_em, respondendo_desde";
+
+const FASES_COM_O_ASSISTENTE = ["qualificando", "reaquecendo"];
+
+// ----------------------------------------------------------------------------
+// A loja
+// ----------------------------------------------------------------------------
+
+/**
+ * A loja das leituras com a chave de serviço, que ignora a RLS: `org_padrao()`,
+ * a mesma que os `default` das tabelas novas gravam (o padrão de
+ * `copilotoDeMidia-servidor.ts`). Uma ida ao banco por cliente — cada
+ * requisição cria o seu.
+ */
+const lojaPorCliente = new WeakMap<object, Promise<string | null>>();
+export function lojaDoAtendimento(supabase: Banco): Promise<string | null> {
+  let loja = lojaPorCliente.get(supabase);
+  if (!loja) {
+    loja = Promise.resolve(supabase.rpc("org_padrao")).then(
+      ({ data, error }) => (!error && typeof data === "string" ? data : null),
+      () => null,
+    );
+    lojaPorCliente.set(supabase, loja);
+  }
+  return loja;
+}
 
 // ----------------------------------------------------------------------------
 // Leituras
 // ----------------------------------------------------------------------------
 
 /**
- * A configuração da loja. Tabela ausente (migração não aplicada) ou leitura
- * que falhou = a de fábrica, que é DESLIGADA: o assistente nunca liga por
- * falta de dado.
- *
- * Uma loja só neste repositório até a migração para a plataforma: a linha
- * única da loja. Na plataforma, o filtro passa a ser a loja do domínio.
+ * A configuração da loja. Tabela ausente (migração não aplicada), loja
+ * ilegível ou leitura que falhou = a de fábrica, que é DESLIGADA: o
+ * assistente nunca liga por falta de dado.
  */
 export async function lerConfigDoAtendimento(
   supabase: Banco,
 ): Promise<{ config: ConfigDoAtendimento; legivel: boolean }> {
-  const { data, error } = await supabase.from("atendimento_config").select("*").limit(1).maybeSingle();
+  const loja = await lojaDoAtendimento(supabase);
+  if (!loja) {
+    console.warn("[Atendimento] Loja ilegível (org_padrao), assistente desligado.");
+    return { config: configValida(null), legivel: false };
+  }
+  const { data, error } = await supabase.from("atendimento_config").select("*").eq("org_id", loja).maybeSingle();
   if (error) {
     console.warn("[Atendimento] Configuração ilegível, assistente desligado:", error.message);
     return { config: configValida(null), legivel: false };
@@ -196,12 +242,31 @@ async function lerLead(supabase: Banco, id: string): Promise<Linha | null> {
 async function lerConversa(supabase: Banco, leadId: string, limite = MENSAGENS_DO_HISTORICO): Promise<Linha[]> {
   const { data, error } = await supabase
     .from("atendimento_mensagens")
-    .select("id, direcao, autor, autor_nome, conteudo, texto, situacao, wa_id, respondida_em, criado_em")
+    .select("id, direcao, autor, autor_nome, conteudo, texto, situacao, wa_id, respondida_em, criado_em, telefone")
     .eq("lead_id", leadId)
     .order("criado_em", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limite);
   if (error) throw new Error(`conversa ilegível: ${error.message}`);
   return ((data ?? []) as Linha[]).reverse();
+}
+
+/**
+ * O cliente já escreveu para a loja DESTE telefone? É a régua contra o
+ * disparo frio: lead de formulário (telefone que qualquer um digita) não
+ * recebe mensagem automática até a pessoa falar com a loja.
+ */
+async function clienteJaEscreveu(supabase: Banco, leadId: string, telefone: string | null): Promise<boolean> {
+  const formas = variantesDoTelefone(telefone);
+  if (formas.length === 0) return false;
+  const { data } = await supabase
+    .from("atendimento_mensagens")
+    .select("id")
+    .eq("lead_id", leadId)
+    .eq("direcao", "entrada")
+    .in("telefone", formas)
+    .limit(1);
+  return ((data ?? []) as Linha[]).length > 0;
 }
 
 function fichaDoLead(lead: Linha): FichaDoLead {
@@ -218,48 +283,56 @@ function sinaisDoLead(lead: Linha): SinaisDaConversa {
 
 /**
  * A linha de `atendimentos` da conversa pela Evolution: a mais recente do lead
- * sem id do Chatwoot. Cria se não houver. É nela que `com_assistente` pausa o
- * SLA do funil (`montar_fila_do_funil` lê o atendimento mais recente do lead).
+ * sem id do Chatwoot, pela mesma régua de "mais recente" de
+ * `montar_fila_do_funil`. Cria se não houver, herdando as etiquetas do
+ * atendimento anterior (a `resgate` do SDR não se perde na troca de porta).
  */
-async function garantirAtendimento(
-  supabase: Banco,
-  leadId: string,
-  comAssistente: boolean,
-  agora: Date,
-): Promise<string | null> {
+async function garantirAtendimento(supabase: Banco, leadId: string, agora: Date): Promise<Linha | null> {
   const { data } = await supabase
     .from("atendimentos")
-    .select("id, com_assistente")
+    .select("id, com_assistente, iniciado_em, created_at")
     .eq("lead_id", leadId)
     .is("chatwoot_conversation_id", null)
+    .order("iniciado_em", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(1);
   const existente = ((data ?? []) as Linha[])[0];
-  if (existente) return String(existente.id);
+  if (existente) return existente;
+  const { data: anteriores } = await supabase
+    .from("atendimentos")
+    .select("tags, iniciado_em, created_at")
+    .eq("lead_id", leadId)
+    .order("iniciado_em", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const tags = ((anteriores ?? []) as Linha[])[0]?.tags ?? null;
   const { data: criado, error } = await supabase
     .from("atendimentos")
-    .insert({
-      lead_id: leadId,
-      iniciado_em: agora.toISOString(),
-      com_assistente: comAssistente,
-      status_conversa: "open",
-    })
-    .select("id")
+    .insert({ lead_id: leadId, iniciado_em: agora.toISOString(), com_assistente: false, status_conversa: "open", tags })
+    .select("id, com_assistente")
     .single();
   if (error) {
     console.error("[Atendimento] Atendimento não criado:", error.message);
     return null;
   }
-  return criado?.id ? String(criado.id) : null;
+  return (criado as Linha) ?? null;
 }
 
-/** Liga ou desliga o assistente no SLA. Desligar carimba a entrada do humano. */
+/**
+ * Liga ou desliga o assistente no SLA do funil.
+ *
+ * Desligar só carimba `humano_assumiu_em` quando o assistente ESTAVA ligado:
+ * é a saída dele do circuito, e o relógio do vendedor começa ali. Reavisar um
+ * lead que já saiu (o dono escolhido depois, o resumo da manhã) não pode
+ * reiniciar o relógio — seria o robô atendendo.
+ */
 async function assistenteNoSla(supabase: Banco, leadId: string, ligado: boolean, agora: Date): Promise<void> {
-  const atendimentoId = await garantirAtendimento(supabase, leadId, ligado, agora);
-  if (!atendimentoId) return;
+  const atendimento = await garantirAtendimento(supabase, leadId, agora);
+  if (!atendimento) return;
+  if ((atendimento.com_assistente === true) === ligado) return;
   const patch: Linha = { com_assistente: ligado, updated_at: agora.toISOString() };
   if (!ligado) patch.humano_assumiu_em = agora.toISOString();
-  const { error } = await supabase.from("atendimentos").update(patch).eq("id", atendimentoId);
+  const { error } = await supabase.from("atendimentos").update(patch).eq("id", atendimento.id);
   if (error) console.error("[Atendimento] SLA não atualizado:", error.message);
 }
 
@@ -300,9 +373,11 @@ async function enviarAoCliente(
   deps: Dependencias,
   comAtraso = true,
 ): Promise<{ ok: boolean; id: string | null; motivo?: string }> {
+  const loja = await lojaDoAtendimento(supabase);
   const { data: linha, error } = await supabase
     .from("atendimento_mensagens")
     .insert({
+      ...(loja ? { org_id: loja } : {}),
       lead_id: envio.leadId,
       atendimento_id: envio.atendimentoId ?? null,
       telefone: envio.telefone,
@@ -361,6 +436,56 @@ function linkDe(deps: Dependencias, id: string): string | null {
   return deps.linkDoLead ? deps.linkDoLead(id) : urlDoSite(urlDoLead(id));
 }
 
+const relogioDe = (deps: Dependencias) => deps.relogio ?? Date.now;
+
+// ----------------------------------------------------------------------------
+// Devolver ao humano
+// ----------------------------------------------------------------------------
+
+/**
+ * O assistente não pôde seguir: o lead volta para a equipe com o SLA
+ * correndo. O motor do funil faz o resto (avisa o administrador do lead sem
+ * dono, cobra o vendedor do lead com dono).
+ */
+async function devolverAoHumano(supabase: Banco, leadId: string, agora: Date, motivo: string): Promise<void> {
+  await supabase
+    .from("leads")
+    .update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null })
+    .eq("id", leadId);
+  await assistenteNoSla(supabase, leadId, false, agora);
+  await anotarNoRastro(supabase, leadId, `O lead voltou para a equipe: ${motivo}.`, { acao: "devolucao_automatica", motivo });
+}
+
+/**
+ * O assistente foi desligado: TODO lead que estava com ele volta para a
+ * equipe agora, de uma vez. Chamada pela rota de configuração quando o
+ * assistente é desligado, e pela rodada enquanto ele estiver desligado (para
+ * o caso de a linha ter sido mudada por fora). Sem isto, os leads que o
+ * assistente qualificava ficariam com o SLA pausado para sempre.
+ */
+export async function liberarLeadsDoAssistente(supabase: Banco, deps: Dependencias = {}): Promise<number> {
+  const agora = deps.agora ?? new Date();
+  const { data: comEle } = await supabase
+    .from("leads")
+    .select("id, assistente_fase, aviso_de_entrega_para")
+    .in("assistente_fase", [...FASES_COM_O_ASSISTENTE, "entregue"])
+    .is("desfecho", null)
+    .limit(500);
+  let liberados = 0;
+  for (const l of (comEle ?? []) as Linha[]) {
+    if (FASES_COM_O_ASSISTENTE.includes(l.assistente_fase)) {
+      await devolverAoHumano(supabase, String(l.id), agora, "o assistente foi desligado");
+      liberados += 1;
+    } else if (!l.aviso_de_entrega_para) {
+      // Entregue de madrugada, com o resumo esperando a manhã: o relógio do
+      // vendedor começa agora, e o funil avisa pelo caminho de sempre.
+      await assistenteNoSla(supabase, String(l.id), false, agora);
+      liberados += 1;
+    }
+  }
+  return liberados;
+}
+
 // ----------------------------------------------------------------------------
 // 1. A entrada — a Evolution contou que chegou (ou saiu) uma mensagem
 // ----------------------------------------------------------------------------
@@ -391,13 +516,12 @@ export async function registrarEntrada(
   deps: Dependencias = {},
 ): Promise<DesfechoDaEntrada> {
   const agora = deps.agora ?? new Date();
+  const loja = await lojaDoAtendimento(supabase);
 
   // A mesma mensagem entregue duas vezes (o n8n repete; a Evolution também).
-  const { data: repetida } = await supabase
-    .from("atendimento_mensagens")
-    .select("id, lead_id, direcao, situacao")
-    .eq("wa_id", evento.waId)
-    .limit(1);
+  let repetidas = supabase.from("atendimento_mensagens").select("id, lead_id, direcao, situacao").eq("wa_id", evento.waId);
+  if (loja) repetidas = repetidas.eq("org_id", loja);
+  const { data: repetida } = await repetidas.limit(1);
   const ja = ((repetida ?? []) as Linha[])[0];
   if (ja) {
     if (ja.direcao === "saida" && ja.situacao === "pendente") {
@@ -409,56 +533,56 @@ export async function registrarEntrada(
   const equipe = await lerEquipe(supabase);
   const pessoa = daEquipe(equipe, evento.telefone);
 
-  if (evento.deMim) return registrarSaidaDaLoja(supabase, evento, pessoa, agora);
+  if (evento.deMim) return registrarSaidaDaLoja(supabase, evento, pessoa, agora, loja);
   if (pessoa) return registrarMensagemDaEquipe(supabase, pessoa, agora);
 
   const { config } = await lerConfigDoAtendimento(supabase);
-  let lead = await acharLeadAberto(supabase, evento.telefone);
-  const novo = !lead;
-  if (!lead) {
-    const { data: criado, error } = await supabase
-      .from("leads")
-      .insert({
-        nome: evento.nome ?? `WhatsApp ${evento.telefone.slice(-4)}`,
-        telefone: evento.telefone,
-        canal: "WhatsApp",
-        situacao: "novo",
-        // Sem isto o lead nasce invisível para o motor do funil (ver
-        // `criarLead` em /api/chatwoot/eventos).
-        ultimo_movimento_em: agora.toISOString(),
-        origem_conversa: evento.origem,
-        assistente_fase: config.ativo ? "qualificando" : null,
-      })
-      .select(COLUNAS_DO_LEAD)
-      .single();
-    if (error || !criado) {
-      console.error("[Atendimento] Lead não criado:", error?.message);
-      return { acao: "lead_nao_criado", detalhe: error?.message };
-    }
-    lead = criado as Linha;
+
+  // Achar ou criar o lead sob trava por telefone: as mensagens de uma rajada
+  // chegam em execuções paralelas do n8n, e sem a trava um número novo
+  // ganharia dois leads (e duas respostas).
+  const { data: achado, error: erroAchar } = await supabase.rpc("achar_ou_criar_lead_do_whatsapp", {
+    p_formas: variantesDoTelefone(evento.telefone),
+    p_telefone: evento.telefone,
+    p_nome: evento.nome,
+    p_origem: evento.origem,
+    p_assistente_fase: config.ativo ? "qualificando" : null,
+  });
+  const linhaAchada = (Array.isArray(achado) ? achado[0] : achado) as Linha | null;
+  if (erroAchar || !linhaAchada?.lead_id) {
+    console.error("[Atendimento] Lead não achado nem criado:", erroAchar?.message);
+    return { acao: "lead_nao_criado", detalhe: erroAchar?.message ?? "sem lead" };
   }
+  const novo = linhaAchada.criado === true;
+  const lead = await lerLead(supabase, String(linhaAchada.lead_id));
+  if (!lead) return { acao: "lead_nao_criado", detalhe: "lead criado e ilegível" };
   const leadId = String(lead.id);
 
   // Em que fase o lead fica com esta mensagem:
+  //   - assistente desligado e o lead estava com ele → volta para a equipe;
   //   - devolvido pelo vendedor e o cliente voltou a falar → o assistente
   //     qualifica de novo (e, se esquentar, entrega ao MESMO dono);
   //   - lead que o assistente nunca pegou → só pega se ninguém da equipe já
   //     falou com o cliente. Lead do formulário que o vendedor já atende não
   //     ganha um robô no meio da conversa;
   //   - o resto fica onde está (entregue, pausado).
-  const voltouDoReaquecimento = lead.assistente_fase === "reaquecendo";
+  if (!config.ativo && FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
+    await devolverAoHumano(supabase, leadId, agora, "o assistente está desligado");
+    lead.assistente_fase = "pausado";
+  }
+  const voltouDoReaquecimento = config.ativo && lead.assistente_fase === "reaquecendo";
   const humanoJaAtende = Boolean(lead.ultimo_contato_em) || (lead.situacao && lead.situacao !== "novo");
   let fase: string | null = lead.assistente_fase ?? null;
   if (voltouDoReaquecimento) fase = "qualificando";
   else if (!fase && config.ativo && (novo || !humanoJaAtende)) fase = "qualificando";
   const comAssistente = config.ativo && fase === "qualificando" && !lead.optout_em;
-  const atendimentoId = await garantirAtendimento(supabase, leadId, comAssistente, agora);
 
   const { data: gravada, error: erroGravar } = await supabase
     .from("atendimento_mensagens")
     .insert({
+      ...(loja ? { org_id: loja } : {}),
       lead_id: leadId,
-      atendimento_id: atendimentoId,
+      atendimento_id: linhaAchada.atendimento_id ?? null,
       telefone: evento.telefone,
       direcao: "entrada",
       autor: "cliente",
@@ -467,7 +591,10 @@ export async function registrarEntrada(
       texto: evento.texto,
       wa_id: evento.waId,
       situacao: "recebida",
-      criado_em: evento.em,
+      // `criado_em` é a hora de CHEGADA (o `default` do banco), e não a do
+      // WhatsApp: a ordem da conversa e a régua de "já respondida" comparam
+      // entradas com saídas, e as saídas são carimbadas pelo banco. Mensagem
+      // que a Evolution entrega atrasada (reconexão) entra na vez dela.
     })
     .select("id")
     .single();
@@ -489,12 +616,14 @@ export async function registrarEntrada(
   if (Object.keys(patch).length > 0) {
     await supabase.from("leads").update(patch).eq("id", leadId);
   }
-  if (voltouDoReaquecimento && comAssistente) await assistenteNoSla(supabase, leadId, true, agora);
+  // O assistente pegou (ou retomou) este lead: o SLA pausa enquanto ele qualifica.
+  if (comAssistente) await assistenteNoSla(supabase, leadId, true, agora);
 
   // Fora do assistente (entregue, pausado, ou lead que a equipe já atendia),
-  // ninguém responde automaticamente: a mensagem vai ao vendedor, que pode
-  // estar atendendo do PRÓPRIO número e não ver o da loja.
-  if (fase !== "qualificando") {
+  // ninguém responde automaticamente: com o assistente ligado, a mensagem vai
+  // ao vendedor, que pode estar atendendo do PRÓPRIO número e não ver o da
+  // loja. Desligado, a entrada só grava.
+  if (config.ativo && fase !== "qualificando") {
     await repassarAoVendedor(supabase, lead, evento, equipe, agora, deps);
   }
 
@@ -519,6 +648,7 @@ async function registrarSaidaDaLoja(
   evento: MensagemDaEvolution,
   pessoa: PessoaDaEquipe | null,
   agora: Date,
+  loja: string | null,
 ): Promise<DesfechoDaEntrada> {
   if (pessoa) return { acao: "equipe", detalhe: "mensagem da loja para a equipe" };
 
@@ -541,11 +671,12 @@ async function registrarSaidaDaLoja(
   const lead = await acharLeadAberto(supabase, evento.telefone);
   if (!lead) return { acao: "saida_sem_lead", detalhe: "mensagem da loja para quem não tem lead aberto" };
   const leadId = String(lead.id);
-  const atendimentoId = await garantirAtendimento(supabase, leadId, false, agora);
+  const atendimento = await garantirAtendimento(supabase, leadId, agora);
 
   await supabase.from("atendimento_mensagens").insert({
+    ...(loja ? { org_id: loja } : {}),
     lead_id: leadId,
-    atendimento_id: atendimentoId,
+    atendimento_id: atendimento?.id ?? null,
     telefone: evento.telefone,
     direcao: "saida",
     autor: "vendedor",
@@ -555,7 +686,6 @@ async function registrarSaidaDaLoja(
     texto: evento.texto,
     wa_id: evento.waId,
     situacao: "enviada",
-    criado_em: evento.em,
   });
 
   if (!mensagemDaLojaAssume(evento.conteudo)) {
@@ -574,7 +704,7 @@ async function registrarSaidaDaLoja(
     });
     if (error) console.error("[Atendimento] Contato do celular da loja não registrado:", error.message);
   }
-  if (lead.assistente_fase === "qualificando" || lead.assistente_fase === "reaquecendo") {
+  if (FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
     await supabase
       .from("leads")
       .update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null })
@@ -591,7 +721,8 @@ async function registrarSaidaDaLoja(
 /**
  * Alguém da equipe escreveu para o número da loja — quase sempre o "ok" ao
  * resumo da entrega. Não vira lead (a trava de 2026-10-10 do Chatwoot); vira
- * a confirmação de que o aviso chegou, que é métrica de equipe.
+ * a confirmação de que o aviso chegou, que é métrica de equipe — só para a
+ * entrega das últimas horas, e não para um aviso velho qualquer.
  */
 async function registrarMensagemDaEquipe(supabase: Banco, pessoa: PessoaDaEquipe, agora: Date): Promise<DesfechoDaEntrada> {
   const desde = new Date(agora.getTime() - JANELA_DA_CONFIRMACAO_MS).toISOString();
@@ -653,9 +784,12 @@ export interface DesfechoDaResposta {
     | "lead_nao_encontrado"
     | "fora_do_assistente"
     | "aguardando_mais_novas"
+    | "ocupado"
     | "ja_respondida"
     | "sem_credencial"
     | "modelo_falhou"
+    | "envio_falhou"
+    | "falhou"
     | "respondido";
   lead?: string;
   enviadas?: number;
@@ -663,7 +797,54 @@ export interface DesfechoDaResposta {
   aquecimento?: number;
   temperatura?: string;
   entregue?: boolean;
+  /** Quantas voltas a resposta deu (mais de uma: chegou mensagem enquanto respondia). */
+  voltas?: number;
   detalhe?: string;
+}
+
+/**
+ * A trava da resposta, POR LEAD: dois updates condicionais, cada um atômico.
+ * Livre, ou presa há mais que a validade (a função que segurava morreu).
+ */
+async function travarResposta(supabase: Banco, leadId: string, agora: Date): Promise<boolean> {
+  const marca = agora.toISOString();
+  const { data: livre } = await supabase
+    .from("leads")
+    .update({ respondendo_desde: marca })
+    .eq("id", leadId)
+    .is("respondendo_desde", null)
+    .select("id");
+  if (((livre ?? []) as Linha[]).length > 0) return true;
+  const vencida = new Date(agora.getTime() - VALIDADE_DA_TRAVA_MS).toISOString();
+  const { data: presa } = await supabase
+    .from("leads")
+    .update({ respondendo_desde: marca })
+    .eq("id", leadId)
+    .lt("respondendo_desde", vencida)
+    .select("id");
+  return ((presa ?? []) as Linha[]).length > 0;
+}
+
+async function soltarResposta(supabase: Banco, leadId: string): Promise<void> {
+  await supabase.from("leads").update({ respondendo_desde: null }).eq("id", leadId);
+}
+
+/** As mensagens do cliente que ainda ninguém respondeu. */
+async function pendentesDoCliente(supabase: Banco, leadId: string): Promise<Linha[]> {
+  const { data } = await supabase
+    .from("atendimento_mensagens")
+    .select("id")
+    .eq("lead_id", leadId)
+    .eq("direcao", "entrada")
+    .is("respondida_em", null)
+    .limit(50);
+  return (data ?? []) as Linha[];
+}
+
+/** Devolve as mensagens à fila: quem retomar o assistente as responde. */
+async function devolverPendentes(supabase: Banco, ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await supabase.from("atendimento_mensagens").update({ respondida_em: null }).in("id", ids);
 }
 
 export async function responderAoLead(
@@ -672,45 +853,98 @@ export async function responderAoLead(
   deps: Dependencias = {},
 ): Promise<DesfechoDaResposta> {
   const agora = deps.agora ?? new Date();
+  const relogio = relogioDe(deps);
+  const inicio = relogio();
   const { config } = await lerConfigDoAtendimento(supabase);
-  if (!config.ativo) return { acao: "assistente_desligado" };
 
   const lead = await lerLead(supabase, pedido.leadId);
   if (!lead) return { acao: "lead_nao_encontrado" };
   const leadId = String(lead.id);
+  if (!config.ativo) {
+    if (FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
+      await devolverAoHumano(supabase, leadId, agora, "o assistente está desligado");
+    }
+    return { acao: "assistente_desligado", lead: leadId };
+  }
   if (lead.desfecho || lead.optout_em || lead.assistente_fase !== "qualificando") {
     return { acao: "fora_do_assistente", lead: leadId, detalhe: lead.desfecho ? "lead encerrado" : lead.optout_em ? "opt-out" : `fase ${lead.assistente_fase ?? "nenhuma"}` };
   }
 
-  const conversa = await lerConversa(supabase, leadId);
-  const doCliente = conversa.filter((m) => m.direcao === "entrada");
-  const ultima = doCliente[doCliente.length - 1];
-  if (!ultima) return { acao: "fora_do_assistente", lead: leadId, detalhe: "sem mensagem do cliente" };
   // A rajada: só a execução da ÚLTIMA mensagem responde. As anteriores saem
   // aqui, e a resposta única cobre todas.
-  if (pedido.mensagemId && pedido.mensagemId !== ultima.id) {
-    return { acao: "aguardando_mais_novas", lead: leadId };
+  if (pedido.mensagemId) {
+    const conversa = await lerConversa(supabase, leadId, 10);
+    const ultima = conversa.filter((m) => m.direcao === "entrada").at(-1);
+    if (ultima && ultima.id !== pedido.mensagemId) return { acao: "aguardando_mais_novas", lead: leadId };
   }
-  // Depois da última fala do cliente, já houve resposta da loja: nada a fazer.
-  if (conversa[conversa.length - 1]?.direcao === "saida") return { acao: "ja_respondida", lead: leadId };
 
-  const { data: travada } = await supabase
+  if (!(await travarResposta(supabase, leadId, agora))) return { acao: "ocupado", lead: leadId };
+  try {
+    let voltas = 0;
+    let resultado: DesfechoDaResposta;
+    // Uma segunda volta só se chegou mensagem ENQUANTO respondia — a execução
+    // dela achou a trava ocupada e saiu; quem responde é esta.
+    for (;;) {
+      voltas += 1;
+      resultado = await responderUmaVez(supabase, leadId, config, deps, agora);
+      if (resultado.acao !== "respondido" || resultado.entregue) break;
+      if (voltas >= 2 || relogio() - inicio > ORCAMENTO_DA_SEGUNDA_VOLTA_MS) break;
+      if ((await pendentesDoCliente(supabase, leadId)).length === 0) break;
+    }
+    return { ...resultado, voltas };
+  } catch (erro) {
+    // Exceção no meio: o lead não pode ficar com o SLA pausado e sem resposta.
+    const motivo = erro instanceof Error ? erro.message : String(erro);
+    await devolverPendentes(supabase, (await pendentesDoClienteMarcadas(supabase, leadId, agora)).map((m) => String(m.id)));
+    await devolverAoHumano(supabase, leadId, agora, `o assistente falhou ao responder (${motivo})`);
+    await alertar(deps, "atendimento-erro", `Assistente de atendimento falhou: ${motivo}. O lead voltou para a equipe.`);
+    return { acao: "falhou", lead: leadId, detalhe: motivo };
+  } finally {
+    await soltarResposta(supabase, leadId);
+  }
+}
+
+/** As entradas que ESTA execução marcou (para devolver numa exceção). */
+async function pendentesDoClienteMarcadas(supabase: Banco, leadId: string, agora: Date): Promise<Linha[]> {
+  const { data } = await supabase
     .from("atendimento_mensagens")
-    .update({ respondida_em: agora.toISOString() })
-    .eq("id", ultima.id)
-    .is("respondida_em", null)
-    .select("id");
-  if (!travada || (travada as Linha[]).length === 0) return { acao: "ja_respondida", lead: leadId };
+    .select("id")
+    .eq("lead_id", leadId)
+    .eq("direcao", "entrada")
+    .eq("respondida_em", agora.toISOString())
+    .limit(50);
+  return (data ?? []) as Linha[];
+}
+
+/** Uma volta: responde a todas as mensagens pendentes do cliente, de uma vez. */
+async function responderUmaVez(
+  supabase: Banco,
+  leadId: string,
+  config: ConfigDoAtendimento,
+  deps: Dependencias,
+  agora: Date,
+): Promise<DesfechoDaResposta> {
+  const lead = await lerLead(supabase, leadId);
+  if (!lead || lead.desfecho || lead.optout_em || lead.assistente_fase !== "qualificando") {
+    return { acao: "fora_do_assistente", lead: leadId };
+  }
+  const pendentes = await pendentesDoCliente(supabase, leadId);
+  if (pendentes.length === 0) return { acao: "ja_respondida", lead: leadId };
+  const ids = pendentes.map((m) => String(m.id));
+  await supabase.from("atendimento_mensagens").update({ respondida_em: agora.toISOString() }).in("id", ids);
 
   const evolution = evolutionDe(deps);
   const modelo = modeloDe(deps, config);
   if (!evolution || !modelo) {
     const falta = !modelo ? "falta DEEPSEEK_API_KEY na Vercel" : motivoSemEvolution();
+    await devolverPendentes(supabase, ids);
     await devolverAoHumano(supabase, leadId, agora, `o assistente não pôde responder: ${falta}`);
     await alertar(deps, "atendimento-sem-credencial", `Assistente de atendimento sem credencial (${falta}). Os leads voltam para a equipe.`);
     return { acao: "sem_credencial", lead: leadId, detalhe: falta };
   }
 
+  const conversa = await lerConversa(supabase, leadId);
+  const doCliente = conversa.filter((m) => m.direcao === "entrada");
   const base = await carregarBase(deps, config.informar_preco);
   const fichaAntes = fichaDoLead(lead);
   const sinaisAntes = sinaisDoLead(lead);
@@ -748,6 +982,7 @@ export async function responderAoLead(
   const resposta = chamada.ok ? lerRespostaDoAgente(chamada.conteudo) : null;
   if (!resposta) {
     const motivo = chamada.ok ? "o modelo respondeu fora do formato" : chamada.motivo;
+    await devolverPendentes(supabase, ids);
     await devolverAoHumano(supabase, leadId, agora, `o assistente não conseguiu responder (${motivo})`);
     await alertar(deps, "atendimento-modelo", `Assistente de atendimento falhou: ${motivo}. O lead voltou para a equipe.`);
     return { acao: "modelo_falhou", lead: leadId, detalhe: motivo };
@@ -761,28 +996,44 @@ export async function responderAoLead(
     mensagensDoCliente: doCliente.length,
   });
   const decisao = decidirEntrega(aquecimento, sinais, config.avisar_a_partir);
+  // O que pode aparecer em reais é o orçamento e a entrada que o cliente
+  // disse — nunca um preço que ele "viu" e pede para confirmar.
   const { mensagens } = vigiarPreco(
     resposta.mensagens,
-    doCliente.map((m) => String(m.texto ?? "")),
+    valoresDoCliente(ficha, doCliente.map((m) => m.texto)),
     config.informar_preco,
   );
 
-  const atendimentoId = await garantirAtendimento(supabase, leadId, true, agora);
+  const atendimento = await garantirAtendimento(supabase, leadId, agora);
   let enviadas = 0;
   let falhas = 0;
+  let ultimoMotivo = "";
   for (const texto of mensagens) {
-    const r = await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto, gatilho: "resposta", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId }, evolution, deps);
+    const r = await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto, gatilho: "resposta", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
     if (r.ok) enviadas += 1;
-    else falhas += 1;
+    else {
+      falhas += 1;
+      ultimoMotivo = r.motivo ?? "";
+    }
   }
 
   await registrarRetrato(supabase, leadId, aquecimento, ficha, sinais, "conversa", modelo.modelo, chamada.ok ? chamada.uso : null);
 
+  if (enviadas === 0) {
+    // Nada saiu (WhatsApp desconectado, número recusado): o cliente está sem
+    // resposta e o SLA, pausado. Volta para a equipe, com o motivo.
+    await devolverPendentes(supabase, ids);
+    await devolverAoHumano(supabase, leadId, agora, `a resposta do assistente não saiu pela Evolution (${ultimoMotivo})`);
+    await alertar(deps, "atendimento-envio", `A resposta do assistente não saiu pela Evolution: ${ultimoMotivo}. O lead voltou para a equipe.`);
+    return { acao: "envio_falhou", lead: leadId, enviadas, falhas, detalhe: ultimoMotivo };
+  }
+
+  const resumo = resposta.resumo ? semLinks(resposta.resumo) : null;
   const patch: Linha = {
     aquecimento: aquecimento.pontos,
     temperatura: aquecimento.temperatura,
     qualificacao: { ficha, sinais, motivos: aquecimento.motivos },
-    ...(resposta.resumo ? { resumo_ia: resposta.resumo, resumo_ia_em: agora.toISOString() } : {}),
+    ...(resumo ? { resumo_ia: resumo, resumo_ia_em: agora.toISOString() } : {}),
     // O que o cliente disse preenche o VAZIO dos dados do negócio — nunca
     // sobrescreve o que o vendedor escreveu (a régua de "o feed preenche o
     // vazio", 2026-09-29).
@@ -808,7 +1059,7 @@ export async function responderAoLead(
 
   let entregue = false;
   if (decisao.entregar && !sinais.optout) {
-    await entregarAoVendedor(supabase, { ...lead, ...patch }, decisao.motivo, aquecimento, ficha, config, evolution, deps, agora);
+    await entregarAoVendedor(supabase, { ...lead, ...patch }, decisao.motivo, aquecimento, ficha, config, evolution, deps, agora, true);
     entregue = true;
   }
 
@@ -833,7 +1084,9 @@ async function registrarRetrato(
   modelo: string | null,
   uso: UsoDoModelo | null,
 ): Promise<void> {
+  const loja = await lojaDoAtendimento(supabase);
   const { error } = await supabase.from("atendimento_qualificacoes").insert({
+    ...(loja ? { org_id: loja } : {}),
     lead_id: leadId,
     aquecimento: aquecimento.pontos,
     temperatura: aquecimento.temperatura,
@@ -847,17 +1100,6 @@ async function registrarRetrato(
     tokens_saida: uso?.saida ?? 0,
   });
   if (error) console.warn("[Atendimento] Retrato não gravado:", error.message);
-}
-
-/**
- * O assistente não pôde seguir: o lead volta para a equipe com o SLA
- * correndo. O motor do funil faz o resto (avisa o administrador do lead sem
- * dono, cobra o vendedor do lead com dono).
- */
-async function devolverAoHumano(supabase: Banco, leadId: string, agora: Date, motivo: string): Promise<void> {
-  await supabase.from("leads").update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", leadId);
-  await assistenteNoSla(supabase, leadId, false, agora);
-  await anotarNoRastro(supabase, leadId, `O lead voltou para a equipe: ${motivo}.`, { acao: "falha" });
 }
 
 // ----------------------------------------------------------------------------
@@ -891,6 +1133,8 @@ async function entregarAoVendedor(
   evolution: ConfigDaEvolution,
   deps: Dependencias,
   agora: Date,
+  /** A frase da passagem ao cliente. Só para quem já escreveu para a loja. */
+  avisarCliente: boolean,
 ): Promise<void> {
   const leadId = String(lead.id);
   const equipe = await lerEquipe(supabase);
@@ -911,13 +1155,15 @@ async function entregarAoVendedor(
 
   const vendedor = responsavel ? equipe.find((p) => p.nome === responsavel) ?? null : null;
   const equipeDisponivel = podeAvisarAEquipe(agora);
-  const passagem = mensagemDePassagemAoCliente({
-    nomeDoCliente: lead.nome,
-    vendedor: vendedor ? { nome: vendedor.nome, whatsapp: vendedor.whatsapp } : null,
-    equipeDisponivel,
-  });
-  const atendimentoId = await garantirAtendimento(supabase, leadId, true, agora);
-  await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto: passagem, gatilho: "passagem", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId }, evolution, deps);
+  if (avisarCliente) {
+    const passagem = mensagemDePassagemAoCliente({
+      nomeDoCliente: lead.nome,
+      vendedor: vendedor ? { nome: vendedor.nome, whatsapp: vendedor.whatsapp } : null,
+      equipeDisponivel,
+    });
+    const atendimento = await garantirAtendimento(supabase, leadId, agora);
+    await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto: passagem, gatilho: "passagem", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
+  }
 
   await supabase
     .from("leads")
@@ -925,6 +1171,10 @@ async function entregarAoVendedor(
       assistente_fase: "entregue",
       entregue_em: agora.toISOString(),
       entregue_motivo: motivo,
+      // A entrega é nova: o aviso dela também.
+      aviso_de_entrega_em: null,
+      aviso_de_entrega_para: null,
+      entrega_confirmada_em: null,
       cadencia: null,
       cadencia_passo: 0,
       cadencia_proximo_em: null,
@@ -942,15 +1192,31 @@ async function entregarAoVendedor(
   // O aviso ao vendedor sai agora, ou na abertura da janela pela rodada. Até
   // sair, o SLA segue pausado: o relógio do vendedor começa quando ele sabe.
   if (equipeDisponivel) {
-    await avisarEntrega(supabase, { ...lead, responsavel, assistente_fase: "entregue", entregue_motivo: motivo }, aquecimento, ficha, equipe, evolution, deps, agora);
+    await avisarEntrega(
+      supabase,
+      { ...lead, responsavel, assistente_fase: "entregue", entregue_motivo: motivo, aviso_de_entrega_para: null },
+      aquecimento,
+      ficha,
+      equipe,
+      evolution,
+      deps,
+      agora,
+    );
   }
 }
 
 /**
  * Manda o resumo a quem deve recebê-lo agora: o dono, ou — sem dono — quem
- * distribui e o gestor. Grava a quem foi, desliga o assistente no SLA e, no
- * aviso a quem distribui, marca o alerta do lead para o motor do funil não
- * mandar o "lead novo" em dobro na rodada seguinte.
+ * distribui e o gestor.
+ *
+ * RESERVA antes de enviar: o update condicional só acerta se o aviso ainda
+ * está como foi lido. O `PATCH` do quadro e a rodada (ou duas rodadas
+ * sobrepostas) podem tentar o mesmo resumo; só um envia.
+ *
+ * Depois, desliga o assistente no SLA — o que só carimba o relógio se ele
+ * ainda estava ligado (`assistenteNoSla`). E, no aviso a quem distribui,
+ * marca o alerta do lead para o motor do funil não mandar o "lead novo" em
+ * dobro na rodada seguinte.
  */
 async function avisarEntrega(
   supabase: Banco,
@@ -961,31 +1227,38 @@ async function avisarEntrega(
   evolution: ConfigDaEvolution,
   deps: Dependencias,
   agora: Date,
-): Promise<{ para: string; enviados: number }> {
+): Promise<{ para: string; enviados: number; reservado: boolean }> {
   const leadId = String(lead.id);
   const responsavel = String(lead.responsavel ?? "").trim() || null;
+  const para = responsavel ?? PARA_QUEM_DISTRIBUI;
+  const lido = lead.aviso_de_entrega_para ?? null;
+
+  const reserva = supabase
+    .from("leads")
+    .update({ aviso_de_entrega_em: agora.toISOString(), aviso_de_entrega_para: para, entrega_confirmada_em: null })
+    .eq("id", leadId);
+  const { data: reservado } = await (lido === null ? reserva.is("aviso_de_entrega_para", null) : reserva.eq("aviso_de_entrega_para", lido)).select("id");
+  if (!reservado || (reservado as Linha[]).length === 0) return { para, enviados: 0, reservado: false };
+
   const motivo = (lead.entregue_motivo ?? "quente") as MotivoDaEntrega | "painel";
   const dados = {
     motivo,
     lead: { nome: lead.nome, telefone: lead.telefone, canal: lead.canal },
     ficha,
     aquecimento,
-    resumo: lead.resumo_ia ?? null,
+    resumo: lead.resumo_ia ? semLinks(lead.resumo_ia) : null,
     origem: origemLegivel(lead),
     linkDoLead: linkDe(deps, leadId),
   };
 
   let destinatarios: PessoaDaEquipe[];
-  let para: string;
   if (responsavel) {
     const dono = equipe.find((p) => p.nome === responsavel);
     destinatarios = dono?.whatsapp ? [dono] : [];
-    para = responsavel;
   } else {
     const distribuem = equipe.filter((p) => p.papeis.includes("admin") && p.papeis.includes("comercial") && p.whatsapp);
     const gestores = equipe.filter((p) => p.papeis.includes("gestor") && p.whatsapp && !distribuem.some((d) => d.whatsapp === p.whatsapp));
     destinatarios = [...distribuem, ...gestores];
-    para = PARA_QUEM_DISTRIBUI;
   }
 
   let enviados = 0;
@@ -1000,24 +1273,27 @@ async function avisarEntrega(
     await alertar(
       deps,
       "atendimento-entrega-sem-destinatario",
-      `Lead entregue pelo assistente sem ninguém avisado (${responsavel ? `${responsavel} sem WhatsApp no cadastro` : "sem administrador nem gestor com WhatsApp"}). Abra o lead no painel.`,
+      `Lead entregue pelo assistente sem ninguém avisado (${responsavel ? `${responsavel} sem WhatsApp no cadastro, ou o envio falhou` : "sem administrador nem gestor com WhatsApp, ou o envio falhou"}). Abra o lead no painel.`,
     );
+  } else if (!responsavel) {
+    await supabase
+      .from("leads")
+      .update({ alertado_em: agora.toISOString(), alertas: Number(lead.alertas ?? 0) + 1 })
+      .eq("id", leadId);
   }
-
-  const patch: Linha = { aviso_de_entrega_em: agora.toISOString(), aviso_de_entrega_para: para, entrega_confirmada_em: null };
-  if (!responsavel && enviados > 0) {
-    patch.alertado_em = agora.toISOString();
-    patch.alertas = Number(lead.alertas ?? 0) + 1;
-  }
-  await supabase.from("leads").update(patch).eq("id", leadId);
   await assistenteNoSla(supabase, leadId, false, agora);
-  return { para, enviados };
+  return { para, enviados, reservado: true };
 }
 
 /**
- * O resumo que ainda não chegou a quem deve: o aviso que esperou o horário,
- * ou o dono escolhido depois pelo administrador. Chamado pela rodada e, para
- * não esperar por ela, pelo `PATCH /api/leads/gerenciar` quando o dono muda.
+ * O resumo que ainda não chegou a quem deve: o aviso que esperou o horário
+ * (`aviso_de_entrega_para` nulo), ou o dono que o administrador escolheu
+ * depois de o resumo ir a quem distribui. Chamado pela rodada e, para não
+ * esperar por ela, pelo `PATCH /api/leads/gerenciar` quando o dono muda.
+ *
+ * Não reenvia depois de uma transferência do funil: o vendedor que recebeu o
+ * resumo e foi trocado pelo motor tem o aviso de transferência dele, e o
+ * relógio do novo dono é o do funil.
  */
 export async function avisarEntregaPendente(
   supabase: Banco,
@@ -1030,7 +1306,9 @@ export async function avisarEntregaPendente(
   const lead = await lerLead(supabase, leadId).catch(() => null);
   if (!lead || lead.assistente_fase !== "entregue" || lead.desfecho) return { avisado: false, motivo: "fora_da_entrega" };
   const devido = String(lead.responsavel ?? "").trim() || PARA_QUEM_DISTRIBUI;
-  if (lead.aviso_de_entrega_para === devido) return { avisado: false, motivo: "ja_avisado" };
+  const avisado = lead.aviso_de_entrega_para ?? null;
+  if (avisado === devido) return { avisado: false, motivo: "ja_avisado" };
+  if (avisado !== null && avisado !== PARA_QUEM_DISTRIBUI) return { avisado: false, motivo: "ja_avisado" };
   if (!podeAvisarAEquipe(agora)) return { avisado: false, motivo: "fora_do_horario" };
   const evolution = evolutionDe(deps);
   if (!evolution) return { avisado: false, motivo: motivoSemEvolution() };
@@ -1050,11 +1328,12 @@ export async function avisarEntregaPendente(
     deps,
     agora,
   );
+  if (!r.reservado) return { avisado: false, motivo: "ja_avisado" };
   return r.enviados > 0 ? { avisado: true } : { avisado: false, motivo: "sem_destinatario" };
 }
 
 // ----------------------------------------------------------------------------
-// 4. A rodada — entregas pendentes e cadências
+// 4. A rodada — entregas pendentes, respostas travadas e cadências
 // ----------------------------------------------------------------------------
 
 export interface ToqueDaRodada {
@@ -1070,8 +1349,10 @@ export interface ResultadoDaRodada {
   ativo: boolean;
   reservado: boolean;
   entregas: { lead_id: string; avisado: boolean; motivo?: string }[];
+  /** Leads devolvidos à equipe: resposta travada, cadência que acabou, assistente desligado. */
+  devolvidos: { lead_id: string; motivo: string }[];
   toques: ToqueDaRodada[];
-  suprimidos: { lead_id: string; motivo: MotivoSemToque; texto: string }[];
+  suprimidos: { lead_id: string; motivo: MotivoSemToque | "sem_conversa" | "outra_rodada"; texto: string }[];
   falhas: number;
 }
 
@@ -1081,9 +1362,22 @@ export async function executarRodada(
   deps: Dependencias = {},
 ): Promise<ResultadoDaRodada> {
   const agora = deps.agora ?? new Date();
-  const resultado: ResultadoDaRodada = { ativo: false, reservado: opcoes.reservar, entregas: [], toques: [], suprimidos: [], falhas: 0 };
-  const { config } = await lerConfigDoAtendimento(supabase);
-  if (!config.ativo) return resultado;
+  const relogio = relogioDe(deps);
+  const inicio = relogio();
+  const resultado: ResultadoDaRodada = { ativo: false, reservado: opcoes.reservar, entregas: [], devolvidos: [], toques: [], suprimidos: [], falhas: 0 };
+  const { config, legivel } = await lerConfigDoAtendimento(supabase);
+  if (!config.ativo) {
+    // Desligado por fora (ou a rota não conseguiu liberar): os leads que
+    // estavam com o assistente voltam para a equipe. Só com a configuração
+    // LIDA dizendo "desligado": uma leitura que falhou uma vez não solta todos
+    // os leads que esperam a cadência — a mensagem que chegar neste meio-tempo
+    // já devolve o lead dela.
+    if (opcoes.reservar && legivel) {
+      const n = await liberarLeadsDoAssistente(supabase, { ...deps, agora });
+      if (n > 0) resultado.devolvidos.push({ lead_id: "*", motivo: `${n} lead(s) liberados: o assistente está desligado` });
+    }
+    return resultado;
+  }
   resultado.ativo = true;
 
   // As entregas cujo aviso ainda não chegou a quem deve.
@@ -1096,7 +1390,8 @@ export async function executarRodada(
     .limit(50);
   for (const l of (entregues ?? []) as Linha[]) {
     const devido = String(l.responsavel ?? "").trim() || PARA_QUEM_DISTRIBUI;
-    if (l.aviso_de_entrega_para === devido) continue;
+    const avisado = l.aviso_de_entrega_para ?? null;
+    if (avisado === devido || (avisado !== null && avisado !== PARA_QUEM_DISTRIBUI)) continue;
     if (!opcoes.reservar) {
       resultado.entregas.push({ lead_id: String(l.id), avisado: false, motivo: "previa" });
       continue;
@@ -1104,6 +1399,42 @@ export async function executarRodada(
     const r = await avisarEntregaPendente(supabase, String(l.id), { ...deps, agora });
     resultado.entregas.push({ lead_id: String(l.id), ...r });
     if (!r.avisado && r.motivo === "sem_destinatario") resultado.falhas += 1;
+  }
+
+  // Os leads com o assistente e sem toque marcado — os que a cadência não
+  // cobre. Dois casos voltam para a equipe:
+  //   - a resposta travou: mensagem do cliente sem resposta há mais de dez
+  //     minutos (a função morreu no meio, o n8n não chamou);
+  //   - a conversa parou e não há cadência para retomar (a cadência do
+  //     silêncio está desligada): um dia depois da última mensagem.
+  const { data: semToque } = await supabase
+    .from("leads")
+    .select("id, assistente_fase, respondendo_desde")
+    .in("assistente_fase", FASES_COM_O_ASSISTENTE)
+    .is("desfecho", null)
+    .is("cadencia_proximo_em", null)
+    .limit(100);
+  for (const l of (semToque ?? []) as Linha[]) {
+    if (relogio() - inicio > ORCAMENTO_DA_RODADA_MS) break;
+    if (l.respondendo_desde && agora.getTime() - new Date(l.respondendo_desde).getTime() < VALIDADE_DA_TRAVA_MS) continue;
+    const ultima = (await lerConversa(supabase, String(l.id), 1))[0];
+    const idade = ultima ? agora.getTime() - new Date(ultima.criado_em).getTime() : Infinity;
+    let motivo: string | null = null;
+    if (l.assistente_fase === "qualificando" && ultima?.direcao === "entrada") {
+      if (idade >= RESPOSTA_ATRASADA_MS) motivo = "resposta_travada";
+    } else if (idade >= FOLGA_DEPOIS_DO_ULTIMO_TOQUE_MS) {
+      motivo = "sem_cadencia";
+    }
+    if (!motivo) continue;
+    resultado.devolvidos.push({ lead_id: String(l.id), motivo });
+    if (!opcoes.reservar) continue;
+    await devolverAoHumano(
+      supabase,
+      String(l.id),
+      agora,
+      motivo === "resposta_travada" ? "o assistente não respondeu a tempo" : "o cliente parou de responder e não há cadência para retomar",
+    );
+    if (motivo === "resposta_travada") resultado.falhas += 1;
   }
 
   // As cadências vencidas.
@@ -1119,24 +1450,72 @@ export async function executarRodada(
   let base: BaseDaLoja | null = null;
 
   for (const lead of (vencidos ?? []) as Linha[]) {
+    // O orçamento: a função tem 60 s, e cada toque pode levar dezenas. O que
+    // não coube fica para a próxima rodada (o passo só anda quando reservado).
+    if (relogio() - inicio > ORCAMENTO_DA_RODADA_MS) break;
+    const leadId = String(lead.id);
     const decisao = decidirToque(lead as unknown as LeadNaCadencia, agora, config.cadencias);
     if (!decisao.tocar) {
-      resultado.suprimidos.push({ lead_id: String(lead.id), motivo: decisao.motivo, texto: MOTIVO_SEM_TOQUE[decisao.motivo] });
-      // O que não vai tocar nunca mais sai da fila; o que espera (horário,
-      // ainda não) fica.
-      if (opcoes.reservar && !["fora_do_expediente", "ainda_nao"].includes(decisao.motivo)) {
-        await supabase.from("leads").update({ cadencia_proximo_em: null }).eq("id", lead.id);
+      resultado.suprimidos.push({ lead_id: leadId, motivo: decisao.motivo, texto: MOTIVO_SEM_TOQUE[decisao.motivo] });
+      if (!opcoes.reservar || ["fora_do_expediente", "ainda_nao"].includes(decisao.motivo)) continue;
+      // A cadência acabou (ou foi desligada) sem o cliente responder: o lead
+      // volta para a equipe — o assistente não fica com ele, e o SLA não fica
+      // pausado, para sempre. Fora do assistente, só a cadência sai da fila.
+      if (FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
+        const porque = decisao.motivo === "cadencia_desligada" ? "a cadência foi desligada" : "a cadência terminou sem resposta do cliente";
+        await devolverAoHumano(supabase, leadId, agora, porque);
+        resultado.devolvidos.push({ lead_id: leadId, motivo: decisao.motivo });
+      } else {
+        await supabase.from("leads").update({ cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", leadId);
       }
       continue;
     }
-    const toque: ToqueDaRodada = { lead_id: String(lead.id), cadencia: decisao.cadencia, passo: decisao.passo };
+    // Nada automático para quem nunca escreveu deste telefone.
+    if (!(await clienteJaEscreveu(supabase, leadId, lead.telefone))) {
+      resultado.suprimidos.push({ lead_id: leadId, motivo: "sem_conversa", texto: "O cliente nunca escreveu para a loja deste telefone." });
+      if (opcoes.reservar) await supabase.from("leads").update({ cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", leadId);
+      continue;
+    }
+
+    const toque: ToqueDaRodada = { lead_id: leadId, cadencia: decisao.cadencia, passo: decisao.passo };
     const ficha = fichaDoLead(lead);
     let texto = preencherModelo(decisao.definicao.modelo, { nome: lead.nome, interesse: ficha.interesse ?? lead.interesse });
-    let uso: UsoDoModelo | null = null;
 
-    if (opcoes.reservar && modelo) {
+    if (!opcoes.reservar) {
+      toque.mensagem = texto;
+      resultado.toques.push(toque);
+      continue;
+    }
+    if (!evolution) {
+      toque.enviado = false;
+      toque.motivo = motivoSemEvolution();
+      resultado.toques.push(toque);
+      resultado.falhas += 1;
+      continue;
+    }
+
+    // A reserva: o passo anda ANTES do envio, e só se ainda for o lido. Outra
+    // rodada que pegou o mesmo lead não acerta a linha e não manda de novo.
+    // Depois do último toque, o cliente ainda tem um dia para responder.
+    const proximoPasso = decisao.passo + 1;
+    const proximoEm =
+      vencimentoDoPasso(config.cadencias, decisao.cadencia, proximoPasso, agora) ??
+      new Date(agora.getTime() + FOLGA_DEPOIS_DO_ULTIMO_TOQUE_MS).toISOString();
+    const { data: reservado } = await supabase
+      .from("leads")
+      .update({ cadencia_passo: proximoPasso, cadencia_proximo_em: proximoEm })
+      .eq("id", leadId)
+      .eq("cadencia_passo", decisao.passo)
+      .select("id");
+    if (!reservado || (reservado as Linha[]).length === 0) {
+      resultado.suprimidos.push({ lead_id: leadId, motivo: "outra_rodada", texto: "Outra rodada já pegou este toque." });
+      continue;
+    }
+
+    let uso: UsoDoModelo | null = null;
+    if (modelo) {
       base ??= await carregarBase(deps, config.informar_preco);
-      const conversa = await lerConversa(supabase, String(lead.id), 10);
+      const conversa = await lerConversa(supabase, leadId, 10);
       const chamada = await completarEmJson({
         cfg: modelo,
         mensagens: montarMensagensDoToque({
@@ -1152,47 +1531,25 @@ export async function executarRodada(
       });
       const escrita = chamada.ok ? lerToque(chamada.conteudo) : null;
       if (escrita) {
-        const doCliente = conversa.filter((m) => m.direcao === "entrada").map((m) => String(m.texto ?? ""));
-        const vigiado = vigiarPreco([escrita], doCliente, config.informar_preco);
+        const ditos = conversa.filter((m) => m.direcao === "entrada").map((m) => m.texto);
+        const vigiado = vigiarPreco([escrita], valoresDoCliente(ficha, ditos), config.informar_preco);
         // Barrado pela trava de preço, fica o modelo pronto (que não tem valor).
         if (vigiado.barrados === 0) texto = escrita;
-        uso = chamada.ok ? chamada.uso : null;
       }
+      uso = chamada.ok ? chamada.uso : null;
     }
     toque.mensagem = texto;
 
-    if (!opcoes.reservar) {
-      resultado.toques.push(toque);
-      continue;
-    }
-    if (!evolution) {
-      toque.enviado = false;
-      toque.motivo = motivoSemEvolution();
-      resultado.toques.push(toque);
-      resultado.falhas += 1;
-      continue;
-    }
-
-    const atendimentoId = await garantirAtendimento(supabase, String(lead.id), true, agora);
-    const envio = await enviarAoCliente(supabase, { leadId: String(lead.id), telefone: lead.telefone, texto, gatilho: "cadencia", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId }, evolution, deps);
+    const atendimento = await garantirAtendimento(supabase, leadId, agora);
+    const envio = await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto, gatilho: "cadencia", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
     toque.enviado = envio.ok;
     if (!envio.ok) {
       toque.motivo = envio.motivo;
       resultado.falhas += 1;
     }
-    // Andou um passo, saindo ou não: um envio que falha não pode virar laço
-    // de tentativa a cada rodada. A falha fica na conversa, à vista.
-    const proximoPasso = decisao.passo + 1;
-    await supabase
-      .from("leads")
-      .update({
-        cadencia_passo: proximoPasso,
-        cadencia_proximo_em: vencimentoDoPasso(config.cadencias, decisao.cadencia, proximoPasso, agora),
-      })
-      .eq("id", lead.id);
     if (uso) {
       const aquecimento = { pontos: Number(lead.aquecimento ?? 0), temperatura: lead.temperatura ?? "frio", motivos: lead.qualificacao?.motivos ?? [] } as Aquecimento;
-      await registrarRetrato(supabase, String(lead.id), aquecimento, ficha, sinaisDoLead(lead), "cadencia", modelo?.modelo ?? null, uso);
+      await registrarRetrato(supabase, leadId, aquecimento, ficha, sinaisDoLead(lead), "cadencia", modelo?.modelo ?? null, uso);
     }
     resultado.toques.push(toque);
   }
@@ -1229,13 +1586,13 @@ export async function enviarDoPainel(
   if (!lead) return { ok: false, status: 404, erro: "Lead não encontrado" };
   if (!lead.telefone) return { ok: false, status: 400, erro: "O lead não tem telefone." };
 
-  const atendimentoId = await garantirAtendimento(supabase, String(lead.id), false, agora);
-  const r = await enviarAoCliente(supabase, { leadId: String(lead.id), telefone: lead.telefone, texto, gatilho: "painel", autor: "vendedor", autorNome: pedido.autor, atendimentoId }, evolution, deps, false);
+  const atendimento = await garantirAtendimento(supabase, String(lead.id), agora);
+  const r = await enviarAoCliente(supabase, { leadId: String(lead.id), telefone: lead.telefone, texto, gatilho: "painel", autor: "vendedor", autorNome: pedido.autor, atendimentoId: atendimento?.id ?? null }, evolution, deps, false);
   if (!r.ok) return { ok: false, status: 502, erro: `A mensagem não saiu: ${r.motivo}.` };
 
   const { error } = await supabase.rpc("registrar_contato_do_lead", { p_lead: lead.id, p_canal: "evolution", p_autor: pedido.autor });
   if (error) console.error("[Atendimento] Contato do painel não registrado:", error.message);
-  if (lead.assistente_fase === "qualificando" || lead.assistente_fase === "reaquecendo") {
+  if (FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
     await supabase.from("leads").update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", lead.id);
     await assistenteNoSla(supabase, String(lead.id), false, agora);
     await anotarNoRastro(supabase, String(lead.id), `${pedido.autor} respondeu pelo painel: o assistente saiu da conversa.`, { acao: "pausa", por: "painel" }, pedido.autor);
@@ -1243,6 +1600,12 @@ export async function enviarDoPainel(
   return { ok: true };
 }
 
+/**
+ * As ações do assistente no painel. As que devolvem o lead ao assistente
+ * (`retomar`, `devolver`) têm porteiro: o assistente ligado, as credenciais,
+ * o cliente que já escreveu para a loja — senão seriam um jeito de tirar o
+ * lead do prazo do funil sem ninguém atender.
+ */
 export async function mudarAssistente(
   supabase: Banco,
   pedido: { leadId: string; acao: AcaoDoAssistente; autor: string },
@@ -1262,40 +1625,52 @@ export async function mudarAssistente(
     return { ok: true };
   }
 
+  const evolution = evolutionDe(deps);
+  if (!evolution) return { ok: false, status: 503, erro: `O WhatsApp da loja não está ligado ao painel: ${motivoSemEvolution()}.` };
+  const escreveu = await clienteJaEscreveu(supabase, leadId, lead.telefone);
+
+  if (pedido.acao === "entregar") {
+    const ficha = fichaDoLead(lead);
+    const aquecimento = calcularAquecimento(ficha, sinaisDoLead(lead), { pesos: config.pesos, limiares: config.limiares });
+    await entregarAoVendedor(supabase, lead, "painel", aquecimento, ficha, config, evolution, deps, agora, escreveu && !lead.optout_em);
+    return podeAvisarAEquipe(agora) ? { ok: true } : { ok: true, aviso: "Fora do horário de aviso: o resumo vai ao vendedor na abertura." };
+  }
+
   if (lead.optout_em) {
     return { ok: false, status: 409, erro: "O cliente pediu para não receber mensagens. O assistente não volta a escrever para ele." };
   }
+  if (!config.ativo) return { ok: false, status: 409, erro: "O assistente está desligado na configuração." };
+  if (!escreveu) {
+    return { ok: false, status: 409, erro: "O cliente nunca escreveu para a loja deste telefone: o assistente não começa conversa." };
+  }
 
   if (pedido.acao === "retomar") {
+    if (lead.assistente_fase !== "pausado") {
+      return { ok: false, status: 409, erro: "Só a conversa pausada volta ao assistente." };
+    }
+    if (!modeloDe(deps, config)) return { ok: false, status: 503, erro: "Falta DEEPSEEK_API_KEY na Vercel: o assistente não teria como responder." };
     await supabase.from("leads").update({ assistente_fase: "qualificando" }).eq("id", leadId);
     await assistenteNoSla(supabase, leadId, true, agora);
     await anotarNoRastro(supabase, leadId, `${pedido.autor} devolveu a conversa ao assistente.`, { acao: "retomada" }, pedido.autor);
-    return config.ativo ? { ok: true } : { ok: true, aviso: "O assistente está desligado na configuração: ele só responde quando for ligado." };
+    // A fala do cliente que ficou sem resposta (o modelo tinha caído, alguém
+    // pausou no meio): o assistente responde agora, e não na próxima mensagem.
+    if ((await pendentesDoCliente(supabase, leadId)).length > 0) {
+      const r = await responderAoLead(supabase, { leadId }, deps);
+      if (r.acao !== "respondido") return { ok: true, aviso: `O assistente voltou, mas não respondeu a mensagem pendente (${r.detalhe ?? r.acao}).` };
+    }
+    return { ok: true };
   }
 
-  if (pedido.acao === "devolver") {
-    const proximo = vencimentoDoPasso(config.cadencias, "engajamento", 0, agora);
-    await supabase
-      .from("leads")
-      .update({
-        assistente_fase: "reaquecendo",
-        cadencia: config.cadencias.engajamento.ativa && proximo ? "engajamento" : null,
-        cadencia_passo: 0,
-        cadencia_proximo_em: config.cadencias.engajamento.ativa ? proximo : null,
-      })
-      .eq("id", leadId);
-    await assistenteNoSla(supabase, leadId, true, agora);
-    await anotarNoRastro(supabase, leadId, `${pedido.autor} devolveu o lead ao assistente para reaquecer.`, { acao: "devolucao" }, pedido.autor);
-    return config.cadencias.engajamento.ativa
-      ? { ok: true }
-      : { ok: true, aviso: "A cadência de engajamento está desligada: o lead fica com o assistente, sem mensagens programadas." };
+  // devolver — o lead esfriou e o vendedor o passa ao assistente para reaquecer.
+  if (!config.cadencias.engajamento.ativa) {
+    return { ok: false, status: 409, erro: "A cadência de engajamento está desligada: sem ela o assistente não teria o que fazer com o lead." };
   }
-
-  // entregar — passa ao vendedor agora, com o que já se sabe.
-  const evolution = evolutionDe(deps);
-  if (!evolution) return { ok: false, status: 503, erro: `O WhatsApp da loja não está ligado ao painel: ${motivoSemEvolution()}.` };
-  const ficha = fichaDoLead(lead);
-  const aquecimento = calcularAquecimento(ficha, sinaisDoLead(lead), { pesos: config.pesos, limiares: config.limiares });
-  await entregarAoVendedor(supabase, lead, "painel", aquecimento, ficha, config, evolution, deps, agora);
-  return podeAvisarAEquipe(agora) ? { ok: true } : { ok: true, aviso: "Fora do horário de aviso: o resumo vai ao vendedor na abertura." };
+  const proximo = vencimentoDoPasso(config.cadencias, "engajamento", 0, agora);
+  await supabase
+    .from("leads")
+    .update({ assistente_fase: "reaquecendo", cadencia: "engajamento", cadencia_passo: 0, cadencia_proximo_em: proximo })
+    .eq("id", leadId);
+  await assistenteNoSla(supabase, leadId, true, agora);
+  await anotarNoRastro(supabase, leadId, `${pedido.autor} devolveu o lead ao assistente para reaquecer.`, { acao: "devolucao" }, pedido.autor);
+  return { ok: true };
 }

@@ -101,7 +101,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate",
     "timezone": "America/Sao_Paulo",
-    "saveDataSuccessExecution": "all",
+    "saveDataSuccessExecution": "none",
     "saveDataErrorExecution": "all"
   },
   "tags": []

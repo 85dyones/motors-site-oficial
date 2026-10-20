@@ -6,10 +6,12 @@ import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 export const dynamic = "force-dynamic";
 /**
  * O modelo leva alguns segundos, e a Evolution espera o "digitando" de cada
- * balão antes de devolver. 60 s cobre a pior conta (três balões de 6 s, a
- * entrega com o resumo e a chamada ao modelo) com folga.
+ * balão antes de devolver. Uma volta cabe em 60 s (três balões de 6 s, a
+ * entrega com o resumo e a chamada ao modelo); a segunda volta — a mensagem
+ * que chegou enquanto respondia — só começa nos primeiros 30 s, então 120 s
+ * cobre as duas.
  */
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

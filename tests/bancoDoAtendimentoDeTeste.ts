@@ -11,10 +11,20 @@
  *
  * Suporta: select (as colunas são ignoradas, volta a linha inteira), insert,
  * update, os filtros eq, neq, in, is, gte, lte, lt, gt, not(col, "is", null),
- * order, limit, single/maybeSingle e o `await` direto; `rpc` por função
- * registrada. O índice único de `atendimento_mensagens (wa_id)` é simulado,
- * com o código 23505 que o Postgres devolve.
+ * order (uma ou mais, na ordem em que foram pedidas), limit, single/maybeSingle
+ * e o `await` direto; `rpc` por função registrada. O índice único de
+ * `atendimento_mensagens (wa_id)` é simulado, com o código 23505 que o
+ * Postgres devolve.
+ *
+ * Duas funções do banco vêm de fábrica (o teste pode trocar): `org_padrao`
+ * devolve `LOJA_DE_TESTE`, e `achar_ou_criar_lead_do_whatsapp` repete a da
+ * migração — o lead aberto por qualquer forma do telefone, ou um novo; o
+ * atendimento sem Chatwoot, ou um novo herdando as etiquetas. Como o
+ * JavaScript não se intercala dentro de uma chamada síncrona, ela já é
+ * "atômica" como a trava por telefone do Postgres.
  */
+
+export const LOJA_DE_TESTE = "00000000-0000-4000-8000-0000000000aa";
 
 type Linha = Record<string, any>;
 type Filtro = (l: Linha) => boolean;
@@ -70,7 +80,7 @@ export function bancoDeTeste(
     let devolver = false;
     let fim: "single" | "maybeSingle" | null = null;
     const filtros: Filtro[] = [];
-    let ordem: { coluna: string; asc: boolean } | null = null;
+    const ordens: { coluna: string; asc: boolean }[] = [];
     let limite: number | null = null;
 
     const executar = () => {
@@ -93,9 +103,14 @@ export function bancoDeTeste(
         if (operacao === "update") for (const l of afetadas) Object.assign(l, valores);
       }
       let saida = [...afetadas];
-      if (ordem) {
-        const { coluna, asc } = ordem;
-        saida.sort((a, b) => (asc ? comparar(a[coluna], b[coluna]) : comparar(b[coluna], a[coluna])));
+      if (ordens.length > 0) {
+        saida.sort((a, b) => {
+          for (const { coluna, asc } of ordens) {
+            const c = asc ? comparar(a[coluna], b[coluna]) : comparar(b[coluna], a[coluna]);
+            if (c !== 0) return c;
+          }
+          return 0;
+        });
       }
       if (limite !== null) saida = saida.slice(0, limite);
       const copia = saida.map((l) => ({ ...l }));
@@ -133,7 +148,7 @@ export function bancoDeTeste(
         filtros.push((l) => l[c] !== null && l[c] !== undefined);
         return api;
       },
-      order: (c: string, o?: { ascending?: boolean }) => ((ordem = { coluna: c, asc: o?.ascending !== false }), api),
+      order: (c: string, o?: { ascending?: boolean }) => (ordens.push({ coluna: c, asc: o?.ascending !== false }), api),
       limit: (n: number) => ((limite = n), api),
       single: () => ((fim = "single"), Promise.resolve(executar())),
       maybeSingle: () => ((fim = "maybeSingle"), Promise.resolve(executar())),
@@ -142,11 +157,54 @@ export function bancoDeTeste(
     return api;
   };
 
+  const maisRecente = (a: Linha, b: Linha) =>
+    comparar(b.iniciado_em ?? b.created_at, a.iniciado_em ?? a.created_at) || comparar(b.created_at, a.created_at);
+  const deFabrica: Record<string, (args: any, t: Record<string, Linha[]>) => any> = {
+    org_padrao: () => LOJA_DE_TESTE,
+    achar_ou_criar_lead_do_whatsapp: (args, t) => {
+      const leads = (t.leads ??= []);
+      let lead = leads
+        .filter((l) => args.p_formas.includes(l.telefone) && !l.desfecho)
+        .sort((a, b) => comparar(b.created_at, a.created_at))[0];
+      let criado = false;
+      if (!lead) {
+        lead = {
+          ...PADROES.leads(),
+          id: novoId(),
+          nome: String(args.p_nome ?? "").trim() || `WhatsApp ${String(args.p_telefone).slice(-4)}`,
+          telefone: args.p_telefone,
+          canal: "WhatsApp",
+          situacao: "novo",
+          origem_conversa: args.p_origem ?? null,
+          assistente_fase: args.p_assistente_fase ?? null,
+        };
+        leads.push(lead);
+        criado = true;
+      }
+      const atendimentos = (t.atendimentos ??= []);
+      const doLead = atendimentos.filter((a) => a.lead_id === lead.id).sort(maisRecente);
+      let atendimento = doLead.find((a) => a.chatwoot_conversation_id === null || a.chatwoot_conversation_id === undefined);
+      if (!atendimento) {
+        atendimento = {
+          ...PADROES.atendimentos(),
+          id: novoId(),
+          lead_id: lead.id,
+          iniciado_em: relogio().toISOString(),
+          com_assistente: false,
+          status_conversa: "open",
+          tags: doLead[0]?.tags ?? null,
+        };
+        atendimentos.push(atendimento);
+      }
+      return [{ lead_id: lead.id, atendimento_id: atendimento.id, criado }];
+    },
+  };
+
   const cliente = {
     from: (t: string) => cadeia(t),
     rpc: async (nome: string, args: any) => {
       chamadasRpc.push({ nome, args });
-      const f = rpcs[nome];
+      const f = rpcs[nome] ?? deFabrica[nome];
       if (!f) return { data: null, error: null };
       return { data: f(args, tabelas), error: null };
     },
@@ -154,19 +212,36 @@ export function bancoDeTeste(
   return { tabelas, cliente, rpcs: chamadasRpc };
 }
 
-/** Uma Evolution e uma DeepSeek de mentira, no mesmo `fetch`. */
-export function transporteDeTeste(respostasDoModelo: (string | { erro: string })[] = []) {
+/**
+ * Uma Evolution e uma DeepSeek de mentira, no mesmo `fetch`.
+ *
+ * `envioRecusado` faz a Evolution recusar (500) o envio de número n (a partir
+ * de 1); `antesDoModelo` roda antes de cada resposta do modelo — é onde o
+ * teste faz o cliente escrever DURANTE a resposta.
+ */
+export function transporteDeTeste(
+  respostasDoModelo: (string | { erro: string })[] = [],
+  opcoes: { envioRecusado?: (n: number) => boolean; antesDoModelo?: (n: number) => Promise<void> } = {},
+) {
   const enviados: { numero: string; texto: string }[] = [];
+  const recusados: { numero: string; texto: string }[] = [];
   const pedidosAoModelo: any[] = [];
   let i = 0;
+  let tentativas = 0;
   const transporte = async (url: string, init?: RequestInit) => {
     const corpo = init?.body ? JSON.parse(String(init.body)) : null;
     if (url.includes("/message/sendText/")) {
+      tentativas += 1;
+      if (opcoes.envioRecusado?.(tentativas)) {
+        recusados.push({ numero: corpo.number, texto: corpo.text });
+        return new Response(JSON.stringify({ message: "instance not connected" }), { status: 500 });
+      }
       enviados.push({ numero: corpo.number, texto: corpo.text });
       return new Response(JSON.stringify({ key: { id: `WA-SAIDA-${enviados.length}` } }), { status: 201 });
     }
     if (url.endsWith("/chat/completions")) {
       pedidosAoModelo.push(corpo);
+      await opcoes.antesDoModelo?.(pedidosAoModelo.length);
       const r = respostasDoModelo[Math.min(i, respostasDoModelo.length - 1)];
       i += 1;
       if (!r || typeof r !== "string") return new Response(JSON.stringify({ error: { message: (r as { erro: string })?.erro ?? "sem resposta" } }), { status: 500 });
@@ -177,5 +252,5 @@ export function transporteDeTeste(respostasDoModelo: (string | { erro: string })
     }
     throw new Error(`URL inesperada no dublê: ${url}`);
   };
-  return { transporte: transporte as unknown as typeof fetch, enviados, pedidosAoModelo };
+  return { transporte: transporte as unknown as typeof fetch, enviados, recusados, pedidosAoModelo };
 }

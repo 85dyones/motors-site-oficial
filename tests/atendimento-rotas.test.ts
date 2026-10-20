@@ -65,13 +65,19 @@ describe("a porta do motor do atendimento", () => {
     expect((await POST(pedido("/api/atendimento/evolution?token=do-chatwoot", CORPO_DA_EVOLUTION))).status).toBe(401);
   });
 
-  it("Bearer certo ou ?token= certo: entra, e devolve o que o n8n lê", async () => {
+  it("Bearer certo: entra, e devolve o que o n8n lê", async () => {
     vi.stubEnv("ATENDIMENTO_MOTOR_TOKEN", "certo");
     const { POST } = await import("../src/app/api/atendimento/evolution/route");
     const r = await POST(pedido("/api/atendimento/evolution", CORPO_DA_EVOLUTION, { Authorization: "Bearer certo" }));
     expect(r.status).toBe(200);
     expect(await r.json()).toMatchObject({ ok: true, acao: "mensagem_registrada", responder: true, aguardar_ms: 12000, lead: "l1", mensagem: "m1" });
-    expect((await POST(pedido("/api/atendimento/evolution?token=certo", CORPO_DA_EVOLUTION))).status).toBe(200);
+  });
+
+  it("token na URL não abre a porta, nem o certo: fica em log de acesso", async () => {
+    vi.stubEnv("ATENDIMENTO_MOTOR_TOKEN", "certo");
+    const { POST } = await import("../src/app/api/atendimento/evolution/route");
+    expect((await POST(pedido("/api/atendimento/evolution?token=certo", CORPO_DA_EVOLUTION))).status).toBe(401);
+    expect(registrarEntrada).not.toHaveBeenCalled();
   });
 
   it("evento ignorado responde 200 com o motivo e responder: false", async () => {

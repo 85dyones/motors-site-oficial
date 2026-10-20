@@ -394,9 +394,12 @@ O atendimento por IA, sem Chatwoot: a Evolution manda o webhook ao workflow
 "Motors Atendimento — Entrada" do n8n, que repassa o corpo **sem mexer** para
 `/api/atendimento/evolution`, espera a rajada e chama `/api/atendimento/responder`.
 O workflow "Motors Atendimento — Rodada" chama `/api/atendimento/rodada` a cada
-15 minutos. As três rotas usam `ATENDIMENTO_MOTOR_TOKEN` (Bearer, ou `?token=`
-para um webhook que só tenha URL) — segredo próprio, sem fallback para o do
-funil nem para o do Chatwoot.
+15 minutos. As três rotas usam `ATENDIMENTO_MOTOR_TOKEN`, só em
+`Authorization: Bearer` (token na URL fica em log de acesso) — segredo
+próprio, sem fallback para o do funil nem para o do Chatwoot. Os dois
+workflows não guardam a execução que deu certo (`saveDataSuccessExecution:
+"none"`): o corpo tem o telefone e a mensagem do cliente, e o registro da
+conversa é o do painel.
 
 ```jsonc
 // POST /api/atendimento/evolution — o corpo da Evolution (messages.upsert), inteiro

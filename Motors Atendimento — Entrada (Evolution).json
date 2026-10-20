@@ -121,7 +121,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ { \"lead_id\": $('Repassar ao site').item.json.body.lead, \"mensagem_id\": $('Repassar ao site').item.json.body.mensagem } }}",
         "options": {
-          "timeout": 70000,
+          "timeout": 130000,
           "response": {
             "response": {
               "fullResponse": true,
@@ -200,7 +200,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate",
     "timezone": "America/Sao_Paulo",
-    "saveDataSuccessExecution": "all",
+    "saveDataSuccessExecution": "none",
     "saveDataErrorExecution": "all"
   },
   "tags": []

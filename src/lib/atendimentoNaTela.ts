@@ -178,7 +178,8 @@ export function acoesDisponiveis(estado: Pick<EstadoDoAtendimento, "assistente_f
     case "pausado":
       return ["retomar", "devolver"];
     default:
-      return ["retomar"];
+      // O assistente nunca pegou este lead: não há conversa dele a retomar.
+      return [];
   }
 }
 

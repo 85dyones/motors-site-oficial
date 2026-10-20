@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { liberarLeadsDoAssistente, lojaDoAtendimento } from "../../../../lib/atendimento-servidor";
 import { CONFIG_DE_FABRICA, MIGRACAO_DO_ATENDIMENTO, configValida, decidirConfig } from "../../../../lib/configDoAtendimento";
 import { ehTabelaOuColunaAusente, mensagemDeMigracaoPendente } from "../../../../lib/erroDeSchema";
 import { configDaEvolution } from "../../../../lib/evolution";
@@ -15,6 +16,11 @@ export const dynamic = "force-dynamic";
  * escrita — a mesma régua de `atendimentos`: a porta é a ROTA, que confere
  * o papel antes. O que se grava passa por `decidirConfig`, que recusa (400)
  * em vez de corrigir calado.
+ *
+ * Com a chave de serviço, a RLS não filtra: as leituras e a gravação vão
+ * pela loja de `org_padrao()`. Desligar o assistente devolve à equipe, na
+ * hora, todo lead que estava com ele (`liberarLeadsDoAssistente`) — sem isso
+ * eles ficariam com o SLA pausado e ninguém respondendo.
  *
  * O GET também diz o que falta nas integrações — chave da DeepSeek, Evolution
  * e o token do n8n —, para a tela mostrar por que ligar não vai funcionar
@@ -50,7 +56,10 @@ export async function GET() {
   try {
     const { recusa } = await quemPede();
     if (recusa) return recusa;
-    const { data, error } = await createAdminSupabaseClient().from("atendimento_config").select("*").limit(1).maybeSingle();
+    const supabase = createAdminSupabaseClient();
+    const loja = await lojaDoAtendimento(supabase);
+    if (!loja) return NextResponse.json({ error: "Loja ilegível (org_padrao)." }, { status: 500 });
+    const { data, error } = await supabase.from("atendimento_config").select("*").eq("org_id", loja).maybeSingle();
     if (error) {
       if (ehTabelaOuColunaAusente(error)) {
         return NextResponse.json({
@@ -77,8 +86,14 @@ export async function PUT(request: NextRequest) {
     if (!decisao.ok) return NextResponse.json({ error: decisao.erro }, { status: 400 });
 
     const supabase = createAdminSupabaseClient();
-    const linha = { ...decisao.linha, atualizado_em: new Date().toISOString(), atualizado_por: nome };
-    const { data: atual, error: erroLer } = await supabase.from("atendimento_config").select("id").limit(1).maybeSingle();
+    const loja = await lojaDoAtendimento(supabase);
+    if (!loja) return NextResponse.json({ error: "Loja ilegível (org_padrao)." }, { status: 500 });
+    const linha = { ...decisao.linha, org_id: loja, atualizado_em: new Date().toISOString(), atualizado_por: nome };
+    const { data: atual, error: erroLer } = await supabase
+      .from("atendimento_config")
+      .select("id, ativo")
+      .eq("org_id", loja)
+      .maybeSingle();
     if (erroLer) {
       const mensagem = ehTabelaOuColunaAusente(erroLer) ? mensagemDeMigracaoPendente(MIGRACAO_DO_ATENDIMENTO) : erroLer.message;
       return NextResponse.json({ error: mensagem }, { status: ehTabelaOuColunaAusente(erroLer) ? 503 : 500 });
@@ -91,7 +106,17 @@ export async function PUT(request: NextRequest) {
       const status = gravacao.error.code === "23514" ? 400 : 500;
       return NextResponse.json({ error: gravacao.error.message }, { status });
     }
-    return NextResponse.json({ ok: true, config: configValida(gravacao.data), integracoes: integracoes() });
+    const config = configValida(gravacao.data);
+    let liberados = 0;
+    if (atual?.ativo === true && !config.ativo) {
+      // Se a liberação falhar no meio, a rodada do n8n termina o serviço:
+      // com o assistente desligado, ela libera o que sobrou.
+      liberados = await liberarLeadsDoAssistente(supabase).catch((erro) => {
+        console.error("[Atendimento] Leads não liberados ao desligar:", erro);
+        return 0;
+      });
+    }
+    return NextResponse.json({ ok: true, config, liberados, integracoes: integracoes() });
   } catch (erro) {
     return NextResponse.json({ error: erro instanceof Error ? erro.message : "Erro inesperado" }, { status: 500 });
   }

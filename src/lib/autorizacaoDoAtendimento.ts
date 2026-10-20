@@ -12,9 +12,10 @@ import { registrarFalha } from "./observabilidade";
  * manda WhatsApp a cliente; quem tem a credencial do funil não deveria
  * conseguir isso.
  *
- * Duas formas, como na entrada do Chatwoot: `Authorization: Bearer` (o n8n)
- * e `?token=` (o webhook nativo da Evolution, se um dia for ligado direto,
- * só tem URL). Sem a variável, 503 — problema de configuração nossa.
+ * Uma forma só: `Authorization: Bearer`. Token na URL fica no log de acesso
+ * da Vercel e de qualquer proxy no caminho, e quem chama é sempre o n8n, que
+ * manda cabeçalho (a Evolution fala com o n8n, nunca direto com o site). Sem a
+ * variável, 503 — problema de configuração nossa.
  *
  * A recusa de quem TROUXE credencial vai ao WhatsApp como parada: foi o
  * defeito de 23/09 no Chatwoot, quinze dias de 401 só no log. Recusa sem
@@ -41,11 +42,9 @@ export async function autorizarMotorDoAtendimento(
 
   const cabecalho = request.headers.get("Authorization");
   if (cabecalho && tokenConfere(cabecalho, `Bearer ${segredo}`)) return { erro: null };
-  const daUrl = new URL(request.url).searchParams.get("token");
-  if (tokenConfere(daUrl, segredo)) return { erro: null };
 
-  const trouxe = Boolean(daUrl?.trim()) || /^Bearer\s+\S/i.test(cabecalho ?? "");
-  console.warn("[Atendimento] 401 —", JSON.stringify({ rota, veio_cabecalho: Boolean(cabecalho), veio_query: daUrl !== null }));
+  const trouxe = /^Bearer\s+\S/i.test(cabecalho ?? "");
+  console.warn("[Atendimento] 401 —", JSON.stringify({ rota, veio_cabecalho: Boolean(cabecalho) }));
   if (trouxe) {
     await registrarFalha(
       "parada",

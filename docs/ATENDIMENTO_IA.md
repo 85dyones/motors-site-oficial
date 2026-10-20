@@ -69,7 +69,7 @@ não negociam preço; só passam o lead qualificado. O AutoSDR usa **nota de 0 a
                                                                     ├─▶ Evolution: resposta ao cliente
                                                                     └─▶ esquentou? Evolution: resumo ao vendedor
 
- n8n "Rodada" (15 min) ──▶ POST /api/atendimento/rodada   (resumos pendentes + toques de cadência)
+ n8n "Rodada" (15 min) ──▶ POST /api/atendimento/rodada   (resumos pendentes, devoluções e toques de cadência)
 
  painel: GET/POST /api/leads/[id]/conversa · POST /api/leads/[id]/assistente · /admin/leads/atendimento
 ```
@@ -202,10 +202,34 @@ responder "ok" ao resumo, conta como **confirmação** (métrica da equipe).
 | Foto, áudio ou documento no celular da loja | fica | não |
 | Mensagem da loja que sai pela API (outra automação do n8n) | sai | **não** — chega como `web`, igual ao WhatsApp Web |
 | O modelo falhou, respondeu fora do formato, ou falta credencial | sai, com alerta | — (o SLA volta a correr) |
+| A Evolution recusou todos os balões, ou deu exceção no meio da resposta | sai, com alerta | — |
+| O assistente foi **desligado** na configuração | todo lead com ele sai na hora (e a rodada confere) | — |
+| Mensagem do cliente sem resposta há 10 min (a função morreu, o n8n não chamou) | sai, pela rodada | — |
+| A cadência acabou, ou foi desligada, sem o cliente responder | sai, pela rodada | — |
+| A conversa parou e não há cadência marcada | sai um dia depois, pela rodada | — |
 
 **Robô não atende** (`WEBHOOKS_N8N.md`): mensagem do assistente nunca reinicia o
-relógio de ninguém. **Na dúvida, devolve ao humano**: silêncio do robô com o
-relógio pausado seria o lead parado sem ninguém saber.
+relógio de ninguém — e reavisar um lead já entregue (o dono escolhido depois)
+não mexe no relógio que já corre. **Na dúvida, devolve ao humano**: silêncio
+do robô com o relógio pausado seria o lead parado sem ninguém saber. A
+mensagem que ficou sem resposta volta para a fila: quem devolver a conversa ao
+assistente pelo painel faz ele responder na hora.
+
+**Os botões que devolvem o lead ao assistente têm porteiro**: *Devolver a
+conversa ao assistente* só na conversa pausada; ele e *Devolver para
+reaquecer* só com o assistente ligado e para o cliente que já escreveu à loja
+— senão seriam um jeito de tirar o lead do prazo do funil sem ninguém atender.
+O estado do assistente no lead (fase, cadência, opt-out, aviso, confirmação)
+só muda pelo servidor: um gatilho no banco recusa a mudança vinda da sessão.
+
+**Uma resposta por vez, nada em dobro.** A resposta tem trava por lead
+(`respondendo_desde`, 90 s): a mensagem que chega enquanto o assistente
+responde é respondida por uma segunda volta da mesma execução, e não por uma
+resposta paralela. O lead de um número novo é achado ou criado sob trava por
+telefone (`achar_ou_criar_lead_do_whatsapp`), para a rajada não criar dois. O
+resumo ao vendedor e cada toque de cadência são **reservados** por um update
+condicional antes de sair: o quadro e a rodada, ou duas rodadas, não mandam o
+mesmo duas vezes.
 
 ---
 
@@ -220,9 +244,23 @@ relógio pausado seria o lead parado sem ninguém saber.
 Regras (`src/lib/cadencias.ts`): no máximo três toques; **só no horário da
 loja**; **só para quem escreveu para a loja** (nunca disparo frio — o número
 entra no WhatsApp como aparelho conectado, e mensagem em massa é o caminho mais
-curto para o bloqueio); param quando o cliente responde ou pede para sair. O
-modelo escreve cada toque a partir do texto pronto (que é o que sai quando o
-modelo não está disponível), com a mesma trava de preço da conversa.
+curto para o bloqueio — lead de formulário que nunca escreveu sai da
+cadência sem receber nada); param quando o cliente responde ou pede para sair.
+O modelo escreve cada toque a partir do texto pronto (que é o que sai quando o
+modelo não está disponível), com a mesma trava de preço da conversa. Depois do
+último toque, o cliente tem um dia para responder; sem resposta, o lead volta
+para a equipe.
+
+**A trava de preço** (com *informar preço* desligado): nenhum balão sai com
+valor em dinheiro — "R$ 79.900", "79.900", "79,9 mil", "80k", "1890 reais" —
+além do orçamento e da entrada que o cliente disse (na ficha **e** nas
+mensagens dele). Confirmar o preço que o cliente "viu no anúncio" é informar
+preço, e é barrado; o balão vira "O valor certinho quem te passa é a nossa
+equipe de consultores". Quilometragem, ano e motor ("1.6") não contam.
+
+**O que vem de fora**: o nome do WhatsApp entra no prompt só com letras e
+curto (não abre seção nova nem fecha o JSON); o resumo vai ao vendedor sem
+link nenhum.
 
 ---
 
@@ -260,12 +298,12 @@ modelo não está disponível), com a mesma trava de preço da conversa.
 
 | Rota | Quem chama | O que faz |
 |---|---|---|
-| `POST /api/atendimento/evolution` | n8n (`ATENDIMENTO_MOTOR_TOKEN`) | Grava a mensagem, cria o lead, devolve `responder` e `aguardar_ms`. Nunca erra fora de autenticação. |
-| `POST /api/atendimento/responder` | n8n | `{ lead_id, mensagem_id }`. Só a última da rajada responde. |
-| `POST /api/atendimento/rodada` | n8n, a cada 15 min | `{ reservar: true }` envia; sem ele é **prévia**. |
+| `POST /api/atendimento/evolution` | n8n (`ATENDIMENTO_MOTOR_TOKEN`, só `Authorization: Bearer`) | Grava a mensagem, cria o lead, devolve `responder` e `aguardar_ms`. Nunca erra fora de autenticação. |
+| `POST /api/atendimento/responder` | n8n | `{ lead_id, mensagem_id }`. Só a última da rajada responde; até 120 s (duas voltas). |
+| `POST /api/atendimento/rodada` | n8n, a cada 15 min | `{ reservar: true }` envia e devolve; sem ele é **prévia**. |
 | `GET/POST /api/leads/[id]/conversa` | painel | Lê a conversa (pela sessão, com o escopo do lead) / responde pelo número da loja. |
 | `POST /api/leads/[id]/assistente` | painel | `pausar`, `retomar`, `entregar`, `devolver`. |
-| `GET/PUT /api/atendimento/config` | painel (Admin, Gestor) | A configuração, e o que falta nas integrações. |
+| `GET/PUT /api/atendimento/config` | painel (Admin, Gestor) | A configuração da loja, e o que falta nas integrações. Desligar devolve os leads do assistente à equipe. |
 | `GET /api/atendimento/relatorio?dias=30` | painel | O relatório, recortado pelo escopo de quem pede. |
 
 ## 9. O banco — `20261020120000_atendimento_ia.sql`
@@ -276,9 +314,17 @@ nenhuma), escrita só pelo servidor: `atendimento_config` (nasce **desligada**),
 `atendimento_mensagens` (`wa_id` único: idempotência e eco) e
 `atendimento_qualificacoes` (retratos e tokens). Colunas novas e nuláveis em
 `leads` para o estado atual. `registrar_contato_do_lead` passa a tirar de
-"Novo" também o canal `evolution`. Conversa e retratos vão junto quando o lead
-é eliminado (LGPD, art. 18, VI). O aceite veste admin, dois vendedores,
-marketing e anônimo, e roda na cadeia de `tests/migracoes-executam.test.ts`.
+"Novo" também o canal `evolution`. Um gatilho recusa mudança do estado do
+assistente vinda da sessão (só o servidor muda), e
+`achar_ou_criar_lead_do_whatsapp` acha ou cria o lead da conversa sob trava
+por telefone, garantindo o atendimento pela Evolution com as etiquetas do
+anterior. Conversa e retratos vão junto quando o lead é eliminado (LGPD, art.
+18, VI). O aceite veste admin, gestor, dois vendedores, marketing e anônimo,
+prova o isolamento de uma segunda loja e roda na cadeia de
+`tests/migracoes-executam.test.ts`.
+
+As leituras com a chave de serviço filtram pela loja de `org_padrao()` (a
+configuração, a idempotência da entrada), e o que se grava leva `org_id`.
 
 ---
 
@@ -294,7 +340,8 @@ marketing e anônimo, e roda na cadeia de `tests/migracoes-executam.test.ts`.
 4. **n8n**: importar `Motors Atendimento — Entrada (Evolution).json` e
    `Motors Atendimento — Rodada.json` (vêm **desligados**). Criar a credencial
    Header Auth `ATENDIMENTO_MOTOR_TOKEN` (`Authorization: Bearer <token>`) e a
-   do webhook da Evolution.
+   do webhook da Evolution. Os workflows não guardam a execução que deu certo
+   (o corpo tem telefone e mensagem do cliente).
 5. **Evolution**: desligar a integração com o **Chatwoot** e apontar o webhook
    da instância (evento `MESSAGES_UPSERT`, com o cabeçalho da credencial) para o
    webhook do workflow de entrada. Ligar a transcrição de áudio da Evolution,

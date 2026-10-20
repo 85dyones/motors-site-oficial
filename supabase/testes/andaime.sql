@@ -341,6 +341,11 @@ grant select, insert, update, delete on public.leads to authenticated, service_r
 create table public.atendimentos (
   id                uuid primary key default gen_random_uuid(),
   lead_id           uuid references public.leads (id) on delete cascade,
+  -- O id e o estado da conversa do Chatwoot: entram pela
+  -- 20261020120000_atendimento_ia.sql, que acha "a conversa pela Evolution"
+  -- como a linha sem id do Chatwoot. Como em produção: nulável e único.
+  chatwoot_conversation_id bigint unique,
+  status_conversa   text,
   iniciado_em       timestamptz,
   humano_assumiu_em timestamptz,
   com_assistente    boolean,

@@ -31,7 +31,13 @@
 --    `entregue_motivo`, `aviso_de_entrega_em`/`aviso_de_entrega_para`,
 --    `entrega_confirmada_em`, `cadencia`/`cadencia_passo`/
 --    `cadencia_proximo_em`, `optout_em` e `origem_conversa`.
--- 5. `registrar_contato_do_lead` passa a tirar de "Novo" também o canal
+-- 5. `leads_estado_do_assistente_so_servidor` — a sessão não muda essas
+--    colunas (opt-out, cadência, entrega, aquecimento); só o servidor.
+-- 6. `achar_ou_criar_lead_do_whatsapp(...)` — o lead aberto da conversa, ou um
+--    novo, sob trava consultiva por telefone: a rajada de um número novo não
+--    cria dois leads. Garante o atendimento pela Evolution, herdando as
+--    etiquetas do anterior. Só a chave de serviço.
+-- 7. `registrar_contato_do_lead` passa a tirar de "Novo" também o canal
 --    `evolution` — a resposta de GENTE pelo número da loja (painel ou
 --    celular), o equivalente do `chatwoot` de 2026-10-14. Mensagem do
 --    assistente nunca chama a função: robô não atende (WEBHOOKS_N8N.md).
@@ -122,6 +128,9 @@
 -- convivência, e elas são nuláveis e inertes sem o código):
 --
 --   begin;
+--   drop trigger  if exists leads_estado_do_assistente_so_servidor on public.leads;
+--   drop function if exists public.leads_estado_do_assistente_so_servidor();
+--   drop function if exists public.achar_ou_criar_lead_do_whatsapp(text[], text, text, jsonb, text);
 --   drop table if exists public.atendimento_qualificacoes;
 --   drop table if exists public.atendimento_mensagens;
 --   drop table if exists public.atendimento_config;
@@ -363,6 +372,10 @@ alter table public.leads add column if not exists cadencia_passo        integer 
 alter table public.leads add column if not exists cadencia_proximo_em   timestamptz;
 alter table public.leads add column if not exists optout_em             timestamptz;
 alter table public.leads add column if not exists origem_conversa       jsonb;
+-- A trava da resposta, POR LEAD: só uma execução do assistente escreve para
+-- o cliente de cada vez. Vale 90 s; depois disso, a próxima assume (a função
+-- que segurava morreu no meio).
+alter table public.leads add column if not exists respondendo_desde     timestamptz;
 
 do $regras$
 declare
@@ -415,6 +428,145 @@ comment on column public.leads.aviso_de_entrega_para is
 comment on column public.leads.optout_em is
   'O cliente pediu para não receber mais mensagens. A cadência não toca; o assistente não '
   'volta sozinho.';
+
+
+-- ----------------------------------------------------------------------------
+-- 4b. O estado do assistente só muda pelo servidor
+-- ----------------------------------------------------------------------------
+-- `leads` aceita UPDATE da sessão pelo escopo (20261003130000), sem guarda de
+-- coluna. Sem esta trava, um Comercial mudaria pelo PostgREST o que o
+-- servidor decide: zeraria o opt-out do cliente (LGPD), poria um lead em
+-- cadência para a rodada escrever a quem quisesse pelo número da loja, ou
+-- forjaria a confirmação da entrega que vira métrica da equipe. Quem muda
+-- estas colunas é o servidor, com a chave de serviço (`auth.uid()` nulo).
+create or replace function public.leads_estado_do_assistente_so_servidor()
+  returns trigger
+  language plpgsql
+  set search_path = public
+as $$
+begin
+  if auth.uid() is not null and coalesce(auth.role(), '') <> 'service_role' and (
+       new.aquecimento           is distinct from old.aquecimento
+    or new.temperatura           is distinct from old.temperatura
+    or new.qualificacao          is distinct from old.qualificacao
+    or new.resumo_ia             is distinct from old.resumo_ia
+    or new.resumo_ia_em          is distinct from old.resumo_ia_em
+    or new.assistente_fase       is distinct from old.assistente_fase
+    or new.entregue_em           is distinct from old.entregue_em
+    or new.entregue_motivo       is distinct from old.entregue_motivo
+    or new.aviso_de_entrega_em   is distinct from old.aviso_de_entrega_em
+    or new.aviso_de_entrega_para is distinct from old.aviso_de_entrega_para
+    or new.entrega_confirmada_em is distinct from old.entrega_confirmada_em
+    or new.cadencia              is distinct from old.cadencia
+    or new.cadencia_passo        is distinct from old.cadencia_passo
+    or new.cadencia_proximo_em   is distinct from old.cadencia_proximo_em
+    or new.optout_em             is distinct from old.optout_em
+    or new.origem_conversa       is distinct from old.origem_conversa
+    or new.respondendo_desde     is distinct from old.respondendo_desde
+  ) then
+    raise exception 'O estado do assistente só muda pelo servidor.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists leads_estado_do_assistente_so_servidor on public.leads;
+create trigger leads_estado_do_assistente_so_servidor
+  before update on public.leads
+  for each row execute function public.leads_estado_do_assistente_so_servidor();
+
+comment on function public.leads_estado_do_assistente_so_servidor() is
+  'A sessão (painel, PostgREST) não muda o estado do assistente em leads — opt-out, '
+  'cadência, entrega, aquecimento. Quem muda é o servidor, com a chave de serviço (2026-10-20).';
+
+
+-- ----------------------------------------------------------------------------
+-- 4c. Achar ou criar o lead da conversa — uma vez só, mesmo na rajada
+-- ----------------------------------------------------------------------------
+-- Cada mensagem do WhatsApp é uma execução do n8n, e as de uma rajada correm
+-- em paralelo. Sem trava, duas mensagens de um número novo criam DOIS leads
+-- (e o assistente responde duas vezes). A trava consultiva é por telefone —
+-- pelas duas formas do celular, com e sem o nono dígito — e vale até o fim da
+-- transação: a segunda execução espera a primeira e acha o lead que ela criou.
+--
+-- A mesma chamada garante a linha de `atendimentos` da conversa pela
+-- Evolution (sem id do Chatwoot), sob a mesma trava, herdando as etiquetas do
+-- atendimento anterior do lead: a etiqueta `resgate`, que tira o lead do
+-- aviso de lead novo (20261010160000), não pode se perder porque a conversa
+-- trocou de porta. Nasce com o assistente DESLIGADO no SLA; quem liga é o
+-- servidor, que sabe se o assistente pegou este lead.
+create or replace function public.achar_ou_criar_lead_do_whatsapp(
+  p_formas          text[],
+  p_telefone        text,
+  p_nome            text,
+  p_origem          jsonb,
+  p_assistente_fase text
+)
+  returns table (lead_id uuid, atendimento_id uuid, criado boolean)
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+declare
+  v_lead   uuid;
+  v_atd    uuid;
+  v_criado boolean := false;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Só o servidor cria lead pela conversa.' using errcode = 'insufficient_privilege';
+  end if;
+  if p_formas is null or cardinality(p_formas) = 0 or coalesce(btrim(p_telefone), '') = '' then
+    raise exception 'Telefone obrigatório.' using errcode = 'check_violation';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtext('atendimento-lead:' || array_to_string(array(select unnest(p_formas) order by 1), ','))
+  );
+
+  select l.id into v_lead
+    from public.leads l
+   where l.telefone = any (p_formas) and l.desfecho is null
+   order by l.created_at desc
+   limit 1;
+
+  if v_lead is null then
+    insert into public.leads (nome, telefone, canal, situacao, ultimo_movimento_em, origem_conversa, assistente_fase)
+    values (
+      coalesce(nullif(btrim(p_nome), ''), 'WhatsApp ' || right(p_telefone, 4)),
+      p_telefone, 'WhatsApp', 'novo', now(), p_origem, p_assistente_fase
+    )
+    returning id into v_lead;
+    v_criado := true;
+  end if;
+
+  select a.id into v_atd
+    from public.atendimentos a
+   where a.lead_id = v_lead and a.chatwoot_conversation_id is null
+   order by coalesce(a.iniciado_em, a.created_at) desc, a.created_at desc, a.id desc
+   limit 1;
+
+  if v_atd is null then
+    insert into public.atendimentos (lead_id, iniciado_em, com_assistente, status_conversa, tags)
+    values (
+      v_lead, now(), false, 'open',
+      (select a.tags from public.atendimentos a
+        where a.lead_id = v_lead
+        order by coalesce(a.iniciado_em, a.created_at) desc, a.created_at desc, a.id desc
+        limit 1)
+    )
+    returning id into v_atd;
+  end if;
+
+  return query select v_lead, v_atd, v_criado;
+end $$;
+
+revoke all on function public.achar_ou_criar_lead_do_whatsapp(text[], text, text, jsonb, text) from public, anon, authenticated;
+grant execute on function public.achar_ou_criar_lead_do_whatsapp(text[], text, text, jsonb, text) to service_role;
+
+comment on function public.achar_ou_criar_lead_do_whatsapp(text[], text, text, jsonb, text) is
+  'O lead aberto da conversa do WhatsApp, ou um novo — sob trava por telefone, para a rajada '
+  'de um número novo não criar dois (2026-10-20). Garante o atendimento pela Evolution, herdando '
+  'as etiquetas. Só a chave de serviço.';
 
 
 -- ----------------------------------------------------------------------------
@@ -509,6 +661,14 @@ declare
   v_etapa  text;
   v_caso   record;
   v_casos  jsonb;
+  l_c      uuid;
+  l_d      uuid;
+  l_e      uuid;
+  l_f      uuid;
+  v_outra  uuid;
+  r1       record;
+  r2       record;
+  r3       record;
 begin
   -- 1. RLS ligada e só leitura para a sessão --------------------------------
   if exists (
@@ -560,7 +720,7 @@ begin
 
   -- 4. Efeito — tudo daqui até o sentinela é desfeito -------------------------
   begin
-    foreach q in array array['admin', 'coma', 'comb', 'mkt'] loop
+    foreach q in array array['admin', 'gestor', 'coma', 'comb', 'mkt'] loop
       insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
       values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated',
               'authenticated', 'aceite-atendimento-' || q || '@exemplo.invalido', now(), now())
@@ -569,6 +729,8 @@ begin
     end loop;
     update public.profiles set full_name = 'Aceite IA Admin', papeis = array['admin'], role = 'admin', is_active = true
      where id = (u->>'admin')::uuid;
+    update public.profiles set full_name = 'Aceite IA Gestor', papeis = array['gestor'], role = 'gestor', is_active = true
+     where id = (u->>'gestor')::uuid;
     update public.profiles set full_name = 'Aceite IA Vendedor A', papeis = array['comercial'], role = 'comercial', is_active = true
      where id = (u->>'coma')::uuid;
     update public.profiles set full_name = 'Aceite IA Vendedor B', papeis = array['comercial'], role = 'comercial', is_active = true
@@ -576,10 +738,25 @@ begin
     update public.profiles set full_name = 'Aceite IA Marketing', papeis = array['marketing'], role = 'marketing', is_active = true
      where id = (u->>'mkt')::uuid;
 
-    insert into public.leads (nome, telefone, responsavel, situacao)
-    values ('Aceite IA Lead A', '5541900002010', 'Aceite IA Vendedor A', 'novo') returning id into l_a;
+    insert into public.leads (nome, telefone, responsavel, situacao, optout_em)
+    values ('Aceite IA Lead A', '5541900002010', 'Aceite IA Vendedor A', 'novo', now()) returning id into l_a;
     insert into public.leads (nome, telefone, responsavel)
     values ('Aceite IA Lead B', '5541900002011', 'Aceite IA Vendedor B') returning id into l_b;
+    -- C: sem responsável (o gestor não o enxerga); D e E: em "Novo", para os canais.
+    insert into public.leads (nome, telefone) values ('Aceite IA Lead C', '5541900002012') returning id into l_c;
+    insert into public.leads (nome, telefone, situacao) values ('Aceite IA Lead D', '5541900002013', 'novo') returning id into l_d;
+    insert into public.leads (nome, telefone, situacao) values ('Aceite IA Lead E', '5541900002014', 'novo') returning id into l_e;
+    insert into public.atendimento_mensagens (lead_id, telefone, direcao, autor, texto, situacao)
+    values (l_c, '5541900002012', 'entrada', 'cliente', 'oi', 'recebida');
+
+    -- Uma segunda loja, com uma linha de conversa no lead A e uma configuração
+    -- própria: nada dela aparece para a equipe da loja padrão.
+    insert into public.orgs (nome, criada_em)
+    select 'Aceite IA outra loja', max(criada_em) + interval '1 day' from public.orgs
+    returning id into v_outra;
+    insert into public.atendimento_mensagens (org_id, lead_id, telefone, direcao, autor, texto, situacao)
+    values (v_outra, l_a, '5541900002010', 'entrada', 'cliente', 'de outra loja', 'recebida');
+    insert into public.atendimento_config (org_id) values (v_outra);
 
     insert into public.atendimento_mensagens (lead_id, telefone, direcao, autor, texto, wa_id, situacao)
     values (l_a, '5541900002010', 'entrada', 'cliente', 'oi, quero o onix', 'ACEITE-WA-1', 'recebida'),
@@ -617,7 +794,17 @@ begin
       jsonb_build_array('equipe lê a configuração',        'coma',  'select count(*) from public.atendimento_config', 'vê:1'),
       jsonb_build_array('anônimo não lê a configuração',   '@anon', 'select count(*) from public.atendimento_config', 'vê:0|barrado'),
       jsonb_build_array('ninguém logado grava mensagem',   'admin', 'insert into public.atendimento_mensagens (lead_id, telefone, direcao, autor, texto, situacao) values ({a}, ''5541900002010'', ''saida'', ''vendedor'', ''x'', ''enviada'')', 'barrado'),
-      jsonb_build_array('ninguém logado liga o assistente','admin', 'update public.atendimento_config set ativo = true', 'barrado|linhas:0')
+      jsonb_build_array('ninguém logado liga o assistente','admin', 'update public.atendimento_config set ativo = true', 'barrado|linhas:0'),
+      -- Escopo e loja.
+      jsonb_build_array('gestor não lê conversa de lead sem responsável', 'gestor', 'select count(*) from public.atendimento_mensagens where lead_id = {c}', 'vê:0'),
+      jsonb_build_array('admin lê a conversa sem responsável', 'admin', 'select count(*) from public.atendimento_mensagens where lead_id = {c}', 'vê:1'),
+      jsonb_build_array('a linha da outra loja não aparece', 'admin', 'select count(*) from public.atendimento_mensagens where lead_id = {a}', 'vê:1'),
+      -- O estado do assistente só muda pelo servidor.
+      jsonb_build_array('vendedor não zera o opt-out',     'coma',  'update public.leads set optout_em = null where id = {a}', 'barrado'),
+      jsonb_build_array('vendedor não põe lead em cadência', 'coma', 'update public.leads set cadencia = ''engajamento'', cadencia_proximo_em = now() where id = {a}', 'barrado'),
+      jsonb_build_array('vendedor não forja a confirmação', 'coma', 'update public.leads set entrega_confirmada_em = now() where id = {a}', 'barrado'),
+      jsonb_build_array('vendedor segue anotando no lead dele', 'coma', 'update public.leads set observacoes = ''ligou'' where id = {a}', 'linhas:1'),
+      jsonb_build_array('ninguém logado cria lead pela conversa', 'admin', 'select count(*) from public.achar_ou_criar_lead_do_whatsapp(array[''5541900002099''], ''5541900002099'', ''x'', null, null)', 'barrado')
     );
 
     for v_caso in
@@ -625,7 +812,7 @@ begin
         from jsonb_array_elements(v_casos) with ordinality as c(caso, ordem)
        order by c.ordem
     loop
-      q := replace(replace(v_caso.comando, '{a}', format('%L::uuid', l_a)), '{b}', format('%L::uuid', l_b));
+      q := replace(replace(replace(v_caso.comando, '{a}', format('%L::uuid', l_a)), '{b}', format('%L::uuid', l_b)), '{c}', format('%L::uuid', l_c));
       if left(v_caso.quem, 1) = '@' then
         perform set_config('request.jwt.claims', json_build_object('role', substr(v_caso.quem, 2))::text, true);
         execute format('set local role %I', substr(v_caso.quem, 2));
@@ -653,15 +840,52 @@ begin
       end if;
     end loop;
 
-    -- A resposta de gente pela Evolution tira de "Novo", vestindo o serviço.
+    -- Vestindo o serviço: os canais do contato e a criação do lead da conversa.
+    insert into public.leads (nome, telefone) values ('Aceite IA Lead F', '5541900002060') returning id into l_f;
+    insert into public.atendimentos (lead_id, chatwoot_conversation_id, iniciado_em, tags)
+    values (l_f, -999100, now() - interval '1 day', array['resgate']);
+
     set local role service_role;
     perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
     perform public.registrar_contato_do_lead(l_a, 'evolution', 'Aceite IA Vendedor A');
+    perform public.registrar_contato_do_lead(l_d, 'chatwoot', 'Aceite IA Vendedor A');
+    perform public.registrar_contato_do_lead(l_e, 'whatsapp', 'Aceite IA Vendedor A');
+    select * into r1 from public.achar_ou_criar_lead_do_whatsapp(
+      array['5541900002050', '554190002050'], '5541900002050', 'Aceite IA Novo', '{"tipo":"ad"}'::jsonb, 'qualificando');
+    select * into r2 from public.achar_ou_criar_lead_do_whatsapp(
+      array['554190002050', '5541900002050'], '554190002050', 'Aceite IA Novo', null, 'qualificando');
+    select * into r3 from public.achar_ou_criar_lead_do_whatsapp(
+      array['5541900002060'], '5541900002060', 'Aceite IA Lead F', null, null);
+    -- O servidor muda o estado do assistente (auth.uid() nulo).
+    update public.leads set cadencia = 'follow_up', cadencia_proximo_em = now() where id = l_b;
     perform set_config('request.jwt.claims', '', true);
     reset role;
+
     select situacao into v_etapa from public.leads where id = l_a;
     if v_etapa is distinct from 'em_contato' then
       v_falhou := v_falhou || format('resposta pela Evolution deixou o lead em %s', v_etapa);
+    end if;
+    select situacao into v_etapa from public.leads where id = l_d;
+    if v_etapa is distinct from 'em_contato' then
+      v_falhou := v_falhou || format('resposta pelo Chatwoot deixou o lead em %s', v_etapa);
+    end if;
+    select situacao into v_etapa from public.leads where id = l_e;
+    if v_etapa is distinct from 'novo' then
+      v_falhou := v_falhou || format('o clique no WhatsApp do card moveu o lead para %s', v_etapa);
+    end if;
+    if not (r1.criado and not r2.criado and r1.lead_id = r2.lead_id and r1.atendimento_id = r2.atendimento_id) then
+      v_falhou := v_falhou || 'a mesma conversa (nas duas formas do celular) não achou o mesmo lead e o mesmo atendimento'::text;
+    end if;
+    if not exists (select 1 from public.leads where id = r1.lead_id and canal = 'WhatsApp' and assistente_fase = 'qualificando'
+                     and origem_conversa = '{"tipo":"ad"}'::jsonb and nome = 'Aceite IA Novo') then
+      v_falhou := v_falhou || 'o lead criado pela conversa não tem canal, fase e origem'::text;
+    end if;
+    if r3.criado or r3.lead_id is distinct from l_f
+       or not exists (select 1 from public.atendimentos where id = r3.atendimento_id and tags = array['resgate'] and not com_assistente) then
+      v_falhou := v_falhou || 'o atendimento novo não herdou a etiqueta resgate do anterior (ou nasceu com o assistente)'::text;
+    end if;
+    if not exists (select 1 from public.leads where id = l_b and cadencia = 'follow_up') then
+      v_falhou := v_falhou || 'o servidor não conseguiu mudar o estado do assistente'::text;
     end if;
 
     -- Eliminar o lead leva a conversa e os retratos (LGPD, art. 18, VI).
@@ -690,6 +914,7 @@ begin
 
   -- O efeito foi desfeito: nada do aceite ficou.
   if exists (select 1 from public.leads where nome like 'Aceite IA%')
+     or exists (select 1 from public.orgs where nome = 'Aceite IA outra loja')
      or exists (select 1 from public.atendimento_mensagens where wa_id like 'ACEITE-WA-%') then
     falhas := falhas + 1;
     raise warning 'FALHOU: o aceite deixou linha para trás';
@@ -698,7 +923,8 @@ begin
   if falhas > 0 then
     raise exception 'ACEITE FALHOU: % verificação(ões) do atendimento IA', falhas;
   end if;
-  raise notice 'Aceite verificado: atendimento IA — RLS por escopo, regras, idempotência, cascata e contato pela Evolution.';
+  raise notice 'Aceite verificado: atendimento IA — RLS por escopo e por loja, regras, idempotência, cascata, '
+               'estado do assistente só pelo servidor, lead da conversa sob trava e os canais do contato.';
 end
 $aceite$;
 

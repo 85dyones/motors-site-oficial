@@ -233,7 +233,7 @@ export function montarEstado(estado: EstadoDaConversa): string {
   return [
     "## Estado atual (não é mensagem do cliente)",
     `Agora: ${estado.agora}. A loja está ${estado.lojaAberta ? "aberta" : "fechada"}.`,
-    `Nome no WhatsApp: ${estado.nomeDoCliente?.trim() || "(sem nome)"}.`,
+    `Nome no WhatsApp: ${nomeSeguro(estado.nomeDoCliente) ?? "(sem nome)"}.`,
     estado.origem ? `De onde veio: ${estado.origem}.` : "",
     "Ficha até aqui:",
     JSON.stringify(estado.ficha),
@@ -311,18 +311,25 @@ export function lerRespostaDoAgente(conteudo: string): RespostaDoAgente | null {
 
 /**
  * Valores em dinheiro de um texto, em reais: "R$ 79.900" → 79900,
- * "15 mil" → 15000. Quilometragem ("48 mil km") não é dinheiro e fica fora.
+ * "79.900" → 79900, "15 mil" → 15000, "79,9 mil" → 79900, "80k" → 80000,
+ * "1500 reais" → 1500. Quilometragem ("48 mil km", "48.000 km") não é
+ * dinheiro e fica fora; "1.6" e "2.0" (motor) também.
  */
 export function valoresEmDinheiro(texto: string, opcoes: { numerosSoltos?: boolean } = {}): number[] {
   const valores: number[] = [];
-  const padrao = /(R\$\s*)?(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?(\s*mil\b)?(?!\s*(?:km|quil|mil\s*km))/gi;
+  const padrao = /(R\$\s*)?(?<![\d.,])(\d{1,3}(?:\.\d{3})+|\d+)(?![\d.]\d)(?:,(\d{1,2}))?(?:\s*(mil|reais|real|k)\b)?/gi;
   for (const casado of texto.matchAll(padrao)) {
-    const [, real, inteiro, , mil] = casado;
+    const [inteiro, real, numero, decimal, unidade] = [casado[0], casado[1], casado[2], casado[3], casado[4]?.toLowerCase()];
+    const depois = texto.slice((casado.index ?? 0) + inteiro.length);
+    if (/^\s*(?:km\b|quil[oô]m)/i.test(depois)) continue;
     // Número solto só conta do lado do cliente ("dou 15000 de entrada"): na
-    // boca do assistente, "2020" é ano, não preço.
-    if (!real && !mil && !opcoes.numerosSoltos) continue;
-    let valor = Number(inteiro.replace(/\./g, ""));
-    if (mil) valor *= 1000;
+    // boca do assistente, "2020" é ano, não preço. Milhar com ponto
+    // ("79.900") é dinheiro dos dois lados.
+    const comPonto = numero.includes(".");
+    if (!real && !unidade && !comPonto && !opcoes.numerosSoltos) continue;
+    let valor = Number(numero.replace(/\./g, "")) + (decimal ? Number(`0.${decimal}`) : 0);
+    if (unidade === "mil" || unidade === "k") valor *= 1000;
+    valor = Math.round(valor);
     if (Number.isFinite(valor) && valor >= 100) valores.push(valor);
   }
   return valores;
@@ -331,26 +338,43 @@ export function valoresEmDinheiro(texto: string, opcoes: { numerosSoltos?: boole
 export const BALAO_SEM_PRECO = "O valor certinho quem te passa é a nossa equipe de consultores, combinado? 😉";
 
 /**
- * Com `informar_preco` desligado, nenhum balão sai com um valor que o cliente
- * não disse.
+ * Os valores que o assistente pode repetir: o orçamento e a entrada que o
+ * cliente DISSE — na ficha e nas mensagens dele, as duas coisas. O preço que o
+ * cliente "viu no anúncio" e pede para confirmar não está na ficha como
+ * orçamento, então não passa; e um orçamento que o modelo inventou na ficha
+ * não está nas mensagens, então também não.
+ */
+export function valoresDoCliente(
+  ficha: Pick<FichaDoLead, "orcamento" | "entrada">,
+  textosDoCliente: readonly (string | null)[],
+): number[] {
+  const ditos = new Set(textosDoCliente.flatMap((t) => (t ? valoresEmDinheiro(t, { numerosSoltos: true }) : [])));
+  return [ficha.orcamento, ficha.entrada]
+    .flatMap((t) => (t ? valoresEmDinheiro(t, { numerosSoltos: true }) : []))
+    .filter((v) => ditos.has(v));
+}
+
+/**
+ * Com `informar_preco` desligado, nenhum balão sai com um valor em dinheiro
+ * além dos `permitidos` (`valoresDoCliente`).
  *
  * O prompt já proíbe; isto é a segunda tranca, porque modelo obedece quase
  * sempre, e "quase" é o caso em que um preço velho ou inventado chega ao
- * cliente por escrito. O valor que o CLIENTE citou passa ("com R$ 15 mil de
- * entrada, dá para…"): repetir o que ele disse não é informar preço. Balão
- * barrado vira a frase padrão, uma vez só.
+ * cliente por escrito — ou em que o modelo CONFIRMA o preço que o cliente
+ * digitou ("sim, sai por R$ 79.900"), o que é informar preço do mesmo jeito.
+ * Balão barrado vira a frase padrão, uma vez só.
  */
 export function vigiarPreco(
   mensagens: readonly string[],
-  textosDoCliente: readonly string[],
+  permitidos: readonly number[],
   informarPreco: boolean,
 ): { mensagens: string[]; barrados: number } {
   if (informarPreco) return { mensagens: [...mensagens], barrados: 0 };
-  const ditos = new Set(textosDoCliente.flatMap((t) => valoresEmDinheiro(t, { numerosSoltos: true })));
+  const podem = new Set(permitidos);
   let barrados = 0;
   const saida: string[] = [];
   for (const m of mensagens) {
-    const proibido = valoresEmDinheiro(m).some((v) => !ditos.has(v));
+    const proibido = valoresEmDinheiro(m).some((v) => !podem.has(v));
     if (!proibido) {
       saida.push(m);
       continue;
@@ -359,6 +383,42 @@ export function vigiarPreco(
     if (!saida.includes(BALAO_SEM_PRECO)) saida.push(BALAO_SEM_PRECO);
   }
   return { mensagens: saida, barrados };
+}
+
+// ----------------------------------------------------------------------------
+// O que vem de fora e vai para o prompt ou para a equipe
+// ----------------------------------------------------------------------------
+
+/**
+ * O nome do WhatsApp (o `pushName`) é o cliente quem escreve: vai ao prompt
+ * só com letras, espaço, ponto, hífen e apóstrofo, em até cinco palavras e 40
+ * letras. Sem quebra de linha, sem `#`, aspas nem chaves, o nome não abre uma
+ * seção nova no prompt nem fecha o JSON da ficha.
+ */
+export function nomeSeguro(nome: string | null | undefined): string | null {
+  const limpo = String(nome ?? "")
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{M} .'’-]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(" ")
+    .slice(0, 40)
+    .trim();
+  return limpo || null;
+}
+
+/**
+ * O resumo que o modelo escreveu vai ao WhatsApp do vendedor: link nenhum sai
+ * nele. O cliente pode ter mandado um link na conversa, e o resumo não é
+ * lugar de o vendedor clicar no que o cliente quis.
+ */
+export function semLinks(texto: string): string {
+  // A pontuação que fecha a frase ("…, quer o Onix.") fica; o link sai.
+  const trocar = (link: string) => `[link]${/[.,;:!?)]+$/.exec(link)?.[0] ?? ""}`;
+  return texto
+    .replace(/\b(?:https?:\/\/|www\.)[^\s<>"']+/gi, trocar)
+    .replace(/\b[\w-]+(?:\.[\w-]+)*\.(?:com|net|org)(?:\.br)?\b(?:\/[^\s<>"']*)?/gi, trocar);
 }
 
 // ----------------------------------------------------------------------------
@@ -387,7 +447,7 @@ export function montarMensagensDoToque(entrada: {
         "O cliente parou de responder. Escreva UMA mensagem curta para retomar o contato, sem cobrar e sem pressionar.",
         `Objetivo deste toque: ${entrada.objetivo}`,
         `Use como base o tom deste texto: "${entrada.modelo}"`,
-        `Nome no WhatsApp: ${entrada.nomeDoCliente?.trim() || "(sem nome)"}.`,
+        `Nome no WhatsApp: ${nomeSeguro(entrada.nomeDoCliente) ?? "(sem nome)"}.`,
         `Ficha: ${JSON.stringify(entrada.ficha)}`,
         'Responda só com JSON: {"mensagem": "o texto"}.',
       ].join("\n"),

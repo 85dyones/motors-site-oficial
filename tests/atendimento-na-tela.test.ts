@@ -70,6 +70,8 @@ describe("o estado do assistente", () => {
     expect(acoesDisponiveis({ assistente_fase: "entregue", optout_em: null })).toEqual(["devolver"]);
     expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: null })).toEqual(["retomar", "devolver"]);
     expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: "x" })).toEqual([]);
+    // Lead que o assistente nunca pegou: nada a retomar.
+    expect(acoesDisponiveis({ assistente_fase: null, optout_em: null })).toEqual([]);
   });
 });
 
