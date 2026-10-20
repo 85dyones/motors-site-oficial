@@ -26,7 +26,9 @@ import { HORARIO_DA_LOJA, horaParaLer } from "./horarioDaLoja";
  *     nome de quem fica o carro — no financiamento, é quem vai à ficha).
  *   - **Prazo** (Timing / Prioritization): quando pretende comprar.
  *   - **Passo**: o compromisso. A visita ou o test-drive com DIA e HORA — ou,
- *     no financiamento, os dados para o consultor simular.
+ *     no financiamento, os dados para o consultor simular (depois de
+ *     qualificar: carro, troca, prazo, entrada e parcela; ou quando o próprio
+ *     cliente manda o CPF e a data de nascimento).
  *
  * O lead está **pronto para o comercial** quando chega a um dos dois finais
  * do Passo: a visita marcada (dia e hora confirmados, dentro do horário da
@@ -122,14 +124,21 @@ export function prontidao(ficha: FichaDoLead, agora: Date, opcoes: { nomeNoWhats
     else agendada = true;
   }
 
+  // Financiamento: a qualificação vem antes da simulação (decisão do dono,
+  // 2026-10-20: "clientes que focam na simulação não tem cadastro para o tal,
+  // então continuar focando na qualificação") — o carro, a troca e o prazo,
+  // e só então a entrada e a parcela. Se o cliente MANDOU os dados (CPF e
+  // nascimento), vai ao consultor com a conversa.
   const financiado = ficha.pagamento === "financiado";
   const faltaNaSimulacao: string[] = [];
   if (financiado) {
     if (!ficha.interesse_especifico) faltaNaSimulacao.push("o carro exato (modelo e ano)");
+    if (!ficha.troca) faltaNaSimulacao.push("se tem carro na troca");
+    if (!ficha.prazo) faltaNaSimulacao.push("quando pretende comprar");
     if (!ficha.entrada) faltaNaSimulacao.push("a entrada (ou se é sem entrada)");
     if (!ficha.parcela) faltaNaSimulacao.push("a parcela que cabe ou em quantas vezes");
   }
-  const simulacao = financiado && faltaNaSimulacao.length === 0;
+  const simulacao = financiado && (faltaNaSimulacao.length === 0 || Boolean(ficha.dados_da_simulacao));
 
   const faltam: Prontidao["faltam"] = [];
   if (!ficha.interesse) faltam.push({ pilar: "produto", item: "qual carro ele procura" });
@@ -155,7 +164,7 @@ export function prontidao(ficha: FichaDoLead, agora: Date, opcoes: { nomeNoWhats
   else if (pronto === "simulacao") proximoMovimento = "os dados da simulação estão completos: confirme com o cliente que o consultor chama com a simulação";
   else if (problemaDaVisita) proximoMovimento = `${problemaDaVisita}: proponha outro dia e hora dentro do horário da loja`;
   else if (!ficha.interesse) proximoMovimento = "descobrir qual carro ele procura — ofereça opções do catálogo";
-  else if (financiado) proximoMovimento = `deixar a simulação pronta: falta ${faltaNaSimulacao.join(", ")}`;
+  else if (financiado) proximoMovimento = `qualificar antes de simular (sem pedir CPF): falta ${faltaNaSimulacao.join(", ")}`;
   else if (ficha.visita) proximoMovimento = `fechar o horário da visita (${ficha.visita}) — proponha dois horários dentro do horário da loja`;
   else proximoMovimento = "marcar a visita ou o test-drive com dia e hora — proponha duas opções concretas dentro do horário da loja";
 

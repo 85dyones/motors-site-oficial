@@ -173,9 +173,22 @@ implícito — o compromisso de um próximo passo. Daí os **5P**
 - **visita marcada** — dia e hora confirmados pelo cliente, dentro do horário
   da loja e nos próximos 30 dias (domingo, sábado depois das 15h, data
   passada ou longe demais não contam, e o assistente propõe outro horário);
-- **simulação pronta** — carro exato, financiado, entrada (ou "sem entrada") e
-  a parcela que cabe ou em quantas vezes. CPF, RG, comprovante e dado
-  bancário **continuam fora**: o consultor coleta no canal próprio.
+- **simulação pronta** — depois da qualificação: carro exato, carro na troca
+  (ou "sem troca") e prazo; e então a entrada (ou "sem entrada") e a parcela
+  que cabe ou em quantas vezes. Ou quando o **próprio cliente manda** o CPF e
+  a data de nascimento: vai ao consultor com a conversa.
+
+**Financiamento, decisão do dono (20/10/2026):** *"clientes que focam na
+simulação não tem cadastro para o tal, então continuar focando na
+qualificação"*. O assistente não puxa o assunto nem começa pela simulação;
+perguntado, diz em uma frase como funciona e o que o consultor precisa para
+simular (CPF, data de nascimento, entrada e em quantas vezes) e volta para a
+qualificação, validando as outras objeções antes. CPF e data de nascimento
+**só** se o cliente mandar ou pedir para simular; RG, comprovante de renda e
+dado bancário, nunca. O número fica só na conversa: a ficha anota "CPF e data
+de nascimento enviados" (`dados_da_simulacao`), e `semCpf` troca qualquer CPF
+escrito na ficha ou no resumo por "[CPF]" — eles vão ao card e ao WhatsApp do
+vendedor, que lê "Dados para a simulação: … (veja na conversa do painel)".
 
 **Como o assistente conduz.** A cada resposta, o estado que vai ao modelo diz
 o **próximo movimento** ("fechar o horário da visita de sábado — proponha dois

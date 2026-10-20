@@ -83,6 +83,8 @@ export function mensagemDeEntrega(d: DadosDaEntrega): string {
     d.ficha.troca ? `Troca: ${trocaParaLer(d.ficha.troca)}` : "",
     d.ficha.prazo ? `Prazo: ${ROTULO_DO_PRAZO[d.ficha.prazo]}` : "",
     d.ficha.decisor ? `Quem decide: ${d.ficha.decisor}` : "",
+    // O dado em si fica na conversa do painel, nunca no WhatsApp do vendedor.
+    d.ficha.dados_da_simulacao ? `Dados para a simulação: ${d.ficha.dados_da_simulacao} (veja na conversa do painel)` : "",
     d.ficha.cidade ? `Cidade: ${d.ficha.cidade}` : "",
     `Aquecimento: ${d.aquecimento.pontos}/100${motivoPrincipal(d.aquecimento) ? ` (${motivoPrincipal(d.aquecimento)})` : ""}`,
     d.origem ? `Origem: ${d.origem}` : "",

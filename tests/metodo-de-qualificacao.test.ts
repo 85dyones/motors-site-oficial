@@ -53,13 +53,15 @@ describe("o que falta e o próximo movimento", () => {
     expect(itens).toContain("como paga a diferença da troca (à vista ou financiado)");
   });
 
-  it("financiado: o movimento é completar a simulação, dizendo o que falta", () => {
+  it("financiado: qualifica antes de simular — troca e prazo vêm antes da entrada e da parcela, e sem pedir CPF", () => {
     const p = prontidao(ficha({ ...ONIX, pagamento: "financiado", entrada: "10 mil" }), TERCA_10H);
     expect(p.pronto).toBeNull();
-    expect(p.proximoMovimento).toBe("deixar a simulação pronta: falta a parcela que cabe ou em quantas vezes");
+    expect(p.proximoMovimento).toBe(
+      "qualificar antes de simular (sem pedir CPF): falta se tem carro na troca, quando pretende comprar, a parcela que cabe ou em quantas vezes",
+    );
     // UM rumo e, no máximo, o item seguinte — a lista inteira virava questionário.
     expect(metodoNoEstado(p)).toEqual([
-      "Próximo movimento (UMA pergunta, depois de responder o que o cliente disse): deixar a simulação pronta: falta a parcela que cabe ou em quantas vezes.",
+      "Próximo movimento (UMA pergunta, depois de responder o que o cliente disse): qualificar antes de simular (sem pedir CPF): falta se tem carro na troca, quando pretende comprar, a parcela que cabe ou em quantas vezes.",
       "Depois, quando couber naturalmente: se tem carro na troca (modelo, ano e km) [Pagamento].",
     ]);
   });
@@ -85,11 +87,19 @@ describe("pronto para o comercial", () => {
     expect(problema("2026-12-01", "10:00")).toBe("a visita anotada (terça-feira, 01/12, às 10h) está a mais de 30 dias");
   });
 
-  it("simulação: carro exato, financiado, entrada (mesmo 'sem entrada') e parcela", () => {
-    const completa = ficha({ ...ONIX, pagamento: "financiado", entrada: "sem entrada", parcela: "48x" });
+  it("simulação: qualificado (carro exato, troca e prazo) e com entrada (mesmo 'sem entrada') e parcela", () => {
+    const completa = ficha({ ...ONIX, pagamento: "financiado", troca: "sem troca", prazo: "este_mes", entrada: "sem entrada", parcela: "48x" });
     expect(prontidao(completa, TERCA_10H).pronto).toBe("simulacao");
     expect(prontidao({ ...completa, interesse_especifico: false }, TERCA_10H).pronto).toBeNull();
+    // Sem a qualificação (troca e prazo), a simulação não está pronta.
+    expect(prontidao({ ...completa, troca: null }, TERCA_10H).pronto).toBeNull();
+    expect(prontidao({ ...completa, prazo: null }, TERCA_10H).pronto).toBeNull();
     expect(prontidao({ ...completa, pagamento: "a_vista" }, TERCA_10H).pronto).toBeNull();
+  });
+
+  it("o cliente mandou os dados (CPF e nascimento): vai ao consultor com a conversa, mesmo sem a qualificação completa", () => {
+    const f = ficha({ ...ONIX, pagamento: "financiado", dados_da_simulacao: "CPF e data de nascimento enviados" });
+    expect(prontidao(f, TERCA_10H).pronto).toBe("simulacao");
   });
 
   it("a visita marcada vence a simulação: é o compromisso mais forte", () => {
@@ -149,6 +159,29 @@ describe("a ficha do método", () => {
     expect(trocaParaLer("sem troca")).toBe("não tem");
     expect(trocaParaLer("Não tenho")).toBe("não tem");
     expect(trocaParaLer("Uno 2014")).toBe("Uno 2014");
+  });
+});
+
+describe("o CPF não sai da conversa", () => {
+  it("CPF escrito na ficha vira [CPF], com ou sem pontuação", () => {
+    expect(fichaValida({ dados_da_simulacao: "CPF 123.456.789-09 e nascimento 01/02/1990", decisor: "no nome do 12345678909" })).toMatchObject({
+      dados_da_simulacao: "CPF [CPF] e nascimento 01/02/1990",
+      decisor: "no nome do [CPF]",
+    });
+  });
+
+  it("o vendedor lê que os dados foram enviados, e onde ver — não os números", () => {
+    const m = mensagemDeEntrega({
+      motivo: "simulacao",
+      lead: { nome: "Rafael", telefone: "5541999990000" },
+      ficha: ficha({ ...ONIX, pagamento: "financiado", dados_da_simulacao: "CPF e data de nascimento enviados" }),
+      aquecimento: { pontos: 40, temperatura: "morno", motivos: [] },
+      resumo: null,
+      origem: null,
+      linkDoLead: null,
+      para: "vendedor",
+    });
+    expect(m).toContain("Dados para a simulação: CPF e data de nascimento enviados (veja na conversa do painel)");
   });
 });
 

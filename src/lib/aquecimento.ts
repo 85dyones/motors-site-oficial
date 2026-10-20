@@ -89,6 +89,11 @@ export interface FichaDoLead {
   prazo: PrazoDaFicha | null;
   /** Quem decide junto, ou em nome de quem fica o carro ("com a esposa", "no nome do pai"). */
   decisor: string | null;
+  /**
+   * O que o cliente já mandou para a simulação, SEM os números ("CPF e data
+   * de nascimento enviados") — o dado em si fica só na conversa (2026-10-20).
+   */
+  dados_da_simulacao: string | null;
   cidade: string | null;
   /** Quando combinou de vir à loja, como foi dito ("sábado de manhã"). */
   visita: string | null;
@@ -136,6 +141,7 @@ export const FICHA_VAZIA: FichaDoLead = {
   troca: null,
   prazo: null,
   decisor: null,
+  dados_da_simulacao: null,
   cidade: null,
   visita: null,
   visita_data: null,
@@ -401,9 +407,17 @@ export function mesclarSinais(anteriores: SinaisDaConversa, novos: SinaisDaConve
   return { ...novos, optout: anteriores.optout || novos.optout };
 }
 
+/**
+ * CPF escrito na ficha vira "[CPF]": o número fica só na conversa, e a ficha
+ * vai ao resumo, ao card e ao WhatsApp do vendedor (2026-10-20).
+ */
+export function semCpf(texto: string): string {
+  return texto.replace(/\b\d{3}\.?\d{3}\.?\d{3}[-.\s]?\d{2}\b/g, "[CPF]");
+}
+
 function textoOuNulo(v: unknown, max = 160): string | null {
   if (typeof v !== "string") return null;
-  const t = v.trim().replace(/\s+/g, " ");
+  const t = semCpf(v.trim().replace(/\s+/g, " "));
   if (!t) return null;
   return t.length > max ? t.slice(0, max) : t;
 }
@@ -432,6 +446,7 @@ export function fichaValida(bruto: unknown): FichaDoLead {
     troca: textoOuNulo(b.troca, 120),
     prazo,
     decisor: textoOuNulo(b.decisor, 80),
+    dados_da_simulacao: textoOuNulo(b.dados_da_simulacao, 80),
     cidade: textoOuNulo(b.cidade, 60),
     visita: textoOuNulo(b.visita, 80),
     visita_data: dataValida(b.visita_data),

@@ -6,6 +6,7 @@ import {
   mesclarFicha,
   mesclarSinais,
   semCarroNaTroca,
+  semCpf,
   sinaisValidos,
   temperaturaAlcanca,
   ROTULO_DO_MOTIVO_DA_ENTREGA,
@@ -1155,7 +1156,8 @@ async function responderUmaVez(
     return { acao: "envio_falhou", lead: leadId, enviadas, falhas, detalhe: ultimoMotivo };
   }
 
-  const resumo = resposta.resumo ? semLinks(resposta.resumo) : null;
+  // O resumo vai ao card e ao WhatsApp do vendedor: sem link e sem CPF.
+  const resumo = resposta.resumo ? semCpf(semLinks(resposta.resumo)) : null;
   // Na entrega, o assistente não manda as fotos que o cliente acabou de
   // pedir: quem manda é o vendedor, e o resumo e a passagem dizem isso.
   const fotosPedidas =

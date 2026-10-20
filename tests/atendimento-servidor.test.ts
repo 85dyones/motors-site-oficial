@@ -504,6 +504,9 @@ describe("o método 5P: o lead pronto para o comercial", () => {
     expect(instrucoes).toContain("esta é a sua ÚLTIMA resposta: confirme o combinado, sem pergunta e sem oferta");
     expect(instrucoes).toContain("\"Comigo fica o financiamento?\" + \"Como *\" = \"Como fica o financiamento?\"");
     expect(t.pedidosAoModelo[0].temperature).toBe(0.3);
+    // Financiamento: qualificar antes; CPF só se o cliente mandar ou pedir para simular, e nunca na ficha.
+    expect(instrucoes).toContain("não puxe o assunto e não comece pela simulação");
+    expect(instrucoes).toContain("NUNCA copie o número do CPF para a ficha ou para o resumo");
   });
 
   it("visita com dia e hora: entrega como 'agendou' mesmo morno, a passagem repete a visita e ela vira o próximo passo", async () => {
@@ -606,6 +609,14 @@ describe("o método 5P: o lead pronto para o comercial", () => {
     expect(banco.tabelas.leads[0].veiculo_id).toBe(555);
   });
 
+  it("o CPF que o modelo escrever no resumo não chega ao card nem ao vendedor", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([respostaDoModelo({ resumo: "Rafael mandou o CPF 123.456.789-09 para simular." })]);
+    const entrada = await clienteEscreve(banco, t, "meu cpf é 123.456.789-09");
+    await responderAoLead(banco.cliente, { leadId: entrada.lead!, mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0].resumo_ia).toBe("Rafael mandou o CPF [CPF] para simular.");
+  });
+
   it("sem entrega, a pergunta fica: é ela que conduz", async () => {
     const banco = montar();
     const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Tenho sim! Quer ver as fotos?"] })]);
@@ -639,19 +650,19 @@ describe("o método 5P: o lead pronto para o comercial", () => {
     );
   });
 
-  it("simulação pronta (carro exato, financiado, entrada e parcela): entrega como 'simulacao', e o vendedor recebe os dados", async () => {
+  it("simulação pronta (qualificado — carro, troca e prazo — com entrada e parcela): entrega como 'simulacao', e o vendedor recebe os dados", async () => {
     const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
     const t = transporteDeTeste([
       respostaDoModelo({
         mensagens: ["Anotado! Já deixo tudo pronto para a simulação."],
-        ficha: { ...ONIX, pagamento: "financiado", entrada: "10 mil", parcela: "até 1.200 por mês", troca: "sem troca", decisor: "no nome da esposa" },
+        ficha: { ...ONIX, pagamento: "financiado", entrada: "10 mil", parcela: "até 1.200 por mês", troca: "sem troca", prazo: "este_mes", decisor: "no nome da esposa" },
       }),
     ]);
     const entrada = await clienteEscreve(banco, t, "financiado, 10 mil de entrada, parcela até 1200, sem troca, no nome da minha esposa");
     const r = await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
 
-    // "Sem troca" é resposta, não oferta: não soma. 20 + 10 + 5 + 5 + 5 = 45.
-    expect(r).toMatchObject({ aquecimento: 45, entregue: true });
+    // "Sem troca" é resposta, não oferta: não soma. 20 + 10 + 5 + 5 + 5 + 15 (este mês) = 60: morno, e entrega pelo método.
+    expect(r).toMatchObject({ aquecimento: 60, temperatura: "morno", entregue: true });
     expect(t.enviados[1].texto).toBe(
       "Perfeito, Rafael! Já deixei os dados da sua simulação com a equipe. Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777.",
     );
