@@ -515,10 +515,21 @@ O que o preview tem e o que falta (conferido em 20/10):
   e o repositório é público. O webhook da instância de teste aponta para
   `…/webhook/atendimento-evolution-teste`.
 
-**Cuidado com a equipe**: com o banco da produção, o resumo vai ao WhatsApp de
-um vendedor de verdade. Nos primeiros testes, deixar a distribuição em "o
-administrador escolhe" (o resumo vai para quem distribui e para o gestor). O
-rodízio entra no teste com o vendedor avisado.
+**Decisão do dono em 20/10/2026: branch do Supabase**, *"pra não correr risco
+de impactar o main"*. O conector do Supabase não cria o branch (a confirmação
+de custo expira), então o dono cria no painel: Branches → Create branch,
+`atendimento-2`, **com dados** quando a opção aparece. Branch vazio não serve: o
+livro-razão da produção guarda o SQL de só 7 das 133 migrações, e o branch vazio
+nasce sem o schema.
+
+A cópia com dados leva junto o que fala com o mundo de fora. Antes de qualquer
+teste, rodar no branch (e só nele)
+`supabase/manutencao/preparar_branch_de_teste_do_atendimento.sql`: desliga as
+tarefas do `pg_cron` (uma chama a produção a cada hora), tira o webhook do banco
+de `tracking_events` e apaga o WhatsApp da equipe, para o resumo não ir a um
+vendedor de verdade. O script só roda com o marcador ligado na mesma chamada.
+Depois, as duas migrações do atendimento, e quem testa cadastra o próprio número
+em **Usuários e permissões**, no preview.
 
 **Roteiro** (do número de teste para o da instância de teste):
 
