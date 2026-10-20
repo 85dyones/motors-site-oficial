@@ -204,7 +204,14 @@ Passa ao vendedor quando (`decidirEntrega`, nesta ordem):
 - **pediu o que só o vendedor resolve** (desconto, valor final, avaliação da
   troca, aprovação) — sempre;
 - **a temperatura alcançou a mínima** (quente por padrão; a loja pode escolher
-  morno, como no manobrAI).
+  morno, como no manobrAI) — **mas não no meio da conversa**. No teste do
+  branch, o cliente disse "sábado", o assistente perguntou a hora e a nota
+  cruzou o quente na mesma volta: a entrega saiu antes da resposta (*"ele está
+  acelerando etapas"*, o dono). Agora, enquanto o cliente responde, o
+  assistente conduz até a visita com hora ou a simulação; o lead quente que
+  **para de responder por 30 minutos** vai ao vendedor pela rodada, no horário
+  da loja, com a passagem "Oi, Rafael! Vou te passar para…" — em vez do toque
+  de 20 horas da cadência (`ESPERA_DO_QUENTE_MS`).
 
 Na **visita marcada**, a passagem ao cliente repete o dia e a hora ("Visita
 marcada: sábado, 24/10, às 10h"), o resumo ao vendedor abre com "📅 VISITA

@@ -135,6 +135,8 @@ export function prontidao(ficha: FichaDoLead, agora: Date, opcoes: { nomeNoWhats
   if (!ficha.interesse) faltam.push({ pilar: "produto", item: "qual carro ele procura" });
   else if (!ficha.interesse_especifico) faltam.push({ pilar: "produto", item: "qual carro exatamente (modelo e ano)" });
   if (!ficha.pagamento) faltam.push({ pilar: "pagamento", item: "se paga à vista, financiado ou no consórcio" });
+  // "Com troca" diz o que entra, não como fecha: a diferença é à vista ou financiada?
+  else if (ficha.pagamento === "com_troca") faltam.push({ pilar: "pagamento", item: "como paga a diferença da troca (à vista ou financiado)" });
   if (financiado && !ficha.entrada) faltam.push({ pilar: "pagamento", item: "a entrada (ou se é sem entrada)" });
   if (financiado && !ficha.parcela) faltam.push({ pilar: "pagamento", item: "a parcela que cabe ou em quantas vezes" });
   if (!ficha.troca) faltam.push({ pilar: "pagamento", item: "se tem carro na troca (modelo, ano e km)" });

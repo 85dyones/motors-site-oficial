@@ -7,6 +7,7 @@ import {
   mesclarSinais,
   semCarroNaTroca,
   sinaisValidos,
+  temperaturaAlcanca,
   ROTULO_DO_MOTIVO_DA_ENTREGA,
   type Aquecimento,
   type FichaDoLead,
@@ -164,6 +165,13 @@ const PRAZO_DAS_FOTOS_MS = 80_000;
 const RESPOSTA_ATRASADA_MS = 10 * 60 * 1000;
 /** Depois do último toque, o cliente tem um dia para responder antes de o lead voltar à equipe. */
 const FOLGA_DEPOIS_DO_ULTIMO_TOQUE_MS = 24 * 60 * 60 * 1000;
+/**
+ * Quanto o lead quente pode ficar sem responder antes de ir ao vendedor
+ * (2026-10-20). Enquanto o cliente responde, o assistente conduz até a visita
+ * com hora ou a simulação (`decidirEntrega`, `conduzindo`); parou, a rodada o
+ * entrega — o lead quente não espera o toque de 20 horas da cadência.
+ */
+export const ESPERA_DO_QUENTE_MS = 30 * 60 * 1000;
 /** A rodada para de começar toques aqui, para caber nos 60 s da função. */
 const ORCAMENTO_DA_RODADA_MS = 40_000;
 /** A resposta só refaz uma volta (mensagem que chegou durante) se ainda houver tempo. */
@@ -1100,7 +1108,10 @@ async function responderUmaVez(
   // Pronto para o comercial (visita marcada ou simulação completa) entrega
   // com qualquer nota: é o objetivo do método (`metodoDeQualificacao.ts`).
   const pronto = prontidao(ficha, agora, { nomeNoWhatsApp: lead.nome }).pronto;
-  const decisao = decidirEntrega(aquecimento, sinais, config.avisar_a_partir, pronto);
+  // O cliente acabou de escrever: o assistente CONDUZ, e a temperatura sozinha
+  // não corta a conversa no meio (o "sábado" sem hora do teste do branch).
+  const decisao = decidirEntrega(aquecimento, sinais, config.avisar_a_partir, pronto, { conduzindo: true });
+  const quenteSegurado = !decisao.entregar && !sinais.optout && temperaturaAlcanca(aquecimento.temperatura, config.avisar_a_partir);
   // O que pode aparecer em reais é o orçamento e a entrada que o cliente
   // disse — nunca um preço que ele "viu" e pede para confirmar.
   const vigiados = vigiarPreco(
@@ -1162,6 +1173,10 @@ async function responderUmaVez(
   };
   if (sinais.optout) {
     Object.assign(patch, { optout_em: agora.toISOString(), assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null });
+  } else if (quenteSegurado) {
+    // Quente e conduzindo: se o cliente parar de responder, a rodada o
+    // entrega ao vendedor daqui a meia hora, em vez do toque da cadência.
+    Object.assign(patch, { cadencia: "follow_up", cadencia_passo: 0, cadencia_proximo_em: new Date(agora.getTime() + ESPERA_DO_QUENTE_MS).toISOString() });
   } else if (!decisao.entregar) {
     // Respondeu e ficou esperando o cliente: se ele sumir, a cadência começa.
     const cadencia = cadenciaDoSilencio(Boolean(ficha.interesse));
@@ -1518,6 +1533,8 @@ async function entregarAoVendedor(
   agora: Date,
   /** A frase da passagem ao cliente. Só para quem já escreveu para a loja. */
   avisarCliente: boolean,
+  /** O cliente parou de responder e a rodada o passa ("Oi", não "Perfeito"). */
+  opcoes: { retomada?: boolean } = {},
 ): Promise<void> {
   const leadId = String(lead.id);
   const equipe = await lerEquipe(supabase);
@@ -1546,6 +1563,7 @@ async function entregarAoVendedor(
       comFotos: fotosPedidasDaEntrega(lead, agora.toISOString()) !== null,
       visita: motivo === "agendou" ? rotuloDaVisita(ficha) : null,
       simulacao: motivo === "simulacao",
+      retomada: opcoes.retomada,
     });
     const atendimento = await garantirAtendimento(supabase, leadId, agora);
     await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto: passagem, gatilho: "passagem", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
@@ -1875,6 +1893,43 @@ export async function executarRodada(
     // não coube fica para a próxima rodada (o passo só anda quando reservado).
     if (relogio() - inicio > ORCAMENTO_DA_RODADA_MS) break;
     const leadId = String(lead.id);
+
+    // O lead quente que parou de responder vai ao vendedor — não ganha toque.
+    // A passagem fala com o cliente: só no horário da loja (fora dele, espera).
+    const quente =
+      lead.assistente_fase === "qualificando" && !lead.optout_em && lead.temperatura && temperaturaAlcanca(lead.temperatura, config.avisar_a_partir);
+    if (quente) {
+      if (!dentroDoExpediente(agora)) {
+        resultado.suprimidos.push({ lead_id: leadId, motivo: "fora_do_expediente", texto: MOTIVO_SEM_TOQUE.fora_do_expediente });
+        continue;
+      }
+      if (!opcoes.reservar) {
+        resultado.entregas.push({ lead_id: leadId, avisado: false, motivo: "previa" });
+        continue;
+      }
+      if (!evolution) {
+        resultado.entregas.push({ lead_id: leadId, avisado: false, motivo: motivoSemEvolution() });
+        resultado.falhas += 1;
+        continue;
+      }
+      // A reserva: só quem acerta a linha como foi lida entrega.
+      const { data: reservado } = await supabase
+        .from("leads")
+        .update({ cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null })
+        .eq("id", leadId)
+        .eq("assistente_fase", "qualificando")
+        .eq("cadencia_proximo_em", lead.cadencia_proximo_em)
+        .select("id");
+      if (!reservado || (reservado as Linha[]).length === 0) {
+        resultado.suprimidos.push({ lead_id: leadId, motivo: "outra_rodada", texto: "Outra rodada já pegou este lead." });
+        continue;
+      }
+      const aquecimento = { pontos: Number(lead.aquecimento ?? 0), temperatura: lead.temperatura, motivos: lead.qualificacao?.motivos ?? [] } as Aquecimento;
+      await entregarAoVendedor(supabase, lead, "quente", aquecimento, fichaDoLead(lead), config, evolution, deps, agora, true, { retomada: true });
+      resultado.entregas.push({ lead_id: leadId, avisado: true, motivo: "quente_parou_de_responder" });
+      continue;
+    }
+
     const decisao = decidirToque(lead as unknown as LeadNaCadencia, agora, config.cadencias);
     if (!decisao.tocar) {
       resultado.suprimidos.push({ lead_id: leadId, motivo: decisao.motivo, texto: MOTIVO_SEM_TOQUE[decisao.motivo] });

@@ -312,27 +312,61 @@ describe("a resposta", () => {
     expect(t.pedidosAoModelo).toHaveLength(1);
   });
 
-  it("esquentou com dono: passa ao vendedor com o resumo e sai do SLA do assistente", async () => {
+  it("esquentou no meio da conversa: o assistente segue conduzindo, e o lead só vai ao vendedor se parar de responder", async () => {
+    // O teste do branch (2026-10-20): "sábado" sem hora cruzou o quente e a
+    // entrega saiu antes de o cliente dizer o horário. Agora não.
     const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
     const t = transporteDeTeste([
       respostaDoModelo({
-        mensagens: ["Show! Sábado de manhã fica ótimo."],
-        ficha: { interesse: "Onix LT 2020", interesse_especifico: true, troca: "Uno 2014", prazo: "imediato" },
+        mensagens: ["Show! Sábado então. 10h ou 13h?"],
+        ficha: { interesse: "Onix LT 2020", interesse_especifico: true, troca: "Uno 2014", prazo: "imediato", visita: "sábado" },
         sinais: { quer_visitar: true },
       }),
     ]);
     const entrada = await clienteEscreve(banco, t, "quero ver sábado, tenho um Uno pra troca");
     const r = await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
 
-    expect(r).toMatchObject({ acao: "respondido", aquecimento: 80, temperatura: "quente", entregue: true });
+    expect(r).toMatchObject({ acao: "respondido", aquecimento: 90, temperatura: "quente", entregue: false });
+    expect(t.enviados.map((e) => e.texto)).toEqual(["Show! Sábado então. 10h ou 13h?"]);
+    expect(banco.tabelas.leads[0]).toMatchObject({
+      assistente_fase: "qualificando",
+      cadencia: "follow_up",
+      cadencia_proximo_em: new Date(TERCA_10H.getTime() + 30 * 60 * 1000).toISOString(),
+    });
+
+    // Meia hora sem resposta: a rodada passa ao vendedor, em vez do toque.
+    relogio = new Date(TERCA_10H.getTime() + 31 * 60 * 1000);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(rodada.entregas).toEqual([{ lead_id: "lead-1", avisado: true, motivo: "quente_parou_de_responder" }]);
+    expect(rodada.toques).toEqual([]);
     expect(t.enviados.map((e) => e.numero)).toEqual([CLIENTE, CLIENTE, "5541988887777"]);
-    expect(t.enviados[1].texto).toBe("Perfeito, Rafael! Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777.");
+    expect(t.enviados[1].texto).toBe("Oi, Rafael! Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777.");
     expect(t.enviados[2].texto).toMatch(/^🔥 LEAD QUENTE — Rafael/);
+    expect(t.enviados[2].texto).toContain("Visita: sábado");
     expect(t.enviados[2].texto).toContain("Abrir no painel: https://loja.teste/admin/leads/lead-1");
     const lead = banco.tabelas.leads[0];
     expect(lead).toMatchObject({ assistente_fase: "entregue", entregue_motivo: "quente", aviso_de_entrega_para: "Carla Souza", cadencia: null, carro_na_troca: "Uno 2014" });
-    expect(banco.tabelas.atendimentos.at(-1)).toMatchObject({ com_assistente: false, humano_assumiu_em: TERCA_10H.toISOString() });
+    expect(banco.tabelas.atendimentos.at(-1)).toMatchObject({ com_assistente: false, humano_assumiu_em: relogio.toISOString() });
     expect(banco.tabelas.leads_eventos.some((e) => e.tipo === "nota" && e.detalhe.acao === "entrega" && e.detalhe.para === "Carla Souza")).toBe(true);
+  });
+
+  it("o quente que para de responder fora do horário espera a loja abrir", async () => {
+    relogio = new Date("2026-10-20T21:00:00Z"); // terça, 18h: a loja fecha às 18h30
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    const t = transporteDeTeste([
+      respostaDoModelo({ mensagens: ["Sábado então. 10h ou 13h?"], ficha: { interesse: "Onix LT 2020", interesse_especifico: true, troca: "Uno 2014", prazo: "imediato" }, sinais: { quer_visitar: true } }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "quero ver sábado");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    relogio = new Date("2026-10-20T22:00:00Z"); // 19h: fechada
+    const noite = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(noite.entregas).toEqual([]);
+    expect(noite.suprimidos.map((x) => x.motivo)).toEqual(["fora_do_expediente"]);
+    expect(banco.tabelas.leads[0].assistente_fase).toBe("qualificando");
+    relogio = QUARTA_9H;
+    const manha = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(manha.entregas.map((e) => e.lead_id)).toEqual(["lead-1"]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", entregue_motivo: "quente" });
   });
 
   it("sem dono e o administrador distribui: o resumo vai a ele e ao gestor, e o 'lead novo' do funil não sai em dobro", async () => {

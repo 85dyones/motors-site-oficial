@@ -122,9 +122,12 @@ export function mensagemDePassagemAoCliente(dados: {
   visita?: string | null;
   /** Os dados da simulação estão completos: o cliente sabe o que vem. */
   simulacao?: boolean;
+  /** O cliente parou de responder e a rodada o passa: "Oi", não "Perfeito". */
+  retomada?: boolean;
 }): string {
   const nome = nomeParaTratar(dados.nomeDoCliente);
-  const abertura = `${nome ? `Perfeito, ${nome}!` : "Perfeito!"}${
+  const saudacao = dados.retomada ? "Oi" : "Perfeito";
+  const abertura = `${nome ? `${saudacao}, ${nome}!` : `${saudacao}!`}${
     dados.visita ? ` Visita marcada: ${dados.visita}.` : dados.simulacao ? " Já deixei os dados da sua simulação com a equipe." : ""
   }`;
   const fotos = dados.comFotos ? (dados.equipeDisponivel ? " e te mandar as fotos" : " e te manda as fotos") : "";

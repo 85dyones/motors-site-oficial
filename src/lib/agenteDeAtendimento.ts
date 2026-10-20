@@ -221,6 +221,7 @@ export function montarInstrucoesFixas(entrada: {
     '- "interesse_especifico": true só quando o cliente falou de um carro identificado (do catálogo, ou modelo e ano).',
     '- "nome": como o cliente disse que se chama. "uso": para que vai usar o carro. "decisor": quem decide junto ou em nome de quem fica o carro. "parcela": a parcela que cabe ou em quantas vezes, como ele disse.',
     '- "troca": o carro da troca como ele descreveu, ou "sem troca" quando ele disser que não tem. "entrada": o valor, ou "sem entrada".',
+    '- Com carro na troca, "pagamento" é como ele paga a DIFERENÇA (à vista, financiado ou consórcio); "com_troca" só quando a troca cobre o valor todo ou ele ainda não disse como paga a diferença.',
     '- "visita": como ele disse ("sábado de manhã"). "visita_data" ("AAAA-MM-DD", pela tabela de dias do estado) e "visita_hora" ("HH:MM"): só com dia E hora confirmados pelo cliente.',
     '- "fotos": null, ou {"veiculo": "o número do carro no catálogo (depois do #)", "camada": "externa" | "interior" | "detalhes" | "rodas" | "motor" | "porta_malas"} para mandar fotos de UM carro.',
     '- "ficha" é a ficha INTEIRA atualizada: copie o que já estava e acrescente o que o cliente disse agora.',

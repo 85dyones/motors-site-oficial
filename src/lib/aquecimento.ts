@@ -492,7 +492,13 @@ export type DecisaoDeEntrega = { entregar: true; motivo: MotivoDaEntrega } | { e
  *     da simulação completos — o lead pronto para o comercial, com qualquer
  *     nota. Quem decide se está pronto é `prontidao` (`metodoDeQualificacao.ts`).
  *   - **temperatura**: a partir da mínima configurada (`avisar_a_partir`:
- *     quente por padrão; a loja pode escolher morno, como no manobrAI).
+ *     quente por padrão; a loja pode escolher morno, como no manobrAI) —
+ *     MENOS enquanto o assistente conduz (`conduzindo`, 2026-10-20). No teste
+ *     do branch, o cliente disse "sábado", o assistente perguntou a hora, e a
+ *     nota cruzou o quente na mesma volta: a entrega saiu antes da resposta
+ *     (*"ele está acelerando etapas"*, o dono). Com o cliente respondendo, o
+ *     assistente segue até a visita com hora ou a simulação; o lead quente
+ *     que PARA de responder vai ao vendedor pela rodada (`ESPERA_DO_QUENTE_MS`).
  *
  * Opt-out nunca entrega: o cliente pediu para pararmos de escrever.
  */
@@ -501,11 +507,12 @@ export function decidirEntrega(
   sinais: SinaisDaConversa,
   avisarAPartir: Temperatura = "quente",
   pronto: "agendou" | "simulacao" | null = null,
+  opcoes: { conduzindo?: boolean } = {},
 ): DecisaoDeEntrega {
   if (sinais.optout) return { entregar: false, motivo: null };
   if (sinais.pediu_humano) return { entregar: true, motivo: "pediu_humano" };
   if (pronto) return { entregar: true, motivo: pronto };
   if (sinais.pediu_condicao) return { entregar: true, motivo: "pediu_condicao" };
-  if (temperaturaAlcanca(aquecimento.temperatura, avisarAPartir)) return { entregar: true, motivo: "quente" };
+  if (!opcoes.conduzindo && temperaturaAlcanca(aquecimento.temperatura, avisarAPartir)) return { entregar: true, motivo: "quente" };
   return { entregar: false, motivo: null };
 }

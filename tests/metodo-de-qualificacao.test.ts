@@ -41,6 +41,11 @@ describe("o que falta e o próximo movimento", () => {
     expect(p.proximoMovimento).toBe("marcar a visita ou o test-drive com dia e hora — proponha duas opções concretas dentro do horário da loja");
   });
 
+  it("'com troca' não fecha o pagamento: falta como paga a diferença", () => {
+    const itens = prontidao(ficha({ ...ONIX, pagamento: "com_troca", troca: "Clio 2011" }), TERCA_10H).faltam.map((f) => f.item);
+    expect(itens).toContain("como paga a diferença da troca (à vista ou financiado)");
+  });
+
   it("financiado: o movimento é completar a simulação, dizendo o que falta", () => {
     const p = prontidao(ficha({ ...ONIX, pagamento: "financiado", entrada: "10 mil" }), TERCA_10H);
     expect(p.pronto).toBeNull();
@@ -79,6 +84,15 @@ describe("pronto para o comercial", () => {
   it("a visita marcada vence a simulação: é o compromisso mais forte", () => {
     const f = ficha({ ...ONIX, pagamento: "financiado", entrada: "10 mil", parcela: "48x", visita_data: "2026-10-22", visita_hora: "17:30" });
     expect(prontidao(f, TERCA_10H).pronto).toBe("agendou");
+  });
+
+  it("enquanto o assistente conduz, a temperatura sozinha não entrega; sem conduzir, entrega", () => {
+    const quente = { temperatura: "quente" as const };
+    expect(decidirEntrega(quente, SINAIS_NEUTROS, "quente", null, { conduzindo: true })).toEqual({ entregar: false, motivo: null });
+    expect(decidirEntrega(quente, SINAIS_NEUTROS, "quente", null)).toEqual({ entregar: true, motivo: "quente" });
+    // Conduzindo, o que o método persegue e o que o cliente pede continuam entregando.
+    expect(decidirEntrega(quente, SINAIS_NEUTROS, "quente", "agendou", { conduzindo: true })).toEqual({ entregar: true, motivo: "agendou" });
+    expect(decidirEntrega(quente, { ...SINAIS_NEUTROS, pediu_humano: true }, "quente", null, { conduzindo: true })).toEqual({ entregar: true, motivo: "pediu_humano" });
   });
 
   it("na entrega, quem pediu gente vem antes; pronto vem antes de pediu condição; opt-out nunca", () => {
@@ -185,6 +199,9 @@ describe("o que o vendedor e o cliente leem", () => {
     const base = { nomeDoCliente: "Rafael", vendedor: null, equipeDisponivel: true };
     expect(mensagemDePassagemAoCliente({ ...base, visita: "sábado, 24/10, às 10h" })).toBe(
       "Perfeito, Rafael! Visita marcada: sábado, 24/10, às 10h. Vou passar seu atendimento para a nossa equipe de consultores, que já te chama.",
+    );
+    expect(mensagemDePassagemAoCliente({ ...base, retomada: true })).toBe(
+      "Oi, Rafael! Vou passar seu atendimento para a nossa equipe de consultores, que já te chama.",
     );
     expect(mensagemDePassagemAoCliente({ ...base, simulacao: true })).toBe(
       "Perfeito, Rafael! Já deixei os dados da sua simulação com a equipe. Vou passar seu atendimento para a nossa equipe de consultores, que já te chama.",
