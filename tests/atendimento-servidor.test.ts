@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   avisarEntregaPendente,
+  classificarFotosDoEstoque,
   enviarDoPainel,
   executarRodada,
   mudarAssistente,
@@ -847,5 +848,210 @@ describe("a rodada com a configuração ilegível", () => {
     const r = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
     expect(r).toMatchObject({ ativo: false, devolvidos: [] });
     expect(banco.tabelas.leads[0].assistente_fase).toBe("qualificando");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// As fotos do carro, em camadas (2026-10-20)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("as fotos do carro, em camadas", () => {
+  const ONIX = "7950008";
+  const foto = (nome: string) => `https://fotos.teste/onix/${nome}.jpg`;
+  // A galeria do Onix, na ordem do anúncio, e o que o modelo de visão "vê" em cada uma.
+  const GALERIA: [string, { camada: string; angulo?: string; descricao: string }][] = [
+    [foto("01"), { camada: "externa", angulo: "tres_quartos_frente", descricao: "Frente" }],
+    [foto("02"), { camada: "externa", angulo: "lateral", descricao: "Lateral" }],
+    [foto("03"), { camada: "externa", angulo: "traseira", descricao: "Traseira" }],
+    [foto("04"), { camada: "externa", angulo: "frente", descricao: "Frente reta" }],
+    [foto("05"), { camada: "externa", angulo: "tres_quartos_traseira", descricao: "Traseira de lado" }],
+    [foto("06"), { camada: "interior", descricao: "Painel" }],
+    [foto("07"), { camada: "interior", descricao: "Bancos" }],
+    [foto("08"), { camada: "detalhes", descricao: "Teto solar" }],
+    [foto("09"), { camada: "detalhes", descricao: "Faróis de LED" }],
+    [foto("10"), { camada: "rodas", descricao: "Roda aro 16" }],
+    [foto("11"), { camada: "motor", descricao: "Motor 1.4" }],
+    [foto("12"), { camada: "outra", descricao: "Documento" }],
+  ];
+  const VISAO = new Map(GALERIA);
+  const visao = (urls: string[]) =>
+    JSON.stringify({ fotos: urls.map((u, i) => ({ n: i + 1, ...VISAO.get(u), aproveitavel: true })) });
+  const BASE_COM_FOTOS = async () => ({
+    ...(await BASE()),
+    fotos: { [ONIX]: { nome: "Onix LT 2020", urls: GALERIA.map(([u]) => u) } },
+  });
+  const pediuFotos = (camada: string, texto = "Olha ele aqui 👇") => respostaDoModelo({ mensagens: [texto], fotos: { veiculo: ONIX, camada } });
+
+  async function conversa(banco: BancoDeTeste, t: ReturnType<typeof transporteDeTeste>, texto: string, extra: Partial<Dependencias> = {}) {
+    relogio = new Date(relogio.getTime() + 60_000);
+    const e = await clienteEscreve(banco, t, texto);
+    return responderAoLead(banco.cliente, { leadId: e.lead!, mensagemId: e.mensagem }, deps(t, { baseDaLoja: BASE_COM_FOTOS, ...extra }));
+  }
+
+  it("pediu fotos: classifica o carro na hora, manda as de fora depois do texto e oferece o interior", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([pediuFotos("externa")], { visao });
+    const r = await conversa(banco, t, "tem foto do onix?");
+
+    expect(r).toMatchObject({ acao: "respondido", fotos: 4 });
+    expect(t.pedidosDeVisao).toEqual([GALERIA.map(([u]) => u)]);
+    expect(banco.tabelas.atendimento_fotos).toHaveLength(12);
+    expect(t.saidas).toEqual([
+      { tipo: "texto", numero: CLIENTE, texto: "Olha ele aqui 👇" },
+      // A capa, e um de cada ângulo que falta, na ordem da galeria — não quatro fotos da frente.
+      { tipo: "foto", numero: CLIENTE, url: foto("01"), legenda: "Frente" },
+      { tipo: "foto", numero: CLIENTE, url: foto("02"), legenda: "Lateral" },
+      { tipo: "foto", numero: CLIENTE, url: foto("03"), legenda: "Traseira" },
+      { tipo: "foto", numero: CLIENTE, url: foto("05"), legenda: "Traseira de lado" },
+      { tipo: "texto", numero: CLIENTE, texto: "Quer ver o interior também?" },
+    ]);
+    const daConversa = banco.tabelas.atendimento_mensagens.filter((m) => m.midia_url);
+    expect(daConversa).toHaveLength(4);
+    expect(daConversa[0]).toMatchObject({ direcao: "saida", autor: "assistente", conteudo: "imagem", camada: "externa", veiculo_id: 7950008, situacao: "enviada", texto: "Frente" });
+  });
+
+  it("aceitou o interior: manda o interior, oferece os detalhes que o carro tem — e o modelo sabe o que já foi", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([pediuFotos("externa"), pediuFotos("interior", "Por dentro 👇")], { visao });
+    await conversa(banco, t, "tem foto do onix?");
+    const r = await conversa(banco, t, "quero ver por dentro");
+
+    expect(r).toMatchObject({ acao: "respondido", fotos: 2 });
+    expect(t.pedidosDeVisao).toHaveLength(1);
+    expect(t.saidas.slice(6)).toEqual([
+      { tipo: "texto", numero: CLIENTE, texto: "Por dentro 👇" },
+      { tipo: "foto", numero: CLIENTE, url: foto("06"), legenda: "Painel" },
+      { tipo: "foto", numero: CLIENTE, url: foto("07"), legenda: "Bancos" },
+      { tipo: "texto", numero: CLIENTE, texto: "Tenho também fotos dos detalhes da versão (teto solar e faróis de LED), das rodas e do motor. Quer ver alguma?" },
+    ]);
+    const segundo = t.pedidosAoModelo[1].messages as { role: string; content: string }[];
+    expect(segundo.some((m) => m.content === "(enviou 4 fotos de fora do carro #7950008)")).toBe(true);
+    expect(segundo.at(-1)!.content).toContain("Fotos já enviadas nesta conversa:");
+    expect(segundo.at(-1)!.content).toContain("#7950008 Onix LT 2020: já enviou fora; ainda pode oferecer: interior, detalhes da versão (teto solar e faróis de LED), rodas, motor.");
+  });
+
+  it("o interior vem antes dos detalhes; depois de um detalhe, lembra o que sobrou sem perguntar de novo", async () => {
+    const banco = montar();
+    const t = transporteDeTeste(
+      [pediuFotos("externa"), pediuFotos("rodas", "As rodas 👇"), pediuFotos("interior", "Por dentro 👇"), pediuFotos("detalhes", "Os detalhes 👇"), pediuFotos("porta_malas", "Deixa eu ver…")],
+      { visao },
+    );
+    const ultimoTexto = () => (t.saidas.filter((s) => s.tipo === "texto").at(-1) as { texto: string }).texto;
+    await conversa(banco, t, "tem foto do onix?");
+    await conversa(banco, t, "e as rodas?");
+    // O cliente pulou para as rodas: a oferta ainda é o interior, que não foi.
+    expect(ultimoTexto()).toBe("Quer ver o interior também?");
+    await conversa(banco, t, "pode mandar o interior");
+    expect(ultimoTexto()).toBe("Se quiser, tenho também fotos dos detalhes da versão (teto solar e faróis de LED) e do motor.");
+    await conversa(banco, t, "os detalhes");
+    expect(ultimoTexto()).toBe("Se quiser, tenho também fotos do motor.");
+    await conversa(banco, t, "e o porta-malas?");
+    expect(ultimoTexto()).toBe("Não tenho foto do porta-malas desse carro aqui, mas a nossa equipe consegue te mandar. 😉");
+  });
+
+  it("a foto que já foi não sai de novo", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([pediuFotos("externa"), pediuFotos("externa", "Mais uma de fora:"), pediuFotos("externa", "De fora:")], { visao });
+    await conversa(banco, t, "tem foto do onix?");
+    await conversa(banco, t, "tem mais de fora?");
+    await conversa(banco, t, "mais?");
+    const fotos = t.saidas.filter((s) => s.tipo === "foto").map((s) => (s as { url: string }).url);
+    expect(fotos).toEqual([foto("01"), foto("02"), foto("03"), foto("05"), foto("04")]);
+    expect(new Set(fotos).size).toBe(fotos.length);
+  });
+
+  it("o modelo de visão caiu: vai a galeria em ordem, de quatro em quatro, sem legenda", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([pediuFotos("externa")], { visao: () => ({ erro: "Service Unavailable" }) });
+    const r = await conversa(banco, t, "tem foto do onix?");
+    expect(r).toMatchObject({ acao: "respondido", fotos: 4 });
+    expect(t.saidas.slice(1)).toEqual([
+      { tipo: "foto", numero: CLIENTE, url: foto("01"), legenda: null },
+      { tipo: "foto", numero: CLIENTE, url: foto("02"), legenda: null },
+      { tipo: "foto", numero: CLIENTE, url: foto("03"), legenda: null },
+      { tipo: "foto", numero: CLIENTE, url: foto("04"), legenda: null },
+      { tipo: "texto", numero: CLIENTE, texto: "Quer ver mais fotos?" },
+    ]);
+    expect(banco.tabelas.atendimento_fotos).toHaveLength(0);
+    expect(banco.tabelas.atendimento_mensagens.filter((m) => m.midia_url).every((m) => m.camada === null)).toBe(true);
+  });
+
+  it("carro que não está à venda: nenhuma foto, e a resposta segue", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Vou confirmar com a equipe."], fotos: { veiculo: "123", camada: "externa" } })], { visao });
+    const r = await conversa(banco, t, "tem foto do civic?");
+    expect(r).toMatchObject({ acao: "respondido", enviadas: 1 });
+    expect(t.saidas).toEqual([{ tipo: "texto", numero: CLIENTE, texto: "Vou confirmar com a equipe." }]);
+    expect(t.pedidosDeVisao).toHaveLength(0);
+  });
+
+  it("legenda com preço (a placa no para-brisa) sai sem legenda, com o preço desligado", async () => {
+    const banco = montar();
+    const comPreco = (urls: string[]) =>
+      JSON.stringify({ fotos: urls.map((u, i) => ({ n: i + 1, ...VISAO.get(u), ...(i === 0 ? { descricao: "Frente com placa R$ 79.900" } : {}), aproveitavel: true })) });
+    const t = transporteDeTeste([pediuFotos("externa")], { visao: comPreco });
+    await conversa(banco, t, "tem foto do onix?");
+    expect(t.saidas[1]).toEqual({ tipo: "foto", numero: CLIENTE, url: foto("01"), legenda: null });
+  });
+
+  it("pediu para parar: nenhuma foto sai", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Tudo certo."], sinais: { optout: true }, fotos: { veiculo: ONIX, camada: "externa" } })], { visao });
+    await conversa(banco, t, "não quero mais mensagem");
+    expect(t.saidas.filter((s) => s.tipo === "foto")).toHaveLength(0);
+  });
+});
+
+describe("a rodada das fotos", () => {
+  const urls = (carro: string, n: number) => Array.from({ length: n }, (_, i) => `https://fotos.teste/${carro}/${i + 1}.jpg`);
+  const tudoDeFora = (lista: string[]) => JSON.stringify({ fotos: lista.map((_, i) => ({ n: i + 1, camada: "externa", angulo: "lateral", descricao: "Lateral", aproveitavel: true })) });
+  const base = (fotos: Record<string, { nome: string; urls: string[] }>) => async () => ({ ...(await BASE()), fotos });
+
+  it("classifica só o que falta, carro sem nenhuma foto vista primeiro, e divide o custo pelas fotos", async () => {
+    const banco = montar({
+      atendimento_fotos: urls("hb20", 3).map((url, posicao) => ({ id: `f${posicao}`, org_id: LOJA_DE_TESTE, veiculo_id: 2, url, posicao, camada: "externa", aproveitavel: true })),
+    });
+    const t = transporteDeTeste([], { visao: tudoDeFora });
+    const r = await classificarFotosDoEstoque(
+      banco.cliente,
+      deps(t, { baseDaLoja: base({ "1": { nome: "Onix", urls: urls("onix", 14) }, "2": { nome: "HB20", urls: urls("hb20", 4) } }) }),
+    );
+    expect(r).toMatchObject({ ok: true, carros_na_fila: 2, carros_classificados: 2, fotos_classificadas: 15, falhas: 0, restantes: 0 });
+    // O Onix (nada visto) primeiro, em dois pedidos de até 12; depois só a foto nova do HB20.
+    expect(t.pedidosDeVisao.map((p) => p.length)).toEqual([12, 2, 1]);
+    expect(t.pedidosDeVisao[2]).toEqual(["https://fotos.teste/hb20/4.jpg"]);
+    const doOnix = banco.tabelas.atendimento_fotos.filter((f) => f.veiculo_id === 1);
+    expect(doOnix).toHaveLength(14);
+    expect(doOnix[0]).toMatchObject({ org_id: LOJA_DE_TESTE, tokens_entrada: 300, tokens_saida: 40, modelo: "deepseek-flash" });
+  });
+
+  it("o pedido que falhou deixa as fotos na fila, e conta como falha", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([], { visao: () => ({ erro: "Service Unavailable" }) });
+    const r = await classificarFotosDoEstoque(banco.cliente, deps(t, { baseDaLoja: base({ "1": { nome: "Onix", urls: urls("onix", 3) } }) }));
+    expect(r).toMatchObject({ ok: true, fotos_classificadas: 0, falhas: 1, motivo: expect.stringContaining("Service Unavailable") });
+    expect(banco.tabelas.atendimento_fotos).toHaveLength(0);
+  });
+
+  it("o tempo acabou: o que não coube fica para a próxima", async () => {
+    const banco = montar();
+    let agora = 0;
+    const t = transporteDeTeste([], {
+      visao: (lista) => {
+        agora += 45_000;
+        return tudoDeFora(lista);
+      },
+    });
+    const r = await classificarFotosDoEstoque(
+      banco.cliente,
+      deps(t, { relogio: () => agora, baseDaLoja: base({ "1": { nome: "A", urls: urls("a", 2) }, "2": { nome: "B", urls: urls("b", 2) } }) }),
+    );
+    expect(r).toMatchObject({ carros_na_fila: 2, carros_classificados: 1, restantes: 1 });
+  });
+
+  it("sem a chave da DeepSeek: diz o que falta", async () => {
+    const banco = montar();
+    const r = await classificarFotosDoEstoque(banco.cliente, deps(transporteDeTeste(), { modelo: null }));
+    expect(r).toMatchObject({ ok: false, motivo: expect.stringContaining("DEEPSEEK_API_KEY") });
   });
 });

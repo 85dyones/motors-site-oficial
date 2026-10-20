@@ -15,11 +15,15 @@ vi.mock("../src/lib/observabilidade", () => ({
 
 const registrarEntrada = vi.fn(async () => ({ acao: "mensagem_registrada", lead: "l1", mensagem: "m1", responder: true, aguardar_ms: 12000 }));
 const executarRodada = vi.fn(async (_s: unknown, o: { reservar: boolean }) => ({ ativo: true, reservado: o.reservar, entregas: [], toques: [], suprimidos: [], falhas: 0 }));
+const classificarFotosDoEstoque = vi.fn(async () => ({ ok: true, carros_na_fila: 2, carros_classificados: 1, fotos_classificadas: 12, falhas: 0, restantes: 1 }));
 vi.mock("../src/lib/atendimento-servidor", () => ({
   registrarEntrada: (...a: unknown[]) => registrarEntrada(...(a as [])),
   responderAoLead: async () => ({ acao: "respondido" }),
   executarRodada: (...a: unknown[]) => executarRodada(...(a as [unknown, { reservar: boolean }])),
+  classificarFotosDoEstoque: () => classificarFotosDoEstoque(),
 }));
+const etiquetas: string[] = [];
+vi.mock("next/cache", () => ({ revalidateTag: (t: string) => etiquetas.push(t), unstable_cache: (f: unknown) => f }));
 vi.mock("../src/lib/supabase-server", () => ({ createAdminSupabaseClient: () => ({}) }));
 
 const pedido = (caminho: string, corpo: unknown, cabecalhos: Record<string, string> = {}) =>
@@ -32,6 +36,8 @@ const CORPO_DA_EVOLUTION = {
 
 beforeEach(() => {
   falhas.length = 0;
+  etiquetas.length = 0;
+  classificarFotosDoEstoque.mockClear();
   registrarEntrada.mockClear();
   executarRodada.mockClear();
 });
@@ -112,5 +118,31 @@ describe("a resposta e a rodada", () => {
     await POST(pedido("/api/atendimento/rodada", { reservar: "true" }, { Authorization: "Bearer certo" }));
     await POST(pedido("/api/atendimento/rodada", { reservar: true }, { Authorization: "Bearer certo" }));
     expect(executarRodada.mock.calls.map((c) => c[1].reservar)).toEqual([false, false, true]);
+  });
+});
+
+describe("a rodada das fotos", () => {
+  it("mesma porta do motor: sem o token certo, nada é classificado", async () => {
+    vi.stubEnv("ATENDIMENTO_MOTOR_TOKEN", "certo");
+    const { POST } = await import("../src/app/api/atendimento/fotos/route");
+    expect((await POST(pedido("/api/atendimento/fotos", {}, { Authorization: "Bearer errado" }))).status).toBe(401);
+    expect(classificarFotosDoEstoque).not.toHaveBeenCalled();
+  });
+
+  it("classificou algo novo: devolve o placar e revalida o catálogo das fotos", async () => {
+    vi.stubEnv("ATENDIMENTO_MOTOR_TOKEN", "certo");
+    const { POST } = await import("../src/app/api/atendimento/fotos/route");
+    const r = await POST(pedido("/api/atendimento/fotos", {}, { Authorization: "Bearer certo" }));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, fotos_classificadas: 12, restantes: 1 });
+    expect(etiquetas).toEqual(["atendimento-fotos"]);
+  });
+
+  it("nada novo: não revalida", async () => {
+    vi.stubEnv("ATENDIMENTO_MOTOR_TOKEN", "certo");
+    classificarFotosDoEstoque.mockResolvedValueOnce({ ok: true, carros_na_fila: 0, carros_classificados: 0, fotos_classificadas: 0, falhas: 0, restantes: 0 });
+    const { POST } = await import("../src/app/api/atendimento/fotos/route");
+    await POST(pedido("/api/atendimento/fotos", {}, { Authorization: "Bearer certo" }));
+    expect(etiquetas).toEqual([]);
   });
 });

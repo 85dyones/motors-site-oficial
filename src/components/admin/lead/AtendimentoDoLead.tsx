@@ -10,6 +10,7 @@ import {
   lerConversaDaApi,
   linhaDaCadencia,
   linhasDaFicha,
+  fotoDaMensagem,
   marcasDaMensagem,
   posicaoNaRegua,
   quemEscreveu,
@@ -230,6 +231,8 @@ export default function AtendimentoDoLead({
             {dados?.mensagens.map((m) => {
               const doCliente = m.direcao === "entrada";
               const marcas = marcasDaMensagem(m);
+              const foto = fotoDaMensagem(m);
+              const texto = textoDaMensagem(m);
               return (
                 <li key={m.id} data-autor={m.autor} className={`flex flex-col gap-1 ${doCliente ? "items-start" : "items-end"}`}>
                   <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-mt-neutral-600 tabular-nums">
@@ -246,7 +249,13 @@ export default function AtendimentoDoLead({
                           : "bg-mt-ink text-mt-bg"
                     } ${m.situacao === "falhou" ? "outline outline-1 outline-mt-accent" : ""}`}
                   >
-                    {textoDaMensagem(m)}
+                    {foto && (
+                      <a href={foto} target="_blank" rel="noopener noreferrer" className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- miniatura da conversa; a foto pode ser do carro57 */}
+                        <img src={foto} alt={texto || "Foto do carro"} loading="lazy" className="block max-h-40 w-auto max-w-full" />
+                      </a>
+                    )}
+                    {texto && <span className={foto ? "mt-1 block text-[12px]" : undefined}>{texto}</span>}
                   </p>
                 </li>
               );

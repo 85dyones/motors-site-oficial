@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   acoesDisponiveis,
+  fotoDaMensagem,
   horaDaMensagem,
   lerConversaDaApi,
   linhaDaCadencia,
@@ -37,6 +38,16 @@ describe("a conversa", () => {
     expect(textoDaMensagem({ conteudo: "audio", texto: null })).toBe("[Áudio]");
     expect(textoDaMensagem({ conteudo: "imagem", texto: "esse" })).toBe("[Foto] esse");
     expect(textoDaMensagem({ conteudo: "texto", texto: "oi" })).toBe("oi");
+  });
+
+  it("a foto do carro: a tela mostra a foto, a legenda e a camada; endereço que não é http não vira imagem", () => {
+    const m = { conteudo: "imagem" as const, texto: "Painel digital", midia_url: "https://f.teste/1.jpg", camada: "interior", gatilho: "resposta", situacao: "enviada" as const };
+    expect(fotoDaMensagem(m)).toBe("https://f.teste/1.jpg");
+    expect(textoDaMensagem(m)).toBe("Painel digital");
+    expect(marcasDaMensagem(m)).toEqual(["foto · interior"]);
+    expect(textoDaMensagem({ ...m, texto: null })).toBe("");
+    expect(fotoDaMensagem({ midia_url: "javascript:alert(1)" })).toBeNull();
+    expect(marcasDaMensagem({ ...m, camada: null })).toEqual(["foto"]);
   });
 
   it("marcas: cadência, passagem, celular, enviando, não saiu", () => {

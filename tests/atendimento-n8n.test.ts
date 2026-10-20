@@ -38,7 +38,8 @@ describe("os dois workflows", () => {
 
   it("toda chamada ao site usa a credencial própria, ATENDIMENTO_MOTOR_TOKEN", () => {
     const chamadas = [...entrada.nodes, ...rodada.nodes].filter((n) => n.type === "n8n-nodes-base.httpRequest");
-    expect(chamadas.length).toBe(3);
+    // Entrada, resposta (e a segunda tentativa dela), rodada e a rodada das fotos.
+    expect(chamadas.length).toBe(5);
     for (const n of chamadas) {
       expect(n.parameters.genericAuthType).toBe("httpHeaderAuth");
       expect(n.credentials!.httpHeaderAuth.name).toBe("ATENDIMENTO_MOTOR_TOKEN");
@@ -78,6 +79,20 @@ describe("a entrada", () => {
     expect(rota("responder")).toContain("corpo?.lead_id");
     expect(rota("responder")).toContain("corpo?.mensagem_id");
   });
+
+  it("chegou durante a resposta e a outra execução não cobriu: pede de novo, uma vez, depois que ela terminou", () => {
+    expect(entrada.connections["Pedir a resposta"].main[0][0].node).toBe("Estava respondendo?");
+    const se = no(entrada, "Estava respondendo?");
+    expect(se.parameters.conditions.conditions[0]).toMatchObject({ leftValue: "={{ $json.body.acao }}", rightValue: "ocupado" });
+    expect(servidor).toContain('acao: "ocupado"');
+    expect(entrada.connections["Estava respondendo?"].main[0][0].node).toBe("Esperar a resposta em curso");
+    // Depois do `maxDuration` de 120 s da rota, contado do pedido anterior.
+    expect(no(entrada, "Esperar a resposta em curso").parameters.amount).toBeGreaterThanOrEqual(60);
+    expect(entrada.connections["Esperar a resposta em curso"].main[0][0].node).toBe("Pedir a resposta de novo");
+    expect(no(entrada, "Pedir a resposta de novo").parameters.jsonBody).toBe(no(entrada, "Pedir a resposta").parameters.jsonBody);
+    // Uma vez só: a segunda tentativa não volta ao começo.
+    expect(entrada.connections["Pedir a resposta de novo"]).toBeUndefined();
+  });
 });
 
 describe("a rodada", () => {
@@ -94,6 +109,17 @@ describe("a rodada", () => {
       expect(codigo).toContain(campo);
     }
     for (const campo of ["falhas", "toques", "entregas", "avisado", "sem_destinatario"]) expect(servidor).toContain(campo);
+  });
+
+  it("a rodada das fotos vai em paralelo, com a mesma credencial, e fica vermelha quando não anda", () => {
+    const n = no(rodada, "Classificar as fotos");
+    expect(n.parameters.url).toMatch(/\/api\/atendimento\/fotos$/);
+    expect(n.credentials?.httpHeaderAuth?.name).toBe("ATENDIMENTO_MOTOR_TOKEN");
+    expect(rodada.connections["A cada 15 minutos"].main[0].map((c) => c.node).sort()).toEqual(["Classificar as fotos", "Pedir a rodada"]);
+    expect(rodada.connections["Classificar as fotos"].main[0][0].node).toBe("Conferir as fotos");
+    const codigo = no(rodada, "Conferir as fotos").parameters.jsCode as string;
+    for (const campo of ["ok", "falhas", "motivo", "fotos_classificadas"]) expect(codigo).toContain(`corpo.${campo}`);
+    expect(rota("fotos")).toContain("classificarFotosDoEstoque");
   });
 
   it("a rota começa em prévia: mandar mensagem a cliente exige pedir com todas as letras", () => {

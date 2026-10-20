@@ -216,3 +216,55 @@ describe("o que vem de fora", () => {
     expect(semLinks("Quer o Onix 1.0, entrada de 15 mil.")).toBe("Quer o Onix 1.0, entrada de 15 mil.");
   });
 });
+
+describe("as fotos, do lado do agente", () => {
+  it("o catálogo diz quantas fotos o carro tem de cada camada", () => {
+    const texto = catalogoParaOAgente([carro({})], { comPreco: false, fotos: () => "fotos: fora 5 · interior 4" });
+    expect(texto).toContain("fotos: fora 5 · interior 4");
+  });
+
+  it("o prompt ensina as camadas: de fora primeiro, o interior se quiser, detalhes um de cada vez — e quem manda é o sistema", () => {
+    const instrucoes = montarInstrucoesFixas({ config: configBase, nomeDaLoja: "L", loja: "", catalogo: "", totalDoCatalogo: 0, geradoEm: "" });
+    expect(instrucoes).toContain("## Fotos");
+    expect(instrucoes).toContain('peça as de fora (\"externa\")');
+    expect(instrucoes).toContain("O interior, só quando o cliente quiser");
+    expect(instrucoes).toContain("um de cada vez");
+    expect(instrucoes).toContain("A pergunta sobre a próxima camada o sistema manda depois das fotos");
+    expect(instrucoes).toContain('"fotos": null');
+  });
+
+  it("lê o pedido de fotos da resposta; pedido torto vira nulo, e a resposta segue", () => {
+    const r = lerRespostaDoAgente(JSON.stringify({ mensagens: ["Olha 👇"], fotos: { veiculo: "#8449096", camada: "interior" } }));
+    expect(r!.fotos).toEqual({ veiculo: "8449096", camada: "interior" });
+    expect(lerRespostaDoAgente(JSON.stringify({ mensagens: ["Oi"], fotos: { veiculo: "x" } }))!.fotos).toBeNull();
+    expect(lerRespostaDoAgente(JSON.stringify({ mensagens: ["Oi"] }))!.fotos).toBeNull();
+  });
+
+  it("o histórico junta as fotos seguidas numa linha só, e o estado lista o que já foi", () => {
+    const foto = (n: number, camada: string) => ({ autor: "assistente" as const, conteudo: "imagem", texto: `Foto ${n}`, midia_url: `https://f.teste/${n}.jpg`, veiculo_id: 8449096, camada });
+    const historico = historicoParaOModelo([
+      { autor: "cliente", texto: "tem foto?" },
+      { autor: "assistente", texto: "Olha 👇" },
+      foto(1, "externa"),
+      foto(2, "externa"),
+      foto(3, "externa"),
+      { autor: "assistente", texto: "Quer ver o interior também?" },
+      { autor: "cliente", texto: "quero" },
+      foto(4, "interior"),
+    ]);
+    expect(historico.map((m) => m.content)).toEqual([
+      "tem foto?",
+      "Olha 👇",
+      "(enviou 3 fotos de fora do carro #8449096)",
+      "Quer ver o interior também?",
+      "quero",
+      "(enviou 1 foto do interior do carro #8449096)",
+    ]);
+    const mensagens = montarMensagensDoAgente({
+      instrucoes: "x",
+      historico: [],
+      estado: { ficha: { ...FICHA_VAZIA }, sinais: { ...SINAIS_NEUTROS }, nomeDoCliente: null, agora: "agora", lojaAberta: true, origem: null, fotos: ["- #8449096 Onix: já enviou fora; ainda pode oferecer: interior."] },
+    });
+    expect(mensagens.at(-1)!.content).toContain("Fotos já enviadas nesta conversa:\n- #8449096 Onix: já enviou fora; ainda pode oferecer: interior.");
+  });
+});

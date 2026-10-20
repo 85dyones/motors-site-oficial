@@ -104,7 +104,8 @@ O modo "thinking" (padrão do modelo) é desligado: para conversa de WhatsApp é
 mais lento, mais caro e não melhora a resposta curta. A resposta vem em JSON
 (`response_format: json_object`), lida e conferida por código.
 
-O painel mostra o custo estimado do período em **Leads → Atendimento IA**.
+O painel mostra o custo estimado do período em **Leads → Atendimento IA**
+(com a classificação das fotos, para quem vê a loja inteira).
 
 ---
 
@@ -225,7 +226,10 @@ só muda pelo servidor: um gatilho no banco recusa a mudança vinda da sessão.
 **Uma resposta por vez, nada em dobro.** A resposta tem trava por lead
 (`respondendo_desde`, 90 s): a mensagem que chega enquanto o assistente
 responde é respondida por uma segunda volta da mesma execução, e não por uma
-resposta paralela. O lead de um número novo é achado ou criado sob trava por
+resposta paralela. Se a primeira demorou demais para dar a segunda volta (por
+exemplo, classificando na hora as fotos do carro), o workflow de entrada pede a
+resposta de novo, uma vez, 75 s depois — e, se ela já tiver sido coberta, a
+rota devolve `ja_respondida` e nada sai em dobro. O lead de um número novo é achado ou criado sob trava por
 telefone (`achar_ou_criar_lead_do_whatsapp`), para a rajada não criar dois. O
 resumo ao vendedor e cada toque de cadência são **reservados** por um update
 condicional antes de sair: o quadro e a rodada, ou duas rodadas, não mandam o
@@ -261,6 +265,66 @@ equipe de consultores". Quilometragem, ano e motor ("1.6") não contam.
 **O que vem de fora**: o nome do WhatsApp entra no prompt só com letras e
 curto (não abre seção nova nem fecha o JSON); o resumo vai ao vendedor sem
 link nenhum.
+
+### 6.1 As fotos do carro, em camadas
+
+Pedido do dono (20/10): o assistente classifica as fotos de cada carro do
+estoque, mostra primeiro as de fora, pergunta se o cliente quer ver o interior
+e oferece os outros detalhes visuais um de cada vez — *"para não sobrecarregar
+o usuário com informações"*.
+
+**A classificação é uma vez por foto.** O próprio `deepseek-flash` lê imagem
+(página de visão da DeepSeek, 20/10/2026; o `deepseek-v4-pro` não lê, por isso
+o modelo de visão é fixo em `MODELO_DE_VISAO`). Cada foto da galeria do carro
+(`whatsapp_images`, a JPEG) vai uma vez ao modelo, em baixa resolução (512 px),
+em pedidos de até 12, e volta com:
+
+| Camada | O que é |
+|---|---|
+| **fora** (`externa`) | o carro inteiro por fora, com o ângulo (frente, três-quartos, lateral, traseira) |
+| **interior** | a cabine: painel, bancos, volante, console |
+| **detalhes da versão** (`detalhes`) | close de item da versão: emblema, faróis, teto solar, painel digital, multimídia, chave |
+| **rodas** | roda e pneu |
+| **motor** | o cofre aberto |
+| **porta-malas** | o porta-malas ou a caçamba |
+| *outra* | documento, laudo, banner, foto sem o carro — **nunca vai ao cliente** |
+
+…mais uma descrição de até seis palavras ("Teto solar panorâmico"), que vira a
+legenda no WhatsApp e o destaque da oferta, e se a foto é aproveitável (tremida
+ou escura não vai). Fica em `atendimento_fotos`, com a URL como chave: foto
+trocada na galeria é URL nova e entra na fila sozinha. A rodada das fotos
+(`/api/atendimento/fotos`, junto com a rodada do n8n) adianta a fila do
+estoque; o carro que o cliente pedir antes disso é classificado na hora, pela
+própria conversa (até 30 s). O custo é de frações de centavo por carro e entra
+no custo do relatório.
+
+**Na conversa, o modelo só pede; o servidor escolhe e manda.** O catálogo do
+prompt diz, por carro, quantas fotos há de cada camada ("fotos: fora 5 ·
+interior 6 · detalhes da versão 3 (teto solar e faróis de LED) · rodas 2"). O
+modelo responde com `"fotos": {"veiculo": "…", "camada": "externa"}` e escreve
+só a frase que vem antes ("Olha ele aqui 👇"). O servidor:
+
+1. confere que o carro está à venda;
+2. escolhe as fotos da camada que ainda não foram à conversa — de fora, a capa
+   e um de cada ângulo (quatro fotos da frente não mostram o carro); até 4 de
+   fora, 4 do interior, 3 de detalhes e 2 das outras;
+3. manda pela Evolution (`sendMedia`), cada uma com a legenda (sem link e,
+   com o preço desligado, sem valor — a placa de preço no para-brisa não vira
+   legenda);
+4. manda a **oferta da próxima camada**, escrita por código a partir do que o
+   carro tem e do que já foi: depois das de fora, *"Quer ver o interior
+   também?"*; depois do interior, *"Tenho também fotos dos detalhes da versão
+   (teto solar e faróis de LED), das rodas e do motor. Quer ver alguma?"*;
+   depois de um detalhe, só lembra o que sobrou. Nunca oferece foto que não
+   existe, nunca repete camada.
+
+O estado do prompt lista o que já foi mostrado de cada carro e o que ainda dá
+para oferecer, e o histórico resume as fotos ("enviou 4 fotos de fora do carro
+#…") — o modelo sabe onde a conversa está sem reler imagem. A camada que o
+carro não tem vira *"Não tenho foto do motor desse carro aqui, mas a nossa
+equipe consegue te mandar"*. Sem classificação nenhuma (o modelo de visão
+caiu), vai a galeria em ordem, de quatro em quatro, com *"Quer ver mais
+fotos?"*. No painel, a conversa mostra a foto com a legenda e a camada.
 
 ---
 
@@ -305,8 +369,9 @@ link nenhum.
 | `POST /api/leads/[id]/assistente` | painel | `pausar`, `retomar`, `entregar`, `devolver`. |
 | `GET/PUT /api/atendimento/config` | painel (Admin, Gestor) | A configuração da loja, e o que falta nas integrações. Desligar devolve os leads do assistente à equipe. |
 | `GET /api/atendimento/relatorio?dias=30` | painel | O relatório, recortado pelo escopo de quem pede. |
+| `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 
-## 9. O banco — `20261020120000_atendimento_ia.sql`
+## 9. O banco — `20261020120000_atendimento_ia.sql` e `20261021120000_fotos_do_atendimento.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -326,11 +391,18 @@ prova o isolamento de uma segunda loja e roda na cadeia de
 As leituras com a chave de serviço filtram pela loja de `org_padrao()` (a
 configuração, a idempotência da entrada), e o que se grava leva `org_id`.
 
+A segunda migração cria `atendimento_fotos` (a classificação: camada, ângulo,
+descrição, aproveitável e tokens, uma linha por URL de foto de cada carro,
+leitura da equipe e escrita só do servidor) e acrescenta a
+`atendimento_mensagens` a foto que saiu na conversa (`midia_url`,
+`veiculo_id`, `camada` — só na saída, só imagem, com endereço http(s)).
+
 ---
 
 ## 10. Como ligar
 
-1. **Banco**: aplicar a migração `20261020120000_atendimento_ia.sql`.
+1. **Banco**: aplicar as migrações `20261020120000_atendimento_ia.sql` e
+   `20261021120000_fotos_do_atendimento.sql`.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -365,8 +437,10 @@ só grava a conversa e cria o lead.
 - **Agenda de test-drive com lembrete, pós-visita e "carro compatível chegou".**
   São cadências do manobrAI que dependem de agenda e de casar estoque novo com
   interesse; a estrutura de cadência suporta, e entram na próxima rodada.
-- **Fotos do carro na conversa.** O assistente manda o link da ficha (que tem
-  as fotos); mandar a mídia pela Evolution é `sendMedia`, próximo passo.
+- **Corrigir a classificação de uma foto no painel.** A classificação aparece
+  na conversa (a camada de cada foto enviada), mas ainda não há tela para
+  trocar a camada de uma foto à mão; hoje, apagar a linha em
+  `atendimento_fotos` faz a foto voltar à fila.
 - **Áudio.** Entendido quando a transcrição da Evolution está ligada; sem ela,
   o assistente pede para escrever.
 - **Monitorar o número de cada vendedor.** Conectar o WhatsApp de cada vendedor

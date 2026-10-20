@@ -88,6 +88,25 @@ describe("o bloco de atendimento", () => {
     expect(texto()).toContain("cadência · não saiu");
   });
 
+  it("a foto do carro que o assistente mandou aparece na conversa, com a legenda e a camada", async () => {
+    const original = RESPOSTA.mensagens;
+    RESPOSTA.mensagens = [
+      ...original,
+      { id: "m4", direcao: "saida", autor: "assistente", autor_nome: "Ney", conteudo: "imagem", texto: "Painel digital", situacao: "enviada", gatilho: "resposta", erro: null, criado_em: new Date().toISOString(), midia_url: "https://f.teste/onix-6.jpg", camada: "interior" } as (typeof original)[number],
+    ];
+    try {
+      await montar();
+      const img = container.querySelector('li[data-autor="assistente"] img') as HTMLImageElement;
+      expect(img.getAttribute("src")).toBe("https://f.teste/onix-6.jpg");
+      expect(img.getAttribute("alt")).toBe("Painel digital");
+      expect(img.closest("a")!.getAttribute("target")).toBe("_blank");
+      expect(texto()).toContain("foto · interior");
+      expect(texto()).toContain("Painel digital");
+    } finally {
+      RESPOSTA.mensagens = original;
+    }
+  });
+
   it("responder pelo painel manda POST com o texto e relê a conversa", async () => {
     await montar();
     const caixa = container.querySelector("textarea")!;

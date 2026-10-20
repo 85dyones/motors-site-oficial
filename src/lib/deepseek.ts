@@ -32,6 +32,13 @@ export type Transporte = (url: string, init?: RequestInit) => Promise<Response>;
 
 export const URL_PADRAO_DA_DEEPSEEK = "https://api.deepseek.com";
 export const MODELO_PADRAO = "deepseek-flash";
+/**
+ * O modelo que classifica as fotos do estoque. Fixo, e não o da configuração:
+ * na página de visão da DeepSeek (20/10/2026), o `deepseek-flash` lê imagem e
+ * o `deepseek-v4-pro` não — trocar o modelo da conversa não pode parar a
+ * classificação.
+ */
+export const MODELO_DE_VISAO = "deepseek-flash";
 
 /**
  * Preço de tabela por milhão de tokens, em dólar, fora do pico (19/10/2026).
@@ -55,9 +62,19 @@ export function configDoModelo(modelo?: string | null): ConfigDoModelo | null {
   return { chave, url, modelo: (modelo || "").trim() || MODELO_PADRAO };
 }
 
+/**
+ * Um pedaço da mensagem de usuário com imagem (2026-10-20, classificação das
+ * fotos do estoque): o `deepseek-flash` lê imagem no formato da OpenAI, só em
+ * mensagem de usuário. `detail: low` reduz a imagem a 512 px antes de o modelo
+ * ver — api-docs.deepseek.com/guides/vision.
+ */
+export type ParteDaMensagem =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } };
+
 export interface MensagemDoModelo {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ParteDaMensagem[];
 }
 
 export interface UsoDoModelo {
@@ -106,6 +123,13 @@ export async function completarEmJson(opcoes: {
   temperatura?: number;
   transporte?: Transporte;
   timeoutMs?: number;
+  /**
+   * `false` tira o `response_format: json_object` — para o pedido com imagem,
+   * em que a documentação da DeepSeek não diz se o modo JSON vale. O texto
+   * pede JSON e quem lê tolera a cerca de código; um 400 por combinação não
+   * documentada pararia a classificação inteira.
+   */
+  modoJson?: boolean;
 }): Promise<ResultadoDoModelo> {
   const transporte = opcoes.transporte ?? fetch;
   const controle = new AbortController();
@@ -118,7 +142,7 @@ export async function completarEmJson(opcoes: {
         model: opcoes.cfg.modelo,
         messages: opcoes.mensagens,
         thinking: { type: "disabled" },
-        response_format: { type: "json_object" },
+        ...(opcoes.modoJson === false ? {} : { response_format: { type: "json_object" } }),
         max_tokens: opcoes.maxTokens ?? 900,
         temperature: opcoes.temperatura ?? 0.5,
         stream: false,

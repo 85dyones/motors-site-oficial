@@ -325,6 +325,11 @@ const CADEIA = [
   // a conversa do outro — e porque recria `registrar_contato_do_lead`, que a
   // 20261014120000, logo acima, deixou com o `chatwoot` tirando de "Novo".
   "20261020120000_atendimento_ia.sql",
+  // As fotos do estoque classificadas por camada para o atendimento
+  // (2026-10-20): a tabela da classificação e a foto na conversa. Entra na
+  // cadeia porque acrescenta restrições a `atendimento_mensagens`, da
+  // migração logo acima, e o aceite prova que a sessão só lê.
+  "20261021120000_fotos_do_atendimento.sql",
 ];
 
 /**

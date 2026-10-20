@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { completarEmJson, configDoModelo, custoEstimado, MODELO_PADRAO } from "../src/lib/deepseek";
-import { atrasoDeDigitacao, configDaEvolution, enviarTexto, motivoSemEvolution, numeroParaEnvio } from "../src/lib/evolution";
+import { atrasoDeDigitacao, configDaEvolution, enviarImagem, enviarTexto, motivoSemEvolution, numeroParaEnvio } from "../src/lib/evolution";
 
 /**
  * As duas fronteiras do atendimento (2026-10-20): o modelo e o WhatsApp. Nunca
@@ -30,6 +30,21 @@ describe("a DeepSeek", () => {
     expect(pedido!.url).toBe("https://api.deepseek.com/chat/completions");
     expect(pedido!.init.headers.Authorization).toBe("Bearer SEGREDO");
     expect(pedido!.corpo).toMatchObject({ model: "deepseek-flash", thinking: { type: "disabled" }, response_format: { type: "json_object" }, stream: false });
+  });
+
+  it("o pedido com imagem vai sem o modo JSON, que a página de visão não garante", async () => {
+    let corpo: Record<string, unknown> | null = null;
+    await completarEmJson({
+      cfg,
+      mensagens: [{ role: "user", content: [{ type: "image_url", image_url: { url: "https://f.teste/1.jpg", detail: "low" } }] }],
+      modoJson: false,
+      transporte: async (_url, init) => {
+        corpo = JSON.parse(String(init!.body));
+        return resposta(200, { choices: [{ message: { content: "{}" } }] });
+      },
+    });
+    expect(corpo).not.toHaveProperty("response_format");
+    expect(corpo).toMatchObject({ thinking: { type: "disabled" }, messages: [{ role: "user", content: [{ type: "image_url" }] }] });
   });
 
   it("recusa e conteúdo vazio voltam como motivo, sem a chave", async () => {
@@ -73,6 +88,30 @@ describe("a Evolution", () => {
     expect(pedido!.url).toBe("https://evolution.teste/message/sendText/loja%201");
     expect(pedido!.init.headers.apikey).toBe("APIKEY");
     expect(pedido!.corpo).toEqual({ number: "5541999990000", text: "Oi!", delay: 1500 });
+  });
+
+  it("a foto: POST /message/sendMedia/{instancia}, mediatype image, a URL em media e a legenda em caption", async () => {
+    let pedido: { url: string; corpo: Record<string, unknown> } | null = null;
+    const r = await enviarImagem("5541999990000", { url: "https://f.teste/onix-1.jpg", legenda: " Frente " }, cfg, {
+      transporte: async (url, init) => {
+        pedido = { url, corpo: JSON.parse(String(init!.body)) };
+        return resposta(201, { key: { id: "WA-FOTO" } });
+      },
+    });
+    expect(r).toEqual({ ok: true, waId: "WA-FOTO" });
+    expect(pedido!.url).toBe("https://evolution.teste/message/sendMedia/loja%201");
+    expect(pedido!.corpo).toEqual({ number: "5541999990000", mediatype: "image", media: "https://f.teste/onix-1.jpg", caption: "Frente" });
+    // Sem legenda, sem `caption`; sem endereço http(s), nem sai.
+    await enviarImagem("5541999990000", { url: "https://f.teste/2.jpg" }, cfg, {
+      transporte: async (_url, init) => {
+        pedido = { url: "", corpo: JSON.parse(String(init!.body)) };
+        return resposta(201, { key: { id: "WA-2" } });
+      },
+    });
+    expect(pedido!.corpo).not.toHaveProperty("caption");
+    expect(await enviarImagem("5541999990000", { url: "/logo.png" }, cfg, { transporte: async () => { throw new Error("não devia chamar"); } })).toEqual({ ok: false, motivo: "foto sem endereço http(s)" });
+    const recusa = await enviarImagem("5541999990000", { url: "https://f.teste/3.jpg" }, cfg, { transporte: async () => resposta(400, { response: { message: ["media not found"] } }) });
+    expect(recusa).toEqual({ ok: false, motivo: "a Evolution recusou a foto: media not found" });
   });
 
   it("telefone inválido e mensagem vazia nem saem", async () => {

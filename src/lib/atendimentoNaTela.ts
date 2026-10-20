@@ -10,6 +10,7 @@ import {
 } from "./aquecimento";
 import { ROTULO_DA_CADENCIA, type NomeDaCadencia } from "./cadencias";
 import { ROTULO_DO_CONTEUDO, type ConteudoDaMensagem } from "./evolutionEventos";
+import { ROTULO_DA_CAMADA, ehCamada } from "./fotosDoAtendimento";
 import { espera } from "./funil";
 
 /**
@@ -36,6 +37,9 @@ export interface MensagemNaTela {
   gatilho: string | null;
   erro: string | null;
   criado_em: string;
+  /** A foto do carro que a loja mandou (2026-10-20), e de que camada. */
+  midia_url?: string | null;
+  camada?: string | null;
 }
 
 export interface EstadoDoAtendimento {
@@ -98,18 +102,26 @@ export function quemEscreveu(m: Pick<MensagemNaTela, "autor" | "autor_nome">, no
   return m.autor_nome?.trim() || "Equipe";
 }
 
-/** O que a mensagem diz, inclusive a mídia sem legenda. */
-export function textoDaMensagem(m: Pick<MensagemNaTela, "conteudo" | "texto">): string {
+/** O que a mensagem diz, inclusive a mídia sem legenda. A foto do carro diz só a legenda: a tela já mostra a foto. */
+export function textoDaMensagem(m: Pick<MensagemNaTela, "conteudo" | "texto" | "midia_url">): string {
   const texto = (m.texto ?? "").trim();
+  if (fotoDaMensagem(m)) return texto;
   const conteudo = (m.conteudo ?? "texto") as ConteudoDaMensagem;
   if (conteudo === "texto") return texto || "(mensagem vazia)";
   const rotulo = ROTULO_DO_CONTEUDO[conteudo] ?? "Mensagem";
   return texto ? `[${rotulo}] ${texto}` : `[${rotulo}]`;
 }
 
+/** A foto que a loja mandou, quando é uma — só endereço http(s) vira `<img>`. */
+export function fotoDaMensagem(m: Pick<MensagemNaTela, "midia_url">): string | null {
+  const url = (m.midia_url ?? "").trim();
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
 /** As marcas da mensagem: o que ela foi, e se saiu. */
-export function marcasDaMensagem(m: Pick<MensagemNaTela, "gatilho" | "situacao">): string[] {
+export function marcasDaMensagem(m: Pick<MensagemNaTela, "gatilho" | "situacao" | "camada" | "midia_url">): string[] {
   const marcas: string[] = [];
+  if (fotoDaMensagem(m)) marcas.push(ehCamada(m.camada) ? `foto · ${ROTULO_DA_CAMADA[m.camada]}` : "foto");
   if (m.gatilho === "cadencia") marcas.push("cadência");
   if (m.gatilho === "passagem") marcas.push("passagem ao vendedor");
   if (m.gatilho === "celular") marcas.push("pelo celular da loja");

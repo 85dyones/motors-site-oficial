@@ -119,6 +119,61 @@ export async function enviarTexto(
   }
 }
 
+/**
+ * Uma foto por URL, com legenda opcional (2026-10-20, as fotos do carro em
+ * camadas). Nunca lança. É o `sendMedia` da Evolution v2 — `mediatype:
+ * "image"` e a URL em `media`, que a Evolution baixa e manda —, conferido no
+ * `SendMediaDto` do código-fonte dela. As fotos vêm de `whatsapp_images`, que
+ * é JPEG justamente porque o WhatsApp não lida bem com WebP
+ * (`lib/fotosDoVeiculo.ts`).
+ */
+export async function enviarImagem(
+  numero: string,
+  imagem: { url: string; legenda?: string | null },
+  cfg: ConfigDaEvolution,
+  opcoes: { atrasoMs?: number; transporte?: Transporte } = {},
+): Promise<ResultadoDoEnvio> {
+  const destino = numeroParaEnvio(numero);
+  if (!destino) return { ok: false, motivo: "telefone inválido para envio" };
+  const url = imagem.url.trim();
+  if (!/^https?:\/\//i.test(url)) return { ok: false, motivo: "foto sem endereço http(s)" };
+  const legenda = (imagem.legenda ?? "").trim();
+
+  const transporte = opcoes.transporte ?? fetch;
+  const controle = new AbortController();
+  // A Evolution baixa a foto antes de responder: mais folga que o texto.
+  const relogio = setTimeout(() => controle.abort(), TIMEOUT_MS * 2 + (opcoes.atrasoMs ?? 0));
+  try {
+    const resposta = await transporte(`${cfg.url}/message/sendMedia/${encodeURIComponent(cfg.instancia)}`, {
+      method: "POST",
+      headers: { apikey: cfg.chave, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        number: destino,
+        mediatype: "image",
+        media: url,
+        ...(legenda ? { caption: legenda } : {}),
+        ...(opcoes.atrasoMs ? { delay: Math.round(opcoes.atrasoMs) } : {}),
+      }),
+      signal: controle.signal,
+    });
+    const corpo = (await resposta.json().catch(() => null)) as CorpoDaResposta | null;
+    if (!resposta.ok) {
+      const detalhe = corpo?.response?.message ?? corpo?.message ?? corpo?.error ?? `HTTP ${resposta.status}`;
+      return { ok: false, motivo: `a Evolution recusou a foto: ${String(Array.isArray(detalhe) ? detalhe.join("; ") : detalhe).slice(0, 200)}` };
+    }
+    const waId = typeof corpo?.key?.id === "string" ? corpo.key.id : null;
+    return { ok: true, waId };
+  } catch (erro) {
+    const abortou = erro instanceof Error && erro.name === "AbortError";
+    return {
+      ok: false,
+      motivo: abortou ? "a Evolution não respondeu a tempo" : `falha ao falar com a Evolution: ${erro instanceof Error ? erro.message : String(erro)}`,
+    };
+  } finally {
+    clearTimeout(relogio);
+  }
+}
+
 /** ~35 caracteres por segundo, entre 1,2 s e 6 s. */
 export function atrasoDeDigitacao(texto: string): number {
   return Math.max(1200, Math.min(6000, Math.round((texto.length / 35) * 1000)));

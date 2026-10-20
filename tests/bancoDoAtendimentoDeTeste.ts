@@ -10,7 +10,9 @@
  * anteriores, então o banco guarda as tabelas e aplica os filtros.
  *
  * Suporta: select (as colunas são ignoradas, volta a linha inteira), insert,
- * update, os filtros eq, neq, in, is, gte, lte, lt, gt, not(col, "is", null),
+ * update, upsert com `ignoreDuplicates` (pula a linha que já existe nas
+ * colunas de `onConflict`), range, os filtros eq, neq, in, is, gte, lte, lt,
+ * gt, not(col, "is", null),
  * order (uma ou mais, na ordem em que foram pedidas), limit, single/maybeSingle
  * e o `await` direto; `rpc` por função registrada. O índice único de
  * `atendimento_mensagens (wa_id)` é simulado, com o código 23505 que o
@@ -51,6 +53,7 @@ function padroes(carimbo: () => string): Record<string, () => Linha> {
     leads: () => ({ created_at: carimbo(), desfecho: null, responsavel: null, cadencia_passo: 0, alertas: 0 }),
     atendimento_mensagens: () => ({ criado_em: carimbo(), respondida_em: null, wa_id: null, erro: null, gatilho: null }),
     atendimento_qualificacoes: () => ({ criado_em: carimbo() }),
+    atendimento_fotos: () => ({ org_id: LOJA_DE_TESTE, classificado_em: carimbo(), aproveitavel: true, angulo: null, descricao: null }),
     atendimentos: () => ({ created_at: carimbo(), humano_assumiu_em: null, chatwoot_conversation_id: null }),
     leads_eventos: () => ({ criado_em: carimbo() }),
   };
@@ -76,6 +79,8 @@ export function bancoDeTeste(
 
   const cadeia = (tabela: string) => {
     let operacao: "select" | "insert" | "update" = "select";
+    let conflito: string[] | null = null;
+    let faixa: [number, number] | null = null;
     let valores: any = null;
     let devolver = false;
     let fim: "single" | "maybeSingle" | null = null;
@@ -92,6 +97,7 @@ export function bancoDeTeste(
         afetadas = [];
         for (const v of lista) {
           const linha = { ...(PADROES[tabela]?.() ?? {}), id: novoId(), ...v };
+          if (conflito && linhas.some((l) => conflito!.every((c) => l[c] === linha[c]))) continue;
           if (tabela === "atendimento_mensagens" && linha.wa_id && linhas.some((l) => l.wa_id === linha.wa_id)) {
             return { data: null, error: { message: "duplicate key value violates unique constraint", code: "23505" } };
           }
@@ -112,6 +118,7 @@ export function bancoDeTeste(
           return 0;
         });
       }
+      if (faixa) saida = saida.slice(faixa[0], faixa[1] + 1);
       if (limite !== null) saida = saida.slice(0, limite);
       const copia = saida.map((l) => ({ ...l }));
       if (operacao !== "select" && !devolver) return { data: null, error: null };
@@ -135,6 +142,14 @@ export function bancoDeTeste(
         valores = v;
         return api;
       },
+      upsert(v: any, o?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+        if (!o?.ignoreDuplicates || !o.onConflict) throw new Error("upsert só com ignoreDuplicates e onConflict no dublê");
+        operacao = "insert";
+        valores = v;
+        conflito = o.onConflict.split(",").map((c) => c.trim());
+        return api;
+      },
+      range: (de: number, ate: number) => ((faixa = [de, ate]), api),
       eq: (c: string, v: unknown) => (filtros.push((l) => l[c] === v), api),
       neq: (c: string, v: unknown) => (filtros.push((l) => l[c] !== v), api),
       in: (c: string, v: unknown[]) => (filtros.push((l) => v.includes(l[c])), api),
@@ -221,15 +236,37 @@ export function bancoDeTeste(
  */
 export function transporteDeTeste(
   respostasDoModelo: (string | { erro: string })[] = [],
-  opcoes: { envioRecusado?: (n: number) => boolean; antesDoModelo?: (n: number) => Promise<void> } = {},
+  opcoes: {
+    envioRecusado?: (n: number) => boolean;
+    antesDoModelo?: (n: number) => Promise<void>;
+    /** O modelo de visão: recebe as URLs do pedido de classificação, na ordem, e devolve o conteúdo. */
+    visao?: (urls: string[]) => string | { erro: string };
+  } = {},
 ) {
   const enviados: { numero: string; texto: string }[] = [];
   const recusados: { numero: string; texto: string }[] = [];
   const pedidosAoModelo: any[] = [];
+  const pedidosDeVisao: string[][] = [];
+  /** Tudo o que saiu pela Evolution, na ordem: texto e foto. */
+  const saidas: ({ tipo: "texto"; numero: string; texto: string } | { tipo: "foto"; numero: string; url: string; legenda: string | null })[] = [];
   let i = 0;
   let tentativas = 0;
   const transporte = async (url: string, init?: RequestInit) => {
     const corpo = init?.body ? JSON.parse(String(init.body)) : null;
+    if (url.includes("/message/sendMedia/")) {
+      saidas.push({ tipo: "foto", numero: corpo.number, url: corpo.media, legenda: corpo.caption ?? null });
+      return new Response(JSON.stringify({ key: { id: `WA-FOTO-${saidas.length}` } }), { status: 201 });
+    }
+    if (url.endsWith("/chat/completions")) {
+      const imagens = (corpo.messages as any[]).flatMap((m) => (Array.isArray(m.content) ? m.content : [])).filter((p: any) => p.type === "image_url");
+      if (imagens.length > 0) {
+        const urls = imagens.map((p: any) => p.image_url.url);
+        pedidosDeVisao.push(urls);
+        const r = opcoes.visao ? opcoes.visao(urls) : { erro: "sem visão no dublê" };
+        if (typeof r !== "string") return new Response(JSON.stringify({ error: { message: r.erro } }), { status: 500 });
+        return new Response(JSON.stringify({ choices: [{ message: { content: r } }], usage: { prompt_tokens: 300 * urls.length, completion_tokens: 40 * urls.length } }), { status: 200 });
+      }
+    }
     if (url.includes("/message/sendText/")) {
       tentativas += 1;
       if (opcoes.envioRecusado?.(tentativas)) {
@@ -237,6 +274,7 @@ export function transporteDeTeste(
         return new Response(JSON.stringify({ message: "instance not connected" }), { status: 500 });
       }
       enviados.push({ numero: corpo.number, texto: corpo.text });
+      saidas.push({ tipo: "texto", numero: corpo.number, texto: corpo.text });
       return new Response(JSON.stringify({ key: { id: `WA-SAIDA-${enviados.length}` } }), { status: 201 });
     }
     if (url.endsWith("/chat/completions")) {
@@ -252,5 +290,5 @@ export function transporteDeTeste(
     }
     throw new Error(`URL inesperada no dublê: ${url}`);
   };
-  return { transporte: transporte as unknown as typeof fetch, enviados, recusados, pedidosAoModelo };
+  return { transporte: transporte as unknown as typeof fetch, enviados, recusados, pedidosAoModelo, pedidosDeVisao, saidas };
 }

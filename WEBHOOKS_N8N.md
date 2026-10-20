@@ -327,6 +327,7 @@ o emissor. Quem bate é o n8n, sem sessão, com um Bearer próprio.
 | `POST /api/atendimento/evolution` | `ATENDIMENTO_MOTOR_TOKEN` | A mensagem do WhatsApp pela Evolution (2026-10-20): grava a conversa, cria o lead e diz se o assistente responde (`responder`, `aguardar_ms`). |
 | `POST /api/atendimento/responder` | `ATENDIMENTO_MOTOR_TOKEN` | O assistente responde, depois da rajada. `{ lead_id, mensagem_id }`. |
 | `POST /api/atendimento/rodada` | `ATENDIMENTO_MOTOR_TOKEN` | Os resumos pendentes ao vendedor e os toques das cadências. `{ reservar: true }`; sem ele é prévia. |
+| `POST /api/atendimento/fotos` | `ATENDIMENTO_MOTOR_TOKEN` | A rodada das fotos: classifica por camada as fotos do estoque que o modelo de visão ainda não viu. Devolve `fotos_classificadas`, `falhas` e `restantes`. |
 
 **Cada uma tem o SEU segredo, sem fallback entre eles.** Segredo mede acesso: a
 base de leads do site e a base de clientes do Ciclo são dois conjuntos de dados
@@ -394,7 +395,9 @@ O atendimento por IA, sem Chatwoot: a Evolution manda o webhook ao workflow
 "Motors Atendimento — Entrada" do n8n, que repassa o corpo **sem mexer** para
 `/api/atendimento/evolution`, espera a rajada e chama `/api/atendimento/responder`.
 O workflow "Motors Atendimento — Rodada" chama `/api/atendimento/rodada` a cada
-15 minutos. As três rotas usam `ATENDIMENTO_MOTOR_TOKEN`, só em
+15 minutos e, em paralelo, `/api/atendimento/fotos` (a classificação das fotos
+do estoque por camada, que o assistente usa para mostrar o carro aos poucos).
+As quatro rotas usam `ATENDIMENTO_MOTOR_TOKEN`, só em
 `Authorization: Bearer` (token na URL fica em log de acesso) — segredo
 próprio, sem fallback para o do funil nem para o do Chatwoot. Os dois
 workflows não guardam a execução que deu certo (`saveDataSuccessExecution:
@@ -407,8 +410,9 @@ conversa é o do painel.
   "responder": true, "aguardar_ms": 12000 }
 ```
 
-**Aqui o site ENVIA.** Diferente de tudo acima, a resposta do assistente, a
-mensagem escrita no painel, o toque da cadência e o resumo ao vendedor saem
+**Aqui o site ENVIA.** Diferente de tudo acima, a resposta do assistente (e
+as fotos do carro, por `sendMedia`), a mensagem escrita no painel, o toque da
+cadência e o resumo ao vendedor saem
 do próprio site, pela Evolution (`src/lib/evolution.ts`, com
 `EVOLUTION_API_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_INSTANCIA`). O n8n
 continua dono do tempo (rajada e relógio); o site, do envio e da decisão. Toda

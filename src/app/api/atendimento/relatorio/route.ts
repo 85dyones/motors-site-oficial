@@ -117,6 +117,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // A classificação das fotos é custo da LOJA, não de um lead: entra no
+    // custo só para quem vê a loja inteira. Em páginas — no começo, o estoque
+    // inteiro é classificado de uma vez e passa das mil linhas do PostgREST.
+    if (visao.escopo === "todos") {
+      const { data: loja } = await admin.rpc("org_padrao");
+      for (let pagina = 0; pagina < 20; pagina += 1) {
+        let consulta = admin.from("atendimento_fotos").select("tokens_entrada, tokens_saida").gte("classificado_em", desde);
+        if (typeof loja === "string") consulta = consulta.eq("org_id", loja);
+        const { data, error } = await consulta.order("id", { ascending: true }).range(pagina * 1000, pagina * 1000 + 999);
+        if (error) break;
+        const linhas = (data ?? []) as { tokens_entrada: number; tokens_saida: number }[];
+        usos = usos.concat(linhas.map((l) => ({ tokens_entrada: l.tokens_entrada, tokens_cache: 0, tokens_saida: l.tokens_saida })));
+        if (linhas.length < 1000) break;
+      }
+    }
+
     const relatorio = montarRelatorio({
       dias,
       agora,

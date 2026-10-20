@@ -36,7 +36,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       supabase.from("leads").select(COLUNAS_DO_ATENDIMENTO).eq("id", id).maybeSingle(),
       supabase
         .from("atendimento_mensagens")
-        .select("id, direcao, autor, autor_nome, conteudo, texto, situacao, gatilho, erro, criado_em")
+        .select("id, direcao, autor, autor_nome, conteudo, texto, situacao, gatilho, erro, criado_em, midia_url, camada")
         .eq("lead_id", id)
         .order("criado_em", { ascending: false })
         .limit(MENSAGENS_NA_TELA),
