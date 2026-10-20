@@ -334,7 +334,11 @@ para oferecer, e o histórico resume as fotos ("enviou 4 fotos de fora do carro
 foto sai, o servidor fecha a frase: a camada que o carro não tem vira *"Não
 tenho foto do motor desse carro aqui, mas a nossa equipe consegue te mandar"*;
 a que já foi inteira, *"Essas fotos já estão aí em cima 🙂"* e o que sobrou;
-carro fora do estoque ou falha, *"a nossa equipe consegue te mandar"*. Faltando
+a que pode estar entre as fotos ainda não separadas, *"Ainda não separei as
+fotos do interior desse carro…"*; carro fora do estoque ou falha, *"a nossa
+equipe consegue te mandar"* — e essa promessa fica anotada no rastro do lead.
+Foto que a Evolution não confirmou a tempo fica pendente (pode ter saído; o eco
+confirma) e não é mandada de novo. Faltando
 as de fora e havendo fotos ainda não separadas (o modelo de visão caiu ou não
 terminou), vão essas, em ordem, de quatro em quatro, com *"Quer ver mais
 fotos?"* — nunca uma marcada "não mandar". A oferta da próxima camada só sai
@@ -345,7 +349,10 @@ leitura falhou), nenhuma foto sai: mandar de novo seria foto em dobro.
 cadência), e só até 80 s do começo da resposta; a classificação na hora só
 começa se sobrarem 45 s, e cada foto tem 15 s na Evolution. **Na entrega ao
 vendedor, nenhuma foto nem oferta**: o cliente vai à pessoa, e a passagem é a
-última palavra do assistente. No painel, a conversa mostra a foto com a
+última palavra do assistente — dizendo que quem manda as fotos é o vendedor
+(*"…que já vai te chamar pelo WhatsApp (41) 98888-7777 e te mandar as
+fotos"*), e o resumo ao vendedor diz quais (*"📷 Pediu fotos do interior do
+Onix LT 2020 (#…)"*). No painel, a conversa mostra a foto com a
 legenda e a camada.
 
 **Conferir e corrigir — Leads → Atendimento IA → Fotos** (Admin e Gestor). A
@@ -355,7 +362,11 @@ botão para **classificar a fila agora** sem esperar a rodada. Cada carro abre a
 galeria com a camada de cada foto: trocar a camada, marcar **"Não mandar ao
 cliente"** ou ajustar a legenda grava na hora, com o nome de quem corrigiu, e
 vale na conversa seguinte. Foto corrigida à mão o modelo não reclassifica:
-**"Refazer a classificação"** do carro apaga e refaz só o que o modelo disse.
+**"Refazer a classificação"** do carro classifica de novo só o que o modelo
+tinha dito e troca cada linha depois de a nova dar certo — com a DeepSeek fora
+do ar, a classificação antiga fica. A legenda com preço, placa ou contato é
+recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
+503 e nada é lido nem gravado.
 
 ---
 

@@ -55,12 +55,14 @@ import { urlDoLead } from "./filaDoFunil";
 import {
   escolherFotos,
   fotosDaGaleria,
+  fotosAindaNaoSeparadas,
   fotosJaMostradas,
   FOTOS_FORA_DO_AR,
   legendaDaFoto,
   linhaDasFotosNoEstado,
   MAIS_FOTOS_DA_GALERIA,
   ofertaDepoisDasFotos,
+  pedidoDeFotosLegivel,
   SEM_FOTO_DO_CARRO,
   semFotoDaCamada,
   type CamadaDaFoto,
@@ -70,7 +72,6 @@ import {
 import {
   classificarCarro,
   classificarFotosPendentes,
-  esquecerClassificacaoDoModelo,
   lerFotosClassificadas,
   type ResultadoDaClassificacao,
 } from "./fotosDoAtendimento-servidor";
@@ -425,7 +426,7 @@ async function enviarAoCliente(
   cfg: ConfigDaEvolution,
   deps: Dependencias,
   comAtraso = true,
-): Promise<{ ok: boolean; id: string | null; motivo?: string }> {
+): Promise<{ ok: boolean; id: string | null; motivo?: string; incerto?: boolean }> {
   const loja = await lojaDoAtendimento(supabase);
   const { data: linha, error } = await supabase
     .from("atendimento_mensagens")
@@ -458,11 +459,15 @@ async function enviarAoCliente(
         atrasoMs: comAtraso ? atrasoDeDigitacao(envio.texto) : undefined,
         transporte: deps.transporte,
       });
+  // Tempo esgotado não é falha certa (a Evolution pode ter mandado): a linha
+  // fica pendente, com o motivo, e o eco do webhook a marca como enviada.
   await supabase
     .from("atendimento_mensagens")
-    .update(r.ok ? { situacao: "enviada", wa_id: r.waId } : { situacao: "falhou", erro: r.motivo })
+    .update(r.ok ? { situacao: "enviada", wa_id: r.waId } : r.incerto ? { erro: r.motivo } : { situacao: "falhou", erro: r.motivo })
     .eq("id", linha.id);
-  return r.ok ? { ok: true, id: String(linha.id) } : { ok: false, id: String(linha.id), motivo: r.motivo };
+  return r.ok
+    ? { ok: true, id: String(linha.id) }
+    : { ok: false, id: String(linha.id), motivo: r.motivo, ...(r.incerto ? { incerto: true } : {}) };
 }
 
 /** Mensagem para a EQUIPE: não é conversa do cliente, então fica só no rastro. */
@@ -951,7 +956,9 @@ export async function responderAoLead(
     // Quando tentar de novo (o workflow de entrada espera isto e pede uma vez
     // mais): depois de a resposta em curso ter terminado com certeza.
     const desde = lead.respondendo_desde ? new Date(lead.respondendo_desde).getTime() : agora.getTime();
-    const tentarEm = Math.round(Math.min(VALIDADE_DA_TRAVA_MS, Math.max(15_000, desde + 125_000 - agora.getTime())));
+    // Depois de a trava vencer (130 s): mesmo que a execução que a segura
+    // tenha morrido no `maxDuration`, a nova tentativa a encontra livre.
+    const tentarEm = Math.round(Math.min(VALIDADE_DA_TRAVA_MS + 10_000, Math.max(15_000, desde + VALIDADE_DA_TRAVA_MS + 5_000 - agora.getTime())));
     return { acao: "ocupado", lead: leadId, tentar_em_ms: tentarEm };
   }
   try {
@@ -1111,10 +1118,14 @@ async function responderUmaVez(
   }
 
   const resumo = resposta.resumo ? semLinks(resposta.resumo) : null;
+  // Na entrega, o assistente não manda as fotos que o cliente acabou de
+  // pedir: quem manda é o vendedor, e o resumo e a passagem dizem isso.
+  const fotosPedidas =
+    decisao.entregar && resposta.fotos && !sinais.optout ? pedidoDeFotosLegivel(resposta.fotos, base.fotos?.[resposta.fotos.veiculo]?.nome) : null;
   const patch: Linha = {
     aquecimento: aquecimento.pontos,
     temperatura: aquecimento.temperatura,
-    qualificacao: { ficha, sinais, motivos: aquecimento.motivos },
+    qualificacao: { ficha, sinais, motivos: aquecimento.motivos, ...(fotosPedidas ? { fotos_pedidas: fotosPedidas } : {}) },
     ...(resumo ? { resumo_ia: resumo, resumo_ia_em: agora.toISOString() } : {}),
     // O que o cliente disse preenche o VAZIO dos dados do negócio — nunca
     // sobrescreve o que o vendedor escreveu (a régua de "o feed preenche o
@@ -1294,6 +1305,11 @@ async function mandarFotos(
   if (!carro) {
     console.warn("[Atendimento] O modelo pediu fotos de um carro fora do estoque:", veiculo);
     await enviar(SEM_FOTO_DO_CARRO);
+    await anotarNoRastro(supabase, ctx.leadId, `O cliente pediu fotos ${pedidoDeFotosLegivel(pedido, null)}, que não está à venda: a equipe pode mandar.`, {
+      acao: "fotos_pedidas",
+      veiculo,
+      camada,
+    });
     return { fotos: 0, falhas: 0 };
   }
   const enviadas = await fotosJaEnviadas(supabase, ctx.leadId);
@@ -1306,7 +1322,7 @@ async function mandarFotos(
   let classificadas = (await lerFotosClassificadas(supabase, loja, [veiculo])).get(veiculo) ?? [];
   const visao = visaoDe(deps);
   const sobra = ctx.prazo - relogio();
-  if (visao && sobra >= 45_000 && carro.urls.some((u) => !classificadas.some((f) => f.url === u))) {
+  if (visao && loja && sobra >= 45_000 && carro.urls.some((u) => !classificadas.some((f) => f.url === u))) {
     const r = await classificarCarro(supabase, { id: veiculo, ...carro }, classificadas, {
       modelo: visao,
       loja,
@@ -1336,6 +1352,9 @@ async function mandarFotos(
     plano = fotosDaGaleria(naoSeparadas, new Set()).map((url) => ({ url, legenda: "", camada: null }));
   } else if (mostradas.has(camada)) {
     fechamento = fotosJaMostradas(ofertaDepoisDasFotos(classificadas, mostradas));
+  } else if (naoSeparadas.length > 0) {
+    // A foto pedida pode estar entre as que o modelo ainda não separou.
+    fechamento = fotosAindaNaoSeparadas(camada);
   } else {
     fechamento = semFotoDaCamada(camada);
   }
@@ -1343,14 +1362,20 @@ async function mandarFotos(
   // O envio, dentro do prazo.
   let fotos = 0;
   let falhas = 0;
+  let incertas = 0;
   for (const p of plano) {
     if (relogio() > ctx.prazo) break;
     const r = await enviar(p.legenda, { url: p.url, veiculoId: veiculo, camada: p.camada });
     if (r.ok) fotos += 1;
+    else if (r.incerto) incertas += 1;
     else falhas += 1;
   }
   if (plano.length > 0) {
-    if (fotos === 0) {
+    if (incertas > 0) {
+      // A Evolution demorou: as fotos podem estar chegando. Nem "não consegui"
+      // nem oferta — o cliente vê o que chegou e pede o resto.
+      fechamento = null;
+    } else if (fotos === 0) {
       fechamento = FOTOS_FORA_DO_AR;
     } else if (fotos === plano.length) {
       if (plano[0].camada) {
@@ -1363,6 +1388,16 @@ async function mandarFotos(
     // Saiu só parte (prazo ou Evolution): sem oferta — o resto vai no próximo pedido.
   }
   if (fechamento) await enviar(fechamento);
+  // "A nossa equipe consegue te mandar" é promessa da equipe: fica no rastro
+  // do lead, para quem abrir saber que o cliente está esperando foto.
+  if (fechamento && [SEM_FOTO_DO_CARRO, FOTOS_FORA_DO_AR, semFotoDaCamada(camada), fotosAindaNaoSeparadas(camada)].includes(fechamento)) {
+    await anotarNoRastro(
+      supabase,
+      ctx.leadId,
+      `O cliente pediu fotos ${pedidoDeFotosLegivel(pedido, carro.nome)} e o assistente não conseguiu mandar: a equipe pode mandar.`,
+      { acao: "fotos_pedidas", veiculo, camada },
+    );
+  }
   return { fotos, falhas };
 }
 
@@ -1373,16 +1408,17 @@ async function mandarFotos(
  */
 export async function classificarFotosDoEstoque(supabase: Banco, deps: Dependencias = {}): Promise<ResultadoDaClassificacao> {
   const modelo = visaoDe(deps);
-  if (!modelo) {
-    return { ok: false, motivo: "falta DEEPSEEK_API_KEY na Vercel", carros_na_fila: 0, carros_classificados: 0, fotos_classificadas: 0, falhas: 0, restantes: 0 };
-  }
+  const vazio = { carros_na_fila: 0, carros_classificados: 0, fotos_classificadas: 0, falhas: 0, restantes: 0 };
+  if (!modelo) return { ok: false, motivo: "falta DEEPSEEK_API_KEY na Vercel", ...vazio };
+  const loja = await lojaDoAtendimento(supabase);
+  if (!loja) return { ok: false, motivo: "loja ilegível (org_padrao)", ...vazio };
   const base = await carregarBase(deps, false);
   const carros = Object.entries(base.fotos ?? {})
     .map(([id, c]) => ({ id, nome: c.nome, urls: c.urls }))
     .filter((c) => c.urls.length > 0);
   return classificarFotosPendentes(supabase, carros, {
     modelo,
-    loja: await lojaDoAtendimento(supabase),
+    loja,
     transporte: deps.transporte,
     relogio: relogioDe(deps),
     orcamentoMs: ORCAMENTO_DA_CLASSIFICACAO_MS,
@@ -1475,6 +1511,7 @@ async function entregarAoVendedor(
       nomeDoCliente: lead.nome,
       vendedor: vendedor ? { nome: vendedor.nome, whatsapp: vendedor.whatsapp } : null,
       equipeDisponivel,
+      comFotos: typeof lead.qualificacao?.fotos_pedidas === "string",
     });
     const atendimento = await garantirAtendimento(supabase, leadId, agora);
     await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto: passagem, gatilho: "passagem", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
@@ -1564,6 +1601,7 @@ async function avisarEntrega(
     resumo: lead.resumo_ia ? semLinks(lead.resumo_ia) : null,
     origem: origemLegivel(lead),
     linkDoLead: linkDe(deps, leadId),
+    fotosPedidas: typeof lead.qualificacao?.fotos_pedidas === "string" ? lead.qualificacao.fotos_pedidas : null,
   };
 
   let destinatarios: PessoaDaEquipe[];
@@ -2000,8 +2038,13 @@ export async function mudarAssistente(
 
 /**
  * "Classificar o que falta" e "Refazer a classificação" de UM carro, pela aba
- * Fotos do Atendimento IA. Refazer apaga só o que o modelo disse: a correção
- * à mão fica, e o modelo não a toca.
+ * Fotos do Atendimento IA.
+ *
+ * Refazer classifica de novo as fotos que o MODELO tinha classificado e só
+ * troca cada linha depois de a nova dar certo: com a DeepSeek fora do ar, a
+ * classificação antiga fica (apagar antes deixaria o carro sem camadas, e o
+ * laudo marcado "não mandar" voltaria à galeria em ordem). A correção à mão
+ * nunca é tocada. Com prazo, para caber nos 60 s da rota.
  */
 export async function classificarCarroDoEstoque(
   supabase: Banco,
@@ -2009,17 +2052,25 @@ export async function classificarCarroDoEstoque(
   opcoes: { refazer: boolean },
   deps: Dependencias = {},
 ): Promise<{ ok: boolean; motivo?: string; fotos_classificadas: number; falhas: number }> {
+  const relogio = relogioDe(deps);
+  const prazo = relogio() + 45_000;
   const modelo = visaoDe(deps);
   if (!modelo) return { ok: false, motivo: "falta DEEPSEEK_API_KEY na Vercel", fotos_classificadas: 0, falhas: 0 };
+  const loja = await lojaDoAtendimento(supabase);
+  if (!loja) return { ok: false, motivo: "loja ilegível (org_padrao)", fotos_classificadas: 0, falhas: 0 };
   const base = await carregarBase(deps, false);
   const carro = base.fotos?.[veiculo];
   if (!carro) return { ok: false, motivo: "o carro não está à venda", fotos_classificadas: 0, falhas: 0 };
-  const loja = await lojaDoAtendimento(supabase);
-  if (opcoes.refazer) {
-    const r = await esquecerClassificacaoDoModelo(supabase, loja, veiculo);
-    if (!r.ok) return { ok: false, motivo: `classificação antiga não apagada: ${r.erro}`, fotos_classificadas: 0, falhas: 0 };
-  }
   const ja = (await lerFotosClassificadas(supabase, loja, [veiculo])).get(veiculo) ?? [];
-  const r = await classificarCarro(supabase, { id: veiculo, ...carro }, ja, { modelo, loja, transporte: deps.transporte });
+  const manter = opcoes.refazer ? ja.filter((f) => f.corrigida) : ja;
+  const substituir = opcoes.refazer ? new Set(ja.filter((f) => !f.corrigida).map((f) => f.url)) : undefined;
+  const r = await classificarCarro(supabase, { id: veiculo, ...carro }, manter, {
+    modelo,
+    loja,
+    transporte: deps.transporte,
+    relogio,
+    prazo,
+    substituir,
+  });
   return { ok: true, fotos_classificadas: r.novas, falhas: r.falhas, ...(r.motivo ? { motivo: r.motivo } : {}) };
 }

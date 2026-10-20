@@ -10,8 +10,8 @@
  * anteriores, então o banco guarda as tabelas e aplica os filtros.
  *
  * Suporta: select (as colunas são ignoradas, volta a linha inteira), insert,
- * update, delete, upsert com `ignoreDuplicates` (pula a linha que já existe nas
- * colunas de `onConflict`), range, os filtros eq, neq, in, is, gte, lte, lt,
+ * update, delete, upsert (com `ignoreDuplicates`, pula a linha que já existe
+ * nas colunas de `onConflict`; sem ele, sobrescreve), range, os filtros eq, neq, in, is, gte, lte, lt,
  * gt, not(col, "is", null),
  * order (uma ou mais, na ordem em que foram pedidas), limit, single/maybeSingle
  * e o `await` direto; `rpc` por função registrada. O índice único de
@@ -86,6 +86,7 @@ export function bancoDeTeste(
   const cadeia = (tabela: string) => {
     let operacao: "select" | "insert" | "update" | "delete" = "select";
     let conflito: string[] | null = null;
+    let sobrescrever = false;
     let colunas = "";
     let faixa: [number, number] | null = null;
     let valores: any = null;
@@ -107,7 +108,15 @@ export function bancoDeTeste(
         afetadas = [];
         for (const v of lista) {
           const linha = { ...(PADROES[tabela]?.() ?? {}), id: novoId(), ...v };
-          if (conflito && linhas.some((l) => conflito!.every((c) => l[c] === linha[c]))) continue;
+          const existente = conflito ? linhas.find((l) => conflito!.every((c) => l[c] === linha[c])) : undefined;
+          if (existente) {
+            // `ignoreDuplicates` pula; sem ele, o upsert sobrescreve as colunas enviadas.
+            if (sobrescrever) {
+              Object.assign(existente, v);
+              afetadas.push(existente);
+            }
+            continue;
+          }
           if (tabela === "atendimento_mensagens" && linha.wa_id && linhas.some((l) => l.wa_id === linha.wa_id)) {
             return { data: null, error: { message: "duplicate key value violates unique constraint", code: "23505" } };
           }
@@ -159,10 +168,11 @@ export function bancoDeTeste(
         return api;
       },
       upsert(v: any, o?: { onConflict?: string; ignoreDuplicates?: boolean }) {
-        if (!o?.ignoreDuplicates || !o.onConflict) throw new Error("upsert só com ignoreDuplicates e onConflict no dublê");
+        if (!o?.onConflict) throw new Error("upsert só com onConflict no dublê");
         operacao = "insert";
         valores = v;
         conflito = o.onConflict.split(",").map((c) => c.trim());
+        sobrescrever = !o.ignoreDuplicates;
         return api;
       },
       range: (de: number, ate: number) => ((faixa = [de, ate]), api),
@@ -261,6 +271,8 @@ export function transporteDeTeste(
     fotoRecusada?: (n: number) => boolean;
     /** Chamado a cada foto enviada, antes de a Evolution responder — onde o teste olha o banco "no meio". */
     aoEnviarFoto?: (n: number) => void;
+    /** A Evolution não responde a tempo no envio da foto de número n (o `fetch` aborta). */
+    fotoSemResposta?: (n: number) => boolean;
   } = {},
 ) {
   const enviados: { numero: string; texto: string }[] = [];
@@ -278,6 +290,11 @@ export function transporteDeTeste(
     if (url.includes("/message/sendMedia/")) {
       tentativasDeFoto += 1;
       opcoes.aoEnviarFoto?.(tentativasDeFoto);
+      if (opcoes.fotoSemResposta?.(tentativasDeFoto)) {
+        const abortado = new Error("This operation was aborted");
+        abortado.name = "AbortError";
+        throw abortado;
+      }
       if (opcoes.fotoRecusada?.(tentativasDeFoto)) {
         return new Response(JSON.stringify({ message: "media download failed" }), { status: 500 });
       }

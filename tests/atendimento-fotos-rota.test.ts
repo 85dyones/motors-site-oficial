@@ -103,6 +103,21 @@ describe("a aba Fotos", () => {
     expect(etiquetas).toEqual(["atendimento-fotos"]);
   });
 
+  it("sem a loja (org_padrao falhou), 503 — nada é lido nem gravado sem o filtro", async () => {
+    banco = bancoDeTeste({ atendimento_fotos: [{ id: "x", org_id: "outra-loja", veiculo_id: 7950008, url: url("onix", 1), posicao: 0, camada: "externa", aproveitavel: true }] }, { org_padrao: () => null });
+    const { GET, PATCH, POST } = await import("../src/app/api/atendimento/fotos/estoque/route");
+    expect((await GET(comNextUrl(pedido("GET", "/api/atendimento/fotos/estoque")))).status).toBe(503);
+    expect((await PATCH(comNextUrl(pedido("PATCH", "/api/atendimento/fotos/estoque", { veiculo: ONIX, url: url("onix", 1), camada: "outra" })))).status).toBe(503);
+    expect((await POST(comNextUrl(pedido("POST", "/api/atendimento/fotos/estoque", { veiculo: ONIX, refazer: true })))).status).toBe(503);
+    expect(banco.tabelas.atendimento_fotos).toEqual([expect.objectContaining({ id: "x", camada: "externa" })]);
+  });
+
+  it("corrigir devolve a legenda que ficou: a que tem preço não fica", async () => {
+    const { PATCH } = await import("../src/app/api/atendimento/fotos/estoque/route");
+    const r = await PATCH(comNextUrl(pedido("PATCH", "/api/atendimento/fotos/estoque", { veiculo: ONIX, url: url("onix", 2), camada: "externa", descricao: "Etiqueta R$ 79.900" })));
+    expect(await r.json()).toEqual({ ok: true, descricao: null });
+  });
+
   it("corrigir: camada inventada é 400; foto que saiu da galeria é 404", async () => {
     const { PATCH } = await import("../src/app/api/atendimento/fotos/estoque/route");
     expect((await PATCH(comNextUrl(pedido("PATCH", "/api/atendimento/fotos/estoque", { veiculo: ONIX, url: url("onix", 1), camada: "teto" })))).status).toBe(400);

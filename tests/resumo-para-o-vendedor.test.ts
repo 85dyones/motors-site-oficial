@@ -37,6 +37,13 @@ describe("o resumo ao vendedor", () => {
     expect(m).toContain("Abrir no painel: https://loja.exemplo/admin/leads/abc");
   });
 
+  it("as fotos que o cliente pediu na entrega vão ao vendedor", () => {
+    expect(mensagemDeEntrega({ ...base, para: "vendedor", fotosPedidas: "de fora do Onix LT 2020 (#7950008)" })).toContain(
+      "📷 Pediu fotos de fora do Onix LT 2020 (#7950008): mande do seu WhatsApp.",
+    );
+    expect(mensagemDeEntrega({ ...base, para: "vendedor" })).not.toContain("📷");
+  });
+
   it("campo que o cliente não disse não aparece", () => {
     const m = mensagemDeEntrega({ ...base, ficha: { ...FICHA_VAZIA, interesse: "SUV" }, para: "vendedor" });
     expect(m).not.toContain("Pagamento:");
@@ -60,6 +67,15 @@ describe("a passagem ao cliente", () => {
     const m = mensagemDePassagemAoCliente({ nomeDoCliente: "rafael", vendedor: { nome: "Carla Souza", whatsapp: "5541988887777" }, equipeDisponivel: true });
     expect(m).toBe("Perfeito, Rafael! Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777.");
     expect(m).not.toMatch(/\b(dele|dela|o consultor|a consultora)\b/);
+  });
+
+  it("o cliente pediu fotos na mensagem da entrega: a frase diz que quem manda é o vendedor", () => {
+    expect(mensagemDePassagemAoCliente({ nomeDoCliente: "rafael", vendedor: { nome: "Carla Souza", whatsapp: "5541988887777" }, equipeDisponivel: true, comFotos: true })).toBe(
+      "Perfeito, Rafael! Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777 e te mandar as fotos.",
+    );
+    expect(mensagemDePassagemAoCliente({ nomeDoCliente: null, vendedor: null, equipeDisponivel: false, comFotos: true })).toBe(
+      "Perfeito! Vou passar seu atendimento para a nossa equipe de consultores, que te chama assim que a loja abrir e te manda as fotos.",
+    );
   });
 
   it("fora do horário, promete a abertura", () => {

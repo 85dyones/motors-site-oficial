@@ -36,7 +36,7 @@ const MIGRACAO_DAS_FOTOS = "20261021120000_fotos_do_atendimento.sql";
 
 type Aberta =
   | { recusa: NextResponse }
-  | { admin: ReturnType<typeof createAdminSupabaseClient>; nome: string | null; loja: string | null };
+  | { admin: ReturnType<typeof createAdminSupabaseClient>; nome: string | null; loja: string };
 
 async function abrir(): Promise<Aberta> {
   const auth = await quemConfiguraOAtendimento();
@@ -51,7 +51,11 @@ async function abrir(): Promise<Aberta> {
         : NextResponse.json({ error: sonda.error.message }, { status: 500 }),
     };
   }
-  return { admin, nome: auth.nome, loja: await lojaDoAtendimento(admin) };
+  // Sem a loja, nada: com a chave de serviço, ler ou gravar sem o filtro seria
+  // mexer em todas as lojas.
+  const loja = await lojaDoAtendimento(admin);
+  if (!loja) return { recusa: NextResponse.json({ error: "Loja ilegível (org_padrao). Tente de novo em instantes." }, { status: 503 }) };
+  return { admin, nome: auth.nome, loja };
 }
 
 export async function GET(request: NextRequest) {
@@ -106,7 +110,8 @@ export async function PATCH(request: NextRequest) {
     const r = await corrigirFoto(aberta.admin, aberta.loja, { ...correcao, posicao }, aberta.nome ?? "Equipe");
     if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 500 });
     revalidateTag(ETIQUETA_DAS_FOTOS, { expire: 0 });
-    return NextResponse.json({ ok: true });
+    // A legenda que ficou gravada: a que tinha preço, placa ou contato não fica.
+    return NextResponse.json({ ok: true, descricao: r.descricao });
   } catch (erro) {
     return NextResponse.json({ error: erro instanceof Error ? erro.message : "Erro inesperado" }, { status: 500 });
   }

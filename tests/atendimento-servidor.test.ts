@@ -1073,10 +1073,10 @@ describe("a correção à mão das fotos", () => {
     const banco = montar({
       atendimento_fotos: [{ id: "f1", org_id: LOJA_DE_TESTE, veiculo_id: 7950008, url: urls[0], posicao: 0, camada: "externa", angulo: "lateral", descricao: "Lateral", aproveitavel: true, modelo: "deepseek-flash" }],
     });
-    expect(await corrigirFoto(banco.cliente, LOJA_DE_TESTE, { ok: true, veiculo: ONIX, url: urls[0], camada: "outra", descricao: "Banner", posicao: 0 }, "Dono da Loja", TERCA_10H)).toEqual({ ok: true });
-    expect(await corrigirFoto(banco.cliente, LOJA_DE_TESTE, { ok: true, veiculo: ONIX, url: urls[1], camada: "motor", descricao: null, posicao: 1 }, "Dono da Loja", TERCA_10H)).toEqual({ ok: true });
+    expect(await corrigirFoto(banco.cliente, LOJA_DE_TESTE, { ok: true, veiculo: ONIX, url: urls[0], camada: "outra", descricao: "Banner", posicao: 0 }, "Dono da Loja", TERCA_10H)).toEqual({ ok: true, descricao: "Banner" });
+    expect(await corrigirFoto(banco.cliente, LOJA_DE_TESTE, { ok: true, veiculo: ONIX, url: urls[1], camada: "motor", descricao: null, posicao: 1 }, "Dono da Loja", TERCA_10H)).toEqual({ ok: true, descricao: null });
     expect(banco.tabelas.atendimento_fotos).toEqual([
-      expect.objectContaining({ id: "f1", camada: "outra", angulo: null, descricao: "Banner", aproveitavel: false, corrigido_por: "Dono da Loja", corrigido_em: TERCA_10H.toISOString(), modelo: "deepseek-flash" }),
+      expect.objectContaining({ id: "f1", camada: "outra", angulo: null, descricao: "Banner", aproveitavel: false, corrigido_por: "Dono da Loja", corrigido_em: TERCA_10H.toISOString(), modelo: "manual" }),
       expect.objectContaining({ url: urls[1], posicao: 1, camada: "motor", aproveitavel: true, corrigido_por: "Dono da Loja", modelo: "manual", org_id: LOJA_DE_TESTE }),
     ]);
   });
@@ -1230,8 +1230,8 @@ describe("as fotos, depois da revisão", () => {
     relogio = TERCA_10H;
     const banco = montar({ leads: [leadAberto({ respondendo_desde: new Date(TERCA_10H.getTime() - 30_000).toISOString() })], atendimento_mensagens: [jaEscreveu({ respondida_em: null })] });
     const r = await responderAoLead(banco.cliente, { leadId: "lead-1" }, deps(transporteDeTeste()));
-    // 125 s depois do começo da resposta em curso, que começou há 30 s.
-    expect(r).toEqual({ acao: "ocupado", lead: "lead-1", tentar_em_ms: 95_000 });
+    // Depois de a trava de 130 s vencer (+5 s), contada do começo da resposta em curso, que começou há 30 s.
+    expect(r).toEqual({ acao: "ocupado", lead: "lead-1", tentar_em_ms: 105_000 });
     // 100 s depois, a trava (130 s) ainda não venceu: ninguém a toma.
     relogio = new Date(TERCA_10H.getTime() + 70_000);
     expect((await responderAoLead(banco.cliente, { leadId: "lead-1" }, deps(transporteDeTeste()))).acao).toBe("ocupado");
@@ -1366,5 +1366,142 @@ describe("as fotos, depois da revisão", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A segunda revisão das fotos (2026-10-20)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("as fotos, depois da segunda revisão", () => {
+  const ONIX = "7950008";
+  const url = (n: number) => `https://fotos.teste/onix/${n}.jpg`;
+  const galeria = (n: number) => Array.from({ length: n }, (_, i) => url(i + 1));
+  const base = (urls: string[]) => async () => ({ ...(await BASE()), fotos: { [ONIX]: { nome: "Onix LT 2020", urls } } });
+  const todas = (camada: string) => (lista: string[]) =>
+    JSON.stringify({ fotos: lista.map((_, i) => ({ n: i + 1, camada, angulo: null, descricao: null, aproveitavel: true })) });
+  const linha = (n: number, camada: string, extra: Record<string, unknown> = {}) => ({
+    id: `f${n}`,
+    org_id: LOJA_DE_TESTE,
+    veiculo_id: 7950008,
+    url: url(n),
+    posicao: n - 1,
+    camada,
+    aproveitavel: camada !== "outra",
+    modelo: "deepseek-flash",
+    ...extra,
+  });
+  const fotosQueSairam = (t: ReturnType<typeof transporteDeTeste>) => t.saidas.filter((x) => x.tipo === "foto").map((x) => (x as { url: string }).url);
+  const textos = (t: ReturnType<typeof transporteDeTeste>) => t.saidas.filter((x) => x.tipo === "texto").map((x) => (x as { texto: string }).texto);
+  const semLoja = () =>
+    bancoDeTeste(
+      { atendimento_config: [{ ...CONFIG }], profiles: [CARLA], leads: [], atendimentos: [], atendimento_mensagens: [], leads_eventos: [], atendimento_fotos: [{ ...linha(1, "externa"), org_id: "outra-loja" }] },
+      { org_padrao: () => null },
+      () => relogio,
+    );
+
+  async function conversa(banco: BancoDeTeste, t: ReturnType<typeof transporteDeTeste>, texto: string, extra: Partial<Dependencias>) {
+    relogio = new Date(relogio.getTime() + 60_000);
+    const e = await clienteEscreve(banco, t, texto);
+    return responderAoLead(banco.cliente, { leadId: e.lead!, mensagemId: e.mensagem }, deps(t, extra));
+  }
+
+  it("B-1: sem a loja, a correção à mão não grava — nem na linha de outra loja", async () => {
+    const banco = semLoja();
+    expect(await corrigirFoto(banco.cliente, null, { ok: true, veiculo: ONIX, url: url(1), camada: "outra", descricao: null, posicao: 0 }, "Dono")).toEqual({ ok: false, erro: "loja ilegível (org_padrao)" });
+    expect(banco.tabelas.atendimento_fotos).toEqual([expect.objectContaining({ org_id: "outra-loja", camada: "externa" })]);
+  });
+
+  it("B-1: sem a loja, nada é classificado nem gravado", async () => {
+    const banco = semLoja();
+    const t = transporteDeTeste([], { visao: todas("externa") });
+    expect(await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: true }, deps(t, { baseDaLoja: base(galeria(2)) }))).toMatchObject({ ok: false, motivo: "loja ilegível (org_padrao)" });
+    expect(await classificarFotosDoEstoque(banco.cliente, deps(t, { baseDaLoja: base(galeria(2)) }))).toMatchObject({ ok: false, motivo: "loja ilegível (org_padrao)" });
+    expect(t.pedidosDeVisao).toHaveLength(0);
+    expect(banco.tabelas.atendimento_fotos).toHaveLength(1);
+  });
+
+  it("I-c: refazer com a DeepSeek fora do ar mantém a classificação antiga — o laudo continua fora do envio", async () => {
+    const banco = montar({ atendimento_fotos: [linha(1, "externa"), linha(2, "outra")] });
+    const t = transporteDeTeste([], { visao: () => ({ erro: "Service Unavailable" }) });
+    const r = await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: true }, deps(t, { baseDaLoja: base(galeria(2)) }));
+    expect(r).toMatchObject({ ok: true, fotos_classificadas: 0, falhas: 1 });
+    expect(banco.tabelas.atendimento_fotos.map((f) => [f.url, f.camada])).toEqual([
+      [url(1), "externa"],
+      [url(2), "outra"],
+    ]);
+  });
+
+  it("I-c: refazer troca a linha do modelo no lugar, e a correção à mão feita no meio tempo fica", async () => {
+    const banco = montar({ atendimento_fotos: [linha(1, "interior"), linha(2, "interior")] });
+    const t = transporteDeTeste([], {
+      visao: (lista) => {
+        // Alguém corrige a foto 2 à mão enquanto o modelo trabalha.
+        Object.assign(banco.tabelas.atendimento_fotos.find((f) => f.url === url(2))!, { camada: "outra", aproveitavel: false, corrigido_por: "Dono", corrigido_em: "2026-10-20T13:00:00Z" });
+        return todas("externa")(lista);
+      },
+    });
+    await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: true }, deps(t, { baseDaLoja: base(galeria(2)) }));
+    expect(t.pedidosDeVisao).toEqual([[url(1), url(2)]]);
+    expect(banco.tabelas.atendimento_fotos).toHaveLength(2);
+    expect(banco.tabelas.atendimento_fotos.find((f) => f.url === url(1))).toMatchObject({ id: "f1", camada: "externa" });
+    expect(banco.tabelas.atendimento_fotos.find((f) => f.url === url(2))).toMatchObject({ camada: "outra", corrigido_por: "Dono" });
+  });
+
+  it("I-a: na entrega, a passagem promete as fotos pelo vendedor, e o resumo diz quais", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Olha ele aqui 👇"], fotos: { veiculo: ONIX, camada: "interior" }, sinais: { pediu_humano: true } })]);
+    await conversa(banco, t, "manda o interior e me passa pra alguém", { baseDaLoja: base(galeria(2)) });
+    const doCliente = t.saidas.filter((x) => x.numero === CLIENTE).map((x) => (x as { texto: string }).texto);
+    expect(doCliente.at(-1)).toBe("Perfeito, Rafael! Vou te passar para Carla, da nossa equipe de consultores, que já vai te chamar pelo WhatsApp (41) 98888-7777 e te mandar as fotos.");
+    const aoVendedor = t.saidas.find((x) => x.numero === "5541988887777") as { texto: string };
+    expect(aoVendedor.texto).toContain("📷 Pediu fotos do interior do Onix LT 2020 (#7950008): mande do seu WhatsApp.");
+    expect(fotosQueSairam(t)).toEqual([]);
+  });
+
+  it("M9: camada que pode estar entre as fotos não separadas não vira 'não tenho' — e a promessa fica no rastro", async () => {
+    const banco = montar({ atendimento_fotos: [linha(1, "externa")] });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Deixa eu ver 👇"], fotos: { veiculo: ONIX, camada: "interior" } })], { visao: () => ({ erro: "timeout" }) });
+    await conversa(banco, t, "tem do interior?", { baseDaLoja: base(galeria(3)) });
+    expect(textos(t).at(-1)).toBe("Ainda não separei as fotos do interior desse carro, mas a nossa equipe consegue te mandar. 😉");
+    expect(banco.tabelas.leads_eventos.some((e) => e.detalhe?.acao === "fotos_pedidas" && e.detalhe.texto.includes("do interior do Onix LT 2020 (#7950008)"))).toBe(true);
+  });
+
+  it("M7: foto que a Evolution não confirmou a tempo fica pendente, não vira 'não consegui' e não sai de novo", async () => {
+    const banco = montar({ atendimento_fotos: [linha(1, "externa"), linha(2, "externa")] });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Olha 👇"], fotos: { veiculo: ONIX, camada: "externa" } }), respostaDoModelo({ mensagens: ["De novo 👇"], fotos: { veiculo: ONIX, camada: "externa" } })], {
+      fotoSemResposta: (n) => n === 1,
+    });
+    await conversa(banco, t, "tem foto?", { baseDaLoja: base(galeria(2)) });
+    expect(textos(t)).toEqual(["Olha 👇"]);
+    expect(banco.tabelas.atendimento_mensagens.find((m) => m.midia_url === url(1))).toMatchObject({ situacao: "pendente", erro: "a Evolution não respondeu a tempo" });
+    await conversa(banco, t, "mais?", { baseDaLoja: base(galeria(2)) });
+    expect(fotosQueSairam(t)).toEqual([url(2)]);
+  });
+
+  it("M6: a foto que o modelo não abre é marcada mesmo sozinha, quando o carro já foi classificado antes", async () => {
+    const banco = montar({ atendimento_fotos: [linha(1, "externa")] });
+    const t = transporteDeTeste([], { visao: () => ({ erro: "failed to download image", status: 400 }) });
+    await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base(galeria(2)) }));
+    expect(banco.tabelas.atendimento_fotos.find((f) => f.url === url(2))).toMatchObject({ camada: "outra", aproveitavel: false, modelo: "inacessivel" });
+  });
+
+  it("M5: a fila gira também entre os carros que já têm foto vista", async () => {
+    const banco = montar({
+      atendimento_fotos: [
+        { ...linha(1, "externa"), veiculo_id: 1, url: "https://f.teste/a1.jpg" },
+        { ...linha(2, "externa"), veiculo_id: 2, url: "https://f.teste/b1.jpg" },
+      ],
+    });
+    const t = transporteDeTeste([], { visao: todas("externa") });
+    const dois = async () => ({
+      ...(await BASE()),
+      fotos: {
+        "1": { nome: "A", urls: ["https://f.teste/a1.jpg", "https://f.teste/a2.jpg"] },
+        "2": { nome: "B", urls: ["https://f.teste/b1.jpg", "https://f.teste/b2.jpg"] },
+      },
+    });
+    await classificarFotosDoEstoque(banco.cliente, deps(t, { baseDaLoja: dois, relogio: () => 15 * 60 * 1000 }));
+    expect(t.pedidosDeVisao.map((p) => p[0])).toEqual(["https://f.teste/b2.jpg", "https://f.teste/a2.jpg"]);
   });
 });

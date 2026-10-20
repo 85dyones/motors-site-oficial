@@ -86,10 +86,10 @@ describe("a entrada", () => {
     expect(se.parameters.conditions.conditions[0]).toMatchObject({ leftValue: "={{ $json.body.acao }}", rightValue: "ocupado" });
     expect(servidor).toContain('acao: "ocupado"');
     expect(entrada.connections["Estava respondendo?"].main[0][0].node).toBe("Esperar a resposta em curso");
-    // O tempo vem da rota (`tentar_em_ms`, contado do começo da resposta em curso); sem ele, 125 s.
+    // O tempo vem da rota (`tentar_em_ms`, depois de a trava vencer); sem ele, 135 s.
     const espera = no(entrada, "Esperar a resposta em curso").parameters.amount as string;
     expect(espera).toContain("$json.body.tentar_em_ms");
-    expect(espera).toContain("125000");
+    expect(espera).toContain("135000");
     expect(servidor).toContain("tentar_em_ms: tentarEm");
     expect(entrada.connections["Esperar a resposta em curso"].main[0][0].node).toBe("Pedir a resposta de novo");
     expect(no(entrada, "Pedir a resposta de novo").parameters.jsonBody).toBe(no(entrada, "Pedir a resposta").parameters.jsonBody);

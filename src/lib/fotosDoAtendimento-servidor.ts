@@ -150,12 +150,22 @@ export async function classificarCarro(
     timeoutMs?: number;
     relogio?: () => number;
     prazo?: number;
+    /**
+     * "Refazer": as URLs que já têm linha do MODELO e devem ser trocadas pela
+     * classificação nova — só depois de ela dar certo, e nunca uma linha
+     * corrigida à mão (o update filtra `corrigido_em is null`).
+     */
+    substituir?: ReadonlySet<string>;
   },
 ): Promise<ClassificacaoDoCarro> {
   const vistas = new Set(jaClassificadas.map((f) => f.url));
   const pendentes = carro.urls.map((url, posicao) => ({ url, posicao })).filter((f) => !vistas.has(f.url));
   const fotos = [...jaClassificadas];
   if (pendentes.length === 0) return { fotos, novas: 0, falhas: 0 };
+  // Sem a loja, não grava: com a chave de serviço, a linha iria para a loja
+  // errada (o `default` do banco) e a leitura, que filtra, nem a veria.
+  const loja = opcoes.loja;
+  if (!loja) return { fotos, novas: 0, falhas: 1, motivo: "loja ilegível (org_padrao)" };
   const relogio = opcoes.relogio ?? Date.now;
   const teto = opcoes.timeoutMs ?? 50_000;
 
@@ -166,26 +176,55 @@ export async function classificarCarro(
   const suspeitas: Lote = [];
 
   const gravar = async (lidas: FotoClassificada[], uso: { entrada: number; saida: number }, modelo: string) => {
-    const { error } = await supabase.from("atendimento_fotos").upsert(
-      lidas.map((f) => ({
-        ...(opcoes.loja ? { org_id: opcoes.loja } : {}),
-        veiculo_id: Number(carro.id),
-        url: f.url,
-        posicao: f.posicao,
-        camada: f.camada,
-        angulo: f.angulo,
-        descricao: f.descricao,
-        aproveitavel: f.aproveitavel,
-        modelo,
-        tokens_entrada: uso.entrada,
-        tokens_saida: uso.saida,
-      })),
-      { onConflict: "org_id,veiculo_id,url", ignoreDuplicates: true },
-    );
-    if (error) {
-      falhas += 1;
-      motivo = `classificação não gravada: ${error.message}`;
-      return;
+    const linha = (f: FotoClassificada) => ({
+      org_id: loja,
+      veiculo_id: Number(carro.id),
+      url: f.url,
+      posicao: f.posicao,
+      camada: f.camada,
+      angulo: f.angulo,
+      descricao: f.descricao,
+      aproveitavel: f.aproveitavel,
+      modelo,
+      tokens_entrada: uso.entrada,
+      tokens_saida: uso.saida,
+    });
+    const trocar = lidas.filter((f) => opcoes.substituir?.has(f.url));
+    const novasLinhas = lidas.filter((f) => !opcoes.substituir?.has(f.url));
+    for (const f of trocar) {
+      // Troca a linha do modelo; a corrigida à mão (no meio tempo) não casa o filtro e fica.
+      const { error } = await supabase
+        .from("atendimento_fotos")
+        .update({
+          posicao: f.posicao,
+          camada: f.camada,
+          angulo: f.angulo,
+          descricao: f.descricao,
+          aproveitavel: f.aproveitavel,
+          modelo,
+          tokens_entrada: uso.entrada,
+          tokens_saida: uso.saida,
+          classificado_em: new Date().toISOString(),
+        })
+        .eq("org_id", loja)
+        .eq("veiculo_id", Number(carro.id))
+        .eq("url", f.url)
+        .is("corrigido_em", null);
+      if (error) {
+        falhas += 1;
+        motivo = `classificação não gravada: ${error.message}`;
+        return;
+      }
+    }
+    if (novasLinhas.length > 0) {
+      const { error } = await supabase
+        .from("atendimento_fotos")
+        .upsert(novasLinhas.map(linha), { onConflict: "org_id,veiculo_id,url", ignoreDuplicates: true });
+      if (error) {
+        falhas += 1;
+        motivo = `classificação não gravada: ${error.message}`;
+        return;
+      }
     }
     fotos.push(...lidas);
     novas += lidas.length;
@@ -241,8 +280,11 @@ export async function classificarCarro(
     await Promise.all(lotes.slice(i, i + PEDIDOS_EM_PARALELO).map(classificarLote));
   }
 
+  // Marca a foto que o modelo não abre só com prova de que o PEDIDO funciona:
+  // um pedido deste carro deu certo agora, ou o modelo já classificou fotos
+  // dele antes.
   if (suspeitas.length > 0) {
-    if (sucessos > 0) {
+    if (sucessos > 0 || jaClassificadas.some((f) => !f.corrigida)) {
       await gravar(suspeitas.map(fotoInacessivel), { entrada: 0, saida: 0 }, "inacessivel");
     } else {
       falhas += 1;
@@ -297,14 +339,17 @@ export async function classificarFotosPendentes(
     .filter((x) => x.pendentes > 0)
     .sort((a, b) => a.ja.length - b.ja.length || b.pendentes - a.pendentes);
 
-  // Rodízio do começo da fila entre os carros sem NENHUMA foto vista: um
+  // Rodízio do começo da fila, primeiro entre os carros sem NENHUMA foto vista: um
   // carro cujo pedido sempre estoura o tempo não pode ficar na frente de todas
   // as rodadas e gastar o orçamento sozinho. A cada rodada (15 min), começa
   // num carro diferente.
+  // O mesmo vale entre os que já têm foto vista (um carro de timeout sem
+  // recusa não é partido): os dois grupos giram, cada um no seu tamanho.
+  const rodada = Math.floor(relogio() / (15 * 60 * 1000));
+  const girar = <T,>(lista: T[]) => (lista.length > 1 ? [...lista.slice(rodada % lista.length), ...lista.slice(0, rodada % lista.length)] : lista);
   const nunca = fila.filter((x) => x.ja.length === 0);
   const parciais = fila.filter((x) => x.ja.length > 0);
-  const giro = nunca.length > 0 ? Math.floor(relogio() / (15 * 60 * 1000)) % nunca.length : 0;
-  const ordem = [...nunca.slice(giro), ...nunca.slice(0, giro), ...parciais];
+  const ordem = [...girar(nunca), ...girar(parciais)];
 
   const resultado: ResultadoDaClassificacao = {
     ok: true,
@@ -333,6 +378,10 @@ export async function classificarFotosPendentes(
  * A correção à mão de uma foto (aba Fotos do Atendimento IA): grava a camada
  * e a legenda escolhidas, com quem e quando. Foto ainda na fila ganha a linha
  * aqui — e o modelo não a classifica mais. "Não mandar ao cliente" é `outra`.
+ *
+ * Um upsert só, que sobrescreve: a correção à mão vence a do modelo e a de
+ * outra correção, sem a corrida entre um update e um insert. Sem a loja, não
+ * grava — com a chave de serviço, seria escrever sem saber em que loja.
  */
 export async function corrigirFoto(
   supabase: Banco,
@@ -340,43 +389,24 @@ export async function corrigirFoto(
   correcao: Extract<CorrecaoDaFoto, { ok: true }> & { posicao: number },
   autor: string,
   agora: Date = new Date(),
-): Promise<{ ok: true } | { ok: false; erro: string }> {
-  const campos = {
-    camada: correcao.camada,
-    // O ângulo era do modelo; na correção, só a camada importa para o envio.
-    angulo: null,
-    descricao: correcao.descricao,
-    aproveitavel: correcao.camada !== "outra",
-    corrigido_por: autor,
-    corrigido_em: agora.toISOString(),
-  };
-  let atualizar = supabase
-    .from("atendimento_fotos")
-    .update(campos)
-    .eq("veiculo_id", Number(correcao.veiculo))
-    .eq("url", correcao.url);
-  if (loja) atualizar = atualizar.eq("org_id", loja);
-  const { data, error } = await atualizar.select("id");
-  if (error) return { ok: false, erro: error.message };
-  if (((data ?? []) as unknown[]).length > 0) return { ok: true };
-  const { error: erroNovo } = await supabase.from("atendimento_fotos").insert({
-    ...(loja ? { org_id: loja } : {}),
-    veiculo_id: Number(correcao.veiculo),
-    url: correcao.url,
-    posicao: correcao.posicao,
-    modelo: "manual",
-    ...campos,
-  });
-  return erroNovo ? { ok: false, erro: erroNovo.message } : { ok: true };
-}
-
-/**
- * "Refazer a classificação" do carro: apaga o que o MODELO disse, e só isso —
- * a correção à mão fica. Quem chama classifica de novo em seguida.
- */
-export async function esquecerClassificacaoDoModelo(supabase: Banco, loja: string | null, veiculo: string): Promise<{ ok: boolean; erro?: string }> {
-  let apagar = supabase.from("atendimento_fotos").delete().eq("veiculo_id", Number(veiculo)).is("corrigido_em", null);
-  if (loja) apagar = apagar.eq("org_id", loja);
-  const { error } = await apagar;
-  return error ? { ok: false, erro: error.message } : { ok: true };
+): Promise<{ ok: true; descricao: string | null } | { ok: false; erro: string }> {
+  if (!loja) return { ok: false, erro: "loja ilegível (org_padrao)" };
+  const { error } = await supabase.from("atendimento_fotos").upsert(
+    {
+      org_id: loja,
+      veiculo_id: Number(correcao.veiculo),
+      url: correcao.url,
+      posicao: correcao.posicao,
+      camada: correcao.camada,
+      // O ângulo era do modelo; na correção, só a camada importa para o envio.
+      angulo: null,
+      descricao: correcao.descricao,
+      aproveitavel: correcao.camada !== "outra",
+      modelo: "manual",
+      corrigido_por: autor,
+      corrigido_em: agora.toISOString(),
+    },
+    { onConflict: "org_id,veiculo_id,url" },
+  );
+  return error ? { ok: false, erro: error.message } : { ok: true, descricao: correcao.descricao };
 }

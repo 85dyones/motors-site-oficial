@@ -50,7 +50,12 @@ export function motivoSemEvolution(): string {
     : "a Evolution não está configurada";
 }
 
-export type ResultadoDoEnvio = { ok: true; waId: string | null } | { ok: false; motivo: string };
+/**
+ * `incerto`: o tempo acabou antes da resposta da Evolution — a mensagem pode
+ * ter saído (a Evolution segue baixando a foto e manda). Quem chama não a
+ * trata como falha certa: o eco do webhook diz depois.
+ */
+export type ResultadoDoEnvio = { ok: true; waId: string | null } | { ok: false; motivo: string; incerto?: boolean };
 
 const TIMEOUT_MS = 15_000;
 
@@ -113,6 +118,7 @@ export async function enviarTexto(
     return {
       ok: false,
       motivo: abortou ? "a Evolution não respondeu a tempo" : `falha ao falar com a Evolution: ${erro instanceof Error ? erro.message : String(erro)}`,
+      ...(abortou ? { incerto: true } : {}),
     };
   } finally {
     clearTimeout(relogio);
@@ -169,6 +175,7 @@ export async function enviarImagem(
     return {
       ok: false,
       motivo: abortou ? "a Evolution não respondeu a tempo" : `falha ao falar com a Evolution: ${erro instanceof Error ? erro.message : String(erro)}`,
+      ...(abortou ? { incerto: true } : {}),
     };
   } finally {
     clearTimeout(relogio);

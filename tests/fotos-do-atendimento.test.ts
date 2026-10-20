@@ -143,6 +143,15 @@ describe("a classificação", () => {
       "placa abc-0123",
       "chama no 41 99999-0000",
       "contato@loja.com",
+      // Os que escapavam na segunda revisão.
+      "Etiqueta 79 990",
+      "Oferta 89.9",
+      "Preço na etiqueta: 79",
+      "Preço oitenta e nove mil",
+      "Adesivo motors.co",
+      "loja.auto",
+      "t.co/abc",
+      "Placa ABC 1D23",
     ]) {
       expect(descricaoValida(ruim), ruim).toBeNull();
     }

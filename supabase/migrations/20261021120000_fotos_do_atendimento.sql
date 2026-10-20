@@ -98,6 +98,19 @@ create table if not exists public.atendimento_fotos (
   constraint atendimento_fotos_tokens_validos check (tokens_entrada >= 0 and tokens_saida >= 0)
 );
 
+-- As colunas da correção à mão entraram depois da primeira versão desta
+-- migração: num banco que já tenha a tabela, elas chegam por aqui.
+alter table public.atendimento_fotos add column if not exists corrigido_por text;
+alter table public.atendimento_fotos add column if not exists corrigido_em  timestamptz;
+do $correcao$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'atendimento_fotos_correcao_coerente') then
+    alter table public.atendimento_fotos add constraint atendimento_fotos_correcao_coerente
+      check ((corrigido_por is null) = (corrigido_em is null));
+  end if;
+end
+$correcao$;
+
 create unique index if not exists atendimento_fotos_uma_por_url
   on public.atendimento_fotos (org_id, veiculo_id, url);
 create index if not exists atendimento_fotos_por_classificacao

@@ -102,7 +102,9 @@ export default function FotosDoEstoque() {
 
   if (lista?.migracaoPendente) return <div className={FAIXA_DE_AVISO}>{lista.aviso}</div>;
 
-  const carros = (lista?.carros ?? []).filter((c) => filtro === "todos" || c.situacao.pendentes > 0);
+  // O carro aberto fica na lista mesmo que a última foto da fila seja
+  // corrigida: a galeria não fecha no meio da edição.
+  const carros = (lista?.carros ?? []).filter((c) => filtro === "todos" || c.situacao.pendentes > 0 || c.id === aberto);
   const resumo = lista?.resumo;
 
   return (
@@ -276,7 +278,10 @@ function GaleriaDoCarro({ veiculo, aoMudar }: { veiculo: string; aoMudar: () => 
           {dados.fotos.length === 0 && <p className="m-0 text-xs text-mt-neutral-700">Este carro não tem foto na galeria.</p>}
           <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-4">
             {dados.fotos.map((f) => (
-              <FotoDaGaleria key={f.url} veiculo={veiculo} foto={f} aoGravar={aoMudar} />
+              // A chave muda com a classificação: depois de classificar ou
+              // refazer, cada foto recomeça do que o servidor diz — e não do
+              // estado antigo, que uma edição da legenda gravaria como correção.
+              <FotoDaGaleria key={`${f.url}|${f.camada ?? ""}|${f.descricao ?? ""}|${f.corrigida}`} veiculo={veiculo} foto={f} aoGravar={aoMudar} />
             ))}
           </ul>
         </>
@@ -302,11 +307,14 @@ function FotoDaGaleria({ veiculo, foto, aoGravar }: { veiculo: string; foto: Fot
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ veiculo, url: foto.url, camada: proxima.camada, descricao: proxima.descricao }),
       });
-      const corpo = await lerJson<{ ok?: boolean }>(r);
+      const corpo = await lerJson<{ ok?: boolean; descricao?: string | null }>(r);
       if (!r.ok) throw new Error(corpo.error ?? "Não deu para gravar.");
+      const gravada = corpo.descricao ?? "";
       setCorrigida(true);
-      setDescricaoGravada(proxima.descricao);
+      setDescricao(gravada);
+      setDescricaoGravada(gravada);
       setEstado("gravado");
+      if (proxima.descricao.trim() && !gravada) setErro("A legenda não foi gravada: não pode ter preço, placa, telefone nem site.");
       aoGravar();
     } catch (e) {
       setEstado("");

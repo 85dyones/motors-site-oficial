@@ -46,6 +46,11 @@ export interface DadosDaEntrega {
   linkDoLead: string | null;
   /** `vendedor`: o dono recebe. `distribuir`: vai a quem escolhe o dono. */
   para: "vendedor" | "distribuir";
+  /**
+   * O cliente pediu fotos na mensagem que o entregou ("de fora do Onix LT 2020
+   * (#7950008)"): o assistente não as manda na entrega — quem manda é o vendedor.
+   */
+  fotosPedidas?: string | null;
 }
 
 /** A mensagem ao vendedor (ou a quem distribui). */
@@ -71,6 +76,7 @@ export function mensagemDeEntrega(d: DadosDaEntrega): string {
     d.ficha.cidade ? `Cidade: ${d.ficha.cidade}` : "",
     `Aquecimento: ${d.aquecimento.pontos}/100${motivoPrincipal(d.aquecimento) ? ` (${motivoPrincipal(d.aquecimento)})` : ""}`,
     d.origem ? `Origem: ${d.origem}` : "",
+    d.fotosPedidas ? `📷 Pediu fotos ${d.fotosPedidas}: mande do seu WhatsApp.` : "",
   ];
   const corpo = linhas.filter((l, i) => l !== "" || i === 2).join("\n").replace(/\n{3,}/g, "\n\n");
 
@@ -100,9 +106,12 @@ export function mensagemDePassagemAoCliente(dados: {
   nomeDoCliente: string | null;
   vendedor: { nome: string; whatsapp: string | null } | null;
   equipeDisponivel: boolean;
+  /** O cliente pediu fotos nesta mensagem: quem manda é o vendedor, e a frase diz. */
+  comFotos?: boolean;
 }): string {
   const nome = nomeParaTratar(dados.nomeDoCliente);
   const abertura = nome ? `Perfeito, ${nome}!` : "Perfeito!";
+  const fotos = dados.comFotos ? (dados.equipeDisponivel ? " e te mandar as fotos" : " e te manda as fotos") : "";
   // Sem "o consultor" nem "dele": quem vende pode ser Carla ou Bruno, e o
   // texto não sabe. O nome resolve sem adivinhar.
   if (dados.vendedor) {
@@ -110,12 +119,13 @@ export function mensagemDePassagemAoCliente(dados: {
     const numero = dados.vendedor.whatsapp ? formatarTelefone(dados.vendedor.whatsapp) : null;
     const pelo = numero ? ` pelo WhatsApp ${numero}` : "";
     return dados.equipeDisponivel
-      ? `${abertura} Vou te passar para ${quem}, da nossa equipe de consultores, que já vai te chamar${pelo}.`
-      : `${abertura} Vou te passar para ${quem}, da nossa equipe de consultores, que te chama${pelo} assim que a loja abrir.`;
+      ? `${abertura} Vou te passar para ${quem}, da nossa equipe de consultores, que já vai te chamar${pelo}${fotos}.`
+      : `${abertura} Vou te passar para ${quem}, da nossa equipe de consultores, que te chama${pelo} assim que a loja abrir${fotos}.`;
   }
+  const fotosSemDono = dados.comFotos ? " e te manda as fotos" : "";
   return dados.equipeDisponivel
-    ? `${abertura} Vou passar seu atendimento para a nossa equipe de consultores, que já te chama.`
-    : `${abertura} Vou passar seu atendimento para a nossa equipe de consultores, que te chama assim que a loja abrir.`;
+    ? `${abertura} Vou passar seu atendimento para a nossa equipe de consultores, que já te chama${fotosSemDono}.`
+    : `${abertura} Vou passar seu atendimento para a nossa equipe de consultores, que te chama assim que a loja abrir${fotosSemDono}.`;
 }
 
 /**

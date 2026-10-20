@@ -209,9 +209,14 @@ function extrairJson(conteudo: string): unknown {
  */
 function temDinheiroOuContato(t: string): boolean {
   if (/r\$|\breais?\b|\d\s*mil\b(?!\s*km)|\d\s*k\b/i.test(t)) return true;
-  if (/@|\b[\w-]+\.(?:com|net|org|br|io|me|app|site|link|ly|online|store|shop|info|xyz)\b/i.test(t)) return true;
-  // Placa: a Mercosul (ABC1D23) e a antiga (ABC-1234).
-  if (/\b[a-z]{3}-?\d[a-z0-9]\d{2}\b/i.test(t)) return true;
+  // Falar de preço, mesmo por extenso ("preço oitenta e nove mil"), é preço.
+  if (/\b(?:pre[çc]os?|valor(?:es)?|etiqueta|oferta|promo[çc][ãa]o|desconto|[àa] vista|parcelas?|financi)/i.test(t)) return true;
+  // E-mail ou qualquer coisa com cara de endereço de site (loja.auto, t.co/abc).
+  if (/@|\b[a-z0-9-]+\.[a-z]{2,}\b/i.test(t)) return true;
+  // Placa: a Mercosul (ABC1D23) e a antiga (ABC-1234), com ou sem espaço.
+  if (/\b[a-z]{3}[\s-]?\d[a-z0-9]\d{2}\b/i.test(t)) return true;
+  // Milhar separado por espaço ("79 990") conta como um número só.
+  t = t.replace(/(\d)\s(?=\d{3}\b)/g, "$1");
   for (const casado of t.matchAll(/\d[\d.,]*/g)) {
     const digitos = casado[0].replace(/[.,]\d{1,2}$/, "").replace(/\D/g, "");
     const n = Number(digitos);
@@ -434,6 +439,16 @@ export const MAIS_FOTOS_DA_GALERIA = "Quer ver mais fotos?";
 /** A camada pedida já foi inteira: lembra onde estão e oferece o que sobrou. */
 export function fotosJaMostradas(oferta: string | null): string {
   return oferta ? `Essas fotos já estão aí em cima 🙂 ${oferta}` : "Essas são todas as fotos que tenho dele aqui 🙂";
+}
+
+/** A camada pedida pode estar entre as fotos que o modelo ainda não separou: não dá para dizer que não tem. */
+export function fotosAindaNaoSeparadas(camada: CamadaDaFoto): string {
+  return `Ainda não separei as fotos ${DA_CAMADA[camada]} desse carro, mas a nossa equipe consegue te mandar. 😉`;
+}
+
+/** "de fora do Onix LT 2020 (#7950008)" — o pedido, para o resumo ao vendedor e o rastro. */
+export function pedidoDeFotosLegivel(pedido: PedidoDeFotos, nomeDoCarro: string | null | undefined): string {
+  return `${DA_CAMADA[pedido.camada]} do ${nomeDoCarro?.trim() || "carro"} (#${pedido.veiculo})`;
 }
 
 /** Sem fotos daquela camada: o assistente não inventa, a equipe manda. */
