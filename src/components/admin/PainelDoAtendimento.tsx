@@ -13,6 +13,7 @@ import type { ConfigDoAtendimento } from "../../lib/configDoAtendimento";
 import { formatarPrazo } from "../../lib/funil";
 import type { RelatorioDoAtendimento } from "../../lib/relatorioDoAtendimento";
 import { Segmentado } from "./SegmentadoDoPainel";
+import FotosDoEstoque from "./atendimento/FotosDoEstoque";
 
 /**
  * Leads → Atendimento IA (2026-10-20).
@@ -22,11 +23,13 @@ import { Segmentado } from "./SegmentadoDoPainel";
  * ver os próprios números (a rota recorta pelo escopo). E o dono, uma vez,
  * para LIGAR o assistente depois de conferir a configuração.
  *
- * Duas abas: Desempenho (todos que veem lead) e Configuração (Admin e Gestor —
- * a aba só aparece se a rota de configuração responder).
+ * Três abas: Desempenho (todos que veem lead), Configuração e Fotos (Admin e
+ * Gestor — as duas só aparecem se a rota de configuração responder). Fotos é
+ * onde se confere e corrige como o modelo de visão separou as fotos de cada
+ * carro em camadas.
  */
 
-type Aba = "desempenho" | "configuracao";
+type Aba = "desempenho" | "configuracao" | "fotos";
 
 interface RespostaDoRelatorio extends RelatorioDoAtendimento {
   veAEquipe: boolean;
@@ -108,7 +111,12 @@ export default function PainelDoAtendimento() {
 
   const abas = [
     { valor: "desempenho" as const, rotulo: "Desempenho" },
-    ...(config ? [{ valor: "configuracao" as const, rotulo: "Configuração" }] : []),
+    ...(config
+      ? [
+          { valor: "configuracao" as const, rotulo: "Configuração" },
+          { valor: "fotos" as const, rotulo: "Fotos" },
+        ]
+      : []),
   ];
 
   return (
@@ -149,6 +157,7 @@ export default function PainelDoAtendimento() {
         />
       )}
       {aba === "configuracao" && config && <Configuracao inicial={config} aoGravar={setConfig} />}
+      {aba === "fotos" && config && <FotosDoEstoque />}
     </div>
   );
 }

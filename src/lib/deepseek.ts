@@ -85,7 +85,8 @@ export interface UsoDoModelo {
 
 export type ResultadoDoModelo =
   | { ok: true; conteudo: string; uso: UsoDoModelo }
-  | { ok: false; motivo: string };
+  /** `status`: o HTTP da recusa. Ausente quando nem houve resposta (tempo esgotado, rede). */
+  | { ok: false; motivo: string; status?: number };
 
 const TIMEOUT_MS = 25_000;
 
@@ -152,7 +153,7 @@ export async function completarEmJson(opcoes: {
     const corpo = (await resposta.json().catch(() => null)) as CorpoDaResposta | null;
     if (!resposta.ok) {
       const detalhe = corpo?.error?.message ?? `HTTP ${resposta.status}`;
-      return { ok: false, motivo: `A DeepSeek recusou a chamada: ${String(detalhe).slice(0, 200)}` };
+      return { ok: false, motivo: `A DeepSeek recusou a chamada: ${String(detalhe).slice(0, 200)}`, status: resposta.status };
     }
     const conteudo = corpo?.choices?.[0]?.message?.content;
     if (typeof conteudo !== "string" || !conteudo.trim()) {

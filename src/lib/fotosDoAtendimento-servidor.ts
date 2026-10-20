@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { completarEmJson, type ConfigDoModelo, type Transporte } from "./deepseek";
 import {
   FOTOS_POR_PEDIDO_AO_MODELO,
+  fotoInacessivel,
   lerClassificacao,
+  type CorrecaoDaFoto,
   montarPedidoDeClassificacao,
   type AnguloDaFoto,
   type CamadaClassificada,
@@ -37,6 +39,7 @@ interface LinhaDaFoto {
   angulo: AnguloDaFoto | null;
   descricao: string | null;
   aproveitavel: boolean | null;
+  corrigido_em?: string | null;
 }
 
 const PAGINA = 1000;
@@ -47,8 +50,10 @@ const PEDIDOS_EM_PARALELO = 2;
 /**
  * As fotos já classificadas destes carros, por carro. Em páginas: o PostgREST
  * devolve no máximo mil linhas por leitura, e o estoque inteiro passa disso.
- * Leitura que falha (inclusive antes da migração) volta vazia — o atendimento
- * cai na galeria em ordem, e a base do agente, no catálogo sem as camadas.
+ * Leitura que falha (inclusive antes da migração), ou sem a loja, volta
+ * vazia — o atendimento classifica de novo (a gravação ignora o que já
+ * existe) ou cai na galeria em ordem, e a base do agente, no catálogo sem as
+ * camadas.
  */
 export async function lerFotosClassificadas(
   supabase: Banco,
@@ -56,6 +61,9 @@ export async function lerFotosClassificadas(
   ids: readonly string[],
 ): Promise<Map<string, FotoClassificada[]>> {
   const porCarro = new Map<string, FotoClassificada[]>();
+  // Sem a loja, nada: com a chave de serviço, ler sem o filtro seria ler a
+  // classificação de todas as lojas.
+  if (!loja) return porCarro;
   // `veiculo_id` é `bigint` — o id do anúncio no RevendaMais —, e o estoque o
   // entrega em texto: a leitura e a gravação usam o número.
   const numericos = ids.filter((id) => /^\d{1,15}$/.test(id));
@@ -64,9 +72,9 @@ export async function lerFotosClassificadas(
     for (let desde = 0; ; desde += PAGINA) {
       let consulta = supabase
         .from("atendimento_fotos")
-        .select("veiculo_id, url, posicao, camada, angulo, descricao, aproveitavel")
+        .select("veiculo_id, url, posicao, camada, angulo, descricao, aproveitavel, corrigido_em")
         .in("veiculo_id", fatia.map(Number));
-      if (loja) consulta = consulta.eq("org_id", loja);
+      consulta = consulta.eq("org_id", loja);
       const { data, error } = await consulta.order("id", { ascending: true }).range(desde, desde + PAGINA - 1);
       if (error) {
         console.warn("[Atendimento] Fotos classificadas ilegíveis:", error.message);
@@ -83,6 +91,7 @@ export async function lerFotosClassificadas(
           angulo: l.angulo ?? null,
           descricao: l.descricao ?? null,
           aproveitavel: l.aproveitavel !== false,
+          corrigida: Boolean(l.corrigido_em),
         });
         porCarro.set(id, lista);
       }
@@ -100,10 +109,31 @@ export interface ClassificacaoDoCarro {
   motivo?: string;
 }
 
+type Lote = { url: string; posicao: number }[];
+
+/**
+ * Recusa que é da FOTO, e não do pedido: 4xx, menos credencial (401), saldo
+ * (402) e limite de uso (429). É o que a DeepSeek devolve quando não consegue
+ * baixar uma das imagens — e aí o lote inteiro cai por causa de uma.
+ */
+function recusaDaFoto(status: number | undefined): boolean {
+  return typeof status === "number" && status >= 400 && status < 500 && ![401, 402, 429].includes(status);
+}
+
 /**
  * Classifica as fotos do carro que ainda não foram vistas, em pedidos de até
- * doze, dois de cada vez. Pedido que falha deixa as fotos dele na fila (a
- * próxima rodada tenta de novo); o que deu certo é gravado na hora.
+ * doze, dois de cada vez. O que deu certo é gravado na hora; o pedido que
+ * falha deixa as fotos dele na fila.
+ *
+ * Uma foto que o modelo não consegue abrir (URL quebrada) derrubaria o lote
+ * inteiro a cada rodada, e o carro ficaria para sempre na frente da fila. Por
+ * isso a recusa da foto parte o lote ao meio até achar a culpada, que é
+ * gravada como não aproveitável — a Evolution também não a abriria. Só quando
+ * ALGUM pedido do carro deu certo: se nenhum deu, o problema é o pedido, não
+ * a foto, e nada é marcado.
+ *
+ * `prazo` (no relógio de `relogio`) limita cada chamada ao tempo que sobra:
+ * a classificação não pode passar do tempo de quem chamou.
  *
  * Grava com `ignoreDuplicates`: a rodada e o atendimento podem classificar o
  * mesmo carro ao mesmo tempo, e a segunda gravação não é erro. O custo do
@@ -113,63 +143,110 @@ export async function classificarCarro(
   supabase: Banco,
   carro: CarroComFotos,
   jaClassificadas: readonly FotoClassificada[],
-  opcoes: { modelo: ConfigDoModelo; loja: string | null; transporte?: Transporte; timeoutMs?: number },
+  opcoes: {
+    modelo: ConfigDoModelo;
+    loja: string | null;
+    transporte?: Transporte;
+    timeoutMs?: number;
+    relogio?: () => number;
+    prazo?: number;
+  },
 ): Promise<ClassificacaoDoCarro> {
   const vistas = new Set(jaClassificadas.map((f) => f.url));
   const pendentes = carro.urls.map((url, posicao) => ({ url, posicao })).filter((f) => !vistas.has(f.url));
   const fotos = [...jaClassificadas];
   if (pendentes.length === 0) return { fotos, novas: 0, falhas: 0 };
-
-  const lotes: { url: string; posicao: number }[][] = [];
-  for (let i = 0; i < pendentes.length; i += FOTOS_POR_PEDIDO_AO_MODELO) lotes.push(pendentes.slice(i, i + FOTOS_POR_PEDIDO_AO_MODELO));
+  const relogio = opcoes.relogio ?? Date.now;
+  const teto = opcoes.timeoutMs ?? 50_000;
 
   let novas = 0;
   let falhas = 0;
+  let sucessos = 0;
   let motivo: string | undefined;
-  for (let i = 0; i < lotes.length; i += PEDIDOS_EM_PARALELO) {
-    const resultados = await Promise.all(
-      lotes.slice(i, i + PEDIDOS_EM_PARALELO).map(async (lote) => {
-        const chamada = await completarEmJson({
-          cfg: opcoes.modelo,
-          mensagens: montarPedidoDeClassificacao(carro, lote),
-          maxTokens: 1500,
-          temperatura: 0.1,
-          modoJson: false,
-          transporte: opcoes.transporte,
-          timeoutMs: opcoes.timeoutMs ?? 50_000,
-        });
-        if (!chamada.ok) return { ok: false as const, motivo: chamada.motivo };
-        const lidas = lerClassificacao(chamada.conteudo, lote);
-        if (!lidas) return { ok: false as const, motivo: "o modelo de visão respondeu fora do formato" };
-        const porFoto = { entrada: Math.round(chamada.uso.entrada / lote.length), saida: Math.round(chamada.uso.saida / lote.length) };
-        const { error } = await supabase.from("atendimento_fotos").upsert(
-          lidas.map((f) => ({
-            ...(opcoes.loja ? { org_id: opcoes.loja } : {}),
-            veiculo_id: Number(carro.id),
-            url: f.url,
-            posicao: f.posicao,
-            camada: f.camada,
-            angulo: f.angulo,
-            descricao: f.descricao,
-            aproveitavel: f.aproveitavel,
-            modelo: opcoes.modelo.modelo,
-            tokens_entrada: porFoto.entrada,
-            tokens_saida: porFoto.saida,
-          })),
-          { onConflict: "org_id,veiculo_id,url", ignoreDuplicates: true },
-        );
-        if (error) return { ok: false as const, motivo: `classificação não gravada: ${error.message}` };
-        return { ok: true as const, lidas };
-      }),
+  const suspeitas: Lote = [];
+
+  const gravar = async (lidas: FotoClassificada[], uso: { entrada: number; saida: number }, modelo: string) => {
+    const { error } = await supabase.from("atendimento_fotos").upsert(
+      lidas.map((f) => ({
+        ...(opcoes.loja ? { org_id: opcoes.loja } : {}),
+        veiculo_id: Number(carro.id),
+        url: f.url,
+        posicao: f.posicao,
+        camada: f.camada,
+        angulo: f.angulo,
+        descricao: f.descricao,
+        aproveitavel: f.aproveitavel,
+        modelo,
+        tokens_entrada: uso.entrada,
+        tokens_saida: uso.saida,
+      })),
+      { onConflict: "org_id,veiculo_id,url", ignoreDuplicates: true },
     );
-    for (const r of resultados) {
-      if (r.ok) {
-        fotos.push(...r.lidas);
-        novas += r.lidas.length;
-      } else {
-        falhas += 1;
-        motivo = r.motivo;
+    if (error) {
+      falhas += 1;
+      motivo = `classificação não gravada: ${error.message}`;
+      return;
+    }
+    fotos.push(...lidas);
+    novas += lidas.length;
+  };
+
+  const classificarLote = async (lote: Lote): Promise<void> => {
+    const sobra = opcoes.prazo === undefined ? teto : Math.min(teto, opcoes.prazo - relogio());
+    if (sobra < 5_000) {
+      falhas += 1;
+      motivo = "sem tempo para classificar";
+      return;
+    }
+    const chamada = await completarEmJson({
+      cfg: opcoes.modelo,
+      mensagens: montarPedidoDeClassificacao(carro, lote),
+      maxTokens: 1500,
+      temperatura: 0.1,
+      modoJson: false,
+      transporte: opcoes.transporte,
+      timeoutMs: sobra,
+    });
+    if (!chamada.ok) {
+      if (recusaDaFoto(chamada.status)) {
+        if (lote.length === 1) {
+          suspeitas.push(lote[0]);
+          return;
+        }
+        const meio = Math.ceil(lote.length / 2);
+        await Promise.all([classificarLote(lote.slice(0, meio)), classificarLote(lote.slice(meio))]);
+        return;
       }
+      falhas += 1;
+      motivo = chamada.motivo;
+      return;
+    }
+    const lidas = lerClassificacao(chamada.conteudo, lote);
+    if (!lidas) {
+      falhas += 1;
+      motivo = "o modelo de visão respondeu fora do formato";
+      return;
+    }
+    sucessos += 1;
+    await gravar(
+      lidas,
+      { entrada: Math.round(chamada.uso.entrada / lidas.length), saida: Math.round(chamada.uso.saida / lidas.length) },
+      opcoes.modelo.modelo,
+    );
+  };
+
+  const lotes: Lote[] = [];
+  for (let i = 0; i < pendentes.length; i += FOTOS_POR_PEDIDO_AO_MODELO) lotes.push(pendentes.slice(i, i + FOTOS_POR_PEDIDO_AO_MODELO));
+  for (let i = 0; i < lotes.length; i += PEDIDOS_EM_PARALELO) {
+    await Promise.all(lotes.slice(i, i + PEDIDOS_EM_PARALELO).map(classificarLote));
+  }
+
+  if (suspeitas.length > 0) {
+    if (sucessos > 0) {
+      await gravar(suspeitas.map(fotoInacessivel), { entrada: 0, saida: 0 }, "inacessivel");
+    } else {
+      falhas += 1;
+      motivo = "o modelo de visão recusou o pedido";
     }
   }
   return { fotos, novas, falhas, ...(motivo ? { motivo } : {}) };
@@ -220,6 +297,15 @@ export async function classificarFotosPendentes(
     .filter((x) => x.pendentes > 0)
     .sort((a, b) => a.ja.length - b.ja.length || b.pendentes - a.pendentes);
 
+  // Rodízio do começo da fila entre os carros sem NENHUMA foto vista: um
+  // carro cujo pedido sempre estoura o tempo não pode ficar na frente de todas
+  // as rodadas e gastar o orçamento sozinho. A cada rodada (15 min), começa
+  // num carro diferente.
+  const nunca = fila.filter((x) => x.ja.length === 0);
+  const parciais = fila.filter((x) => x.ja.length > 0);
+  const giro = nunca.length > 0 ? Math.floor(relogio() / (15 * 60 * 1000)) % nunca.length : 0;
+  const ordem = [...nunca.slice(giro), ...nunca.slice(0, giro), ...parciais];
+
   const resultado: ResultadoDaClassificacao = {
     ok: true,
     carros_na_fila: fila.length,
@@ -228,9 +314,12 @@ export async function classificarFotosPendentes(
     falhas: 0,
     restantes: fila.length,
   };
-  for (const item of fila) {
-    if (relogio() - inicio > opcoes.orcamentoMs) break;
-    const r = await classificarCarro(supabase, item.carro, item.ja, opcoes);
+  // O orçamento é para COMEÇAR carro; o prazo é o fim de verdade, dentro dos
+  // 60 s da função — cada chamada ao modelo só tem o tempo que sobra até ele.
+  const prazo = inicio + opcoes.orcamentoMs + 15_000;
+  for (const item of ordem) {
+    if (relogio() - inicio > opcoes.orcamentoMs || prazo - relogio() < 20_000) break;
+    const r = await classificarCarro(supabase, item.carro, item.ja, { ...opcoes, relogio, prazo });
     resultado.restantes -= 1;
     resultado.fotos_classificadas += r.novas;
     resultado.falhas += r.falhas;
@@ -238,4 +327,56 @@ export async function classificarFotosPendentes(
     if (r.motivo) resultado.motivo = r.motivo;
   }
   return resultado;
+}
+
+/**
+ * A correção à mão de uma foto (aba Fotos do Atendimento IA): grava a camada
+ * e a legenda escolhidas, com quem e quando. Foto ainda na fila ganha a linha
+ * aqui — e o modelo não a classifica mais. "Não mandar ao cliente" é `outra`.
+ */
+export async function corrigirFoto(
+  supabase: Banco,
+  loja: string | null,
+  correcao: Extract<CorrecaoDaFoto, { ok: true }> & { posicao: number },
+  autor: string,
+  agora: Date = new Date(),
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const campos = {
+    camada: correcao.camada,
+    // O ângulo era do modelo; na correção, só a camada importa para o envio.
+    angulo: null,
+    descricao: correcao.descricao,
+    aproveitavel: correcao.camada !== "outra",
+    corrigido_por: autor,
+    corrigido_em: agora.toISOString(),
+  };
+  let atualizar = supabase
+    .from("atendimento_fotos")
+    .update(campos)
+    .eq("veiculo_id", Number(correcao.veiculo))
+    .eq("url", correcao.url);
+  if (loja) atualizar = atualizar.eq("org_id", loja);
+  const { data, error } = await atualizar.select("id");
+  if (error) return { ok: false, erro: error.message };
+  if (((data ?? []) as unknown[]).length > 0) return { ok: true };
+  const { error: erroNovo } = await supabase.from("atendimento_fotos").insert({
+    ...(loja ? { org_id: loja } : {}),
+    veiculo_id: Number(correcao.veiculo),
+    url: correcao.url,
+    posicao: correcao.posicao,
+    modelo: "manual",
+    ...campos,
+  });
+  return erroNovo ? { ok: false, erro: erroNovo.message } : { ok: true };
+}
+
+/**
+ * "Refazer a classificação" do carro: apaga o que o MODELO disse, e só isso —
+ * a correção à mão fica. Quem chama classifica de novo em seguida.
+ */
+export async function esquecerClassificacaoDoModelo(supabase: Banco, loja: string | null, veiculo: string): Promise<{ ok: boolean; erro?: string }> {
+  let apagar = supabase.from("atendimento_fotos").delete().eq("veiculo_id", Number(veiculo)).is("corrigido_em", null);
+  if (loja) apagar = apagar.eq("org_id", loja);
+  const { error } = await apagar;
+  return error ? { ok: false, erro: error.message } : { ok: true };
 }

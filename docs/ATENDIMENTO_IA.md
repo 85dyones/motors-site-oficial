@@ -227,9 +227,12 @@ só muda pelo servidor: um gatilho no banco recusa a mudança vinda da sessão.
 (`respondendo_desde`, 90 s): a mensagem que chega enquanto o assistente
 responde é respondida por uma segunda volta da mesma execução, e não por uma
 resposta paralela. Se a primeira demorou demais para dar a segunda volta (por
-exemplo, classificando na hora as fotos do carro), o workflow de entrada pede a
-resposta de novo, uma vez, 75 s depois — e, se ela já tiver sido coberta, a
-rota devolve `ja_respondida` e nada sai em dobro. O lead de um número novo é achado ou criado sob trava por
+exemplo, classificando na hora as fotos do carro), a rota devolve `ocupado`
+com `tentar_em_ms` — quando a resposta em curso terá terminado com certeza — e
+o workflow de entrada pede de novo, uma vez, nessa hora; se ela já tiver sido
+coberta, a rota devolve `ja_respondida` e nada sai em dobro. A trava vale
+130 s, mais que os 120 s da função: enquanto a resposta em curso pode estar
+viva, ninguém a toma — e cada execução solta só a própria trava. O lead de um número novo é achado ou criado sob trava por
 telefone (`achar_ou_criar_lead_do_whatsapp`), para a rajada não criar dois. O
 resumo ao vendedor e cada toque de cadência são **reservados** por um update
 condicional antes de sair: o quadro e a rodada, ou duas rodadas, não mandam o
@@ -291,7 +294,12 @@ em pedidos de até 12, e volta com:
 
 …mais uma descrição de até seis palavras ("Teto solar panorâmico"), que vira a
 legenda no WhatsApp e o destaque da oferta, e se a foto é aproveitável (tremida
-ou escura não vai). Fica em `atendimento_fotos`, com a URL como chave: foto
+ou escura não vai). O modelo LÊ o que está escrito na foto: descrição com
+dinheiro, placa, telefone, e-mail ou site é descartada inteira, na gravação e
+de novo na leitura — a etiqueta de preço no vidro não vira legenda, nem
+destaque da oferta, nem linha do catálogo. Foto que o modelo não consegue
+abrir (URL quebrada) é achada partindo o lote ao meio e sai do envio, para não
+derrubar o carro inteiro a cada rodada; foto que o modelo pulou fica na fila. Fica em `atendimento_fotos`, com a URL como chave: foto
 trocada na galeria é URL nova e entra na fila sozinha. A rodada das fotos
 (`/api/atendimento/fotos`, junto com a rodada do n8n) adianta a fila do
 estoque; o carro que o cliente pedir antes disso é classificado na hora, pela
@@ -320,11 +328,34 @@ só a frase que vem antes ("Olha ele aqui 👇"). O servidor:
 
 O estado do prompt lista o que já foi mostrado de cada carro e o que ainda dá
 para oferecer, e o histórico resume as fotos ("enviou 4 fotos de fora do carro
-#…") — o modelo sabe onde a conversa está sem reler imagem. A camada que o
-carro não tem vira *"Não tenho foto do motor desse carro aqui, mas a nossa
-equipe consegue te mandar"*. Sem classificação nenhuma (o modelo de visão
-caiu), vai a galeria em ordem, de quatro em quatro, com *"Quer ver mais
-fotos?"*. No painel, a conversa mostra a foto com a legenda e a camada.
+#…") — o modelo sabe onde a conversa está sem reler imagem.
+
+**O pedido sempre fecha.** O modelo já escreveu "Olha ele aqui 👇"; se nenhuma
+foto sai, o servidor fecha a frase: a camada que o carro não tem vira *"Não
+tenho foto do motor desse carro aqui, mas a nossa equipe consegue te mandar"*;
+a que já foi inteira, *"Essas fotos já estão aí em cima 🙂"* e o que sobrou;
+carro fora do estoque ou falha, *"a nossa equipe consegue te mandar"*. Faltando
+as de fora e havendo fotos ainda não separadas (o modelo de visão caiu ou não
+terminou), vão essas, em ordem, de quatro em quatro, com *"Quer ver mais
+fotos?"* — nunca uma marcada "não mandar". A oferta da próxima camada só sai
+quando a camada saiu inteira agora. Sem saber o que já foi à conversa (a
+leitura falhou), nenhuma foto sai: mandar de novo seria foto em dobro.
+
+**Prazo e ordem.** As fotos saem depois de o lead estar gravado (ficha, nota,
+cadência), e só até 80 s do começo da resposta; a classificação na hora só
+começa se sobrarem 45 s, e cada foto tem 15 s na Evolution. **Na entrega ao
+vendedor, nenhuma foto nem oferta**: o cliente vai à pessoa, e a passagem é a
+última palavra do assistente. No painel, a conversa mostra a foto com a
+legenda e a camada.
+
+**Conferir e corrigir — Leads → Atendimento IA → Fotos** (Admin e Gestor). A
+aba lista os carros à venda com o andamento ("12 de 40 carros com as fotos
+separadas · 85 fotos na fila"), primeiro os que ainda têm foto na fila, e um
+botão para **classificar a fila agora** sem esperar a rodada. Cada carro abre a
+galeria com a camada de cada foto: trocar a camada, marcar **"Não mandar ao
+cliente"** ou ajustar a legenda grava na hora, com o nome de quem corrigiu, e
+vale na conversa seguinte. Foto corrigida à mão o modelo não reclassifica:
+**"Refazer a classificação"** do carro apaga e refaz só o que o modelo disse.
 
 ---
 
@@ -350,7 +381,8 @@ fotos?"*. No painel, a conversa mostra a foto com a legenda e a camada.
   tempo até o primeiro contato registrado, sem contato, conversão) e as
   cadências (toques, reaquecidos). O vendedor vê só os próprios números.
   A aba **Configuração** (Admin e Gestor) liga o assistente e edita tudo da
-  régua.
+  régua; a aba **Fotos** (Admin e Gestor) mostra e corrige como as fotos de
+  cada carro foram separadas em camadas (§6.1).
 
 > Quem atende **do próprio número** não aparece na conversa da loja. O tempo
 > até o primeiro contato dele vem do registro no lead (ou da resposta pelo
@@ -370,6 +402,7 @@ fotos?"*. No painel, a conversa mostra a foto com a legenda e a camada.
 | `GET/PUT /api/atendimento/config` | painel (Admin, Gestor) | A configuração da loja, e o que falta nas integrações. Desligar devolve os leads do assistente à equipe. |
 | `GET /api/atendimento/relatorio?dias=30` | painel | O relatório, recortado pelo escopo de quem pede. |
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
+| `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
 ## 9. O banco — `20261020120000_atendimento_ia.sql` e `20261021120000_fotos_do_atendimento.sql`
 
@@ -392,8 +425,9 @@ As leituras com a chave de serviço filtram pela loja de `org_padrao()` (a
 configuração, a idempotência da entrada), e o que se grava leva `org_id`.
 
 A segunda migração cria `atendimento_fotos` (a classificação: camada, ângulo,
-descrição, aproveitável e tokens, uma linha por URL de foto de cada carro,
-leitura da equipe e escrita só do servidor) e acrescenta a
+descrição, aproveitável, tokens e — na correção à mão — quem e quando; uma
+linha por URL de foto de cada carro, leitura da equipe e escrita só do
+servidor) e acrescenta a
 `atendimento_mensagens` a foto que saiu na conversa (`midia_url`,
 `veiculo_id`, `camada` — só na saída, só imagem, com endereço http(s)).
 
@@ -437,10 +471,6 @@ só grava a conversa e cria o lead.
 - **Agenda de test-drive com lembrete, pós-visita e "carro compatível chegou".**
   São cadências do manobrAI que dependem de agenda e de casar estoque novo com
   interesse; a estrutura de cadência suporta, e entram na próxima rodada.
-- **Corrigir a classificação de uma foto no painel.** A classificação aparece
-  na conversa (a camada de cada foto enviada), mas ainda não há tela para
-  trocar a camada de uma foto à mão; hoje, apagar a linha em
-  `atendimento_fotos` faz a foto voltar à fila.
 - **Áudio.** Entendido quando a transcrição da Evolution está ligada; sem ela,
   o assistente pede para escrever.
 - **Monitorar o número de cada vendedor.** Conectar o WhatsApp de cada vendedor

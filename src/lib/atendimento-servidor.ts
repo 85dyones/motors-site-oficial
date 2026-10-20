@@ -55,9 +55,13 @@ import { urlDoLead } from "./filaDoFunil";
 import {
   escolherFotos,
   fotosDaGaleria,
+  fotosJaMostradas,
+  FOTOS_FORA_DO_AR,
   legendaDaFoto,
   linhaDasFotosNoEstado,
+  MAIS_FOTOS_DA_GALERIA,
   ofertaDepoisDasFotos,
+  SEM_FOTO_DO_CARRO,
   semFotoDaCamada,
   type CamadaDaFoto,
   type FotoClassificada,
@@ -66,6 +70,7 @@ import {
 import {
   classificarCarro,
   classificarFotosPendentes,
+  esquecerClassificacaoDoModelo,
   lerFotosClassificadas,
   type ResultadoDaClassificacao,
 } from "./fotosDoAtendimento-servidor";
@@ -128,6 +133,8 @@ export interface Dependencias {
   alertar?: (assunto: string, detalhe: string) => Promise<void>;
   /** O relógio de parede, para os orçamentos de tempo. A suíte o fixa. */
   relogio?: () => number;
+  /** A conversa classificou fotos novas: a rota revalida o catálogo do prompt. */
+  aoClassificarFotos?: () => void;
 }
 
 /** Quanto o n8n espera, depois da última mensagem, antes de pedir a resposta. */
@@ -140,8 +147,14 @@ const JANELA_DO_ECO_MS = 5 * 60 * 1000;
 const JANELA_DA_CONFIRMACAO_MS = 6 * 60 * 60 * 1000;
 /** Entrega mais velha que isto não procura mais o vendedor. */
 const JANELA_DA_ENTREGA_PENDENTE_MS = 7 * 24 * 60 * 60 * 1000;
-/** A trava da resposta vale isto; depois, a próxima execução assume. */
-const VALIDADE_DA_TRAVA_MS = 90_000;
+/**
+ * A trava da resposta vale isto; depois, a próxima execução assume. Mais que
+ * os 120 s do `maxDuration` da rota: enquanto a função que a segura pode
+ * estar viva, ninguém a toma.
+ */
+const VALIDADE_DA_TRAVA_MS = 130_000;
+/** Até quando, contado do começo da resposta, as fotos podem sair — o resto do tempo é da entrega. */
+const PRAZO_DAS_FOTOS_MS = 80_000;
 /** Mensagem do cliente sem resposta há mais que isto, com o assistente no lead: travou. */
 const RESPOSTA_ATRASADA_MS = 10 * 60 * 1000;
 /** Depois do último toque, o cliente tem um dia para responder antes de o lead voltar à equipe. */
@@ -155,6 +168,8 @@ const TOQUES_POR_RODADA = 30;
 const ORCAMENTO_DA_CLASSIFICACAO_MS = 40_000;
 /** O carro que o cliente pediu e ainda não foi classificado: o tempo que a resposta espera a visão. */
 const ESPERA_DA_CLASSIFICACAO_NA_CONVERSA_MS = 30_000;
+/** A Evolution baixa a foto antes de responder; na conversa, cada foto tem este tempo. */
+const ESPERA_DO_ENVIO_DA_FOTO_MS = 15_000;
 
 export const PARA_QUEM_DISTRIBUI = "administrador";
 
@@ -269,7 +284,12 @@ async function lerLead(supabase: Banco, id: string): Promise<Linha | null> {
   return (data as Linha | null) ?? null;
 }
 
-async function lerConversa(supabase: Banco, leadId: string, limite = MENSAGENS_DO_HISTORICO): Promise<Linha[]> {
+/**
+ * A conversa, da mais velha à mais nova. O padrão lê o dobro da janela do
+ * histórico: as fotos em sequência viram uma linha só para o modelo
+ * (`historicoParaOModelo`), e a janela tem de sobrar para a conversa.
+ */
+async function lerConversa(supabase: Banco, leadId: string, limite = MENSAGENS_DO_HISTORICO * 2): Promise<Linha[]> {
   const { data, error } = await supabase
     .from("atendimento_mensagens")
     .select("id, direcao, autor, autor_nome, conteudo, texto, situacao, wa_id, respondida_em, criado_em, telefone, midia_url, veiculo_id, camada")
@@ -433,7 +453,7 @@ async function enviarAoCliente(
     return { ok: false, id: null, motivo: `mensagem não gravada: ${error?.message ?? "sem linha"}` };
   }
   const r = envio.midia
-    ? await enviarImagem(envio.telefone, { url: envio.midia.url, legenda: envio.texto }, cfg, { transporte: deps.transporte })
+    ? await enviarImagem(envio.telefone, { url: envio.midia.url, legenda: envio.texto }, cfg, { transporte: deps.transporte, timeoutMs: ESPERA_DO_ENVIO_DA_FOTO_MS })
     : await enviarTexto(envio.telefone, envio.texto, cfg, {
         atrasoMs: comAtraso ? atrasoDeDigitacao(envio.texto) : undefined,
         transporte: deps.transporte,
@@ -844,6 +864,8 @@ export interface DesfechoDaResposta {
   voltas?: number;
   /** Fotos do carro que saíram nesta resposta. */
   fotos?: number;
+  /** Com `ocupado`: quando a resposta em curso terá terminado — o workflow tenta de novo depois disso. */
+  tentar_em_ms?: number;
   detalhe?: string;
 }
 
@@ -851,7 +873,7 @@ export interface DesfechoDaResposta {
  * A trava da resposta, POR LEAD: dois updates condicionais, cada um atômico.
  * Livre, ou presa há mais que a validade (a função que segurava morreu).
  */
-async function travarResposta(supabase: Banco, leadId: string, agora: Date): Promise<boolean> {
+async function travarResposta(supabase: Banco, leadId: string, agora: Date): Promise<string | null> {
   const marca = agora.toISOString();
   const { data: livre } = await supabase
     .from("leads")
@@ -859,7 +881,7 @@ async function travarResposta(supabase: Banco, leadId: string, agora: Date): Pro
     .eq("id", leadId)
     .is("respondendo_desde", null)
     .select("id");
-  if (((livre ?? []) as Linha[]).length > 0) return true;
+  if (((livre ?? []) as Linha[]).length > 0) return marca;
   const vencida = new Date(agora.getTime() - VALIDADE_DA_TRAVA_MS).toISOString();
   const { data: presa } = await supabase
     .from("leads")
@@ -867,11 +889,12 @@ async function travarResposta(supabase: Banco, leadId: string, agora: Date): Pro
     .eq("id", leadId)
     .lt("respondendo_desde", vencida)
     .select("id");
-  return ((presa ?? []) as Linha[]).length > 0;
+  return ((presa ?? []) as Linha[]).length > 0 ? marca : null;
 }
 
-async function soltarResposta(supabase: Banco, leadId: string): Promise<void> {
-  await supabase.from("leads").update({ respondendo_desde: null }).eq("id", leadId);
+/** Solta só a PRÓPRIA trava: se ela venceu e outra execução assumiu, a dela fica. */
+async function soltarResposta(supabase: Banco, leadId: string, marca: string): Promise<void> {
+  await supabase.from("leads").update({ respondendo_desde: null }).eq("id", leadId).eq("respondendo_desde", marca);
 }
 
 /** As mensagens do cliente que ainda ninguém respondeu. */
@@ -923,7 +946,14 @@ export async function responderAoLead(
     if (ultima && ultima.id !== pedido.mensagemId) return { acao: "aguardando_mais_novas", lead: leadId };
   }
 
-  if (!(await travarResposta(supabase, leadId, agora))) return { acao: "ocupado", lead: leadId };
+  const marca = await travarResposta(supabase, leadId, agora);
+  if (!marca) {
+    // Quando tentar de novo (o workflow de entrada espera isto e pede uma vez
+    // mais): depois de a resposta em curso ter terminado com certeza.
+    const desde = lead.respondendo_desde ? new Date(lead.respondendo_desde).getTime() : agora.getTime();
+    const tentarEm = Math.round(Math.min(VALIDADE_DA_TRAVA_MS, Math.max(15_000, desde + 125_000 - agora.getTime())));
+    return { acao: "ocupado", lead: leadId, tentar_em_ms: tentarEm };
+  }
   try {
     let voltas = 0;
     let resultado: DesfechoDaResposta;
@@ -931,7 +961,7 @@ export async function responderAoLead(
     // dela achou a trava ocupada e saiu; quem responde é esta.
     for (;;) {
       voltas += 1;
-      resultado = await responderUmaVez(supabase, leadId, config, deps, agora);
+      resultado = await responderUmaVez(supabase, leadId, config, deps, agora, inicio + PRAZO_DAS_FOTOS_MS);
       if (resultado.acao !== "respondido" || resultado.entregue) break;
       if (voltas >= 2 || relogio() - inicio > ORCAMENTO_DA_SEGUNDA_VOLTA_MS) break;
       if ((await pendentesDoCliente(supabase, leadId)).length === 0) break;
@@ -945,7 +975,7 @@ export async function responderAoLead(
     await alertar(deps, "atendimento-erro", `Assistente de atendimento falhou: ${motivo}. O lead voltou para a equipe.`);
     return { acao: "falhou", lead: leadId, detalhe: motivo };
   } finally {
-    await soltarResposta(supabase, leadId);
+    await soltarResposta(supabase, leadId, marca);
   }
 }
 
@@ -968,6 +998,8 @@ async function responderUmaVez(
   config: ConfigDoAtendimento,
   deps: Dependencias,
   agora: Date,
+  /** No relógio de `relogioDe(deps)`: depois disto, nenhuma foto começa a sair. */
+  prazoDasFotos: number,
 ): Promise<DesfechoDaResposta> {
   const lead = await lerLead(supabase, leadId);
   if (!lead || lead.desfecho || lead.optout_em || lead.assistente_fase !== "qualificando") {
@@ -1078,24 +1110,6 @@ async function responderUmaVez(
     return { acao: "envio_falhou", lead: leadId, enviadas, falhas, detalhe: ultimoMotivo };
   }
 
-  // As fotos que o modelo pediu saem depois do texto, com a oferta da
-  // próxima camada por último.
-  let fotos = 0;
-  if (resposta.fotos && !sinais.optout) {
-    const r = await mandarFotos(supabase, {
-      leadId,
-      telefone: lead.telefone,
-      pedido: resposta.fotos,
-      base,
-      config,
-      evolution,
-      deps,
-      atendimentoId: atendimento?.id ?? null,
-    });
-    fotos = r.fotos;
-    falhas += r.falhas;
-  }
-
   const resumo = resposta.resumo ? semLinks(resposta.resumo) : null;
   const patch: Linha = {
     aquecimento: aquecimento.pontos,
@@ -1123,6 +1137,29 @@ async function responderUmaVez(
   if (sinais.optout) {
     await assistenteNoSla(supabase, leadId, false, agora);
     await anotarNoRastro(supabase, leadId, "O cliente pediu para não receber mais mensagens.", { acao: "optout" });
+  }
+
+  // As fotos que o modelo pediu saem depois do texto — e depois de o lead
+  // estar gravado: se a Evolution demorar baixando a mídia, a ficha, a nota e
+  // a cadência já estão salvas. Com prazo, para a entrega caber no tempo da
+  // função. Na entrega, nenhuma: o cliente vai ao vendedor, e uma oferta de
+  // "quer ver o interior?" antes da passagem seria o assistente puxando
+  // conversa que ele mesmo não vai continuar.
+  let fotos = 0;
+  if (resposta.fotos && !sinais.optout && !decisao.entregar) {
+    const r = await mandarFotos(supabase, {
+      leadId,
+      telefone: lead.telefone,
+      pedido: resposta.fotos,
+      base,
+      config,
+      evolution,
+      deps,
+      atendimentoId: atendimento?.id ?? null,
+      prazo: prazoDasFotos,
+    });
+    fotos = r.fotos;
+    falhas += r.falhas;
   }
 
   let entregue = false;
@@ -1153,8 +1190,13 @@ interface FotoQueFoi {
   midia_url: string;
 }
 
-/** As fotos de carro que já foram a este lead (as que falharam não contam), da mais nova à mais velha. */
-async function fotosJaEnviadas(supabase: Banco, leadId: string): Promise<FotoQueFoi[]> {
+/**
+ * As fotos de carro que já foram a este lead (as que falharam não contam), da
+ * mais nova à mais velha. Nula quando a leitura falha: sem saber o que já
+ * foi, quem chama não manda nada — mandar de novo seria a mesma foto duas
+ * vezes no WhatsApp do cliente.
+ */
+async function fotosJaEnviadas(supabase: Banco, leadId: string): Promise<FotoQueFoi[] | null> {
   const { data, error } = await supabase
     .from("atendimento_mensagens")
     .select("veiculo_id, camada, midia_url, criado_em")
@@ -1163,7 +1205,10 @@ async function fotosJaEnviadas(supabase: Banco, leadId: string): Promise<FotoQue
     .neq("situacao", "falhou")
     .order("criado_em", { ascending: false })
     .limit(200);
-  if (error) return [];
+  if (error) {
+    console.warn("[Atendimento] Fotos já enviadas ilegíveis:", error.message);
+    return null;
+  }
   return ((data ?? []) as Linha[]).map((m) => ({
     veiculo_id: String(m.veiculo_id),
     camada: (m.camada ?? null) as CamadaDaFoto | null,
@@ -1178,7 +1223,7 @@ function camadasMostradas(enviadas: readonly FotoQueFoi[], veiculo: string): Set
 /** O que o estado do prompt diz das fotos: os três carros mais recentes da conversa que ainda estão à venda. */
 async function fotosNoEstado(supabase: Banco, leadId: string, base: BaseDaLoja): Promise<string[]> {
   const enviadas = await fotosJaEnviadas(supabase, leadId);
-  if (enviadas.length === 0) return [];
+  if (!enviadas || enviadas.length === 0) return [];
   const ids = [...new Set(enviadas.map((e) => e.veiculo_id))].filter((id) => base.fotos?.[id]).slice(0, 3);
   if (ids.length === 0) return [];
   const classificadas = await lerFotosClassificadas(supabase, await lojaDoAtendimento(supabase), ids);
@@ -1202,12 +1247,21 @@ function legendaSegura(foto: FotoClassificada, informarPreco: boolean): string {
 /**
  * Manda as fotos que o modelo pediu, em camadas.
  *
- * O carro precisa estar à venda (na base). Foto ainda não classificada é
- * classificada agora, com prazo: o cliente pediu e está esperando. Sem
- * classificação nenhuma (o modelo de visão caiu), vai a galeria em ordem, de
- * quatro em quatro. A camada que o carro não tem vira a frase de que a equipe
- * manda; a que já foi inteira não sai de novo. A oferta da próxima camada vai
- * por último (`ofertaDepoisDasFotos`).
+ * Primeiro PLANEJA, depois envia — e sempre fecha: o modelo já escreveu
+ * "Olha ele aqui 👇", e o cliente não pode ficar com a frase pendurada.
+ *
+ *   1. O carro precisa estar à venda (na base); senão, "a equipe manda".
+ *   2. Sem saber o que já foi à conversa (a leitura falhou), nada sai.
+ *   3. Foto ainda não classificada é classificada agora — se couber no prazo.
+ *   4. As fotos da camada, sem repetir (`escolherFotos`). Faltando as de fora
+ *      e havendo fotos ainda não separadas (o modelo de visão caiu, ou não
+ *      terminou), vão essas, em ordem — nunca uma marcada "não mandar".
+ *   5. Camada que já foi inteira: "essas já estão aí em cima" e o que sobrou.
+ *      Camada que o carro não tem: "a equipe manda".
+ *   6. A oferta da próxima camada só quando a camada saiu inteira agora.
+ *
+ * Nenhuma foto começa a sair depois do `prazo`: o resto do tempo da função é
+ * da entrega e da gravação.
  */
 async function mandarFotos(
   supabase: Banco,
@@ -1220,32 +1274,13 @@ async function mandarFotos(
     evolution: ConfigDaEvolution;
     deps: Dependencias;
     atendimentoId: string | null;
+    prazo: number;
   },
 ): Promise<{ fotos: number; falhas: number }> {
   const { pedido, config, deps } = ctx;
+  const relogio = relogioDe(deps);
   const veiculo = pedido.veiculo;
-  const carro = ctx.base.fotos?.[veiculo];
-  if (!carro) {
-    console.warn("[Atendimento] O modelo pediu fotos de um carro fora do estoque:", veiculo);
-    return { fotos: 0, falhas: 0 };
-  }
-  const loja = await lojaDoAtendimento(supabase);
-  let classificadas = (await lerFotosClassificadas(supabase, loja, [veiculo])).get(veiculo) ?? [];
-  const visao = visaoDe(deps);
-  if (visao && carro.urls.some((u) => !classificadas.some((f) => f.url === u))) {
-    const r = await classificarCarro(supabase, { id: veiculo, ...carro }, classificadas, {
-      modelo: visao,
-      loja,
-      transporte: deps.transporte,
-      timeoutMs: ESPERA_DA_CLASSIFICACAO_NA_CONVERSA_MS,
-    });
-    classificadas = r.fotos;
-    if (r.motivo) console.warn("[Atendimento] Classificação na conversa incompleta:", r.motivo);
-  }
-
-  const enviadas = await fotosJaEnviadas(supabase, ctx.leadId);
-  const jaEnviadas = new Set(enviadas.map((e) => e.midia_url));
-  const mostradas = camadasMostradas(enviadas, veiculo);
+  const camada = pedido.camada;
   const enviar = (texto: string, midia?: Envio["midia"]) =>
     enviarAoCliente(
       supabase,
@@ -1255,32 +1290,79 @@ async function mandarFotos(
       !midia,
     );
 
+  const carro = ctx.base.fotos?.[veiculo];
+  if (!carro) {
+    console.warn("[Atendimento] O modelo pediu fotos de um carro fora do estoque:", veiculo);
+    await enviar(SEM_FOTO_DO_CARRO);
+    return { fotos: 0, falhas: 0 };
+  }
+  const enviadas = await fotosJaEnviadas(supabase, ctx.leadId);
+  if (!enviadas) {
+    await enviar(FOTOS_FORA_DO_AR);
+    return { fotos: 0, falhas: 0 };
+  }
+
+  const loja = await lojaDoAtendimento(supabase);
+  let classificadas = (await lerFotosClassificadas(supabase, loja, [veiculo])).get(veiculo) ?? [];
+  const visao = visaoDe(deps);
+  const sobra = ctx.prazo - relogio();
+  if (visao && sobra >= 45_000 && carro.urls.some((u) => !classificadas.some((f) => f.url === u))) {
+    const r = await classificarCarro(supabase, { id: veiculo, ...carro }, classificadas, {
+      modelo: visao,
+      loja,
+      transporte: deps.transporte,
+      timeoutMs: ESPERA_DA_CLASSIFICACAO_NA_CONVERSA_MS,
+      relogio,
+      prazo: ctx.prazo - 15_000,
+    });
+    classificadas = r.fotos;
+    if (r.novas > 0) deps.aoClassificarFotos?.();
+    if (r.motivo) console.warn("[Atendimento] Classificação na conversa incompleta:", r.motivo);
+  }
+
+  const jaEnviadas = new Set(enviadas.map((e) => e.midia_url));
+  const mostradas = camadasMostradas(enviadas, veiculo);
+  const vistas = new Set(classificadas.map((f) => f.url));
+  const naoSeparadas = carro.urls.filter((u) => !vistas.has(u) && !jaEnviadas.has(u));
+  const temCamadas = classificadas.some((f) => f.aproveitavel);
+
+  // O plano.
+  let plano: { url: string; legenda: string; camada: CamadaDaFoto | null }[] = [];
+  let fechamento: string | null = null;
+  const escolhidas = escolherFotos(classificadas, camada, jaEnviadas);
+  if (escolhidas.length > 0) {
+    plano = escolhidas.map((f) => ({ url: f.url, legenda: legendaSegura(f, config.informar_preco), camada }));
+  } else if (naoSeparadas.length > 0 && (camada === "externa" || !temCamadas)) {
+    plano = fotosDaGaleria(naoSeparadas, new Set()).map((url) => ({ url, legenda: "", camada: null }));
+  } else if (mostradas.has(camada)) {
+    fechamento = fotosJaMostradas(ofertaDepoisDasFotos(classificadas, mostradas));
+  } else {
+    fechamento = semFotoDaCamada(camada);
+  }
+
+  // O envio, dentro do prazo.
   let fotos = 0;
   let falhas = 0;
-  const contar = (r: { ok: boolean }) => {
+  for (const p of plano) {
+    if (relogio() > ctx.prazo) break;
+    const r = await enviar(p.legenda, { url: p.url, veiculoId: veiculo, camada: p.camada });
     if (r.ok) fotos += 1;
     else falhas += 1;
-  };
-
-  if (classificadas.some((f) => f.aproveitavel)) {
-    const escolhidas = escolherFotos(classificadas, pedido.camada, jaEnviadas);
-    if (escolhidas.length === 0 && !mostradas.has(pedido.camada)) await enviar(semFotoDaCamada(pedido.camada));
-    for (const f of escolhidas) contar(await enviar(legendaSegura(f, config.informar_preco), { url: f.url, veiculoId: veiculo, camada: pedido.camada }));
-    if (fotos > 0) mostradas.add(pedido.camada);
-    const oferta = mostradas.has(pedido.camada) ? ofertaDepoisDasFotos(classificadas, mostradas) : null;
-    if (oferta) await enviar(oferta);
-    return { fotos, falhas };
   }
-
-  // Sem camadas: a galeria em ordem.
-  if (carro.urls.length === 0) {
-    await enviar(semFotoDaCamada("externa"));
-    return { fotos, falhas };
+  if (plano.length > 0) {
+    if (fotos === 0) {
+      fechamento = FOTOS_FORA_DO_AR;
+    } else if (fotos === plano.length) {
+      if (plano[0].camada) {
+        mostradas.add(camada);
+        fechamento = ofertaDepoisDasFotos(classificadas, mostradas);
+      } else {
+        fechamento = naoSeparadas.length > plano.length ? MAIS_FOTOS_DA_GALERIA : null;
+      }
+    }
+    // Saiu só parte (prazo ou Evolution): sem oferta — o resto vai no próximo pedido.
   }
-  const daVez = fotosDaGaleria(carro.urls, jaEnviadas);
-  for (const url of daVez) contar(await enviar("", { url, veiculoId: veiculo, camada: null }));
-  const restam = carro.urls.some((u) => !jaEnviadas.has(u) && !daVez.includes(u));
-  if (fotos > 0 && restam) await enviar("Quer ver mais fotos?");
+  if (fechamento) await enviar(fechamento);
   return { fotos, falhas };
 }
 
@@ -1914,4 +1996,30 @@ export async function mudarAssistente(
   await assistenteNoSla(supabase, leadId, true, agora);
   await anotarNoRastro(supabase, leadId, `${pedido.autor} devolveu o lead ao assistente para reaquecer.`, { acao: "devolucao" }, pedido.autor);
   return { ok: true };
+}
+
+/**
+ * "Classificar o que falta" e "Refazer a classificação" de UM carro, pela aba
+ * Fotos do Atendimento IA. Refazer apaga só o que o modelo disse: a correção
+ * à mão fica, e o modelo não a toca.
+ */
+export async function classificarCarroDoEstoque(
+  supabase: Banco,
+  veiculo: string,
+  opcoes: { refazer: boolean },
+  deps: Dependencias = {},
+): Promise<{ ok: boolean; motivo?: string; fotos_classificadas: number; falhas: number }> {
+  const modelo = visaoDe(deps);
+  if (!modelo) return { ok: false, motivo: "falta DEEPSEEK_API_KEY na Vercel", fotos_classificadas: 0, falhas: 0 };
+  const base = await carregarBase(deps, false);
+  const carro = base.fotos?.[veiculo];
+  if (!carro) return { ok: false, motivo: "o carro não está à venda", fotos_classificadas: 0, falhas: 0 };
+  const loja = await lojaDoAtendimento(supabase);
+  if (opcoes.refazer) {
+    const r = await esquecerClassificacaoDoModelo(supabase, loja, veiculo);
+    if (!r.ok) return { ok: false, motivo: `classificação antiga não apagada: ${r.erro}`, fotos_classificadas: 0, falhas: 0 };
+  }
+  const ja = (await lerFotosClassificadas(supabase, loja, [veiculo])).get(veiculo) ?? [];
+  const r = await classificarCarro(supabase, { id: veiculo, ...carro }, ja, { modelo, loja, transporte: deps.transporte });
+  return { ok: true, fotos_classificadas: r.novas, falhas: r.falhas, ...(r.motivo ? { motivo: r.motivo } : {}) };
 }

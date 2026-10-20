@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { tokenConfere } from "./comparacaoConstante";
 import { registrarFalha } from "./observabilidade";
+import { ACAO_CONFIGURAR_ATENDIMENTO, ehStaff, perfisDe, podeFazer } from "./permissoes";
+import { createServerSupabaseClient } from "./supabase-server";
 
 /**
  * A porta das rotas que o n8n chama no atendimento por IA
@@ -54,4 +56,29 @@ export async function autorizarMotorDoAtendimento(
     );
   }
   return { erro: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
+}
+
+/**
+ * A porta das telas que mexem no assistente da LOJA — a configuração e a
+ * classificação das fotos: Admin e Gestor (linha "Configurar o atendimento
+ * por IA" da matriz). Devolve o nome de quem pede, para o rastro.
+ */
+export async function quemConfiguraOAtendimento(): Promise<{ nome: string | null; recusa: NextResponse | null }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { nome: null, recusa: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
+  const { data: perfil } = await supabase
+    .from("profiles")
+    .select("role, papeis, full_name, is_active")
+    .eq("id", user.id)
+    .single();
+  if (!ehStaff(perfil) || perfil?.is_active !== true) {
+    return { nome: null, recusa: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
+  }
+  if (podeFazer(perfisDe(perfil), ACAO_CONFIGURAR_ATENDIMENTO) !== "faz") {
+    return { nome: null, recusa: NextResponse.json({ error: "Seu perfil não configura o atendimento" }, { status: 403 }) };
+  }
+  return { nome: perfil?.full_name?.trim() || null, recusa: null };
 }

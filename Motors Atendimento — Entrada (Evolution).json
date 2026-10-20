@@ -181,7 +181,7 @@
     },
     {
       "parameters": {
-        "amount": 75,
+        "amount": "={{ Math.min(135, Math.max(15, Math.round(($json.body.tentar_em_ms || 125000) / 1000))) }}",
         "unit": "seconds"
       },
       "id": "c1000000-0000-4000-8000-000000000007",
@@ -193,7 +193,7 @@
         100
       ],
       "webhookId": "c1000000-0000-4000-8000-0000000000cc",
-      "notes": "A resposta em curso termina em até 120 s (o `maxDuration` da rota). 75 s depois deste pedido, ela já acabou."
+      "notes": "A rota diz quando a resposta em curso terá terminado com certeza (`tentar_em_ms`, contado do começo dela: o `maxDuration` é 120 s e a trava vale 130 s). Sem o campo, espera 125 s."
     },
     {
       "parameters": {

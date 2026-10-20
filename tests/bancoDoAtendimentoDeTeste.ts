@@ -10,7 +10,7 @@
  * anteriores, então o banco guarda as tabelas e aplica os filtros.
  *
  * Suporta: select (as colunas são ignoradas, volta a linha inteira), insert,
- * update, upsert com `ignoreDuplicates` (pula a linha que já existe nas
+ * update, delete, upsert com `ignoreDuplicates` (pula a linha que já existe nas
  * colunas de `onConflict`), range, os filtros eq, neq, in, is, gte, lte, lt,
  * gt, not(col, "is", null),
  * order (uma ou mais, na ordem em que foram pedidas), limit, single/maybeSingle
@@ -35,6 +35,11 @@ export interface BancoDeTeste {
   tabelas: Record<string, Linha[]>;
   cliente: any;
   rpcs: { nome: string; args: any }[];
+  /**
+   * Faz falhar as leituras desta tabela cujas colunas pedidas contenham o
+   * trecho — para provar o que acontece quando UMA leitura cai.
+   */
+  quebrarLeitura: (tabela: string, trechoDasColunas: string) => void;
 }
 
 let sequencia = 0;
@@ -76,10 +81,12 @@ export function bancoDeTeste(
   const tabelas: Record<string, Linha[]> = {};
   for (const [nome, linhas] of Object.entries(inicial)) tabelas[nome] = linhas.map((l) => ({ ...l }));
   const chamadasRpc: { nome: string; args: any }[] = [];
+  const quebradas: { tabela: string; trecho: string }[] = [];
 
   const cadeia = (tabela: string) => {
-    let operacao: "select" | "insert" | "update" = "select";
+    let operacao: "select" | "insert" | "update" | "delete" = "select";
     let conflito: string[] | null = null;
+    let colunas = "";
     let faixa: [number, number] | null = null;
     let valores: any = null;
     let devolver = false;
@@ -89,6 +96,9 @@ export function bancoDeTeste(
     let limite: number | null = null;
 
     const executar = () => {
+      if (operacao === "select" && quebradas.some((q) => q.tabela === tabela && colunas.includes(q.trecho))) {
+        return { data: null, error: { message: "falha simulada de leitura", code: "XX000" } };
+      }
       tabelas[tabela] ??= [];
       const linhas = tabelas[tabela];
       let afetadas: Linha[];
@@ -107,6 +117,7 @@ export function bancoDeTeste(
       } else {
         afetadas = linhas.filter((l) => filtros.every((f) => f(l)));
         if (operacao === "update") for (const l of afetadas) Object.assign(l, valores);
+        if (operacao === "delete") tabelas[tabela] = linhas.filter((l) => !afetadas.includes(l));
       }
       let saida = [...afetadas];
       if (ordens.length > 0) {
@@ -128,8 +139,9 @@ export function bancoDeTeste(
     };
 
     const api: any = {
-      select() {
+      select(c?: string) {
         if (operacao !== "select") devolver = true;
+        else colunas = c ?? "*";
         return api;
       },
       insert(v: any) {
@@ -140,6 +152,10 @@ export function bancoDeTeste(
       update(v: any) {
         operacao = "update";
         valores = v;
+        return api;
+      },
+      delete() {
+        operacao = "delete";
         return api;
       },
       upsert(v: any, o?: { onConflict?: string; ignoreDuplicates?: boolean }) {
@@ -224,7 +240,7 @@ export function bancoDeTeste(
       return { data: f(args, tabelas), error: null };
     },
   };
-  return { tabelas, cliente, rpcs: chamadasRpc };
+  return { tabelas, cliente, rpcs: chamadasRpc, quebrarLeitura: (tabela, trecho) => quebradas.push({ tabela, trecho }) };
 }
 
 /**
@@ -239,21 +255,32 @@ export function transporteDeTeste(
   opcoes: {
     envioRecusado?: (n: number) => boolean;
     antesDoModelo?: (n: number) => Promise<void>;
-    /** O modelo de visão: recebe as URLs do pedido de classificação, na ordem, e devolve o conteúdo. */
-    visao?: (urls: string[]) => string | { erro: string };
+    /** O modelo de visão: recebe as URLs do pedido de classificação, na ordem, e devolve o conteúdo (ou a recusa, com o HTTP). */
+    visao?: (urls: string[]) => string | { erro: string; status?: number };
+    /** A Evolution recusa (500) o envio da foto de número n (a partir de 1). */
+    fotoRecusada?: (n: number) => boolean;
+    /** Chamado a cada foto enviada, antes de a Evolution responder — onde o teste olha o banco "no meio". */
+    aoEnviarFoto?: (n: number) => void;
   } = {},
 ) {
   const enviados: { numero: string; texto: string }[] = [];
   const recusados: { numero: string; texto: string }[] = [];
   const pedidosAoModelo: any[] = [];
   const pedidosDeVisao: string[][] = [];
+  const modelosDaVisao: string[] = [];
   /** Tudo o que saiu pela Evolution, na ordem: texto e foto. */
   const saidas: ({ tipo: "texto"; numero: string; texto: string } | { tipo: "foto"; numero: string; url: string; legenda: string | null })[] = [];
   let i = 0;
   let tentativas = 0;
+  let tentativasDeFoto = 0;
   const transporte = async (url: string, init?: RequestInit) => {
     const corpo = init?.body ? JSON.parse(String(init.body)) : null;
     if (url.includes("/message/sendMedia/")) {
+      tentativasDeFoto += 1;
+      opcoes.aoEnviarFoto?.(tentativasDeFoto);
+      if (opcoes.fotoRecusada?.(tentativasDeFoto)) {
+        return new Response(JSON.stringify({ message: "media download failed" }), { status: 500 });
+      }
       saidas.push({ tipo: "foto", numero: corpo.number, url: corpo.media, legenda: corpo.caption ?? null });
       return new Response(JSON.stringify({ key: { id: `WA-FOTO-${saidas.length}` } }), { status: 201 });
     }
@@ -262,8 +289,9 @@ export function transporteDeTeste(
       if (imagens.length > 0) {
         const urls = imagens.map((p: any) => p.image_url.url);
         pedidosDeVisao.push(urls);
+        modelosDaVisao.push(corpo.model);
         const r = opcoes.visao ? opcoes.visao(urls) : { erro: "sem visão no dublê" };
-        if (typeof r !== "string") return new Response(JSON.stringify({ error: { message: r.erro } }), { status: 500 });
+        if (typeof r !== "string") return new Response(JSON.stringify({ error: { message: r.erro } }), { status: r.status ?? 500 });
         return new Response(JSON.stringify({ choices: [{ message: { content: r } }], usage: { prompt_tokens: 300 * urls.length, completion_tokens: 40 * urls.length } }), { status: 200 });
       }
     }
@@ -290,5 +318,5 @@ export function transporteDeTeste(
     }
     throw new Error(`URL inesperada no dublê: ${url}`);
   };
-  return { transporte: transporte as unknown as typeof fetch, enviados, recusados, pedidosAoModelo, pedidosDeVisao, saidas };
+  return { transporte: transporte as unknown as typeof fetch, enviados, recusados, pedidosAoModelo, pedidosDeVisao, modelosDaVisao, saidas };
 }

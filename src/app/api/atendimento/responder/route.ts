@@ -1,6 +1,8 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { responderAoLead } from "../../../../lib/atendimento-servidor";
 import { autorizarMotorDoAtendimento } from "../../../../lib/autorizacaoDoAtendimento";
+import { ETIQUETA_DAS_FOTOS } from "../../../../lib/baseDoAtendimento-servidor";
 import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +48,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const desfecho = await responderAoLead(supabase, { leadId, mensagemId });
+    // A conversa classificou as fotos do carro que o cliente pediu: o catálogo
+    // do prompt passa a dizer o que ele tem já na próxima mensagem.
+    const desfecho = await responderAoLead(supabase, { leadId, mensagemId }, {
+      aoClassificarFotos: () => revalidateTag(ETIQUETA_DAS_FOTOS, { expire: 0 }),
+    });
     console.info("[Atendimento]", JSON.stringify({ resposta: desfecho.acao, entregue: desfecho.entregue ?? false }));
     return NextResponse.json({ ok: true, ...desfecho });
   } catch (erro) {

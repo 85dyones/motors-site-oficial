@@ -131,7 +131,7 @@ export async function enviarImagem(
   numero: string,
   imagem: { url: string; legenda?: string | null },
   cfg: ConfigDaEvolution,
-  opcoes: { atrasoMs?: number; transporte?: Transporte } = {},
+  opcoes: { atrasoMs?: number; transporte?: Transporte; timeoutMs?: number } = {},
 ): Promise<ResultadoDoEnvio> {
   const destino = numeroParaEnvio(numero);
   if (!destino) return { ok: false, motivo: "telefone inválido para envio" };
@@ -141,8 +141,9 @@ export async function enviarImagem(
 
   const transporte = opcoes.transporte ?? fetch;
   const controle = new AbortController();
-  // A Evolution baixa a foto antes de responder: mais folga que o texto.
-  const relogio = setTimeout(() => controle.abort(), TIMEOUT_MS * 2 + (opcoes.atrasoMs ?? 0));
+  // A Evolution baixa a foto antes de responder: mais folga que o texto, a
+  // menos que quem chama tenha prazo (a conversa tem).
+  const relogio = setTimeout(() => controle.abort(), (opcoes.timeoutMs ?? TIMEOUT_MS * 2) + (opcoes.atrasoMs ?? 0));
   try {
     const resposta = await transporte(`${cfg.url}/message/sendMedia/${encodeURIComponent(cfg.instancia)}`, {
       method: "POST",

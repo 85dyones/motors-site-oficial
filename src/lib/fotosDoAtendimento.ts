@@ -90,6 +90,8 @@ export interface FotoClassificada {
   angulo: AnguloDaFoto | null;
   descricao: string | null;
   aproveitavel: boolean;
+  /** Corrigida à mão na aba Fotos: o modelo não a reclassifica. */
+  corrigida?: boolean;
 }
 
 /** O pedido de fotos que o agente devolve no JSON da resposta. */
@@ -125,8 +127,10 @@ export function fotosDoCarro(urls: readonly unknown[] | null | undefined): strin
 export function pedidoDeFotosValido(bruto: unknown): PedidoDeFotos | null {
   if (!bruto || typeof bruto !== "object") return null;
   const b = bruto as Record<string, unknown>;
-  const veiculo = String(b.veiculo ?? "").replace(/\D/g, "");
-  if (!veiculo || veiculo.length > 19) return null;
+  // O id do anúncio (bigint) cabe com folga em 15 dígitos — é o que o
+  // `Number` grava sem perder precisão. Zero à esquerda não faz parte do id.
+  const veiculo = String(b.veiculo ?? "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  if (!veiculo || veiculo === "0" || veiculo.length > 15) return null;
   const camada = b.camada === undefined || b.camada === null || b.camada === "" ? "externa" : b.camada;
   return ehCamada(camada) ? { veiculo, camada } : null;
 }
@@ -196,25 +200,57 @@ function extrairJson(conteudo: string): unknown {
   }
 }
 
-/** A descrição vira legenda no WhatsApp: uma linha, curta, sem link. */
+/**
+ * A descrição tem dinheiro, placa, telefone, e-mail ou endereço de site? O
+ * modelo de visão LÊ o que está escrito na foto — a etiqueta de preço no
+ * vidro, o adesivo da loja —, e a descrição vira legenda, destaque da oferta
+ * e linha do catálogo. Número de quatro dígitos ou mais conta, menos ano
+ * (1950 a 2035) e quilometragem; "aro 17" e "1.0 turbo" passam.
+ */
+function temDinheiroOuContato(t: string): boolean {
+  if (/r\$|\breais?\b|\d\s*mil\b(?!\s*km)|\d\s*k\b/i.test(t)) return true;
+  if (/@|\b[\w-]+\.(?:com|net|org|br|io|me|app|site|link|ly|online|store|shop|info|xyz)\b/i.test(t)) return true;
+  // Placa: a Mercosul (ABC1D23) e a antiga (ABC-1234).
+  if (/\b[a-z]{3}-?\d[a-z0-9]\d{2}\b/i.test(t)) return true;
+  for (const casado of t.matchAll(/\d[\d.,]*/g)) {
+    const digitos = casado[0].replace(/[.,]\d{1,2}$/, "").replace(/\D/g, "");
+    const n = Number(digitos);
+    if (!Number.isFinite(n) || n < 1000) continue;
+    if (digitos.length === 4 && n >= 1950 && n <= 2035) continue;
+    if (/^\s*(?:km\b|quil)/i.test(t.slice((casado.index ?? 0) + casado[0].length))) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * A descrição vira legenda no WhatsApp, destaque da oferta e linha do
+ * catálogo: uma linha, curta, sem link — e descartada inteira quando tem
+ * dinheiro ou contato (`temDinheiroOuContato`). Descartar é melhor que
+ * "limpar": meia frase sobre uma etiqueta de preço ainda fala de preço.
+ */
 export function descricaoValida(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const t = v
-    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, " ")
     .replace(/[\r\n\t]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!t) return null;
+  if (!t || /\b(?:https?:\/\/|www\.)/i.test(t) || temDinheiroOuContato(t)) return null;
   const curta = t.length > TETO_DA_DESCRICAO ? t.slice(0, TETO_DA_DESCRICAO).replace(/\s+\S*$/, "") : t;
   return curta ? curta.charAt(0).toUpperCase() + curta.slice(1) : null;
 }
 
 /**
- * A resposta do modelo, conferida contra as fotos que foram no pedido. Nulo
- * quando não é JSON — quem chama não grava nada, e a foto continua na fila.
- * Foto que o modelo pulou ou classificou com camada inventada é gravada como
- * `outra`, não aproveitável: fica fora do envio e não volta à fila a cada
- * rodada.
+ * A resposta do modelo, conferida contra as fotos que foram no pedido.
+ *
+ *   - Nula quando não é JSON, ou não classifica NENHUMA das fotos: quem chama
+ *     não grava nada, e o lote continua na fila.
+ *   - A foto que o modelo pulou fica de fora da lista — e na fila, para um
+ *     pedido menor na próxima vez. Marcá-la como "outra" tiraria do cliente
+ *     uma foto boa por um tropeço do modelo.
+ *   - Camada inventada vira `outra`, não aproveitável: o modelo viu a foto e
+ *     não soube dizer o que era.
+ *   - Numeração a partir de zero (acontece) é reconhecida e corrigida.
  */
 export function lerClassificacao(
   conteudo: string,
@@ -224,26 +260,36 @@ export function lerClassificacao(
   if (!bruto || typeof bruto !== "object") return null;
   const lista = (bruto as Record<string, unknown>).fotos;
   if (!Array.isArray(lista)) return null;
+  const itens = lista.filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === "object");
+  const numeros = itens.map((r, i) => (Number.isInteger(Number(r.n)) && r.n !== null && r.n !== "" ? Number(r.n) : i + 1));
+  const desdeZero = numeros.includes(0) && !numeros.includes(fotos.length);
   const porNumero = new Map<number, Record<string, unknown>>();
-  lista.forEach((item, i) => {
-    if (!item || typeof item !== "object") return;
-    const r = item as Record<string, unknown>;
-    const n = Number.isInteger(Number(r.n)) ? Number(r.n) : i + 1;
-    if (!porNumero.has(n)) porNumero.set(n, r);
+  itens.forEach((r, i) => {
+    const n = numeros[i] + (desdeZero ? 1 : 0);
+    if (n >= 1 && n <= fotos.length && !porNumero.has(n)) porNumero.set(n, r);
   });
-  return fotos.map((f, i) => {
+  if (porNumero.size === 0) return null;
+  return fotos.flatMap((f, i) => {
     const r = porNumero.get(i + 1);
-    const camada: CamadaClassificada = r && (ehCamada(r.camada) || r.camada === "outra") ? (r.camada as CamadaClassificada) : "outra";
-    const angulo = camada === "externa" && (ANGULOS as readonly unknown[]).includes(r?.angulo) ? (r!.angulo as AnguloDaFoto) : null;
-    return {
-      url: f.url,
-      posicao: f.posicao,
-      camada,
-      angulo,
-      descricao: r ? descricaoValida(r.descricao) : null,
-      aproveitavel: Boolean(r) && camada !== "outra" && r!.aproveitavel !== false,
-    };
+    if (!r) return [];
+    const camada: CamadaClassificada = ehCamada(r.camada) || r.camada === "outra" ? (r.camada as CamadaClassificada) : "outra";
+    const angulo = camada === "externa" && (ANGULOS as readonly unknown[]).includes(r.angulo) ? (r.angulo as AnguloDaFoto) : null;
+    return [
+      {
+        url: f.url,
+        posicao: f.posicao,
+        camada,
+        angulo,
+        descricao: descricaoValida(r.descricao),
+        aproveitavel: camada !== "outra" && r.aproveitavel !== false,
+      },
+    ];
   });
+}
+
+/** Uma foto que o modelo de visão não consegue abrir: não vai ao cliente (a Evolution também não abriria). */
+export function fotoInacessivel(f: { url: string; posicao: number }): FotoClassificada {
+  return { url: f.url, posicao: f.posicao, camada: "outra", angulo: null, descricao: null, aproveitavel: false };
 }
 
 // ----------------------------------------------------------------------------
@@ -260,7 +306,9 @@ function destaques(fotos: readonly FotoClassificada[], camada: CamadaDaFoto, max
   const vistos = new Set<string>();
   const nomes: string[] = [];
   for (const f of utilizaveis(fotos, camada)) {
-    const d = f.descricao?.trim();
+    // A mesma régua da legenda, também na leitura: linha antiga, gravada
+    // antes de uma regra nova, não escapa pela oferta nem pelo catálogo.
+    const d = descricaoValida(f.descricao);
     if (!d) continue;
     const chave = d.toLowerCase();
     if (vistos.has(chave)) continue;
@@ -374,6 +422,20 @@ export function ofertaDepoisDasFotos(fotos: readonly FotoClassificada[], mostrad
   return jaViuDetalhe ? `Se quiser, tenho também fotos ${lista}.` : `Tenho também fotos ${lista}. Quer ver alguma?`;
 }
 
+/**
+ * As frases que fecham o pedido de fotos quando nenhuma foto sai. O modelo já
+ * escreveu "Olha ele aqui 👇" antes; sem uma destas, a frase ficaria
+ * pendurada no WhatsApp do cliente.
+ */
+export const SEM_FOTO_DO_CARRO = "Não achei as fotos desse carro aqui, mas a nossa equipe consegue te mandar. 😉";
+export const FOTOS_FORA_DO_AR = "Não consegui puxar as fotos agora, mas a nossa equipe consegue te mandar. 😉";
+export const MAIS_FOTOS_DA_GALERIA = "Quer ver mais fotos?";
+
+/** A camada pedida já foi inteira: lembra onde estão e oferece o que sobrou. */
+export function fotosJaMostradas(oferta: string | null): string {
+  return oferta ? `Essas fotos já estão aí em cima 🙂 ${oferta}` : "Essas são todas as fotos que tenho dele aqui 🙂";
+}
+
 /** Sem fotos daquela camada: o assistente não inventa, a equipe manda. */
 export function semFotoDaCamada(camada: CamadaDaFoto): string {
   return camada === "externa"
@@ -403,4 +465,122 @@ export function linhaDasFotosNoEstado(
 export function fotosNoHistorico(n: number, camada: CamadaDaFoto | null, veiculo: string | null): string {
   const qual = camada ? DA_CAMADA[camada] : "da galeria";
   return `(enviou ${n} foto${n === 1 ? "" : "s"} ${qual}${veiculo ? ` do carro #${veiculo}` : ""})`;
+}
+
+// ----------------------------------------------------------------------------
+// A aba Fotos do Atendimento IA — ver e corrigir a classificação
+// ----------------------------------------------------------------------------
+
+/** O rótulo de cada escolha da tela, na ordem do seletor. `outra` é "não mandar". */
+export const ROTULO_DA_ESCOLHA: Record<CamadaClassificada, string> = {
+  externa: "Fora",
+  interior: "Interior",
+  detalhes: "Detalhes da versão",
+  rodas: "Rodas",
+  motor: "Motor",
+  porta_malas: "Porta-malas",
+  outra: "Não mandar ao cliente",
+};
+export const ESCOLHAS_DA_TELA: readonly CamadaClassificada[] = [...CAMADAS_DA_FOTO, "outra"];
+
+/** Uma foto da galeria do carro, com o que a classificação disse dela (nada, se ainda está na fila). */
+export interface FotoNaTela {
+  url: string;
+  posicao: number;
+  camada: CamadaClassificada | null;
+  descricao: string | null;
+  aproveitavel: boolean;
+  corrigida: boolean;
+}
+
+/**
+ * A galeria ATUAL do carro, na ordem do anúncio, com a classificação de cada
+ * foto. A linha de uma foto que saiu da galeria não aparece — e também não é
+ * enviada, porque o envio parte da galeria.
+ */
+export function fotosNaTela(urls: readonly string[], classificadas: readonly FotoClassificada[]): FotoNaTela[] {
+  const porUrl = new Map(classificadas.map((f) => [f.url, f]));
+  return urls.map((url, posicao) => {
+    const f = porUrl.get(url);
+    return {
+      url,
+      posicao,
+      camada: f?.camada ?? null,
+      descricao: f?.descricao ?? null,
+      aproveitavel: f ? f.aproveitavel : false,
+      corrigida: f?.corrigida === true,
+    };
+  });
+}
+
+export interface SituacaoDasFotos {
+  total: number;
+  classificadas: number;
+  /** Na fila: ainda não vistas pelo modelo. */
+  pendentes: number;
+  /** As que vão ao cliente, por camada. */
+  porCamada: Partial<Record<CamadaDaFoto, number>>;
+  /** Classificadas como "não mandar" ou não aproveitáveis. */
+  foraDoEnvio: number;
+  corrigidas: number;
+}
+
+export function situacaoDasFotos(urls: readonly string[], classificadas: readonly FotoClassificada[]): SituacaoDasFotos {
+  const tela = fotosNaTela(urls, classificadas);
+  const porCamada: Partial<Record<CamadaDaFoto, number>> = {};
+  for (const f of tela) {
+    if (f.camada && f.camada !== "outra" && f.aproveitavel) porCamada[f.camada] = (porCamada[f.camada] ?? 0) + 1;
+  }
+  return {
+    total: tela.length,
+    classificadas: tela.filter((f) => f.camada !== null).length,
+    pendentes: tela.filter((f) => f.camada === null).length,
+    porCamada,
+    foraDoEnvio: tela.filter((f) => f.camada !== null && (f.camada === "outra" || !f.aproveitavel)).length,
+    corrigidas: tela.filter((f) => f.corrigida).length,
+  };
+}
+
+export type CorrecaoDaFoto =
+  | { ok: true; veiculo: string; url: string; camada: CamadaClassificada; descricao: string | null }
+  | { ok: false; erro: string };
+
+/**
+ * O que a tela manda gravar, conferido. "Não mandar ao cliente" é a camada
+ * `outra`; a legenda passa pela mesma régua da classificação (uma linha,
+ * curta, sem link).
+ */
+export function correcaoValida(corpo: unknown): CorrecaoDaFoto {
+  if (!corpo || typeof corpo !== "object") return { ok: false, erro: "Corpo inválido." };
+  const c = corpo as Record<string, unknown>;
+  const veiculo = String(c.veiculo ?? "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  if (!veiculo || veiculo === "0" || veiculo.length > 15) return { ok: false, erro: "Diga de que carro é a foto." };
+  const url = typeof c.url === "string" ? c.url.trim() : "";
+  if (!/^https?:\/\//i.test(url)) return { ok: false, erro: "Foto sem endereço." };
+  if (!(ESCOLHAS_DA_TELA as readonly unknown[]).includes(c.camada)) return { ok: false, erro: "Escolha a camada da foto." };
+  return { ok: true, veiculo, url, camada: c.camada as CamadaClassificada, descricao: descricaoValida(c.descricao) };
+}
+
+/** "fora 5 · interior 4 · rodas 2" — o que o carro tem para mandar, na lista da aba. */
+export function linhaDasCamadas(s: SituacaoDasFotos): string {
+  const partes = CAMADAS_DA_FOTO.filter((c) => (s.porCamada[c] ?? 0) > 0).map((c) => `${ROTULO_DA_CAMADA[c]} ${s.porCamada[c]}`);
+  return partes.length > 0 ? partes.join(" · ") : "nada separado ainda";
+}
+
+/** O que "classificar agora" devolve à tela. */
+export interface ResultadoNaTela {
+  ok: boolean;
+  motivo?: string;
+  fotos_classificadas: number;
+  falhas: number;
+  restantes?: number;
+}
+
+/** O resultado de "classificar agora", numa frase. */
+export function fraseDoResultado(r: ResultadoNaTela): string {
+  if (!r.ok) return `Não classificou: ${r.motivo ?? "erro sem motivo"}.`;
+  const fotos = r.fotos_classificadas === 1 ? "1 foto classificada" : `${r.fotos_classificadas} fotos classificadas`;
+  const resto = typeof r.restantes === "number" && r.restantes > 0 ? ` Ficaram ${r.restantes} carro(s) para a próxima rodada.` : "";
+  const falhas = r.falhas > 0 ? ` ${r.falhas} pedido(s) ao modelo falharam e voltam à fila${r.motivo ? ` (${r.motivo})` : ""}.` : "";
+  return `${fotos}.${resto}${falhas}`;
 }

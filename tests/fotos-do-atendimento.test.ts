@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   FOTOS_POR_PEDIDO_AO_MODELO,
   TETO_DE_FOTOS_POR_CARRO,
+  correcaoValida,
   descricaoValida,
+  fotosNaTela,
+  fraseDoResultado,
+  linhaDasCamadas,
+  situacaoDasFotos,
   escolherFotos,
   fotosDaGaleria,
   fotosDoCarro,
@@ -58,6 +63,9 @@ describe("a galeria que vai ao modelo e ao cliente", () => {
 
   it("o pedido do agente: id só com dígitos, camada que existe; sem camada é a de fora", () => {
     expect(pedidoDeFotosValido({ veiculo: "#7950008", camada: "interior" })).toEqual({ veiculo: "7950008", camada: "interior" });
+    // Zero à esquerda não é do id; id maior que 15 dígitos não é um anúncio.
+    expect(pedidoDeFotosValido({ veiculo: "007950008" })).toEqual({ veiculo: "7950008", camada: "externa" });
+    expect(pedidoDeFotosValido({ veiculo: "1234567890123456" })).toBeNull();
     expect(pedidoDeFotosValido({ veiculo: 7950008 })).toEqual({ veiculo: "7950008", camada: "externa" });
     expect(pedidoDeFotosValido({ veiculo: "abc", camada: "externa" })).toBeNull();
     expect(pedidoDeFotosValido({ veiculo: "1", camada: "outra" })).toBeNull();
@@ -95,25 +103,60 @@ describe("a classificação", () => {
       lote,
     );
     expect(r).toEqual([
-      { url: "https://f.teste/a.jpg", posicao: 0, camada: "externa", angulo: "lateral", descricao: "Lateral com link", aproveitavel: true },
+      // Descrição com link é descartada inteira; a foto vale.
+      { url: "https://f.teste/a.jpg", posicao: 0, camada: "externa", angulo: "lateral", descricao: null, aproveitavel: true },
       // Ângulo só vale para a foto de fora; a descrição começa maiúscula.
       { url: "https://f.teste/b.jpg", posicao: 1, camada: "interior", angulo: null, descricao: "Painel digital", aproveitavel: true },
-      // A foto que o modelo pulou vira "outra", fora do envio — e não volta à fila.
-      { url: "https://f.teste/c.jpg", posicao: 2, camada: "outra", angulo: null, descricao: null, aproveitavel: false },
+      // A foto que o modelo pulou fica de fora — e na fila, para um pedido menor depois.
     ]);
   });
 
-  it("camada inventada vira 'outra'; resposta que não é JSON é nula (as fotos ficam na fila)", () => {
+  it("camada inventada vira 'outra'; sem classificar nenhuma foto, é nula (o lote fica na fila)", () => {
     expect(lerClassificacao('{"fotos":[{"n":1,"camada":"teto"}]}', lote.slice(0, 1))![0]).toMatchObject({ camada: "outra", aproveitavel: false });
     expect(lerClassificacao("não consegui ver", lote)).toBeNull();
     expect(lerClassificacao('{"outra":"coisa"}', lote)).toBeNull();
+    expect(lerClassificacao('{"fotos":[]}', lote)).toBeNull();
+    expect(lerClassificacao('{"fotos":[{"n":7,"camada":"externa"}]}', lote)).toBeNull();
   });
 
-  it("a descrição vira legenda: uma linha, curta, sem link", () => {
+  it("numeração a partir de zero é reconhecida", () => {
+    const r = lerClassificacao('{"fotos":[{"n":0,"camada":"externa"},{"n":1,"camada":"interior"},{"n":2,"camada":"motor"}]}', lote);
+    expect(r!.map((x) => [x.url, x.camada])).toEqual([
+      ["https://f.teste/a.jpg", "externa"],
+      ["https://f.teste/b.jpg", "interior"],
+      ["https://f.teste/c.jpg", "motor"],
+    ]);
+  });
+
+  it("a descrição vira legenda: uma linha, curta — e descartada inteira com link, dinheiro, placa ou contato", () => {
     expect(descricaoValida("  roda   de liga\nleve  ")).toBe("Roda de liga leve");
-    expect(descricaoValida("veja www.golpe.com agora")).toBe("Veja agora");
     expect(descricaoValida("a".repeat(30) + " " + "b".repeat(40))!.length).toBeLessThanOrEqual(60);
     expect(descricaoValida(42)).toBeNull();
+    // O modelo de visão LÊ o que está escrito na foto.
+    for (const ruim of [
+      "veja www.golpe.com agora",
+      "visite golpe.com.br",
+      "Etiqueta R$ 79.900 no vidro",
+      "etiqueta 79.900",
+      "por 79 mil",
+      "Placa ABC1D23",
+      "placa abc-0123",
+      "chama no 41 99999-0000",
+      "contato@loja.com",
+    ]) {
+      expect(descricaoValida(ruim), ruim).toBeNull();
+    }
+    // O que é do carro passa: aro, motor, ano e quilometragem.
+    expect(descricaoValida("Roda aro 17")).toBe("Roda aro 17");
+    expect(descricaoValida("Motor 1.0 turbo")).toBe("Motor 1.0 turbo");
+    expect(descricaoValida("Emblema 2021")).toBe("Emblema 2021");
+    expect(descricaoValida("Painel com 48.000 km")).toBe("Painel com 48.000 km");
+  });
+
+  it("descrição antiga, gravada antes da regra, também não escapa pela oferta nem pelo catálogo", () => {
+    const comPreco = [f(0, "externa"), f(1, "interior"), f(2, "detalhes", { descricao: "Etiqueta R$ 79.900 no vidro" }), f(3, "detalhes", { descricao: "Teto solar" })];
+    expect(ofertaDepoisDasFotos(comPreco, new Set<CamadaDaFoto>(["externa", "interior"]))).toBe("Tenho também fotos dos detalhes da versão (teto solar). Quer ver alguma?");
+    expect(resumoDasFotos(comPreco, 4)).not.toContain("79");
   });
 });
 
@@ -186,5 +229,51 @@ describe("a oferta depois das fotos, uma camada por vez", () => {
   it("sem foto da camada: a equipe manda", () => {
     expect(semFotoDaCamada("motor")).toBe("Não tenho foto do motor desse carro aqui, mas a nossa equipe consegue te mandar. 😉");
     expect(semFotoDaCamada("externa")).toBe("Não tenho as fotos desse carro aqui agora, mas a nossa equipe consegue te mandar. 😉");
+  });
+});
+
+describe("a aba Fotos", () => {
+  const urls = ["https://f.teste/0.jpg", "https://f.teste/1.jpg", "https://f.teste/2.jpg", "https://f.teste/3.jpg"];
+  const classificadas: FotoClassificada[] = [
+    f(0, "externa", { descricao: "Frente" }),
+    f(1, "interior", { aproveitavel: false }),
+    f(2, "outra", { aproveitavel: false, corrigida: true }),
+    // Foto que saiu da galeria: a linha fica, mas não aparece nem conta.
+    { ...f(9, "motor"), url: "https://f.teste/velha.jpg" },
+  ];
+
+  it("a galeria atual, na ordem do anúncio, com a classificação de cada foto e a fila", () => {
+    expect(fotosNaTela(urls, classificadas)).toEqual([
+      { url: urls[0], posicao: 0, camada: "externa", descricao: "Frente", aproveitavel: true, corrigida: false },
+      { url: urls[1], posicao: 1, camada: "interior", descricao: null, aproveitavel: false, corrigida: false },
+      { url: urls[2], posicao: 2, camada: "outra", descricao: null, aproveitavel: false, corrigida: true },
+      { url: urls[3], posicao: 3, camada: null, descricao: null, aproveitavel: false, corrigida: false },
+    ]);
+  });
+
+  it("o andamento do carro: o que vai, o que não vai, a fila e o que foi corrigido", () => {
+    const s = situacaoDasFotos(urls, classificadas);
+    expect(s).toEqual({ total: 4, classificadas: 3, pendentes: 1, porCamada: { externa: 1 }, foraDoEnvio: 2, corrigidas: 1 });
+    expect(linhaDasCamadas(s)).toBe("fora 1");
+    expect(linhaDasCamadas(situacaoDasFotos(urls, []))).toBe("nada separado ainda");
+  });
+
+  it("a correção que a tela manda, conferida", () => {
+    expect(correcaoValida({ veiculo: "#7950008", url: urls[0], camada: "outra", descricao: " banner\nda loja " })).toEqual({
+      ok: true,
+      veiculo: "7950008",
+      url: urls[0],
+      camada: "outra",
+      descricao: "Banner da loja",
+    });
+    expect(correcaoValida({ veiculo: "1", url: "/logo.png", camada: "externa" })).toMatchObject({ ok: false });
+    expect(correcaoValida({ veiculo: "1", url: urls[0], camada: "teto" })).toMatchObject({ ok: false });
+    expect(correcaoValida({ url: urls[0], camada: "externa" })).toMatchObject({ ok: false });
+  });
+
+  it("o resultado de classificar agora, numa frase", () => {
+    expect(fraseDoResultado({ ok: true, fotos_classificadas: 12, falhas: 0, restantes: 2 })).toBe("12 fotos classificadas. Ficaram 2 carro(s) para a próxima rodada.");
+    expect(fraseDoResultado({ ok: true, fotos_classificadas: 1, falhas: 1, motivo: "timeout" })).toBe("1 foto classificada. 1 pedido(s) ao modelo falharam e voltam à fila (timeout).");
+    expect(fraseDoResultado({ ok: false, fotos_classificadas: 0, falhas: 0, motivo: "falta DEEPSEEK_API_KEY na Vercel" })).toBe("Não classificou: falta DEEPSEEK_API_KEY na Vercel.");
   });
 });

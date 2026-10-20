@@ -49,7 +49,8 @@ describe("a DeepSeek", () => {
 
   it("recusa e conteúdo vazio voltam como motivo, sem a chave", async () => {
     const recusa = await completarEmJson({ cfg, mensagens: [], transporte: async () => resposta(401, { error: { message: "Authentication Fails" } }) });
-    expect(recusa).toEqual({ ok: false, motivo: "A DeepSeek recusou a chamada: Authentication Fails" });
+    // O HTTP vai junto: quem classifica fotos distingue a recusa da FOTO (4xx) da do pedido.
+    expect(recusa).toEqual({ ok: false, motivo: "A DeepSeek recusou a chamada: Authentication Fails", status: 401 });
     const vazio = await completarEmJson({ cfg, mensagens: [], transporte: async () => resposta(200, { choices: [{ message: { content: "" } }] }) });
     expect(vazio).toEqual({ ok: false, motivo: "A DeepSeek respondeu sem conteúdo." });
     const caiu = await completarEmJson({ cfg, mensagens: [], transporte: async () => { throw new Error("ECONNRESET"); } });

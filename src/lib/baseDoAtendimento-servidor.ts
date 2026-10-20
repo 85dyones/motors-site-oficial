@@ -51,6 +51,7 @@ async function classificadasDoEstoque(ids: readonly string[]): Promise<Map<strin
   try {
     const admin = createAdminSupabaseClient();
     const { data: loja } = await admin.rpc("org_padrao");
+    // Sem a loja, `lerFotosClassificadas` não lê nada (falha fechada).
     return await lerFotosClassificadas(admin, typeof loja === "string" ? loja : null, ids);
   } catch (erro) {
     console.warn("[Atendimento] Catálogo sem as camadas das fotos:", erro instanceof Error ? erro.message : erro);

@@ -15,7 +15,8 @@
 --    camada (externa, interior, detalhes, rodas, motor, porta_malas, outra),
 --    o ângulo da foto de fora, uma descrição curta (vira a legenda no
 --    WhatsApp e o "tenho foto do teto solar" da oferta), se a foto é
---    aproveitável e os tokens gastos. Quem classifica é o modelo de visão da
+--    aproveitável, os tokens gastos e — quando alguém corrigiu à mão na aba
+--    Fotos do Atendimento IA — quem e quando. Quem classifica é o modelo de visão da
 --    DeepSeek, uma vez por foto, pelo servidor (`fotosDoAtendimento-servidor.ts`):
 --    a rodada do n8n vai adiantando a fila, e o atendimento classifica na hora
 --    o carro que o cliente pediu e ainda não foi visto.
@@ -78,6 +79,12 @@ create table if not exists public.atendimento_fotos (
   tokens_entrada  integer not null default 0,
   tokens_saida    integer not null default 0,
   classificado_em timestamptz not null default now(),
+  -- A correção à mão, na aba Fotos do Atendimento IA: quem e quando. Foto
+  -- corrigida nunca é reclassificada pelo modelo — "refazer a classificação"
+  -- do carro apaga só as linhas do modelo.
+  corrigido_por   text,
+  corrigido_em    timestamptz,
+  constraint atendimento_fotos_correcao_coerente check ((corrigido_por is null) = (corrigido_em is null)),
   constraint atendimento_fotos_camada_valida check (
     camada in ('externa', 'interior', 'detalhes', 'rodas', 'motor', 'porta_malas', 'outra')
   ),
@@ -156,6 +163,7 @@ declare
   v_res    text;
   v_caso   record;
   v_lead   uuid;
+  v_outra  uuid;
 begin
   -- 1. RLS ligada e só leitura para a sessão --------------------------------
   if not exists (
@@ -178,7 +186,8 @@ begin
         ('camada inventada', 'insert into public.atendimento_fotos (veiculo_id, url, camada) values (1, ''https://x.invalido/1.jpg'', ''teto'')'),
         ('ângulo em foto de dentro', 'insert into public.atendimento_fotos (veiculo_id, url, camada, angulo) values (1, ''https://x.invalido/2.jpg'', ''interior'', ''frente'')'),
         ('url que não é http', 'insert into public.atendimento_fotos (veiculo_id, url, camada) values (1, ''/logo.png'', ''externa'')'),
-        ('descrição longa', 'insert into public.atendimento_fotos (veiculo_id, url, camada, descricao) values (1, ''https://x.invalido/3.jpg'', ''externa'', repeat(''a'', 81))')
+        ('descrição longa', 'insert into public.atendimento_fotos (veiculo_id, url, camada, descricao) values (1, ''https://x.invalido/3.jpg'', ''externa'', repeat(''a'', 81))'),
+        ('correção sem data', 'insert into public.atendimento_fotos (veiculo_id, url, camada, corrigido_por) values (1, ''https://x.invalido/4.jpg'', ''externa'', ''Fulano'')')
       ) as c(rotulo, comando)
     loop
       begin
@@ -191,6 +200,14 @@ begin
 
     insert into public.atendimento_fotos (veiculo_id, url, camada, angulo, descricao)
     values (7950008, 'https://fotos.invalido/aceite-1.jpg', 'externa', 'tres_quartos_frente', 'Frente');
+
+    -- Uma segunda loja com a MESMA foto do MESMO carro, classificada de outro
+    -- jeito: a unicidade é por loja, e a equipe da loja padrão não a vê.
+    insert into public.orgs (nome, criada_em)
+    select 'Aceite Fotos outra loja', max(criada_em) + interval '1 day' from public.orgs
+    returning id into v_outra;
+    insert into public.atendimento_fotos (org_id, veiculo_id, url, camada)
+    values (v_outra, 7950008, 'https://fotos.invalido/aceite-1.jpg', 'motor');
     begin
       insert into public.atendimento_fotos (veiculo_id, url, camada) values (7950008, 'https://fotos.invalido/aceite-1.jpg', 'interior');
       v_falhou := v_falhou || 'classificou a mesma foto duas vezes'::text;
@@ -232,7 +249,8 @@ begin
 
     for v_caso in
       select * from (values
-        ('equipe lê a classificação', 'coma', 'select count(*) from public.atendimento_fotos where veiculo_id = 7950008', 'vê:1'),
+        ('equipe lê a classificação, só a da loja', 'coma', 'select count(*) from public.atendimento_fotos where veiculo_id = 7950008', 'vê:1'),
+        ('a classificação da outra loja não aparece', 'admin', 'select count(*) from public.atendimento_fotos where camada = ''motor'' and url = ''https://fotos.invalido/aceite-1.jpg''', 'vê:0'),
         ('anônimo não lê a classificação', '@anon', 'select count(*) from public.atendimento_fotos', 'vê:0|barrado'),
         ('ninguém logado classifica', 'admin', 'insert into public.atendimento_fotos (veiculo_id, url, camada) values (7950008, ''https://fotos.invalido/aceite-2.jpg'', ''motor'')', 'barrado'),
         ('ninguém logado reclassifica', 'admin', 'update public.atendimento_fotos set camada = ''outra'' where veiculo_id = 7950008', 'barrado|linhas:0')
@@ -283,7 +301,8 @@ begin
   end if;
 
   if exists (select 1 from public.atendimento_fotos where url like 'https://fotos.invalido/%')
-     or exists (select 1 from public.leads where nome = 'Aceite Fotos') then
+     or exists (select 1 from public.leads where nome = 'Aceite Fotos')
+     or exists (select 1 from public.orgs where nome = 'Aceite Fotos outra loja') then
     falhas := falhas + 1;
     raise warning 'FALHOU: o aceite deixou linha para trás';
   end if;
@@ -291,8 +310,8 @@ begin
   if falhas > 0 then
     raise exception 'ACEITE FALHOU: % verificação(ões) das fotos do atendimento', falhas;
   end if;
-  raise notice 'Aceite verificado: fotos do atendimento — camadas e ângulos válidos, uma linha por foto, '
-               'foto só na saída e com endereço, leitura da equipe e escrita só do servidor.';
+  raise notice 'Aceite verificado: fotos do atendimento — camadas e ângulos válidos, uma linha por foto e por loja, '
+               'foto só na saída e com endereço, leitura da equipe só da loja dela e escrita só do servidor.';
 end
 $aceite$;
 

@@ -268,3 +268,23 @@ describe("as fotos, do lado do agente", () => {
     expect(mensagens.at(-1)!.content).toContain("Fotos já enviadas nesta conversa:\n- #8449096 Onix: já enviou fora; ainda pode oferecer: interior.");
   });
 });
+
+describe("o histórico com um passeio pelas fotos", () => {
+  it("agrupa as fotos ANTES de cortar a janela: a conversa não sai do histórico por causa delas", () => {
+    const fotos = Array.from({ length: 40 }, (_, i) => ({
+      autor: "assistente" as const,
+      conteudo: "imagem",
+      texto: null,
+      midia_url: `https://f.teste/${i}.jpg`,
+      veiculo_id: "1",
+      camada: i < 20 ? "externa" : "interior",
+    }));
+    const historico = historicoParaOModelo([{ autor: "cliente", texto: "quero o onix" }, ...fotos, { autor: "cliente", texto: "e o preço?" }]);
+    expect(historico.map((m) => m.content)).toEqual([
+      "quero o onix",
+      "(enviou 20 fotos de fora do carro #1)",
+      "(enviou 20 fotos do interior do carro #1)",
+      "e o preço?",
+    ]);
+  });
+});

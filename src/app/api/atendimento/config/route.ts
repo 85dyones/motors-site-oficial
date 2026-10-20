@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { liberarLeadsDoAssistente, lojaDoAtendimento } from "../../../../lib/atendimento-servidor";
+import { quemConfiguraOAtendimento } from "../../../../lib/autorizacaoDoAtendimento";
 import { CONFIG_DE_FABRICA, MIGRACAO_DO_ATENDIMENTO, configValida, decidirConfig } from "../../../../lib/configDoAtendimento";
 import { ehTabelaOuColunaAusente, mensagemDeMigracaoPendente } from "../../../../lib/erroDeSchema";
 import { configDaEvolution } from "../../../../lib/evolution";
-import { ACAO_CONFIGURAR_ATENDIMENTO, ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
-import { createAdminSupabaseClient, createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { createAdminSupabaseClient } from "../../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,24 +26,6 @@ export const dynamic = "force-dynamic";
  * e o token do n8n —, para a tela mostrar por que ligar não vai funcionar
  * antes de alguém ligar. Só se diz SE existe, nunca o valor.
  */
-async function quemPede(): Promise<{ nome: string | null; recusa: NextResponse | null }> {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { nome: null, recusa: NextResponse.json({ error: "Não autorizado" }, { status: 401 }) };
-  const { data: perfil } = await supabase
-    .from("profiles")
-    .select("role, papeis, full_name, is_active")
-    .eq("id", user.id)
-    .single();
-  if (!ehStaff(perfil) || perfil?.is_active !== true) {
-    return { nome: null, recusa: NextResponse.json({ error: "Acesso restrito à equipe" }, { status: 403 }) };
-  }
-  if (podeFazer(perfisDe(perfil), ACAO_CONFIGURAR_ATENDIMENTO) !== "faz") {
-    return { nome: null, recusa: NextResponse.json({ error: "Seu perfil não configura o atendimento" }, { status: 403 }) };
-  }
-  return { nome: perfil?.full_name?.trim() || null, recusa: null };
-}
-
 function integracoes() {
   return {
     deepseek: Boolean((process.env.DEEPSEEK_API_KEY || "").trim()),
@@ -54,7 +36,7 @@ function integracoes() {
 
 export async function GET() {
   try {
-    const { recusa } = await quemPede();
+    const { recusa } = await quemConfiguraOAtendimento();
     if (recusa) return recusa;
     const supabase = createAdminSupabaseClient();
     const loja = await lojaDoAtendimento(supabase);
@@ -80,7 +62,7 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { nome, recusa } = await quemPede();
+    const { nome, recusa } = await quemConfiguraOAtendimento();
     if (recusa) return recusa;
     const decisao = decidirConfig(await request.json().catch(() => null));
     if (!decisao.ok) return NextResponse.json({ error: decisao.erro }, { status: 400 });

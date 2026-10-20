@@ -142,6 +142,11 @@ export function montarRelatorio(entrada: {
   leads: readonly LeadDoRelatorio[];
   mensagens: readonly MensagemDoRelatorio[];
   usos: readonly UsoDoRelatorio[];
+  /**
+   * A classificação das fotos do estoque (custo da LOJA): entra no custo, mas
+   * não em `chamadas_ao_modelo` — cada linha é uma foto, não uma chamada.
+   */
+  usosDasFotos?: readonly UsoDoRelatorio[];
   contatos: readonly ContatoDoRelatorio[];
   cadenciasEmAndamento: number;
 }): RelatorioDoAtendimento {
@@ -158,7 +163,7 @@ export function montarRelatorio(entrada: {
     const motivo = l.entregue_motivo ?? "quente";
     porMotivo[motivo] = (porMotivo[motivo] ?? 0) + 1;
   }
-  const custo = entrada.usos.reduce(
+  const custo = [...entrada.usos, ...(entrada.usosDasFotos ?? [])].reduce(
     (soma, u) => soma + custoEstimado({ entrada: u.tokens_entrada, entradaEmCache: u.tokens_cache, saida: u.tokens_saida }),
     0,
   );

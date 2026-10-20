@@ -79,6 +79,21 @@ describe("o relatório", () => {
     expect(r.assistente.ate_a_entrega_mediana).toBe(Math.round((30 + 23 * 60) / 2));
   });
 
+  it("a classificação das fotos entra no custo, mas cada foto não é uma chamada ao modelo", () => {
+    const comFotos = montarRelatorio({
+      dias: 30,
+      agora: AGORA,
+      leads,
+      mensagens,
+      usos: [{ tokens_entrada: 1_000_000, tokens_cache: 0, tokens_saida: 1_000_000 }],
+      usosDasFotos: Array.from({ length: 500 }, () => ({ tokens_entrada: 2_000, tokens_cache: 0, tokens_saida: 0 })),
+      contatos: [],
+      cadenciasEmAndamento: 0,
+    });
+    // 500 fotos × 2.000 tokens = 1 milhão de tokens de entrada = US$ 0,15.
+    expect(comFotos.assistente).toMatchObject({ chamadas_ao_modelo: 1, custo_estimado_usd: 0.9 });
+  });
+
   it("a origem: conversão sem o descartado", () => {
     const anuncio = r.origens.find((o) => o.origem === "Anúncio → WhatsApp")!;
     expect(anuncio).toMatchObject({ leads: 2, conversaram: 2, quentes: 1, entregues: 1, ganhos: 1, perdidos: 0, conversao: 100 });

@@ -237,7 +237,9 @@ function textoParaOModelo(m: MensagemDaConversa): string {
 export function historicoParaOModelo(mensagens: readonly MensagemDaConversa[]): MensagemDoModelo[] {
   const saida: MensagemDoModelo[] = [];
   const grupos: { indice: number; veiculo: string; camada: CamadaDaFoto | null; n: number }[] = [];
-  for (const m of mensagens.slice(-MENSAGENS_DO_HISTORICO)) {
+  // Agrupa ANTES de cortar: um passeio pelas fotos (quinze fotos, cinco
+  // ofertas) não pode empurrar a conversa para fora da janela.
+  for (const m of mensagens) {
     const fotoDoCarro = m.autor !== "cliente" && Boolean(m.midia_url) && m.veiculo_id !== null && m.veiculo_id !== undefined;
     if (fotoDoCarro) {
       const veiculo = String(m.veiculo_id);
@@ -259,7 +261,7 @@ export function historicoParaOModelo(mensagens: readonly MensagemDaConversa[]): 
       content: prefixo ? `${prefixo} ${texto}` : texto,
     });
   }
-  return saida;
+  return saida.slice(-MENSAGENS_DO_HISTORICO);
 }
 
 export interface EstadoDaConversa {
