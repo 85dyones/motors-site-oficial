@@ -164,7 +164,7 @@ implícito — o compromisso de um próximo passo. Daí os **5P**
 |---|---|---|
 | **Produto** | Need (BANT) / Challenges (CHAMP) | qual carro (modelo e ano) e para que vai usar |
 | **Pagamento** | Budget / Money | à vista, financiado ou consórcio; entrada; carro na troca; a parcela que cabe |
-| **Pessoa** | Authority | como ele se chama; quem decide junto (ou em nome de quem fica o carro) |
+| **Pessoa** | Authority | como ele se chama; quem decide junto, se ele contar (só no financiamento se pergunta em nome de quem vai) |
 | **Prazo** | Timing / Prioritization | quando pretende comprar |
 | **Passo** | o compromisso | a visita ou o test-drive com **dia e hora** — ou, no financiamento, os dados para a simulação |
 
@@ -178,9 +178,18 @@ implícito — o compromisso de um próximo passo. Daí os **5P**
   bancário **continuam fora**: o consultor coleta no canal próprio.
 
 **Como o assistente conduz.** A cada resposta, o estado que vai ao modelo diz
-o **próximo movimento** ("marcar a visita com dia e hora — proponha duas
-opções concretas") e o que ainda falta, na ordem do método, com a tabela dos
-próximos dias ("sábado 24/10 = 2026-10-24") para ele não errar a data. As
+o **próximo movimento** ("fechar o horário da visita de sábado — proponha dois
+horários") e, no máximo, o item seguinte, com a tabela dos próximos dias
+("sábado 24/10 = 2026-10-24") para ele não errar a data. A lista inteira do
+que faltava virou questionário no teste do branch — duas perguntas por
+resposta, "mais alguém decide junto?" no lugar da resposta que o cliente
+pediu —, e saiu. Cada resposta segue a ordem: **responder primeiro o que o
+cliente perguntou** (com as informações da loja), depois **uma pergunta só**
+(um ponto de interrogação), retomando a pergunta pendente se ele puxou outro
+assunto. Pergunta sobre financiamento conta como querer financiar (o
+assistente explica e segue para a entrada); correção do WhatsApp ("Como *")
+é lida como correção; "isso" responde à última pergunta dele. A conversa vai
+ao modelo com temperatura 0,3 (era 0,5). As
 instruções dizem o objetivo e que **toda resposta termina com uma pergunta que
 avança ou uma proposta concreta**. Pedido de simulação ou de parcela não entrega
 na hora: o assistente coleta os dados da simulação, que é o que faz o

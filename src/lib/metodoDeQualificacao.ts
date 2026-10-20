@@ -42,7 +42,7 @@ export type Pilar = "produto" | "pagamento" | "pessoa" | "prazo" | "passo";
 export const PILARES: readonly { chave: Pilar; rotulo: string; descricao: string }[] = [
   { chave: "produto", rotulo: "Produto", descricao: "qual carro (modelo e ano) e para que vai usar" },
   { chave: "pagamento", rotulo: "Pagamento", descricao: "à vista, financiado ou consórcio; a entrada; se tem carro na troca; a parcela que cabe" },
-  { chave: "pessoa", rotulo: "Pessoa", descricao: "como ele se chama e quem decide junto (ou em nome de quem fica o carro)" },
+  { chave: "pessoa", rotulo: "Pessoa", descricao: "como ele se chama; quem decide junto, se ele contar (só no financiamento se pergunta em nome de quem vai)" },
   { chave: "prazo", rotulo: "Prazo", descricao: "quando pretende comprar" },
   { chave: "passo", rotulo: "Passo", descricao: "a visita ou o test-drive com dia e hora — ou, no financiamento, os dados para a simulação" },
 ];
@@ -142,9 +142,12 @@ export function prontidao(ficha: FichaDoLead, agora: Date, opcoes: { nomeNoWhats
   if (!ficha.troca) faltam.push({ pilar: "pagamento", item: "se tem carro na troca (modelo, ano e km)" });
   if (!ficha.prazo) faltam.push({ pilar: "prazo", item: "quando pretende comprar" });
   if (!ficha.nome && !(opcoes.nomeNoWhatsApp ?? "").trim()) faltam.push({ pilar: "pessoa", item: "como ele se chama" });
-  if (!ficha.decisor) faltam.push({ pilar: "pessoa", item: "quem decide junto (ou em nome de quem fica o carro)" });
-  if (!agendada) faltam.push({ pilar: "passo", item: "o dia e a hora da visita ou do test-drive" });
-  if (!ficha.uso) faltam.push({ pilar: "produto", item: "para que vai usar o carro" });
+  // Quem decide e para que vai usar não são perguntas de roteiro (no teste do
+  // branch, "mais alguém decide junto?" saiu no lugar da resposta que o
+  // cliente pediu): anota-se o que ele disser, e só no financiamento se
+  // pergunta em nome de quem vai — depois da entrada e da parcela.
+  if (financiado && !ficha.decisor) faltam.push({ pilar: "pessoa", item: "em nome de quem vai o financiamento" });
+  if (!agendada) faltam.push({ pilar: "passo", item: ficha.visita ? `o horário da visita (${ficha.visita})` : "o dia e a hora da visita ou do test-drive" });
 
   const pronto = agendada ? "agendou" : simulacao ? "simulacao" : null;
   let proximoMovimento: string;
@@ -153,19 +156,26 @@ export function prontidao(ficha: FichaDoLead, agora: Date, opcoes: { nomeNoWhats
   else if (problemaDaVisita) proximoMovimento = `${problemaDaVisita}: proponha outro dia e hora dentro do horário da loja`;
   else if (!ficha.interesse) proximoMovimento = "descobrir qual carro ele procura — ofereça opções do catálogo";
   else if (financiado) proximoMovimento = `deixar a simulação pronta: falta ${faltaNaSimulacao.join(", ")}`;
+  else if (ficha.visita) proximoMovimento = `fechar o horário da visita (${ficha.visita}) — proponha dois horários dentro do horário da loja`;
   else proximoMovimento = "marcar a visita ou o test-drive com dia e hora — proponha duas opções concretas dentro do horário da loja";
 
   return { pronto, problemaDaVisita, faltam, proximoMovimento };
 }
 
 /** As linhas do método no estado que vai ao modelo a cada resposta. */
+/**
+ * As linhas do método no estado que vai ao modelo a cada resposta: o próximo
+ * movimento e, no máximo, o item seguinte. A lista inteira do que falta virava
+ * questionário no teste do branch — duas perguntas por resposta, e a pergunta
+ * do cliente passando em branco. O modelo recebe UM rumo; a ficha mostra o
+ * resto.
+ */
 export function metodoNoEstado(p: Prontidao): string[] {
+  const seguinte = p.faltam.find((f) => !p.proximoMovimento.includes(f.item));
   return [
-    `Próximo movimento: ${p.proximoMovimento}.`,
-    p.faltam.length > 0
-      ? `Ainda falta saber (na ordem do método 5P): ${p.faltam.map((f) => `${f.item} [${PILARES.find((x) => x.chave === f.pilar)!.rotulo}]`).join("; ")}.`
-      : "Os 5P estão completos.",
-  ];
+    `Próximo movimento (UMA pergunta, depois de responder o que o cliente disse): ${p.proximoMovimento}.`,
+    seguinte ? `Depois, quando couber naturalmente: ${seguinte.item} [${PILARES.find((x) => x.chave === seguinte.pilar)!.rotulo}].` : "",
+  ].filter(Boolean);
 }
 
 /** "Sem troca", "não tem" → "não tem"; o resto como o cliente disse. */

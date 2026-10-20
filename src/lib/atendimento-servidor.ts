@@ -1087,6 +1087,9 @@ async function responderUmaVez(
         metodo: metodoNoEstado(prontidao(fichaAntes, agora, { nomeNoWhatsApp: lead.nome })),
       },
     }),
+    // Mais baixa que o padrão (0,5): no teste do branch, o modelo saía do
+    // roteiro — duas perguntas por resposta, a pergunta do cliente em branco.
+    temperatura: 0.3,
     transporte: deps.transporte,
   });
   const resposta = chamada.ok ? lerRespostaDoAgente(chamada.conteudo) : null;

@@ -488,14 +488,20 @@ describe("o método 5P: o lead pronto para o comercial", () => {
     const entrada = await clienteEscreve(banco, t, "oi");
     await responderAoLead(banco.cliente, { leadId: entrada.lead!, mensagemId: entrada.mensagem }, deps(t));
     const estado = t.pedidosAoModelo[0].messages.at(-1).content as string;
-    expect(estado).toContain("Próximo movimento: descobrir qual carro ele procura");
-    expect(estado).toContain("Ainda falta saber (na ordem do método 5P): qual carro ele procura [Produto]");
+    expect(estado).toContain("Próximo movimento (UMA pergunta, depois de responder o que o cliente disse): descobrir qual carro ele procura");
+    expect(estado).toContain("Depois, quando couber naturalmente: se paga à vista, financiado ou no consórcio [Pagamento].");
+    expect(estado).not.toContain("quem decide");
     expect(estado).toContain("Próximos dias:\nhoje, terça-feira 20/10 = 2026-10-20");
     expect(estado).toContain("sábado 24/10 = 2026-10-24");
     // E as instruções dizem o objetivo e vetam a frase de quem larga a conversa.
     const instrucoes = t.pedidosAoModelo[0].messages[0].content as string;
     expect(instrucoes).toContain("## Seu objetivo");
     expect(instrucoes).toContain("Nunca encerre com \"fico à disposição\"");
+    // A ordem de cada resposta: o que o cliente perguntou primeiro, depois UMA pergunta.
+    expect(instrucoes).toContain("1. Responda PRIMEIRO o que o cliente perguntou ou disse agora");
+    expect(instrucoes).toContain("No máximo um ponto de interrogação por resposta");
+    expect(instrucoes).toContain("\"Comigo fica o financiamento?\" + \"Como *\" = \"Como fica o financiamento?\"");
+    expect(t.pedidosAoModelo[0].temperature).toBe(0.3);
   });
 
   it("visita com dia e hora: entrega como 'agendou' mesmo morno, a passagem repete a visita e ela vira o próximo passo", async () => {
@@ -545,7 +551,7 @@ describe("o método 5P: o lead pronto para o comercial", () => {
     const segunda = await clienteEscreve(banco, t, "pode ser?");
     await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: segunda.mensagem }, deps(t));
     expect(t.pedidosAoModelo[1].messages.at(-1).content).toContain(
-      "Próximo movimento: a visita anotada (domingo, 25/10, às 10h) está fora do horário da loja: proponha outro dia e hora dentro do horário da loja.",
+      "Próximo movimento (UMA pergunta, depois de responder o que o cliente disse): a visita anotada (domingo, 25/10, às 10h) está fora do horário da loja: proponha outro dia e hora dentro do horário da loja.",
     );
   });
 

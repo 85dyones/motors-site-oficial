@@ -28,12 +28,19 @@ describe("o que falta e o próximo movimento", () => {
   it("ficha vazia: falta tudo, na ordem do método, e o movimento é descobrir o carro", () => {
     const p = prontidao(FICHA_VAZIA, TERCA_10H);
     expect(p.pronto).toBeNull();
-    expect(p.faltam.map((f) => f.pilar)).toEqual(["produto", "pagamento", "pagamento", "prazo", "pessoa", "pessoa", "passo", "produto"]);
+    // Quem decide e para que vai usar não entram: não são perguntas de roteiro.
+    expect(p.faltam.map((f) => f.pilar)).toEqual(["produto", "pagamento", "pagamento", "prazo", "pessoa", "passo"]);
     expect(p.proximoMovimento).toBe("descobrir qual carro ele procura — ofereça opções do catálogo");
   });
 
   it("o nome do WhatsApp basta para não perguntar como ele se chama", () => {
     expect(prontidao(FICHA_VAZIA, TERCA_10H, { nomeNoWhatsApp: "Rafael" }).faltam.map((f) => f.item)).not.toContain("como ele se chama");
+  });
+
+  it("visita com o dia dito e sem hora: o movimento é fechar o horário", () => {
+    const p = prontidao(ficha({ ...ONIX, pagamento: "com_troca", troca: "Clio 2011", visita: "sábado" }), TERCA_10H);
+    expect(p.proximoMovimento).toBe("fechar o horário da visita (sábado) — proponha dois horários dentro do horário da loja");
+    expect(p.faltam.map((f) => f.item)).not.toContain("quem decide junto (ou em nome de quem fica o carro)");
   });
 
   it("carro definido e à vista: o movimento é marcar a visita com duas opções concretas", () => {
@@ -50,7 +57,11 @@ describe("o que falta e o próximo movimento", () => {
     const p = prontidao(ficha({ ...ONIX, pagamento: "financiado", entrada: "10 mil" }), TERCA_10H);
     expect(p.pronto).toBeNull();
     expect(p.proximoMovimento).toBe("deixar a simulação pronta: falta a parcela que cabe ou em quantas vezes");
-    expect(metodoNoEstado(p)[0]).toBe("Próximo movimento: deixar a simulação pronta: falta a parcela que cabe ou em quantas vezes.");
+    // UM rumo e, no máximo, o item seguinte — a lista inteira virava questionário.
+    expect(metodoNoEstado(p)).toEqual([
+      "Próximo movimento (UMA pergunta, depois de responder o que o cliente disse): deixar a simulação pronta: falta a parcela que cabe ou em quantas vezes.",
+      "Depois, quando couber naturalmente: se tem carro na troca (modelo, ano e km) [Pagamento].",
+    ]);
   });
 });
 

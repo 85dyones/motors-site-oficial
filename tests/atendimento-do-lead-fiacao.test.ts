@@ -146,7 +146,7 @@ describe("o bloco de atendimento", () => {
     expect(botao("Resumo")).toBeUndefined();
     const resumo = container.querySelector('[data-bloco="q"] [data-resumo]')!;
     const t = resumo.textContent ?? "";
-    expect(resumo.querySelector("[data-metodo]")!.textContent).toBe("Falta: se paga à vista, financiado ou no consórcio; quem decide junto (ou em nome de quem fica o carro); o dia e a hora da visita ou do test-drive");
+    expect(resumo.querySelector("[data-metodo]")!.textContent).toBe("Falta: se paga à vista, financiado ou no consórcio; o dia e a hora da visita ou do test-drive");
     expect(t).toContain("Rafael quer o Onix, com o Uno na troca.");
     expect(t).toContain("ProcuraOnix LT 2020");
     expect(t).toContain("Carro na trocaUno 2014");
