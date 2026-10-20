@@ -1544,7 +1544,8 @@ describe("as fotos, depois da segunda revisão", () => {
     const banco = montar({ atendimento_fotos: [linha(1, "externa")] });
     const t = transporteDeTeste([], { visao: () => ({ erro: "invalid parameter: detail", status: 422 }) });
     const r = await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base([...galeria(1), url(2), url(3), url(4), url(5)]) }));
-    expect(r).toMatchObject({ ok: true, fotos_classificadas: 0, falhas: 1, motivo: "o modelo de visão recusou o pedido" });
+    // O porquê da DeepSeek vai junto: sem ele, o erro da rodada no n8n não diz o que mudar.
+    expect(r).toMatchObject({ ok: true, fotos_classificadas: 0, falhas: 1, motivo: "o modelo de visão recusou o pedido (A DeepSeek recusou a chamada: invalid parameter: detail)" });
     expect(banco.tabelas.atendimento_fotos).toHaveLength(1);
   });
 

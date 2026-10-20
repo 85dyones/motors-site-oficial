@@ -174,6 +174,8 @@ export async function classificarCarro(
   let sucessos = 0;
   let motivo: string | undefined;
   const suspeitas: Lote = [];
+  /** O que a DeepSeek disse na última recusa — vai junto da falha, que sem isso não diz o porquê. */
+  let recusa: string | undefined;
 
   const gravar = async (lidas: FotoClassificada[], uso: { entrada: number; saida: number }, modelo: string, contar = true) => {
     const linha = (f: FotoClassificada) => ({
@@ -250,6 +252,7 @@ export async function classificarCarro(
       if (recusaDaFoto(chamada.status)) {
         if (lote.length === 1) {
           suspeitas.push(lote[0]);
+          recusa = chamada.motivo;
           return;
         }
         const meio = Math.ceil(lote.length / 2);
@@ -303,6 +306,7 @@ export async function classificarCarro(
           timeoutMs: sobra,
         });
         provado = chamada.ok && lerClassificacao(chamada.conteudo, [{ url: controle.url, posicao: controle.posicao }]) !== null;
+        if (!chamada.ok) recusa = chamada.motivo;
       }
     }
     if (provado) {
@@ -310,7 +314,7 @@ export async function classificarCarro(
       await gravar(suspeitas.map(fotoInacessivel), { entrada: 0, saida: 0 }, "inacessivel", false);
     } else {
       falhas += 1;
-      motivo = "o modelo de visão recusou o pedido";
+      motivo = recusa ? `o modelo de visão recusou o pedido (${recusa})` : "o modelo de visão recusou o pedido";
     }
   }
   return { fotos, novas, falhas, ...(motivo ? { motivo } : {}) };
