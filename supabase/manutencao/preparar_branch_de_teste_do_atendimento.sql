@@ -19,11 +19,14 @@
 -- Quem testa cadastra o próprio número de teste em Usuários e permissões, no
 -- preview, depois de rodar isto.
 --
--- A guarda: só roda com o marcador ligado NA MESMA CHAMADA, e quem chama só o
--- liga contra o project ref do branch:
---
---   select set_config('app.branch_de_teste', 'atendimento-2', true);
---   <o bloco abaixo>
+-- A guarda: só roda num banco que tem a tabela
+-- `public.marcador_do_branch_de_teste`. Nada no banco distingue a produção de
+-- uma cópia dela (o project ref não aparece em nenhuma configuração), então o
+-- marcador é uma tabela que só o branch ganha: quem prepara o branch a cria
+-- pelo conector, contra o project ref DO BRANCH, logo antes de rodar isto. Na
+-- produção ela não existe, e colar este arquivo no editor SQL da produção é
+-- recusado sem mexer em nada (20/10/2026: um SQL colado no editor da produção
+-- mostrou que o risco é real).
 -- ===========================================================================
 
 do $branch$
@@ -31,8 +34,8 @@ declare
   v_tarefas int;
   v_telefones int;
 begin
-  if current_setting('app.branch_de_teste', true) is distinct from 'atendimento-2' then
-    raise exception 'Recusado: isto só roda no branch de teste do atendimento (ver o cabeçalho).';
+  if to_regclass('public.marcador_do_branch_de_teste') is null then
+    raise exception 'Recusado: este banco não é o branch de teste do atendimento (falta public.marcador_do_branch_de_teste). Nada foi alterado.';
   end if;
 
   select count(*) into v_tarefas from cron.job;

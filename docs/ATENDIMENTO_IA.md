@@ -527,7 +527,11 @@ teste, rodar no branch (e só nele)
 `supabase/manutencao/preparar_branch_de_teste_do_atendimento.sql`: desliga as
 tarefas do `pg_cron` (uma chama a produção a cada hora), tira o webhook do banco
 de `tracking_events` e apaga o WhatsApp da equipe, para o resumo não ir a um
-vendedor de verdade. O script só roda com o marcador ligado na mesma chamada.
+vendedor de verdade. O script só roda num banco com a tabela
+`public.marcador_do_branch_de_teste`, que só o branch ganha (criada pelo
+conector, contra o project ref do branch): colado no editor SQL da produção, ele
+recusa sem mexer em nada. **Nada desta seção se roda à mão no editor SQL da
+produção.**
 Depois, as duas migrações do atendimento, e quem testa cadastra o próprio número
 em **Usuários e permissões**, no preview.
 
