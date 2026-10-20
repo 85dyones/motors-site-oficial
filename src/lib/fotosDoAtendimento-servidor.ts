@@ -175,7 +175,7 @@ export async function classificarCarro(
   let motivo: string | undefined;
   const suspeitas: Lote = [];
 
-  const gravar = async (lidas: FotoClassificada[], uso: { entrada: number; saida: number }, modelo: string) => {
+  const gravar = async (lidas: FotoClassificada[], uso: { entrada: number; saida: number }, modelo: string, contar = true) => {
     const linha = (f: FotoClassificada) => ({
       org_id: loja,
       veiculo_id: Number(carro.id),
@@ -227,7 +227,7 @@ export async function classificarCarro(
       }
     }
     fotos.push(...lidas);
-    novas += lidas.length;
+    if (contar) novas += lidas.length;
   };
 
   const classificarLote = async (lote: Lote): Promise<void> => {
@@ -280,12 +280,34 @@ export async function classificarCarro(
     await Promise.all(lotes.slice(i, i + PEDIDOS_EM_PARALELO).map(classificarLote));
   }
 
-  // Marca a foto que o modelo não abre só com prova de que o PEDIDO funciona:
-  // um pedido deste carro deu certo agora, ou o modelo já classificou fotos
-  // dele antes.
+  // Marca a foto que o modelo não abre só com prova de que o PEDIDO de agora
+  // funciona: um pedido deste carro deu certo nesta chamada, ou — quando todas
+  // as fotos pendentes caíram — um pedido de CONTROLE com uma foto que o
+  // modelo já classificou (aproveitável, na galeria, não corrigida à mão) dá
+  // certo. Classificação antiga sozinha não prova nada: se a DeepSeek passou a
+  // recusar o pedido (modelo renomeado, parâmetro novo), marcar seria tirar do
+  // cliente, em silêncio, todas as fotos novas do estoque.
   if (suspeitas.length > 0) {
-    if (sucessos > 0 || jaClassificadas.some((f) => !f.corrigida)) {
-      await gravar(suspeitas.map(fotoInacessivel), { entrada: 0, saida: 0 }, "inacessivel");
+    let provado = sucessos > 0;
+    if (!provado) {
+      const controle = jaClassificadas.find((f) => f.aproveitavel && !f.corrigida && carro.urls.includes(f.url));
+      const sobra = opcoes.prazo === undefined ? teto : Math.min(teto, opcoes.prazo - relogio());
+      if (controle && sobra >= 5_000) {
+        const chamada = await completarEmJson({
+          cfg: opcoes.modelo,
+          mensagens: montarPedidoDeClassificacao(carro, [{ url: controle.url, posicao: controle.posicao }]),
+          maxTokens: 300,
+          temperatura: 0.1,
+          modoJson: false,
+          transporte: opcoes.transporte,
+          timeoutMs: sobra,
+        });
+        provado = chamada.ok && lerClassificacao(chamada.conteudo, [{ url: controle.url, posicao: controle.posicao }]) !== null;
+      }
+    }
+    if (provado) {
+      // Não conta como classificada: a foto não foi vista, só saiu do envio.
+      await gravar(suspeitas.map(fotoInacessivel), { entrada: 0, saida: 0 }, "inacessivel", false);
     } else {
       falhas += 1;
       motivo = "o modelo de visão recusou o pedido";

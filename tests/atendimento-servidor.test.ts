@@ -1479,11 +1479,48 @@ describe("as fotos, depois da segunda revisão", () => {
     expect(fotosQueSairam(t)).toEqual([url(2)]);
   });
 
-  it("M6: a foto que o modelo não abre é marcada mesmo sozinha, quando o carro já foi classificado antes", async () => {
+  it("M6: a foto que o modelo não abre, sozinha na fila, é marcada quando o pedido de controle (uma foto já vista) dá certo — e não conta como classificada", async () => {
     const banco = montar({ atendimento_fotos: [linha(1, "externa")] });
-    const t = transporteDeTeste([], { visao: () => ({ erro: "failed to download image", status: 400 }) });
-    await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base(galeria(2)) }));
+    const t = transporteDeTeste([], { visao: (lista) => (lista.includes(url(2)) ? { erro: "failed to download image", status: 400 } : todas("externa")(lista)) });
+    const r = await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base(galeria(2)) }));
+    expect(t.pedidosDeVisao).toEqual([[url(2)], [url(1)]]);
     expect(banco.tabelas.atendimento_fotos.find((f) => f.url === url(2))).toMatchObject({ camada: "outra", aproveitavel: false, modelo: "inacessivel" });
+    expect(r).toMatchObject({ ok: true, fotos_classificadas: 0, falhas: 0 });
+  });
+
+  it("M6 (contrateste): com o PEDIDO recusado — 4xx em tudo, controle inclusive —, nada é marcado e a falha aparece", async () => {
+    const banco = montar({ atendimento_fotos: [linha(1, "externa")] });
+    const t = transporteDeTeste([], { visao: () => ({ erro: "invalid parameter: detail", status: 422 }) });
+    const r = await classificarCarroDoEstoque(banco.cliente, ONIX, { refazer: false }, deps(t, { baseDaLoja: base([...galeria(1), url(2), url(3), url(4), url(5)]) }));
+    expect(r).toMatchObject({ ok: true, fotos_classificadas: 0, falhas: 1, motivo: "o modelo de visão recusou o pedido" });
+    expect(banco.tabelas.atendimento_fotos).toHaveLength(1);
+  });
+
+  it("o pedido de fotos de uma entrega não volta numa entrega pelo painel semanas depois", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })], atendimento_mensagens: [jaEscreveu()] });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Olha 👇"], fotos: { veiculo: ONIX, camada: "externa" }, sinais: { pediu_humano: true } })]);
+    await conversa(banco, t, "manda foto e me passa pra alguém", { baseDaLoja: base(galeria(2)) });
+    expect(banco.tabelas.leads[0].qualificacao.fotos_pedidas).toBe("de fora do Onix LT 2020 (#7950008)");
+    // Semanas depois: reaquecer e entregar pelo painel, sem o cliente ter escrito de novo.
+    relogio = new Date(TERCA_10H.getTime() + 21 * 24 * 3600 * 1000);
+    await mudarAssistente(banco.cliente, { leadId: "lead-1", acao: "entregar", autor: "Dono da Loja" }, deps(t, { baseDaLoja: base(galeria(2)) }));
+    const passagem = t.saidas.filter((x) => x.numero === CLIENTE).at(-1) as { texto: string };
+    expect(passagem.texto).toMatch(/^Perfeito, Rafael! Vou te passar para Carla/);
+    expect(passagem.texto).not.toContain("fotos");
+    const aoVendedor = t.saidas.filter((x) => x.numero === "5541988887777").at(-1) as { texto: string };
+    expect(aoVendedor.texto).not.toContain("📷");
+  });
+
+  it("M7: a foto pendente sem eco conta como enviada só na janela do eco; depois, sai de novo", async () => {
+    const banco = montar({ atendimento_fotos: [linha(1, "externa"), linha(2, "externa")] });
+    const t = transporteDeTeste(
+      [respostaDoModelo({ mensagens: ["Olha 👇"], fotos: { veiculo: ONIX, camada: "externa" } }), respostaDoModelo({ mensagens: ["De novo 👇"], fotos: { veiculo: ONIX, camada: "externa" } })],
+      { fotoSemResposta: (n) => n === 1 },
+    );
+    await conversa(banco, t, "tem foto?", { baseDaLoja: base(galeria(2)) });
+    relogio = new Date(relogio.getTime() + 10 * 60 * 1000);
+    await conversa(banco, t, "não chegou uma", { baseDaLoja: base(galeria(2)) });
+    expect(fotosQueSairam(t)).toEqual([url(2), url(1)]);
   });
 
   it("M5: a fila gira também entre os carros que já têm foto vista", async () => {

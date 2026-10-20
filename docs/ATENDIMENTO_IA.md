@@ -299,7 +299,11 @@ dinheiro, placa, telefone, e-mail ou site é descartada inteira, na gravação e
 de novo na leitura — a etiqueta de preço no vidro não vira legenda, nem
 destaque da oferta, nem linha do catálogo. Foto que o modelo não consegue
 abrir (URL quebrada) é achada partindo o lote ao meio e sai do envio, para não
-derrubar o carro inteiro a cada rodada; foto que o modelo pulou fica na fila. Fica em `atendimento_fotos`, com a URL como chave: foto
+derrubar o carro inteiro a cada rodada — mas só com prova de que o PEDIDO
+funciona (outro pedido deste carro deu certo agora, ou um pedido de controle
+com uma foto já vista dá certo): se a DeepSeek passar a recusar o pedido
+inteiro, nada é marcado e a falha aparece. Foto que o modelo pulou fica na
+fila. Fica em `atendimento_fotos`, com a URL como chave: foto
 trocada na galeria é URL nova e entra na fila sozinha. A rodada das fotos
 (`/api/atendimento/fotos`, junto com a rodada do n8n) adianta a fila do
 estoque; o carro que o cliente pedir antes disso é classificado na hora, pela

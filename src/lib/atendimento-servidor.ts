@@ -387,6 +387,13 @@ async function assistenteNoSla(supabase: Banco, leadId: string, ligado: boolean,
   if (error) console.error("[Atendimento] SLA não atualizado:", error.message);
 }
 
+/** As fotos que o cliente pediu na mensagem que o entregou — só para ESTA entrega (`entregue_em`). */
+function fotosPedidasDaEntrega(lead: Linha, entregueEm: string | null): string | null {
+  const q = lead.qualificacao;
+  if (!q || typeof q.fotos_pedidas !== "string" || !entregueEm) return null;
+  return q.fotos_pedidas_em && new Date(q.fotos_pedidas_em).getTime() === new Date(entregueEm).getTime() ? q.fotos_pedidas : null;
+}
+
 async function anotarNoRastro(supabase: Banco, leadId: string, texto: string, detalhe: Linha, autor = "Assistente"): Promise<void> {
   const { error } = await supabase.from("leads_eventos").insert({
     lead_id: leadId,
@@ -1050,7 +1057,7 @@ async function responderUmaVez(
     veiculo_id: m.veiculo_id,
     camada: m.camada,
   }));
-  const fotosDoEstado = await fotosNoEstado(supabase, leadId, base);
+  const fotosDoEstado = await fotosNoEstado(supabase, leadId, base, agora);
   const chamada = await completarEmJson({
     cfg: modelo,
     mensagens: montarMensagensDoAgente({
@@ -1125,7 +1132,14 @@ async function responderUmaVez(
   const patch: Linha = {
     aquecimento: aquecimento.pontos,
     temperatura: aquecimento.temperatura,
-    qualificacao: { ficha, sinais, motivos: aquecimento.motivos, ...(fotosPedidas ? { fotos_pedidas: fotosPedidas } : {}) },
+    // `fotos_pedidas_em` amarra o pedido a ESTA entrega (`entregue_em` é a
+    // mesma hora): uma entrega pelo painel semanas depois não o repete.
+    qualificacao: {
+      ficha,
+      sinais,
+      motivos: aquecimento.motivos,
+      ...(fotosPedidas ? { fotos_pedidas: fotosPedidas, fotos_pedidas_em: agora.toISOString() } : {}),
+    },
     ...(resumo ? { resumo_ia: resumo, resumo_ia_em: agora.toISOString() } : {}),
     // O que o cliente disse preenche o VAZIO dos dados do negócio — nunca
     // sobrescreve o que o vendedor escreveu (a régua de "o feed preenche o
@@ -1207,10 +1221,10 @@ interface FotoQueFoi {
  * foi, quem chama não manda nada — mandar de novo seria a mesma foto duas
  * vezes no WhatsApp do cliente.
  */
-async function fotosJaEnviadas(supabase: Banco, leadId: string): Promise<FotoQueFoi[] | null> {
+async function fotosJaEnviadas(supabase: Banco, leadId: string, agora: Date): Promise<FotoQueFoi[] | null> {
   const { data, error } = await supabase
     .from("atendimento_mensagens")
-    .select("veiculo_id, camada, midia_url, criado_em")
+    .select("veiculo_id, camada, midia_url, criado_em, situacao")
     .eq("lead_id", leadId)
     .not("veiculo_id", "is", null)
     .neq("situacao", "falhou")
@@ -1220,11 +1234,17 @@ async function fotosJaEnviadas(supabase: Banco, leadId: string): Promise<FotoQue
     console.warn("[Atendimento] Fotos já enviadas ilegíveis:", error.message);
     return null;
   }
-  return ((data ?? []) as Linha[]).map((m) => ({
-    veiculo_id: String(m.veiculo_id),
-    camada: (m.camada ?? null) as CamadaDaFoto | null,
-    midia_url: String(m.midia_url ?? ""),
-  }));
+  // A foto que ficou pendente (a Evolution não confirmou a tempo) conta como
+  // enviada só enquanto o eco ainda pode chegar; depois, sem eco, ela não
+  // saiu — e não pode virar "essas fotos já estão aí em cima".
+  const desde = agora.getTime() - JANELA_DO_ECO_MS;
+  return ((data ?? []) as Linha[])
+    .filter((m) => m.situacao !== "pendente" || new Date(m.criado_em).getTime() >= desde)
+    .map((m) => ({
+      veiculo_id: String(m.veiculo_id),
+      camada: (m.camada ?? null) as CamadaDaFoto | null,
+      midia_url: String(m.midia_url ?? ""),
+    }));
 }
 
 function camadasMostradas(enviadas: readonly FotoQueFoi[], veiculo: string): Set<CamadaDaFoto> {
@@ -1232,8 +1252,8 @@ function camadasMostradas(enviadas: readonly FotoQueFoi[], veiculo: string): Set
 }
 
 /** O que o estado do prompt diz das fotos: os três carros mais recentes da conversa que ainda estão à venda. */
-async function fotosNoEstado(supabase: Banco, leadId: string, base: BaseDaLoja): Promise<string[]> {
-  const enviadas = await fotosJaEnviadas(supabase, leadId);
+async function fotosNoEstado(supabase: Banco, leadId: string, base: BaseDaLoja, agora: Date): Promise<string[]> {
+  const enviadas = await fotosJaEnviadas(supabase, leadId, agora);
   if (!enviadas || enviadas.length === 0) return [];
   const ids = [...new Set(enviadas.map((e) => e.veiculo_id))].filter((id) => base.fotos?.[id]).slice(0, 3);
   if (ids.length === 0) return [];
@@ -1312,7 +1332,7 @@ async function mandarFotos(
     });
     return { fotos: 0, falhas: 0 };
   }
-  const enviadas = await fotosJaEnviadas(supabase, ctx.leadId);
+  const enviadas = await fotosJaEnviadas(supabase, ctx.leadId, deps.agora ?? new Date());
   if (!enviadas) {
     await enviar(FOTOS_FORA_DO_AR);
     return { fotos: 0, falhas: 0 };
@@ -1511,7 +1531,7 @@ async function entregarAoVendedor(
       nomeDoCliente: lead.nome,
       vendedor: vendedor ? { nome: vendedor.nome, whatsapp: vendedor.whatsapp } : null,
       equipeDisponivel,
-      comFotos: typeof lead.qualificacao?.fotos_pedidas === "string",
+      comFotos: fotosPedidasDaEntrega(lead, agora.toISOString()) !== null,
     });
     const atendimento = await garantirAtendimento(supabase, leadId, agora);
     await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto: passagem, gatilho: "passagem", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
@@ -1546,7 +1566,7 @@ async function entregarAoVendedor(
   if (equipeDisponivel) {
     await avisarEntrega(
       supabase,
-      { ...lead, responsavel, assistente_fase: "entregue", entregue_motivo: motivo, aviso_de_entrega_para: null },
+      { ...lead, responsavel, assistente_fase: "entregue", entregue_motivo: motivo, entregue_em: agora.toISOString(), aviso_de_entrega_para: null },
       aquecimento,
       ficha,
       equipe,
@@ -1601,7 +1621,7 @@ async function avisarEntrega(
     resumo: lead.resumo_ia ? semLinks(lead.resumo_ia) : null,
     origem: origemLegivel(lead),
     linkDoLead: linkDe(deps, leadId),
-    fotosPedidas: typeof lead.qualificacao?.fotos_pedidas === "string" ? lead.qualificacao.fotos_pedidas : null,
+    fotosPedidas: fotosPedidasDaEntrega(lead, lead.entregue_em ?? null),
   };
 
   let destinatarios: PessoaDaEquipe[];
