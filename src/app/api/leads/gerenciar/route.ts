@@ -28,6 +28,7 @@ import {
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
 import { veiculosDepoisDoDesfecho } from "../../../../lib/veiculosDeInteresse-servidor";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
+import { lerConversasDoQuadro } from "../../../../lib/conversaNoCard-servidor";
 import { BUCKET_DOS_ANEXOS } from "../../../../lib/anexosDoAtendimento";
 import {
   contarPassagensCreditadas,
@@ -313,6 +314,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ------------------------------------------------------------------------
+    // A conversa no card (21/10/2026)
+    // ------------------------------------------------------------------------
+    // Quem falou por último e desde quando o cliente espera resposta: o selo,
+    // o filtro "Esperando resposta" e a linha da última mensagem
+    // (`lib/conversaNoCard`). Como as leituras acima: falhou, a fila vem
+    // inteira, sem o selo, e a resposta diz.
+    const conversas = leads.length > 0 ? await lerConversasDoQuadro(supabase) : null;
+    if (conversas) avisos.push(...conversas.avisos);
+
     // Antes do laço, que preenche `etiquetas` em todo lead: lido depois, o
     // banco sem a coluna pareceria tê-la.
     const etiquetasNoLead = leadsGuardamEtiquetas(leads);
@@ -327,6 +338,9 @@ export async function GET(request: NextRequest) {
       l.etiquetas = etiquetasNoLead ? limparEtiquetas(l.etiquetas) : (a?.etiquetas ?? []);
       etiquetasVistas.push(...(l.etiquetas as string[]));
       l.ultima_interacao = ultimaPorLead.get(String(l.id)) ?? null;
+      const conversa = conversas?.porLead.get(String(l.id));
+      l.esperando_resposta_desde = conversa?.esperando_resposta_desde ?? null;
+      l.ultima_mensagem = conversa?.ultima_mensagem ?? null;
       // Já vêm no `select("*")`; aqui só se garante o nulo num banco sem a
       // migração da gestão do lead, para a tela não receber `undefined`.
       l.proximo_passo = l.proximo_passo ?? null;

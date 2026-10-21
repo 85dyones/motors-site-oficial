@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *   POST  /api/leads/[id]/chegou      "Chegou na loja"
  *   PATCH /api/leads/[id]/dados       dados do negócio
  *   GET   /api/leads/gerenciar        a última interação e a busca única
+ *   GET   /api/leads/novidades        a conversa e o estado que o quadro relê a cada minuto
  *
  * O que se trava aqui:
  *   - cada perfil só alcança o lead do seu escopo (`lib/escopoDeLeads`): o
@@ -85,7 +86,14 @@ function consulta(tabela: string) {
     typeof l[coluna] === "string" && padraoDoIlike(padrao).test(l[coluna] as string);
 
   const linhas = () => {
-    const base = tabela === "leads" ? visiveisPelaRls(banco.leads ?? []) : (banco[tabela] ?? []);
+    // A política de `atendimento_mensagens` pergunta a `leads`: a mensagem do
+    // lead que a sessão não vê não vem.
+    const base =
+      tabela === "leads"
+        ? visiveisPelaRls(banco.leads ?? [])
+        : tabela === "atendimento_mensagens"
+          ? (banco.atendimento_mensagens ?? []).filter((m) => visiveisPelaRls(banco.leads ?? []).some((l) => l.id === m.lead_id))
+          : (banco[tabela] ?? []);
     let achadas = base.filter((l) => filtros.every((f) => f(l)));
     if (ordem) {
       const { coluna, crescente } = ordem;
@@ -146,6 +154,10 @@ function consulta(tabela: string) {
     },
     neq: (coluna: string, valor: unknown) => {
       filtros.push((l) => l[coluna] !== valor);
+      return q;
+    },
+    gte: (coluna: string, valor: unknown) => {
+      filtros.push((l) => l[coluna] !== null && l[coluna] !== undefined && String(l[coluna]) >= String(valor));
       return q;
     },
     not: (coluna: string, operador: string, valor: unknown) => {
@@ -249,6 +261,7 @@ const interacoes = await import("../src/app/api/leads/[id]/interacoes/route");
 const chegou = await import("../src/app/api/leads/[id]/chegou/route");
 const dados = await import("../src/app/api/leads/[id]/dados/route");
 const gerenciar = await import("../src/app/api/leads/gerenciar/route");
+const novidades = await import("../src/app/api/leads/novidades/route");
 const { ETAPAS_PADRAO } = await import("../src/lib/funil");
 
 // ----------------------------------------------------------------------------
@@ -1357,5 +1370,115 @@ describe("GET /api/leads/gerenciar?busca= — a busca única", () => {
     const d = await r.json();
     expect(d.leads.map((l: Linha) => l.id)).toEqual([DA_ANA]);
     expect(d.busca).toEqual({ ref: "0DCB1CDC" });
+  });
+});
+
+// ----------------------------------------------------------------------------
+// A conversa no card (21/10/2026): o selo de cliente esperando, a última
+// mensagem, e as novidades que o quadro pergunta a cada minuto
+// ----------------------------------------------------------------------------
+
+describe("a conversa no card: GET /api/leads/gerenciar e GET /api/leads/novidades", () => {
+  const minutosAtras = (n: number) => new Date(AGORA.getTime() - n * 60_000).toISOString();
+  const mensagem = (lead_id: string, direcao: "entrada" | "saida", texto: string, minutos: number, extra: Linha = {}): Linha => ({
+    id: `m-${lead_id.slice(0, 2)}-${minutos}`,
+    lead_id,
+    direcao,
+    autor: direcao === "entrada" ? "cliente" : "vendedor",
+    autor_nome: direcao === "entrada" ? "Joana" : "Ana Paula",
+    situacao: direcao === "entrada" ? "recebida" : "enviada",
+    conteudo: "texto",
+    texto,
+    criado_em: minutosAtras(minutos),
+    ...extra,
+  });
+  const fila = async () => {
+    const r = await gerenciar.GET(new Request("http://x/api/leads/gerenciar") as never);
+    return { status: r.status, d: await r.json() };
+  };
+  const pedirNovidades = async (desde?: string) => {
+    const r = await novidades.GET(new Request(`http://x/api/leads/novidades${desde ? `?desde=${encodeURIComponent(desde)}` : ""}`) as never);
+    return { status: r.status, d: await r.json() };
+  };
+  const porId = (d: { leads: Linha[] }, id: string) => d.leads.find((l) => l.id === id)!;
+
+  beforeEach(() => {
+    banco.atendimento_mensagens = [
+      mensagem(DA_ANA, "saida", "Oi Joana, tudo bem?", 60),
+      mensagem(DA_ANA, "entrada", "qual o valor da entrada?", 12),
+      mensagem(DA_ANA, "entrada", "e aceita troca?", 11),
+      // Respondida, e depois o "valeu": não espera ninguém.
+      mensagem(NEGOCIANDO, "entrada", "posso ir amanhã?", 40),
+      mensagem(NEGOCIANDO, "saida", "Pode sim, te espero às 10h", 35),
+      mensagem(NEGOCIANDO, "entrada", "valeu 👍", 34),
+      // Há mais de uma semana: fora do selo.
+      mensagem(DA_ANA_2, "entrada", "ainda tem?", 8 * 24 * 60),
+      mensagem(DA_BIA, "entrada", "achou caro mesmo, faz por menos?", 5),
+    ];
+  });
+
+  it("o quadro traz desde quando o cliente espera e a última mensagem; quem não tem, nulo", async () => {
+    const { status, d } = await fila();
+    expect(status).toBe(200);
+    expect(porId(d, DA_ANA)).toMatchObject({
+      esperando_resposta_desde: minutosAtras(12),
+      ultima_mensagem: { autor: "cliente", quem: "Cliente", texto: "e aceita troca?", criado_em: minutosAtras(11) },
+    });
+    expect(porId(d, NEGOCIANDO)).toMatchObject({ esperando_resposta_desde: null, ultima_mensagem: { quem: "Cliente", texto: "valeu 👍" } });
+    expect(porId(d, DA_ANA_2)).toMatchObject({ esperando_resposta_desde: null, ultima_mensagem: null });
+    expect(d.avisos).toEqual([]);
+    expect(linhaDoTempo.filter((x) => x === "select atendimento_mensagens")).toHaveLength(1);
+  });
+
+  it("mensagens ilegíveis não derrubam a fila: os leads vêm sem o selo, e a resposta avisa", async () => {
+    falhas.atendimento_mensagens = { message: "tempo esgotado" };
+    const { status, d } = await fila();
+    expect(status).toBe(200);
+    expect(porId(d, DA_ANA)).toMatchObject({ esperando_resposta_desde: null, ultima_mensagem: null });
+    expect(d.avisos).toEqual(["Não deu para ler as mensagens: o selo de cliente esperando não aparece agora."]);
+  });
+
+  it("banco sem a tabela da conversa (ambiente atrasado): sem selo e sem aviso", async () => {
+    falhas.atendimento_mensagens = { code: "PGRST205", message: "Could not find the table 'public.atendimento_mensagens' in the schema cache" };
+    const { d } = await fila();
+    expect(porId(d, DA_ANA).esperando_resposta_desde).toBeNull();
+    expect(d.avisos).toEqual([]);
+  });
+
+  it("as novidades: a conversa dos leads do escopo e o estado de quem mudou — sem nome, telefone nem lead do colega", async () => {
+    rlsPorEscopo = true;
+    for (const l of banco.leads) l.atualizado_em = minutosAtras(60);
+    Object.assign(banco.leads.find((l) => l.id === DA_ANA)!, { assistente_fase: "reaquecendo", situacao: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, atualizado_em: minutosAtras(1) });
+    Object.assign(banco.leads.find((l) => l.id === DA_BIA)!, { situacao: "visita", atualizado_em: minutosAtras(1) });
+
+    const { status, d } = await pedirNovidades(minutosAtras(2));
+    expect(status).toBe(200);
+    expect(d.agora).toBe(AGORA.toISOString());
+    // DA_ANA_2 só tem mensagem de mais de uma semana; DA_BIA é da colega.
+    expect(Object.keys(d.conversas).sort()).toEqual([DA_ANA, NEGOCIANDO].sort());
+    expect(d.conversas[DA_ANA]).toMatchObject({ esperando_resposta_desde: minutosAtras(12) });
+    expect(d.leads).toEqual([
+      expect.objectContaining({ id: DA_ANA, situacao: "reaquecendo", assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1 }),
+    ]);
+    for (const pessoal of [...PESSOAL, "faz por menos"]) expect(JSON.stringify(d), pessoal).not.toContain(pessoal);
+  });
+
+  it("`desde` mais velho que meia hora é recortado; sem `desde`, os últimos cinco minutos", async () => {
+    for (const l of banco.leads) l.atualizado_em = minutosAtras(240);
+    banco.leads.find((l) => l.id === DA_ANA)!.atualizado_em = minutosAtras(20);
+    banco.leads.find((l) => l.id === NEGOCIANDO)!.atualizado_em = minutosAtras(3);
+    expect((await pedirNovidades(minutosAtras(600))).d.leads.map((l: Linha) => l.id).sort()).toEqual([DA_ANA, NEGOCIANDO].sort());
+    expect((await pedirNovidades()).d.leads.map((l: Linha) => l.id)).toEqual([NEGOCIANDO]);
+  });
+
+  it("as novidades têm a porta da gestão do lead: Marketing e perfil desativado recebem 403, sem ler nada", async () => {
+    for (const quem of ["u-mkt", "u-saiu"]) {
+      usuario = quem;
+      linhaDoTempo = [];
+      const { status } = await pedirNovidades();
+      expect(status, quem).toBe(403);
+      expect(linhaDoTempo, quem).not.toContain("select atendimento_mensagens");
+      expect(linhaDoTempo, quem).not.toContain("select leads");
+    }
   });
 });

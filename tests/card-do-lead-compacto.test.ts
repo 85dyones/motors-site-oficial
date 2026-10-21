@@ -54,10 +54,12 @@ describe("o card do lead", () => {
     }
   });
 
-  it("no toque, o botão da conversa (o do painel e o do WhatsApp) e as setas têm 44px", () => {
+  it("no toque, o botão da conversa (o do painel e o do WhatsApp), as setas e o \"Enviar ao Ney\" têm 44px", () => {
     // O tablet de balcão é uso real desta tela (ver o cabeçalho do LeadsKanban).
+    // Sete: Conversa, WhatsApp, as duas setas, e o "Enviar ao Ney" com o
+    // Confirmar e o Cancelar da confirmação (21/10/2026).
     const alvos = card.match(/pointer-coarse:min-h-11/g) ?? [];
-    expect(alvos.length).toBe(4);
+    expect(alvos.length).toBe(7);
     expect(card.match(/pointer-coarse:min-w-11/g) ?? []).toHaveLength(2);
   });
 });

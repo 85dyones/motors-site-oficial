@@ -16,7 +16,8 @@
  * order (uma ou mais, na ordem em que foram pedidas), limit, single/maybeSingle
  * e o `await` direto; `rpc` por função registrada. O índice único de
  * `atendimento_mensagens (wa_id)` é simulado, com o código 23505 que o
- * Postgres devolve.
+ * Postgres devolve. O gatilho do rastro também: o `update` que troca a etapa
+ * do lead deixa a linha `etapa` (de, para) em `leads_eventos`.
  *
  * Duas funções do banco vêm de fábrica (o teste pode trocar): `org_padrao`
  * devolve `LOJA_DE_TESTE`, e `achar_ou_criar_lead_do_whatsapp` repete a da
@@ -142,7 +143,25 @@ export function bancoDeTeste(
         if (operacao === "update" && recusas.some((r) => r.tabela === tabela && valores && valores[r.coluna] === r.valor)) {
           return { data: null, error: { message: "new row violates check constraint", code: "23514" } };
         }
-        if (operacao === "update") for (const l of afetadas) Object.assign(l, valores);
+        if (operacao === "update") {
+          for (const l of afetadas) {
+            // O gatilho do rastro (`leads_registrar_no_rastro`): a troca de
+            // etapa deixa a linha `etapa`, de onde para onde. É por ela que o
+            // lead volta de "Reaquecendo" para a etapa em que estava.
+            if (tabela === "leads" && "situacao" in valores && valores.situacao !== l.situacao) {
+              (tabelas.leads_eventos ??= []).push({
+                ...PADROES.leads_eventos(),
+                id: novoId(),
+                lead_id: l.id,
+                tipo: "etapa",
+                de: l.situacao ?? null,
+                para: valores.situacao,
+                automatico: true,
+              });
+            }
+            Object.assign(l, valores);
+          }
+        }
         if (operacao === "delete") tabelas[tabela] = linhas.filter((l) => !afetadas.includes(l));
       }
       let saida = [...afetadas];

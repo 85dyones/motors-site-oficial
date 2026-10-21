@@ -10,6 +10,7 @@
  * Tudo puro: todo "agora" entra por parâmetro, em milissegundos.
  */
 import type { PendenciaDeVeiculo, VeiculoDeInteresse } from "./veiculosDeInteresse";
+import type { UltimaMensagem } from "./conversaNoCard";
 import { espera, nivelDeEstagnacao, type EtapaDoFunil, type LeadDoFunil, type MotivoDoFunil, type NivelDeEstagnacao } from "./funil";
 import {
   FUSO_DA_LOJA,
@@ -60,6 +61,15 @@ export interface LeadDaFila extends LeadDoFunil {
   aquecimento?: number | null;
   temperatura?: "frio" | "morno" | "quente" | null;
   assistente_fase?: "qualificando" | "entregue" | "pausado" | "reaquecendo" | null;
+  /** A cadência do Ney e o próximo toque: o selo "Ney reaquecendo" diz quando. */
+  cadencia?: string | null;
+  cadencia_passo?: number | null;
+  cadencia_proximo_em?: string | null;
+  /** O cliente pediu para não receber mensagens: o card não oferece "Enviar ao Ney". */
+  optout_em?: string | null;
+  /** A conversa no card (21/10/2026, `lib/conversaNoCard`): desde quando o cliente espera e a última mensagem. */
+  esperando_resposta_desde?: string | null;
+  ultima_mensagem?: UltimaMensagem | null;
 }
 
 /** O que o aviso de estagnação diz, por nível. `null`: não há aviso. */

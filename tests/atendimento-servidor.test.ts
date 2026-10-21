@@ -2491,3 +2491,164 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
     expect(previa.tabelas.leads[0].assistente_fase).toBeNull();
   });
 });
+
+// O dono (21/10/2026): "os leads que o Ney estiver reaquecendo ou recuperando,
+// vão para a etapa. os marcados com ney retoma agora, ficam no lugar onde
+// estão". E, nas perguntas: quando o Ney larga o lead, ele volta para a etapa
+// de onde saiu; se o cliente responde, fica em Reaquecendo enquanto o Ney
+// conversa.
+describe("a etapa Reaquecendo (decisão do dono, 21/10)", () => {
+  const ETAPAS = [
+    { chave: "novo", tipo: "aberta", ordem: 1, ativa: true },
+    { chave: "em_contato", tipo: "aberta", ordem: 2, ativa: true },
+    { chave: "proposta", tipo: "aberta", ordem: 3, ativa: true },
+    { chave: "reaquecendo", tipo: "aberta", ordem: 4, ativa: true },
+    { chave: "visita", tipo: "aberta", ordem: 5, ativa: true },
+    { chave: "negociacao", tipo: "aberta", ordem: 6, ativa: true },
+    { chave: "fechado", tipo: "ganho", ordem: 8, ativa: true },
+  ];
+  const BASE_LIGADA = { base: { ativa: true, por_dia: 30, dias_parado: 7 } };
+  /** As trocas de etapa que o gatilho do rastro anotou, em ordem. */
+  const trocas = (banco: BancoDeTeste) => banco.tabelas.leads_eventos.filter((e) => e.tipo === "etapa").map((e) => [e.de, e.para]);
+  const parado = (parcial: Record<string, unknown> = {}) =>
+    leadAberto({
+      assistente_fase: null,
+      responsavel: "Carla Souza",
+      interesse: "Onix LT 2020",
+      situacao: "em_contato",
+      created_at: "2026-09-20T12:00:00.000Z",
+      ultimo_contato_em: "2026-10-10T12:00:00.000Z",
+      ...parcial,
+    });
+  /** O lead parado que já conversou com a loja, num funil com (ou sem) a etapa. */
+  const montarParado = (lead: Record<string, unknown>, etapas: Record<string, unknown>[] = ETAPAS) =>
+    montar(
+      {
+        leads: [lead],
+        funil_etapas: etapas.map((e) => ({ ...e })),
+        atendimentos: [{ id: "at-1", lead_id: "lead-1", created_at: "2026-10-10T12:00:00", updated_at: "2026-10-10T12:00:00", com_assistente: false }],
+        atendimento_mensagens: [jaEscreveu({ criado_em: "2026-10-10T12:00:00.000Z", respondida_em: "2026-10-10T12:00:05.000Z" })],
+      },
+      { config: BASE_LIGADA },
+    );
+  /** O lead que já está em Reaquecendo, vindo de `de`. */
+  const montarReaquecendo = (de: string, parcial: Record<string, unknown> = {}, etapas: Record<string, unknown>[] = ETAPAS) =>
+    montar({
+      leads: [leadAberto({ situacao: "reaquecendo", assistente_fase: "reaquecendo", cadencia: "follow_up", responsavel: "Carla Souza", ...parcial })],
+      funil_etapas: etapas.map((e) => ({ ...e })),
+      atendimento_mensagens: [jaEscreveu()],
+      leads_eventos: [
+        { id: "ev-base", lead_id: "lead-1", tipo: "nota", detalhe: { acao: "base" }, criado_em: "2026-10-15T12:00:00.000Z" },
+        { id: "ev-etapa", lead_id: "lead-1", tipo: "etapa", de, para: "reaquecendo", criado_em: "2026-10-15T12:00:01.000Z" },
+      ],
+    });
+
+  it("a base puxa o lead para a etapa Reaquecendo, e o rastro guarda de onde ele saiu", async () => {
+    const banco = montarParado(parado());
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+
+    expect(rodada.base).toEqual([{ lead_id: "lead-1", cadencia: "follow_up" }]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "reaquecendo", assistente_fase: "reaquecendo", responsavel: "Carla Souza" });
+    expect(trocas(banco)).toEqual([["em_contato", "reaquecendo"]]);
+    const nota = banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "base");
+    expect(nota?.detalhe?.texto).toContain("para a cadência de follow-up, na etapa Reaquecendo.");
+  });
+
+  it("sem a etapa no funil (migração pendente) ou com ela arquivada, a base puxa e o lead fica onde está", async () => {
+    for (const etapas of [ETAPAS.filter((e) => e.chave !== "reaquecendo"), ETAPAS.map((e) => (e.chave === "reaquecendo" ? { ...e, ativa: false } : e))]) {
+      const banco = montarParado(parado(), etapas);
+      await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+      expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "em_contato", assistente_fase: "reaquecendo" });
+      expect(trocas(banco)).toEqual([]);
+    }
+  });
+
+  it("na rodada seguinte, o toque sai: Reaquecendo conta como etapa da base", async () => {
+    const banco = montarParado(parado());
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
+    await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    relogio = new Date(TERCA_10H.getTime() + 15 * 60 * 1000);
+    const segunda = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    expect(segunda.suprimidos.map((s) => s.motivo)).not.toContain("fora_da_base");
+    expect(segunda.toques).toEqual([expect.objectContaining({ lead_id: "lead-1", enviado: true })]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "reaquecendo", cadencia_passo: 1 });
+  });
+
+  it("o cliente responde: fica em Reaquecendo enquanto o Ney conversa; na entrega, volta para a etapa de onde saiu", async () => {
+    const banco = montarParado(parado());
+    const t = transporteDeTeste([respostaDoModelo({ ficha: { interesse: "Onix LT 2020", interesse_especifico: true }, sinais: { pediu_humano: true } })]);
+    await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    relogio = new Date(TERCA_10H.getTime() + 60 * 60 * 1000);
+    const entrada = await clienteEscreve(banco, t, "ainda quero, me chama alguém");
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "reaquecendo", assistente_fase: "qualificando" });
+
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "em_contato", assistente_fase: "entregue", responsavel: "Carla Souza" });
+    expect(trocas(banco)).toEqual([
+      ["em_contato", "reaquecendo"],
+      ["reaquecendo", "em_contato"],
+    ]);
+  });
+
+  it("a visita marcada pelo Ney sai de Reaquecendo para Visita agendada, mesmo com a coluna depois dela no funil", async () => {
+    const depoisDaVisita = ETAPAS.map((e) => (e.chave === "reaquecendo" ? { ...e, ordem: 7 } : e));
+    const banco = montarReaquecendo("em_contato", { assistente_fase: "qualificando", cadencia: null }, depoisDaVisita);
+    const t = transporteDeTeste([
+      respostaDoModelo({ mensagens: ["Fechado, sábado às 10h!"], ficha: { interesse: "Onix LT 2020", interesse_especifico: true, visita: "sábado às 10h", visita_data: "2026-10-24", visita_hora: "10:00" } }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "sábado às 10h pode ser");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "visita", entregue_motivo: "agendou" });
+  });
+
+  it("\"Novo\" volta como \"1º Contato\": quem conversou com a loja não é mais lead novo", async () => {
+    const banco = montarReaquecendo("novo");
+    expect(await mudarAssistente(banco.cliente, { leadId: "lead-1", acao: "pausar", autor: "Carla Souza" }, deps(transporteDeTeste()))).toEqual({ ok: true });
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "em_contato", assistente_fase: "pausado" });
+  });
+
+  it("a cadência que para sem toque devolve o lead à equipe e à etapa de onde ele saiu", async () => {
+    // Telefone que a Evolution recusa: a cadência acaba, e o lead volta.
+    const banco = montarReaquecendo("proposta", { telefone: "554199", cadencia_proximo_em: "2026-10-20T12:00:00.000Z" });
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.devolvidos).toEqual([{ lead_id: "lead-1", motivo: "telefone_invalido" }]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "proposta", assistente_fase: "pausado" });
+  });
+
+  it("o vendedor respondeu pelo painel: o Ney sai, e o lead volta para a etapa de antes", async () => {
+    const banco = montarReaquecendo("em_contato");
+    const r = await enviarDoPainel(banco.cliente, { leadId: "lead-1", texto: "Oi Rafael, aqui é a Carla!", autor: "Carla Souza" }, deps(transporteDeTeste()));
+    expect(r).toEqual({ ok: true });
+    expect(banco.tabelas.leads[0]).toMatchObject({ situacao: "em_contato", assistente_fase: "pausado" });
+  });
+
+  it("o lead que alguém já tirou da coluna fica onde a pessoa pôs", async () => {
+    const banco = montarReaquecendo("em_contato", { situacao: "negociacao" });
+    await mudarAssistente(banco.cliente, { leadId: "lead-1", acao: "pausar", autor: "Carla Souza" }, deps(transporteDeTeste()));
+    expect(banco.tabelas.leads[0].situacao).toBe("negociacao");
+  });
+
+  it("\"Ney reaquece com o tempo\" leva para Reaquecendo; \"Ney retoma agora\" deixa o lead onde está", async () => {
+    const devolvido = montar({
+      leads: [leadAberto({ assistente_fase: "entregue", responsavel: "Carla Souza", situacao: "visita" })],
+      funil_etapas: ETAPAS.map((e) => ({ ...e })),
+      atendimento_mensagens: [jaEscreveu()],
+    });
+    expect(await mudarAssistente(devolvido.cliente, { leadId: "lead-1", acao: "devolver", autor: "Carla Souza" }, deps(transporteDeTeste([respostaDoModelo()])))).toEqual({ ok: true });
+    expect(devolvido.tabelas.leads[0]).toMatchObject({ situacao: "reaquecendo", assistente_fase: "reaquecendo", cadencia: "engajamento" });
+    expect(trocas(devolvido)).toEqual([["visita", "reaquecendo"]]);
+    const nota = devolvido.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "devolucao");
+    expect(nota?.detalhe?.texto).toContain("foi para a etapa Reaquecendo e volta para a de antes quando o assistente o largar");
+
+    const retomado = montar({
+      leads: [leadAberto({ assistente_fase: null, responsavel: "Carla Souza", situacao: "proposta" })],
+      funil_etapas: ETAPAS.map((e) => ({ ...e })),
+      atendimento_mensagens: [jaEscreveu()],
+    });
+    expect(await mudarAssistente(retomado.cliente, { leadId: "lead-1", acao: "assumir", autor: "Carla Souza" }, deps(transporteDeTeste([respostaDoModelo()])))).toMatchObject({ ok: true });
+    expect(retomado.tabelas.leads[0]).toMatchObject({ situacao: "proposta", assistente_fase: "reaquecendo" });
+    expect(trocas(retomado)).toEqual([]);
+  });
+});

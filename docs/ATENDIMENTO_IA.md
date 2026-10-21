@@ -678,13 +678,14 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/historico` | à mão, com o token do motor | O mesmo para os leads abertos, em lotes: `{ limite, depois_de }` → `proximo` até voltar nulo (21/10). |
 | `POST /api/leads/[id]/conversa/anexo` | painel | `{ nome, tipo, bytes }` → `{ caminho, token }`: a URL assinada de upload na pasta do lead, só para o que o WhatsApp aceita. |
 | `GET /api/leads/[id]/conversa/midia/[mensagem]` | painel | O arquivo da mensagem: confere o escopo, lê a mensagem pela sessão e responde 307 para a URL assinada de 5 min (`?baixar=1` baixa com o nome). |
-| `POST /api/leads/[id]/assistente` | painel | `pausar`, `retomar`, `entregar`, `devolver`. |
+| `POST /api/leads/[id]/assistente` | painel (detalhe e o "Enviar ao Ney" do card) | `pausar`, `retomar`, `entregar`, `devolver`, `assumir`, `ler`. |
+| `GET /api/leads/novidades?desde=` | quadro, a cada minuto | A conversa de cada lead na última semana (quem falou por último, desde quando o cliente espera) e o estado dos leads que mudaram desde `desde` (etapa, dono, desfecho, o Ney) — sem nome nem telefone. `desde` recortado em 30 min; sem ele, 5 min (decisão 25). |
 | `GET/PUT /api/atendimento/config` | painel (Admin, Gestor) | A configuração da loja, e o que falta nas integrações. Desligar devolve os leads do assistente à equipe. |
 | `GET /api/atendimento/relatorio?dias=30` | painel | O relatório, recortado pelo escopo de quem pede. |
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261027120000_entrega_pos_venda.sql`
+## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261028120000_etapa_reaquecendo.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -755,6 +756,16 @@ visita ou está pronto para simular).
 A sétima guarda a régua da **base parada** em `atendimento_config.base`
 (ligada, 30 por dia, 7 dias — a decisão do dono; §6).
 
+A oitava aceita `pos_venda` como motivo da entrega (a reclamação e o
+pós-venda, entregues depois da triagem).
+
+A nona (`20261028120000_etapa_reaquecendo.sql`) cria a etapa **Reaquecendo**
+(`reaquecendo`, aberta, protegida, sem prazo) logo depois de Recontato — as
+seguintes andam uma casa — e põe nela os leads que o assistente já reaquece,
+menos os do "Ney retoma agora" (a última passagem anotada no rastro decide).
+O gatilho do rastro anota de onde cada um saiu; é por essa linha que ele volta
+(decisão 25). Com a etapa já criada, não mexe em nada.
+
 ---
 
 ## 10. Como ligar
@@ -765,8 +776,9 @@ A sétima guarda a régua da **base parada** em `atendimento_config.base`
    `20261023120000_etiquetas_no_lead.sql`,
    `20261024120000_anexos_do_atendimento.sql`,
    `20261025120000_etiquetas_automaticas.sql`,
-   `20261026120000_base_parada_no_assistente.sql` e
-   `20261027120000_entrega_pos_venda.sql`, nesta ordem.
+   `20261026120000_base_parada_no_assistente.sql`,
+   `20261027120000_entrega_pos_venda.sql` e
+   `20261028120000_etapa_reaquecendo.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -1058,6 +1070,60 @@ tela, em **Leads → Atendimento IA → Configuração**.
       continua dizendo o que foi feito pelo Chatwoot.
     - as variáveis `CHATWOOT_*` não são mais lidas e saem da Vercel depois do
       deploy.
+
+24. **O cliente esperando resposta, à vista no quadro** (21/10): *"precisamos
+    de uma forma visual de ver no painel os leads que estão com mensagens
+    atuais sem resposta"*. Escolhas do dono: selo no card, filtro "Esperando
+    resposta", vermelho aos 10 minutos (o contador no menu e o "Já respondi"
+    ficaram de fora).
+    - a régua é a conversa do painel: o cliente escreveu e, depois, ninguém
+      da loja mandou nada — nem o Ney, nem o vendedor pelo painel, nem o
+      celular da loja (o eco entra como saída). A espera conta da PRIMEIRA
+      mensagem sem resposta; a saída que falhou não é resposta;
+    - a figurinha e o "ok, obrigado" (curto, sem `?`, só palavras de quem
+      encerra) não abrem espera: sem o "Já respondi", o "valeu 👍" deixaria o
+      card vermelho até alguém escrever. Áudio e foto sem legenda abrem;
+    - com o Ney na conversa, o selo só aparece depois de 3 minutos (o tempo
+      dele responder); depois disso é o Ney travado, e alguém precisa olhar;
+    - âmbar até 10 minutos, vermelho cheio dali em diante; quem espera vai
+      para o topo da coluna, o mais antigo primeiro;
+    - só a conversa da última semana (`lib/conversaNoCard`), numa leitura só,
+      pela sessão de quem pede (a política herda o escopo de `leads`).
+
+25. **O Ney e as mensagens no card, sem abrir o lead, e a etapa
+    Reaquecendo** (21/10): *"a etapa reaquecendo foi criada, os leads que o
+    Ney estiver reaquecendo ou recuperando, vão para a etapa. os marcados com
+    ney retoma agora, ficam no lugar onde estão. temos que ter uma
+    visualização clara sobre leads que estão com o Ney, assim como as
+    mensagens, para não precisar abrir cada um, se tiver um botão de enviar
+    agora para o ney no card resumo, acho que seria interessante também"*.
+    Nas perguntas seguintes, o dono escolheu as quatro recomendações:
+    - **a etapa** `reaquecendo` ("Reaquecendo"), logo depois de Recontato,
+      protegida e sem prazo (migração `20261028120000`). A base parada e o
+      "Ney reaquece com o tempo" põem o lead nela; o "Ney retoma agora" o
+      deixa onde está. Os 7 leads que a base reaquecia em 21/10 entram nela
+      com a migração;
+    - **o cliente responde**: o lead fica em Reaquecendo enquanto o Ney
+      conversa — o selo diz "Ney conversando";
+    - **o Ney larga o lead** (entregou, a cadência acabou, alguém pausou ou
+      respondeu pelo painel ou pelo celular, opt-out, assistente desligado):
+      volta para a etapa de onde entrou, que o rastro guarda. A visita que o
+      Ney marca vai para Visita agendada, como antes. "Novo" volta como "1º
+      Contato" — só entra no reaquecimento quem já conversou com a loja, a
+      mesma régua de `registrar_contato_do_lead` —, e o lead que alguém tirou
+      da coluna fica onde a pessoa pôs. Reaquecendo conta como etapa da base;
+    - **no card**: o selo do Ney ("Ney conversando"; "Ney reaquecendo · 1º
+      toque hoje 15:00" ou "· 2 toques enviados"), a última mensagem da
+      conversa ("Cliente: qual o valor da entrada? · 5 min") e o filtro "Com
+      o Ney";
+    - **"Enviar ao Ney"** no card: o "Ney retoma agora" do detalhe, com
+      confirmação (o envio escreve ao cliente, e o tablet do balcão erra
+      dedo). Só onde o detalhe ofereceria, e só no lead com conversa pela
+      loja; a recusa do servidor aparece no card;
+    - **ao vivo**: a cada minuto, com a aba à vista (e na volta à aba), o
+      quadro pergunta `GET /api/leads/novidades` — a conversa de cada lead e
+      o estado dos que mudaram — e junta, sem relê-lo. O card mexido nesta
+      tela há menos de 2 minutos não recebe o estado (o arrasto não desfaz).
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

@@ -6,6 +6,7 @@ import {
   decidirToque,
   dentroDoExpediente,
   entraNaBase,
+  etapaDaVolta,
   interesseDaCadencia,
   nomeParaTratar,
   podeAvisarAEquipe,
@@ -117,6 +118,29 @@ describe("o calendário dos passos", () => {
     // Visita agendada, negociação, o pós-venda que a loja criou.
     for (const situacao of ["visita", "negociacao", "nova_etapa_n9vi", null]) expect(entraNaBase({ canal: "WhatsApp", situacao }), String(situacao)).toBe(false);
     for (const canal of ["repasse", "repasse-lojista", "repasse-exame", "repasse-whatsapp"]) expect(entraNaBase({ canal, situacao: "novo" }), canal).toBe(false);
+    // Reaquecendo (21/10) é a etapa do assistente: o lead da base mora nela.
+    expect(entraNaBase({ canal: "WhatsApp", situacao: "reaquecendo" })).toBe(true);
+  });
+
+  // O dono (21/10): quando o Ney larga o lead, ele volta para a etapa de onde saiu.
+  it("a volta de Reaquecendo: a etapa de onde saiu; Novo vira 1º Contato; etapa que sumiu, 1º Contato", () => {
+    const etapas = [
+      { chave: "novo", tipo: "aberta", ativa: true, ordem: 1 },
+      { chave: "em_contato", tipo: "aberta", ativa: true, ordem: 2 },
+      { chave: "proposta", tipo: "aberta", ativa: true, ordem: 3 },
+      { chave: "reaquecendo", tipo: "aberta", ativa: true, ordem: 4 },
+      { chave: "visita", tipo: "aberta", ativa: true, ordem: 5 },
+      { chave: "arquivada", tipo: "aberta", ativa: false, ordem: 6 },
+      { chave: "fechado", tipo: "ganho", ativa: true, ordem: 8 },
+    ];
+    expect(etapaDaVolta("proposta", etapas)).toBe("proposta");
+    expect(etapaDaVolta("visita", etapas)).toBe("visita");
+    expect(etapaDaVolta("novo", etapas)).toBe("em_contato");
+    for (const de of ["arquivada", "fechado", "nao_existe", "reaquecendo", null, undefined]) expect(etapaDaVolta(de, etapas), String(de)).toBe("em_contato");
+    // Sem 1º Contato no funil: a primeira etapa aberta.
+    const semContato = etapas.filter((e) => e.chave !== "em_contato");
+    expect(etapaDaVolta("novo", semContato)).toBe("novo");
+    expect(etapaDaVolta(null, [{ chave: "fechado", tipo: "ganho", ativa: true, ordem: 1 }])).toBeNull();
   });
 
   it("de fábrica, todas têm no máximo três toques (a régua do manobrAI)", () => {

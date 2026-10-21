@@ -31,6 +31,12 @@ export default function ControlesDoFunil({
   parados,
   soParados,
   aoAlternarParados,
+  esperando,
+  soEsperando,
+  aoAlternarEsperando,
+  comONey,
+  soComONey,
+  aoAlternarComONey,
   semResponsavel,
   soSemResponsavel,
   aoAlternarSemResponsavel,
@@ -62,6 +68,14 @@ export default function ControlesDoFunil({
   parados: number;
   soParados: boolean;
   aoAlternarParados: () => void;
+  /** O cliente escreveu e ninguém da loja respondeu (21/10/2026, `lib/conversaNoCard`). */
+  esperando: number;
+  soEsperando: boolean;
+  aoAlternarEsperando: () => void;
+  /** O Ney está qualificando ou reaquecendo. */
+  comONey: number;
+  soComONey: boolean;
+  aoAlternarComONey: () => void;
   /** Só para o Administrador, que é quem os enxerga e distribui; `null` para os outros. */
   semResponsavel: number | null;
   soSemResponsavel: boolean;
@@ -142,6 +156,13 @@ export default function ControlesDoFunil({
             de quem cobra é a dos parados. */}
         <ChipDeFiltro ativo={soParados} aoAlternar={aoAlternarParados}>
           Parados ({parados})
+        </ChipDeFiltro>
+        {/* A conversa (21/10/2026): quem espera resposta e quem está com o Ney. */}
+        <ChipDeFiltro ativo={soEsperando} aoAlternar={aoAlternarEsperando}>
+          Esperando resposta ({esperando})
+        </ChipDeFiltro>
+        <ChipDeFiltro ativo={soComONey} aoAlternar={aoAlternarComONey}>
+          Com o Ney ({comONey})
         </ChipDeFiltro>
         {semResponsavel !== null && (
           <ChipDeFiltro ativo={soSemResponsavel} aoAlternar={aoAlternarSemResponsavel}>
