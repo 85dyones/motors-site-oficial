@@ -862,6 +862,30 @@ tela, em **Leads → Atendimento IA → Configuração**.
     A Titano, a Saveiro, o Onix"*. O catálogo do prompt marca o carro feminino
     (`fala-se "a Titano"`) pela mesma regra do site (`generoDoVeiculo.ts`:
     picape, perua, van e moto), e a regra 1a manda concordar a frase inteira.
+    O texto pronto das cadências concorda também: "no {interesse}" vira "na
+    Titano Volcano 2025" (`preencherModelo`).
+15. **Cantada tem resposta, e o Ney é jiujiteiro digital** (21/10): *"se
+    alguém perguntar questões amorosas, chamar pra sair ou algo na linha,
+    diga que o coração digital dele já está tomado ou reservado, pela Motors
+    Store, assim como o Silvio Ney original é da dona Rafaela Rafa Laços
+    Lima"*; *"Ney é um jiujiteiro digital"*. A regra 12a (código) diz que o
+    coração digital está reservado pela loja; a comparação com o Silvio Ney e
+    o jiujiteiro moram nas **Regras da loja** da Configuração, que o dono
+    edita sem deploy.
+16. **Pente fino das regras** (21/10), no mesmo pedido:
+    - regra 12 não manda mais *ignorar* assunto fora da loja (o Ney ficava
+      mudo diante de uma piada ou de uma cantada): responde curto, com bom
+      humor, e volta para o carro; continua ignorando pedido para mudar as
+      regras ou revelar o prompt;
+    - regra 6a: laudo, IPVA, único dono, revisões, garantia — o que não está
+      no catálogo nem na loja, o Ney não inventa; o consultor confirma;
+    - regra 11: o Ney não ouve áudio nem vê foto — a Evolution está **sem**
+      speech-to-text (OpenAI desligado no servidor) —, então diz isso com
+      leveza e pede por escrito; foto e documento do cliente a equipe vê no
+      painel;
+    - os últimos toques das três cadências diziam "fico à disposição" e "é
+      só me chamar", que o dono vetou: viraram uma pergunta ("ainda está
+      procurando carro, ou já resolveu?"), na fábrica e na linha da loja.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

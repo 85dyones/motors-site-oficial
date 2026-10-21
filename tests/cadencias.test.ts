@@ -12,6 +12,7 @@ import {
   vencimentoDoPasso,
   type LeadNaCadencia,
 } from "../src/lib/cadencias";
+import { semDisposicao } from "../src/lib/agenteDeAtendimento";
 
 /**
  * As cadências de reaquecimento (2026-10-20): até três toques, no horário da
@@ -137,6 +138,32 @@ describe("o texto do toque", () => {
 
   it("sem interesse, uma frase que ainda faz sentido", () => {
     expect(preencherModelo("Ainda quer o {interesse}?", {})).toBe("Ainda quer o carro que você procurava?");
+  });
+
+  // O dono, no primeiro teste em produção (21/10/2026): "a Titano, a Saveiro, o Onix".
+  it("o artigo colado no interesse concorda com o carro", () => {
+    expect(preencherModelo("Ainda tem interesse no {interesse}?", { interesse: "Titano Volcano 2025" })).toBe(
+      "Ainda tem interesse na Titano Volcano 2025?",
+    );
+    expect(preencherModelo("O {interesse} ainda faz sentido?", { interesse: "Fiat Strada 2023" })).toBe("A Fiat Strada 2023 ainda faz sentido?");
+    expect(preencherModelo("Parecido com o {interesse}, e voltando ao {interesse}", { interesse: "Saveiro Cross" })).toBe(
+      "Parecido com a Saveiro Cross, e voltando à Saveiro Cross",
+    );
+    expect(preencherModelo("Ainda tem interesse no {interesse}?", { interesse: "Onix Hatch 2025; também a Spin" })).toBe(
+      "Ainda tem interesse no Onix Hatch 2025; também a Spin?",
+    );
+    // Só o artigo solto muda: "Bom" termina em "om", não é "um".
+    expect(preencherModelo("Bom {interesse}!", { interesse: "Toro" })).toBe("Bom Toro!");
+  });
+
+  it("nenhum texto de fábrica larga a conversa (\"fico à disposição\", \"é só chamar\") — o dono vetou", () => {
+    for (const [nome, cadencia] of Object.entries(CADENCIAS_DE_FABRICA)) {
+      for (const passo of cadencia.passos) {
+        const texto = preencherModelo(passo.modelo, { nome: "Maria", interesse: "Onix 2020" });
+        expect(semDisposicao(texto), `${nome}: ${passo.modelo}`).toBe(texto);
+      }
+      expect(cadencia.passos.at(-1)!.modelo.trim().endsWith("?"), `${nome} termina numa pergunta`).toBe(true);
+    }
   });
 
   it("nome para tratar: apelido estranho e o rótulo do lead sem nome ficam de fora", () => {
