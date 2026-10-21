@@ -97,6 +97,20 @@ export interface FichaDoLead {
   cidade: string | null;
   /** Quando combinou de vir à loja, como foi dito ("sábado de manhã"). */
   visita: string | null;
+  /**
+   * O playbook de vendas da loja (2026-10-21): o SPIN no WhatsApp. O que
+   * incomoda no carro atual, ou o que ele quer resolver com o carro novo
+   * ("o Uno não cabe a família", "gasta muito"). É a abertura do consultor.
+   */
+  dor?: string | null;
+  /**
+   * O acordo de intenção (Sandler): o que precisa acontecer para ele fechar,
+   * nas palavras dele ("se a parcela ficar em 1.500 e a avaliação for justa,
+   * fecha no dia").
+   */
+  intencao?: string | null;
+  /** As objeções que ele levantou ("a esposa decide", "acha a avaliação baixa", "crédito negado"). */
+  objecoes?: string | null;
   /** A visita com dia marcado, "AAAA-MM-DD" — só quando o cliente confirmou o dia. */
   visita_data: string | null;
   /** A hora marcada, "HH:MM" — só quando o cliente confirmou a hora. */
@@ -155,6 +169,9 @@ export const FICHA_VAZIA: FichaDoLead = {
   visita: null,
   visita_data: null,
   visita_hora: null,
+  dor: null,
+  intencao: null,
+  objecoes: null,
 };
 
 /** "sem troca", "não tenho", "nenhum": o cliente respondeu que NÃO tem carro na troca. */
@@ -461,6 +478,9 @@ export function fichaValida(bruto: unknown): FichaDoLead {
     visita: textoOuNulo(b.visita, 80),
     visita_data: dataValida(b.visita_data),
     visita_hora: horaValida(b.visita_hora),
+    dor: textoOuNulo(b.dor, 160),
+    intencao: textoOuNulo(b.intencao, 160),
+    objecoes: textoOuNulo(b.objecoes, 160),
   };
 }
 

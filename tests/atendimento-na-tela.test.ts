@@ -98,6 +98,7 @@ describe("resumo e aquecimento", () => {
       "Nome",
       "Procura",
       "Uso",
+      "O que quer resolver",
       "Quer investir",
       "Pagamento",
       "Entrada",
@@ -105,7 +106,9 @@ describe("resumo e aquecimento", () => {
       "Carro na troca",
       "Quem decide",
       "Prazo",
+      "Acordo para fechar",
       "Visita",
+      "Objeções",
       "Cidade",
     ]);
     const valor = (rotulo: string) => linhas.find((l) => l.rotulo === rotulo)!.valor;

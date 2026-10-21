@@ -162,6 +162,23 @@ describe("o prompt", () => {
     expect(instrucoes).toContain("Olha ela aqui 👇");
   });
 
+  it("o playbook híbrido (21/10): triagem, dor, quem decide, acordo de intenção — e as cinco objeções da loja", () => {
+    const instrucoes = montarInstrucoesFixas({ config: configBase, nomeDaLoja: "L", loja: "", catalogo: "", totalDoCatalogo: 0, geradoEm: "" });
+    const playbook = instrucoes.slice(instrucoes.indexOf("## O playbook da loja"), instrucoes.indexOf("## Como montar cada resposta"));
+    for (const trecho of ["Triagem (BANT)", "A dor (SPIN)", "Quem decide (MEDDIC)", "O acordo de intenção (Sandler)", "Simples (SNAP)", "Urgência só de verdade"]) {
+      expect(playbook, trecho).toContain(trecho);
+    }
+    for (const objecao of ["Vou falar com a esposa/família", "a avaliação foi baixa", "Vou pensar", "A parcela não cabe", "Meu crédito não foi aprovado"]) {
+      expect(playbook, objecao).toContain(objecao);
+    }
+    // O acordo usa só o valor que o cliente disse: nenhum valor de exemplo para o modelo repetir.
+    expect(playbook).not.toMatch(/R\$/);
+    expect(playbook).toContain("só o valor que ELE disse");
+    expect(playbook).toContain("nunca diga que vai aprovar");
+    expect(instrucoes).toContain('"dor": null');
+    expect(instrucoes).toContain('"objecoes": null');
+  });
+
   it("informar preço muda a regra 5", () => {
     const comPreco = montarInstrucoesFixas({ config: { ...configBase, informar_preco: true }, nomeDaLoja: "L", loja: "", catalogo: "", totalDoCatalogo: 0, geradoEm: "" });
     expect(comPreco).toContain("PODE informar o preço anunciado");
@@ -246,6 +263,11 @@ describe("a resposta do modelo, conferida", () => {
     expect(lerRespostaDoAgente("Olá! Como posso ajudar?")).toBeNull();
     expect(lerRespostaDoAgente(JSON.stringify({ mensagens: [] }))).toBeNull();
     expect(lerRespostaDoAgente(JSON.stringify({ ficha: {} }))).toBeNull();
+  });
+
+  it("o playbook: a dor, o acordo de intenção e as objeções voltam na ficha", () => {
+    const r = lerRespostaDoAgente(JSON.stringify({ mensagens: ["Entendi!"], ficha: { dor: "o Uno gasta muito", intencao: "fecha se a avaliação for justa", objecoes: "vai falar com a esposa" } }));
+    expect(r!.ficha).toMatchObject({ dor: "o Uno gasta muito", intencao: "fecha se a avaliação for justa", objecoes: "vai falar com a esposa" });
   });
 
   it("o toque da cadência: a mensagem, ou a decisão de não tocar com o motivo", () => {

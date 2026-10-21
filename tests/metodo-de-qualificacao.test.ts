@@ -65,6 +65,25 @@ describe("o que falta e o próximo movimento", () => {
       "Depois, quando couber naturalmente: se tem carro na troca (modelo, ano e km) [Pagamento].",
     ]);
   });
+
+  // O playbook de vendas (21/10/2026): a dor (SPIN) e o acordo de intenção
+  // (Sandler) entram como sugestão — nunca travam a visita nem a simulação.
+  it("a dor e o acordo de intenção são sugestões, depois da triagem: com troca, pergunta o que incomoda no carro atual", () => {
+    const comTroca = prontidao(ficha({ ...ONIX, troca: "Uno 2014, 90 mil km", pagamento: "a_vista", prazo: "imediato" }), TERCA_10H, { nomeNoWhatsApp: "Rafael" });
+    expect(comTroca.faltam.map((f) => f.item)).toEqual([
+      "o que o incomoda no carro atual (por que quer trocar)",
+      "o acordo: o que precisa acontecer para ele fechar (a parcela, a avaliação da troca)",
+      "o dia e a hora da visita ou do test-drive",
+    ]);
+    expect(comTroca.proximoMovimento).toContain("marcar a visita");
+    expect(comTroca.faltam.filter((f) => f.sugestao).map((f) => f.pilar)).toEqual(["produto", "passo"]);
+    const sabido = prontidao(
+      ficha({ ...ONIX, troca: "sem troca", pagamento: "a_vista", prazo: "imediato", dor: "a família cresceu", intencao: "fecha no dia se o carro estiver como nas fotos" }),
+      TERCA_10H,
+      { nomeNoWhatsApp: "Rafael" },
+    );
+    expect(sabido.faltam.map((f) => f.item)).toEqual(["o dia e a hora da visita ou do test-drive"]);
+  });
 });
 
 describe("pronto para o comercial", () => {

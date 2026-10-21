@@ -242,6 +242,35 @@ do balão (e do toque da cadência) a frase de quem larga a conversa — "fico �
 disposição", "qualquer dúvida estou aqui", "é só chamar". A frase que termina
 em pergunta fica (é ela que conduz); se nada sobrar, vai o texto original.
 
+### 3.2 O playbook híbrido (21/10/2026)
+
+Pedido do dono: *"Avalie esse fluxo, acho mais interessante e completo para o
+atendimento, elabore nele se preciso"* — BANT/GPCT, SPIN, Sandler, MEDDIC e
+SNAP/Challenger, cada um no seu momento. A loja vende mais pelo WhatsApp, e as
+objeções que mais fazem perder tempo são cinco: crédito não aprovado, "vou
+falar com a esposa/família", avaliação do usado baixa, "vou pensar / vou ver
+outros" e parcela que não cabe.
+
+O que entrou, sem virar questionário (os 5P continuam mandando, e o próximo
+movimento continua sendo a visita ou a simulação):
+
+| Método | Onde entra | O que fica |
+|---|---|---|
+| BANT | a triagem dos 5P | necessidade, bolso e pressa, nas perguntas de sempre |
+| SPIN | depois da triagem, como sugestão | a **dor** (`dor`): o que incomoda no carro atual ou o que ele quer resolver; o carro do catálogo é mostrado como solução para ela |
+| MEDDIC | na proposta da visita | **quem decide** é convidado a vir junto (convite, não pergunta a mais) |
+| Sandler | quando já se sabe como paga | o **acordo de intenção** (`intencao`): "se a parcela ficar perto do que você falou e a avaliação for justa, você já fecha na visita?" — só com o valor que o cliente disse, e é um "se": nada de prometer parcela, aprovação ou avaliação |
+| SNAP | sempre | frase curta, um passo de cada vez |
+| Challenger | não entra | urgência só de verdade; "é o último" e "só hoje" ficam proibidos, e o fechamento é do consultor |
+
+As **objeções** ganharam uma seção no prompt, com o caminho de cada uma, e
+vão para a ficha (`objecoes`). A dor e o acordo entram no método como
+sugestões ("Depois, quando couber naturalmente…"), nunca como trava.
+
+**O roteiro do consultor**: o resumo ao vendedor ganha "O que quer resolver",
+"Acordo para fechar" e "Objeções" (só quando o cliente disse), ao lado de
+"Quem decide"; a ficha no painel mostra os três.
+
 ---
 
 ## 4. A entrega ao vendedor
@@ -973,6 +1002,12 @@ tela, em **Leads → Atendimento IA → Configuração**.
     lead aberto. A primeira resposta do Ney também traz o histórico antes,
     quando o painel não tem mensagem do cliente além das que acabaram de
     chegar (o lead novo, ou o da base que só tinha o toque da cadência).
+
+20. **O playbook híbrido** (21/10): *"Avalie esse fluxo, acho mais
+    interessante e completo para o atendimento, elabore nele se preciso"*.
+    As objeções escolhidas pelo dono: crédito não aprovado, "vou falar com a
+    esposa/família", avaliação do usado baixa, "vou pensar / vou ver outros"
+    e parcela que não cabe; o canal que mais vende é o WhatsApp. Ver §3.2.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

@@ -37,6 +37,17 @@ describe("o resumo ao vendedor", () => {
     expect(m).toContain("Abrir no painel: https://loja.exemplo/admin/leads/abc");
   });
 
+  it("o roteiro do consultor (o playbook de 21/10): a dor, quem decide, o acordo para fechar e as objeções", () => {
+    const m = mensagemDeEntrega({
+      ...base,
+      para: "vendedor",
+      ficha: { ...base.ficha, dor: "o Uno não cabe mais a família", decisor: "a esposa", intencao: "fecha na visita se a parcela ficar perto de 1.500", objecoes: "acha a avaliação do Uno baixa" },
+    });
+    expect(m).toContain("Quem decide: a esposa\nO que quer resolver: o Uno não cabe mais a família\nAcordo para fechar: fecha na visita se a parcela ficar perto de 1.500\nObjeções: acha a avaliação do Uno baixa");
+    // Sem o que o cliente não disse.
+    expect(mensagemDeEntrega({ ...base, para: "vendedor" })).not.toMatch(/O que quer resolver|Acordo para fechar|Objeções/);
+  });
+
   it("as fotos que o cliente pediu na entrega vão ao vendedor", () => {
     expect(mensagemDeEntrega({ ...base, para: "vendedor", fotosPedidas: "de fora do Onix LT 2020 (#7950008)" })).toContain(
       "📷 Pediu fotos de fora do Onix LT 2020 (#7950008): mande do seu WhatsApp.",

@@ -257,6 +257,7 @@ export function linhasDaFicha(qualificacao: EstadoDoAtendimento["qualificacao"])
     { rotulo: "Nome", valor: f.nome },
     { rotulo: "Procura", valor: f.interesse },
     { rotulo: "Uso", valor: f.uso },
+    { rotulo: "O que quer resolver", valor: f.dor ?? null },
     { rotulo: "Quer investir", valor: f.orcamento },
     { rotulo: "Pagamento", valor: f.pagamento ? ROTULO_DO_PAGAMENTO[f.pagamento] : null },
     { rotulo: "Entrada", valor: f.entrada },
@@ -264,7 +265,9 @@ export function linhasDaFicha(qualificacao: EstadoDoAtendimento["qualificacao"])
     { rotulo: "Carro na troca", valor: trocaParaLer(f.troca) },
     { rotulo: "Quem decide", valor: f.decisor },
     { rotulo: "Prazo", valor: f.prazo ? ROTULO_DO_PRAZO[f.prazo] : null },
+    { rotulo: "Acordo para fechar", valor: f.intencao ?? null },
     { rotulo: "Visita", valor: rotuloDaVisita(f) ?? f.visita },
+    { rotulo: "Objeções", valor: f.objecoes ?? null },
     { rotulo: "Cidade", valor: f.cidade },
   ];
 }
@@ -286,7 +289,8 @@ export function situacaoDoMetodo(
   if (estado?.entregue_motivo === "simulacao") return { texto: "Pronto para simular o financiamento", pronto: true };
   if (p.pronto === "agendou" && visita) return { texto: `Visita marcada: ${visita}`, pronto: true };
   if (p.pronto === "simulacao") return { texto: "Pronto para simular o financiamento", pronto: true };
-  const itens = p.faltam.slice(0, 3).map((x) => x.item);
+  // As sugestões do playbook (a dor, o acordo) não são o que falta: o painel mostra o método.
+  const itens = p.faltam.filter((x) => !x.sugestao).slice(0, 3).map((x) => x.item);
   return { texto: itens.length > 0 ? `Falta: ${itens.join("; ")}` : "Os 5P estão completos", pronto: false };
 }
 
