@@ -84,6 +84,11 @@ export function mensagemDeEntrega(d: DadosDaEntrega): string {
     d.ficha.troca ? `Troca: ${trocaParaLer(d.ficha.troca)}` : "",
     d.ficha.prazo ? `Prazo: ${ROTULO_DO_PRAZO[d.ficha.prazo]}` : "",
     d.ficha.decisor ? `Quem decide: ${d.ficha.decisor}` : "",
+    // O roteiro do consultor (o playbook de 21/10): por onde abrir a conversa,
+    // o que ele disse que precisa para fechar e o que pode travar.
+    d.ficha.dor ? `O que quer resolver: ${d.ficha.dor}` : "",
+    d.ficha.intencao ? `Acordo para fechar: ${d.ficha.intencao}` : "",
+    d.ficha.objecoes ? `Objeções: ${d.ficha.objecoes}` : "",
     // O dado em si fica na conversa do painel, nunca no WhatsApp do vendedor.
     d.ficha.dados_da_simulacao ? `Dados para a simulação: ${d.ficha.dados_da_simulacao} (veja na conversa do painel)` : "",
     d.ficha.cidade ? `Cidade: ${d.ficha.cidade}` : "",

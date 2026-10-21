@@ -215,30 +215,47 @@ export function situacaoDoAssistente(
   }
 }
 
-export type AcaoNaTela = "pausar" | "retomar" | "entregar" | "devolver";
+export type AcaoNaTela = "pausar" | "retomar" | "entregar" | "devolver" | "assumir" | "ler";
 
 export const ROTULO_DA_ACAO: Record<AcaoNaTela, string> = {
   pausar: "Pausar assistente",
-  retomar: "Devolver a conversa ao assistente",
+  retomar: "Ney volta a responder",
   entregar: "Entregar ao vendedor agora",
-  devolver: "Devolver para reaquecer",
+  assumir: "Ney retoma agora",
+  devolver: "Ney reaquece com o tempo",
+  ler: "Ney lê a conversa",
 };
 
-/** Os botões que fazem sentido agora. Opt-out só deixa pausar. */
+/**
+ * O que cada botão faz, numa linha (21/10): a equipe escolhe como passar o
+ * lead ao Ney — *"seria interessante ter a opção de escolher"*.
+ */
+export const EXPLICACAO_DA_ACAO: Record<AcaoNaTela, string> = {
+  pausar: "o Ney sai da conversa e o SLA do vendedor volta a correr",
+  retomar: "o Ney responde quando o cliente escrever",
+  entregar: "passa ao vendedor agora, com o resumo",
+  assumir: "lê a conversa e escreve na próxima rodada, de onde ela parou — ou não escreve, se a conversa não pedir",
+  devolver: "toques em 7, 15 e 30 dias, lendo a conversa antes de cada um",
+  ler: "só a ficha, a nota e o resumo para o comercial, sem escrever ao cliente",
+};
+
+/**
+ * Os botões que fazem sentido agora. Opt-out só deixa pausar (e ler). Com o
+ * Ney fora da conversa — nunca pegou, pausado ou entregue —, a equipe escolhe
+ * como passar o lead a ele (21/10).
+ */
 export function acoesDisponiveis(estado: Pick<EstadoDoAtendimento, "assistente_fase" | "optout_em">): AcaoNaTela[] {
-  if (estado.optout_em) return estado.assistente_fase === "qualificando" ? ["pausar"] : [];
+  if (estado.optout_em) return estado.assistente_fase === "qualificando" ? ["pausar"] : ["ler"];
   switch (estado.assistente_fase) {
     case "qualificando":
       return ["entregar", "pausar"];
     case "reaquecendo":
       return ["entregar", "pausar"];
-    case "entregue":
-      return ["devolver"];
     case "pausado":
-      return ["retomar", "devolver"];
+      return ["retomar", "assumir", "devolver", "ler"];
     default:
-      // O assistente nunca pegou este lead: não há conversa dele a retomar.
-      return [];
+      // Entregue, ou o lead que o Ney nunca pegou (a equipe já atendia).
+      return ["assumir", "devolver", "ler"];
   }
 }
 
@@ -257,6 +274,7 @@ export function linhasDaFicha(qualificacao: EstadoDoAtendimento["qualificacao"])
     { rotulo: "Nome", valor: f.nome },
     { rotulo: "Procura", valor: f.interesse },
     { rotulo: "Uso", valor: f.uso },
+    { rotulo: "O que quer resolver", valor: f.dor ?? null },
     { rotulo: "Quer investir", valor: f.orcamento },
     { rotulo: "Pagamento", valor: f.pagamento ? ROTULO_DO_PAGAMENTO[f.pagamento] : null },
     { rotulo: "Entrada", valor: f.entrada },
@@ -264,7 +282,9 @@ export function linhasDaFicha(qualificacao: EstadoDoAtendimento["qualificacao"])
     { rotulo: "Carro na troca", valor: trocaParaLer(f.troca) },
     { rotulo: "Quem decide", valor: f.decisor },
     { rotulo: "Prazo", valor: f.prazo ? ROTULO_DO_PRAZO[f.prazo] : null },
+    { rotulo: "Acordo para fechar", valor: f.intencao ?? null },
     { rotulo: "Visita", valor: rotuloDaVisita(f) ?? f.visita },
+    { rotulo: "Objeções", valor: f.objecoes ?? null },
     { rotulo: "Cidade", valor: f.cidade },
   ];
 }
@@ -286,7 +306,8 @@ export function situacaoDoMetodo(
   if (estado?.entregue_motivo === "simulacao") return { texto: "Pronto para simular o financiamento", pronto: true };
   if (p.pronto === "agendou" && visita) return { texto: `Visita marcada: ${visita}`, pronto: true };
   if (p.pronto === "simulacao") return { texto: "Pronto para simular o financiamento", pronto: true };
-  const itens = p.faltam.slice(0, 3).map((x) => x.item);
+  // As sugestões do playbook (a dor, o acordo) não são o que falta: o painel mostra o método.
+  const itens = p.faltam.filter((x) => !x.sugestao).slice(0, 3).map((x) => x.item);
   return { texto: itens.length > 0 ? `Falta: ${itens.join("; ")}` : "Os 5P estão completos", pronto: false };
 }
 

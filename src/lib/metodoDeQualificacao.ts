@@ -42,11 +42,11 @@ import { HORARIO_DA_LOJA, horaParaLer } from "./horarioDaLoja";
 export type Pilar = "produto" | "pagamento" | "pessoa" | "prazo" | "passo";
 
 export const PILARES: readonly { chave: Pilar; rotulo: string; descricao: string }[] = [
-  { chave: "produto", rotulo: "Produto", descricao: "qual carro (modelo e ano) e para que vai usar" },
+  { chave: "produto", rotulo: "Produto", descricao: "qual carro (modelo e ano), para que vai usar e o que o faz querer trocar o carro atual — a dor (SPIN)" },
   { chave: "pagamento", rotulo: "Pagamento", descricao: "à vista, financiado ou consórcio; a entrada; se tem carro na troca; a parcela que cabe" },
-  { chave: "pessoa", rotulo: "Pessoa", descricao: "como ele se chama; quem decide junto, se ele contar (só no financiamento se pergunta em nome de quem vai)" },
+  { chave: "pessoa", rotulo: "Pessoa", descricao: "como ele se chama; quem decide junto — e quem decide é convidado a vir junto na visita (só no financiamento se pergunta em nome de quem vai)" },
   { chave: "prazo", rotulo: "Prazo", descricao: "quando pretende comprar" },
-  { chave: "passo", rotulo: "Passo", descricao: "a visita ou o test-drive com dia e hora — ou, no financiamento, os dados para a simulação" },
+  { chave: "passo", rotulo: "Passo", descricao: "o acordo de intenção (o que precisa acontecer para ele fechar) e a visita ou o test-drive com dia e hora — ou, no financiamento, os dados para a simulação" },
 ];
 
 /** Até quantos dias à frente uma visita marcada conta como compromisso. */
@@ -100,8 +100,12 @@ export interface Prontidao {
   pronto: "agendou" | "simulacao" | null;
   /** A visita anotada com dia e hora que NÃO vale, e por quê. */
   problemaDaVisita: string | null;
-  /** O que falta, na ordem do método. */
-  faltam: { pilar: Pilar; item: string }[];
+  /**
+   * O que falta, na ordem do método. `sugestao`: o playbook (a dor, o acordo
+   * de intenção) — vai ao modelo como "quando couber", mas não é o que falta
+   * para o lead ficar pronto, e o painel não o lista.
+   */
+  faltam: { pilar: Pilar; item: string; sugestao?: true }[];
   /** O próximo movimento do assistente, numa frase. */
   proximoMovimento: string;
 }
@@ -151,11 +155,26 @@ export function prontidao(ficha: FichaDoLead, agora: Date, opcoes: { nomeNoWhats
   if (!ficha.troca) faltam.push({ pilar: "pagamento", item: "se tem carro na troca (modelo, ano e km)" });
   if (!ficha.prazo) faltam.push({ pilar: "prazo", item: "quando pretende comprar" });
   if (!ficha.nome && !(opcoes.nomeNoWhatsApp ?? "").trim()) faltam.push({ pilar: "pessoa", item: "como ele se chama" });
+  // O playbook (2026-10-21): depois da triagem (BANT), a dor (SPIN) — o que
+  // abre o consultor. Sugestão, não trava: o próximo movimento continua sendo
+  // a visita ou a simulação.
+  if (ficha.interesse && !ficha.dor) {
+    faltam.push({
+      pilar: "produto",
+      item: ficha.troca && !semCarroNaTroca(ficha.troca) ? "o que o incomoda no carro atual (por que quer trocar)" : "o que ele quer resolver com o carro novo",
+      sugestao: true,
+    });
+  }
   // Quem decide e para que vai usar não são perguntas de roteiro (no teste do
   // branch, "mais alguém decide junto?" saiu no lugar da resposta que o
   // cliente pediu): anota-se o que ele disser, e só no financiamento se
   // pergunta em nome de quem vai — depois da entrada e da parcela.
   if (financiado && !ficha.decisor) faltam.push({ pilar: "pessoa", item: "em nome de quem vai o financiamento" });
+  // O acordo de intenção (Sandler), quando já se sabe como paga: o que
+  // precisa acontecer para ele fechar. Também é sugestão, não trava.
+  if (ficha.pagamento && !ficha.intencao) {
+    faltam.push({ pilar: "passo", item: "o acordo: o que precisa acontecer para ele fechar (a parcela, a avaliação da troca)", sugestao: true });
+  }
   if (!agendada) faltam.push({ pilar: "passo", item: ficha.visita ? `o horário da visita (${ficha.visita})` : "o dia e a hora da visita ou do test-drive" });
 
   const pronto = agendada ? "agendou" : simulacao ? "simulacao" : null;

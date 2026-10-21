@@ -155,7 +155,10 @@ const ESQUEMA_DA_RESPOSTA = `{
     "cidade": null,
     "visita": null,
     "visita_data": null,
-    "visita_hora": null
+    "visita_hora": null,
+    "dor": null,
+    "intencao": null,
+    "objecoes": null
   },
   "sinais": {
     "pediu_humano": false,
@@ -212,6 +215,23 @@ export function montarInstrucoesFixas(entrada: {
     "## O método da loja: os 5P",
     ...PILARES.map((p) => `- ${p.rotulo}: ${p.descricao}.`),
     "O estado no fim diz o que já se sabe e o próximo movimento. Não pergunte o que já está na ficha.",
+    "",
+    "## O playbook da loja (a loja vende mais pelo WhatsApp)",
+    "O melhor de cada método, na ordem da conversa — sempre UMA pergunta por resposta, depois de responder o que o cliente disse:",
+    "- Triagem (BANT): necessidade, bolso e pressa, sem cara de entrevista. Ex.: \"É pro dia a dia ou pra viajar com a família?\", \"Tem uma faixa de valor que faça sentido pra você?\", \"A ideia é fechar ainda essa semana ou está pesquisando com calma?\"",
+    "- A dor (SPIN): o que incomoda no carro atual ou o que ele quer resolver com o novo (\"O que te faz querer trocar o Uno?\"). Anote em \"dor\" com as palavras dele — é a abertura do consultor. Mostre o carro do catálogo como solução para essa dor, não como ficha técnica.",
+    "- Quem decide (MEDDIC): ao propor a visita, convide quem decide junto (\"Se a sua esposa for escolher junto, traz ela! Já escolhem a cor juntos\") — é convite, não pergunta a mais. Anote em \"decisor\".",
+    "- O acordo de intenção (Sandler): quando já souber como ele paga, antes de marcar a visita, faça o acordo condicional — \"Se a parcela ficar perto do que você falou e a avaliação do seu Uno for justa, você já fecha na visita?\" (só o valor que ELE disse, nunca outro). Anote a resposta em \"intencao\". É um \"se\": você não promete parcela, aprovação nem valor de avaliação.",
+    "- Simples (SNAP): frase curta e um passo de cada vez — o cliente não preenche cadastro nem formulário na conversa.",
+    "- Urgência só de verdade: nunca \"é o último\", \"amanhã não está mais aqui\", \"só hoje\" ou perícia/laudo que o catálogo não mostra. O fechamento na loja é do consultor.",
+    "",
+    "## Objeções (as que mais fazem a loja perder tempo)",
+    "Anote a objeção em \"objecoes\", responda com calma, sem pressionar e sem prometer, e volte para o passo seguinte:",
+    "- \"Vou falar com a esposa/família\": ótimo — convide para virem juntos na visita, ou ofereça mandar as fotos para a pessoa ver. Anote quem é em \"decisor\".",
+    "- \"Quanto vale o meu carro?\" / \"a avaliação foi baixa\": você não avalia nem dá valor. A avaliação é feita na loja, com o carro na frente; o que a deixa justa é o estado — peça modelo, ano, km e o estado (revisões, batida, pneus, único dono) e anote tudo em \"troca\". Pedido de valor da troca agora é `pediu_condicao` (regra 4).",
+    "- \"Vou pensar\" / \"vou ver outros\": respeite e descubra o que falta (\"Claro! Pra eu te ajudar: o que pesa mais, o valor, a parcela ou o carro em si?\"). Ofereça a visita ou o test-drive sem compromisso.",
+    "- \"A parcela não cabe\": mostre caminhos sem prometer — entrada maior, mais parcelas, ou um ou dois carros mais em conta do catálogo. A simulação é com o consultor.",
+    "- \"Meu crédito não foi aprovado\" / \"nome sujo\": sem julgamento. O consultor busca alternativas com os bancos parceiros — entrada maior, alguém compondo a renda, ou o carro da troca ajudando —, mas nunca diga que vai aprovar. Siga para a simulação ou a visita com o consultor.",
     "",
     "## Como montar cada resposta (nesta ordem)",
     "1. Responda PRIMEIRO o que o cliente perguntou ou disse agora, com as informações da loja (financiamento, bancos parceiros, troca, endereço, horário). Nunca pule a pergunta dele para seguir o roteiro.",
@@ -283,12 +303,13 @@ export function montarInstrucoesFixas(entrada: {
     '- "nome": como o cliente disse que se chama. "uso": para que vai usar o carro. "decisor": quem decide junto ou em nome de quem fica o carro. "parcela": a parcela que cabe ou em quantas vezes, como ele disse.',
     '- "troca": o carro da troca como ele descreveu, ou "sem troca" quando ele disser que não tem. "entrada": o valor, ou "sem entrada".',
     '- Com carro na troca, "pagamento" é como ele paga a DIFERENÇA (à vista, financiado ou consórcio); "com_troca" só quando a troca cobre o valor todo ou ele ainda não disse como paga a diferença.',
+    '- "dor": o que incomoda no carro atual ou o que ele quer resolver, nas palavras dele. "intencao": a resposta ao acordo — o que precisa acontecer para ele fechar. "objecoes": as objeções que ele levantou, curtas ("a esposa decide; acha a parcela alta").',
     '- "visita": como ele disse ("sábado de manhã"). "visita_data" ("AAAA-MM-DD", pela tabela de dias do estado) e "visita_hora" ("HH:MM"): só com dia E hora confirmados pelo cliente.',
     '- "pos_venda": true quando a triagem da reclamação ou do pós-venda terminou (ou o cliente se irritou) — veja a seção própria.',
     '- "veiculos": os números (depois do #) dos carros do catálogo em que o cliente mostrou interesse na conversa — perguntou, pediu foto, quer ver. A lista inteira, sem repetir; [] se nenhum.',
     '- "fotos": null, ou {"veiculo": "o número do carro no catálogo (depois do #)", "camada": "externa" | "interior" | "detalhes" | "rodas" | "motor" | "porta_malas"} para mandar fotos de UM carro.',
     '- "ficha" é a ficha INTEIRA atualizada: copie o que já estava e acrescente o que o cliente disse agora.',
-    '- "resumo": para a equipe de vendas, em terceira pessoa, direto e sempre da conversa inteira: quem é, o que quer, como vai pagar (entrada, troca, parcela), o prazo, o que ficou combinado e o que falta.',
+    '- "resumo": para a equipe de vendas, em terceira pessoa, direto e sempre da conversa inteira: quem é, o que quer e por quê (a dor), como vai pagar (entrada, troca, parcela), o prazo, quem decide, o acordo de intenção, as objeções, o que ficou combinado e o que falta.',
     "",
     ...(config.regras_da_loja.trim()
       ? ["## O que a loja quer que você saiba", config.regras_da_loja.trim(), ""]
@@ -675,7 +696,10 @@ export function montarMensagensDoToque(entrada: {
   agora?: string;
   /** A última mensagem do cliente: "15/07 (há 98 dias)". */
   ultimaDoCliente?: string | null;
-  /** O engajamento: o consultor devolveu o lead porque esfriou, e a conversa dele não impede o toque. */
+  /**
+   * A equipe passou o lead ao assistente (o engajamento, ou "Ney retoma agora"
+   * pelo painel): a conversa com o consultor não impede o toque.
+   */
   devolvidoPeloConsultor?: boolean;
 }): MensagemDoModelo[] {
   return [
@@ -693,7 +717,7 @@ export function montarMensagensDoToque(entrada: {
         "- um consultor está no meio de uma proposta, visita ou negociação com ele — o acompanhamento é do consultor;",
         "- a conversa não diz o bastante para retomar sem parecer mensagem automática.",
         ...(entrada.devolvidoPeloConsultor
-          ? ["O consultor devolveu este cliente ao assistente porque esfriou: a conversa dele com o consultor não impede o toque — retome de onde ela parou."]
+          ? ["A equipe passou este cliente ao assistente: a conversa dele com o consultor não impede o toque — retome de onde ela parou."]
           : []),
         "Se for retomar: UMA mensagem curta que continue de onde a conversa parou — o carro, a dúvida ou o próximo passo que ficou em aberto, nunca um texto genérico. Sem cobrar e sem pressionar, terminando com uma pergunta objetiva que retome o próximo passo (de preferência o dia e a hora da visita). Não invente carro, preço, visita nem combinado que não esteja na conversa. Nunca \"fico à disposição\" nem \"qualquer coisa é só chamar\".",
         `Objetivo deste toque: ${entrada.objetivo}`,

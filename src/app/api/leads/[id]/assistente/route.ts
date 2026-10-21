@@ -12,8 +12,12 @@ export const maxDuration = 30;
  *   - `pausar` .... o assistente sai da conversa; o SLA do vendedor corre.
  *   - `retomar` ... volta a qualificar (o SLA pausa de novo).
  *   - `entregar` .. passa ao vendedor agora, com o resumo, sem esperar esquentar.
- *   - `devolver` .. o vendedor devolve o lead que esfriou: o assistente fica
- *                   com ele e a cadência de engajamento começa.
+ *   - `devolver` .. "Ney reaquece com o tempo": o assistente lê a conversa,
+ *                   fica com o lead e a cadência de engajamento começa.
+ *   - `assumir` ... "Ney retoma agora" (21/10): lê a conversa e escreve na
+ *                   próxima rodada, de onde ela parou — ou não escreve.
+ *   - `ler` ....... "Ney lê a conversa": só a ficha, a nota e o resumo para o
+ *                   comercial; não escreve nem tira o lead de ninguém.
  *
  * Mesma porta da gestão do lead: quem não vê o lead recebe 404.
  */

@@ -2115,7 +2115,15 @@ export interface ResultadoDaRodada {
   toques: ToqueDaRodada[];
   suprimidos: {
     lead_id: string;
-    motivo: MotivoSemToque | "sem_conversa" | "outra_rodada" | "telefone_invalido" | "sem_historico" | "conversa_sem_toque" | "trava_de_preco";
+    motivo:
+      | MotivoSemToque
+      | "sem_conversa"
+      | "outra_rodada"
+      | "telefone_invalido"
+      | "sem_historico"
+      | "conversa_sem_toque"
+      | "trava_de_preco"
+      | "fora_da_base";
     texto: string;
   }[];
   /** Os leads da base parada que entraram na cadência nesta rodada (ou entrariam, na prévia). */
@@ -2288,6 +2296,17 @@ export async function executarRodada(
       if (opcoes.reservar) await tirarDaCadencia("telefone_invalido", "o telefone do lead não serve para o WhatsApp");
       continue;
     }
+    // O lead que a base puxou (reaquecendo, fora do engajamento) só recebe o
+    // toque se ainda entraria nela hoje: avançou de etapa, é do repasse ou o
+    // telefone tem outro lead aberto, o acompanhamento é do consultor (21/10).
+    // Quem o vendedor passou pelo painel ("Ney retoma agora") não passa por
+    // essa régua: foi escolha da equipe.
+    const passadoPeloPainel = lead.assistente_fase === "reaquecendo" && lead.cadencia !== "engajamento" && (await quemPassouOLead(supabase, leadId)) === "painel";
+    if (lead.assistente_fase === "reaquecendo" && lead.cadencia !== "engajamento" && !passadoPeloPainel && !(await aindaEntraNaBase(supabase, lead))) {
+      resultado.suprimidos.push({ lead_id: leadId, motivo: "fora_da_base", texto: "O lead avançou de etapa, é do repasse ou o telefone tem outro lead aberto: o acompanhamento é do consultor." });
+      if (opcoes.reservar) await tirarDaCadencia("fora_da_base", "o lead avançou de etapa, é do repasse ou o telefone tem outro lead aberto: o acompanhamento é do consultor");
+      continue;
+    }
     // Nada automático para quem nunca escreveu deste telefone.
     if (!(await clienteJaEscreveu(supabase, leadId, lead.telefone))) {
       resultado.suprimidos.push({ lead_id: leadId, motivo: "sem_conversa", texto: "O cliente nunca escreveu para a loja deste telefone." });
@@ -2361,7 +2380,7 @@ export async function executarRodada(
         modelo: textoDeBase,
         agora: horaDaLoja(agora),
         ultimaDoCliente: quandoFoi(String(doCliente[doCliente.length - 1].criado_em), agora),
-        devolvidoPeloConsultor: decisao.cadencia === "engajamento",
+        devolvidoPeloConsultor: decisao.cadencia === "engajamento" || passadoPeloPainel,
       }),
       maxTokens: 300,
       transporte: deps.transporte,
@@ -2438,6 +2457,46 @@ export async function executarRodada(
 /** Quantos leads da base uma rodada puxa: o teto do dia se espalha pelo expediente. */
 const BASE_POR_RODADA = 3;
 
+/**
+ * Outro lead aberto do mesmo telefone? Em produção (21/10), o mesmo cliente
+ * tinha o lead da simulação em proposta com o consultor e uma cópia parada em
+ * "em contato" — e a base puxou a cópia. Na dúvida (a leitura falhou), conta
+ * como tendo: o robô não aborda.
+ */
+async function temOutroLeadAberto(supabase: Banco, lead: Linha): Promise<boolean> {
+  const formas = variantesDoTelefone(lead.telefone);
+  if (formas.length === 0) return false;
+  const { data, error } = await supabase.from("leads").select("id").in("telefone", formas).is("desfecho", null).neq("id", String(lead.id)).limit(1);
+  if (error) return true;
+  return ((data ?? []) as Linha[]).length > 0;
+}
+
+/**
+ * Quem passou o lead ao assistente por último: a base parada ou alguém da
+ * equipe pelo painel ("Ney retoma agora", "Ney reaquece com o tempo"). Sem
+ * nota nenhuma, nulo — e quem chama trata como a base, a régua mais segura.
+ */
+async function quemPassouOLead(supabase: Banco, leadId: string): Promise<"base" | "painel" | null> {
+  const { data } = await supabase
+    .from("leads_eventos")
+    .select("detalhe, criado_em")
+    .eq("lead_id", leadId)
+    .eq("tipo", "nota")
+    .order("criado_em", { ascending: false })
+    .limit(50);
+  for (const e of (data ?? []) as Linha[]) {
+    const acao = e.detalhe?.acao;
+    if (acao === "base") return "base";
+    if (acao === "assumir" || acao === "devolucao") return "painel";
+  }
+  return null;
+}
+
+/** O lead que a base puxou ainda entraria nela hoje (`entraNaBase`, e sem outro lead aberto do mesmo telefone)? */
+async function aindaEntraNaBase(supabase: Banco, lead: Linha): Promise<boolean> {
+  return entraNaBase(lead) && !(await temOutroLeadAberto(supabase, lead));
+}
+
 /** "terça-feira, 20/10, 10:00", na hora da loja: o "agora" que o modelo lê. */
 function horaDaLoja(agora: Date): string {
   return agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -2468,9 +2527,10 @@ function inicioDoDiaNaLoja(agora: Date): string {
  * se não, a cadência acaba e o lead volta para a equipe, como qualquer outro.
  *
  * Fica de fora (21/10, depois do toque genérico na lojista em visita): o
- * repasse, que é lojista e não compra no varejo, e o lead que já passou de
- * "em contato" — em proposta, visita ou negociação, o acompanhamento é do
- * consultor (`entraNaBase`). E o toque só sai depois de ler a conversa.
+ * repasse, que é lojista e não compra no varejo, o lead com a visita
+ * agendada, na negociação ou no pós-venda — o acompanhamento é do consultor
+ * (`entraNaBase`) — e o telefone com outro lead aberto. E o toque só sai
+ * depois de ler a conversa.
  *
  * Sem `reservar`, só diz quem entraria. Nunca lança.
  */
@@ -2537,6 +2597,9 @@ async function puxarABase(
       if (!entraNaBase(lead) || !conversou.has(leadId) || (ultimaAtividade.get(leadId) ?? 0) >= limiteMs) continue;
       // Telefone que a Evolution recusa não entra: cada toque falharia.
       if (!numeroParaEnvio(String(lead.telefone ?? ""))) continue;
+      // O mesmo telefone com outro lead aberto (o do formulário e o do
+      // WhatsApp, um deles em proposta): o consultor já fala com a pessoa.
+      if (await temOutroLeadAberto(supabase, lead)) continue;
       const cadencia = cadenciaDoSilencio(Boolean(interesseDaCadencia(lead, fichaDoLead(lead).interesse)));
       if (!config.cadencias[cadencia].ativa) continue;
       if (!reservar) {
@@ -2575,8 +2638,8 @@ async function puxarABase(
 // 5. O painel
 // ----------------------------------------------------------------------------
 
-export type AcaoDoAssistente = "pausar" | "retomar" | "entregar" | "devolver";
-export const ACOES_DO_ASSISTENTE: readonly AcaoDoAssistente[] = ["pausar", "retomar", "entregar", "devolver"];
+export type AcaoDoAssistente = "pausar" | "retomar" | "entregar" | "devolver" | "assumir" | "ler";
+export const ACOES_DO_ASSISTENTE: readonly AcaoDoAssistente[] = ["pausar", "retomar", "entregar", "devolver", "assumir", "ler"];
 
 export type ResultadoDoPainel = { ok: true; aviso?: string } | { ok: false; status: number; erro: string };
 
@@ -2717,6 +2780,14 @@ export async function mudarAssistente(
     return { ok: true };
   }
 
+  // Só ler: a ficha, a nota e o resumo para o comercial, sem escrever ao
+  // cliente nem tirar o lead de ninguém (pedido do dono, 21/10: "ele nem leu
+  // a conversa ainda").
+  if (pedido.acao === "ler") {
+    const lida = await lerPeloAssistente(supabase, lead, config, deps, agora, pedido.autor);
+    return lida.ok ? { ok: true } : { ok: false, status: lida.status, erro: lida.erro };
+  }
+
   const evolution = evolutionDe(deps);
   if (!evolution) return { ok: false, status: 503, erro: `O WhatsApp da loja não está ligado ao painel: ${motivoSemEvolution()}.` };
   const escreveu = await clienteJaEscreveu(supabase, leadId, lead.telefone);
@@ -2753,10 +2824,50 @@ export async function mudarAssistente(
     return { ok: true };
   }
 
+  // assumir — o vendedor passa o lead ao assistente para retomar AGORA (21/10):
+  // ele lê a conversa (a ficha e o resumo aparecem para a equipe) e escreve na
+  // próxima rodada, continuando de onde parou — ou não escreve, se a conversa
+  // não pedir. Se o cliente responder, qualifica e entrega ao mesmo dono.
+  if (pedido.acao === "assumir") {
+    if (FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
+      return { ok: false, status: 409, erro: "O assistente já está com este lead." };
+    }
+    if (!config.cadencias.follow_up.ativa && !config.cadencias.reativacao.ativa) {
+      return { ok: false, status: 409, erro: "O follow-up e a reativação estão desligados: sem eles o assistente não teria como retomar." };
+    }
+    if (!modeloDe(deps, config)) return { ok: false, status: 503, erro: "Falta DEEPSEEK_API_KEY na Vercel: o assistente não teria como ler a conversa." };
+    await lerPeloAssistente(supabase, lead, config, deps, agora, pedido.autor);
+    // A cadência sai do que ele acabou de ler: com carro de interesse, follow-up.
+    const lido = (await lerLead(supabase, leadId)) ?? lead;
+    const preferida = cadenciaDoSilencio(Boolean(interesseDaCadencia(lido, fichaDoLead(lido).interesse)));
+    const cadencia: NomeDaCadencia = config.cadencias[preferida].ativa ? preferida : preferida === "follow_up" ? "reativacao" : "follow_up";
+    await supabase
+      .from("leads")
+      .update({ assistente_fase: "reaquecendo", cadencia, cadencia_passo: 0, cadencia_proximo_em: agora.toISOString() })
+      .eq("id", leadId);
+    await assistenteNoSla(supabase, leadId, true, agora);
+    await anotarNoRastro(
+      supabase,
+      leadId,
+      `${pedido.autor} passou o lead ao ${config.nome_do_assistente} para retomar agora: ele lê a conversa e escreve na próxima rodada, de onde ela parou. Se a conversa não pedir, não escreve, e o lead volta para a equipe.`,
+      { acao: "assumir", cadencia },
+      pedido.autor,
+    );
+    return {
+      ok: true,
+      aviso: dentroDoExpediente(agora)
+        ? `${config.nome_do_assistente} escreve na próxima rodada (até 15 minutos), depois de ler a conversa.`
+        : `Fora do horário da loja: ${config.nome_do_assistente} escreve na abertura, depois de ler a conversa.`,
+    };
+  }
+
   // devolver — o lead esfriou e o vendedor o passa ao assistente para reaquecer.
   if (!config.cadencias.engajamento.ativa) {
     return { ok: false, status: 409, erro: "A cadência de engajamento está desligada: sem ela o assistente não teria o que fazer com o lead." };
   }
+  // A leitura de agora deixa a ficha e o resumo à vista da equipe; o toque,
+  // daqui a dias, lê a conversa de novo.
+  await lerPeloAssistente(supabase, lead, config, deps, agora, pedido.autor);
   const proximo = vencimentoDoPasso(config.cadencias, "engajamento", 0, agora);
   await supabase
     .from("leads")
@@ -2765,6 +2876,106 @@ export async function mudarAssistente(
   await assistenteNoSla(supabase, leadId, true, agora);
   await anotarNoRastro(supabase, leadId, `${pedido.autor} devolveu o lead ao assistente para reaquecer.`, { acao: "devolucao" }, pedido.autor);
   return { ok: true };
+}
+
+/**
+ * O assistente lê a conversa e resume para o comercial, sem escrever ao
+ * cliente (21/10): o histórico do WhatsApp entra antes, o modelo preenche a
+ * ficha, a nota e o resumo, e o lead não muda de fase nem de dono. Os sinais
+ * só ficam anotados — ler não pausa, não entrega e não marca opt-out.
+ *
+ * É a mesma chamada da conversa, com um aviso no fim de que não há resposta a
+ * dar; os balões que o modelo escrever são descartados. Nunca lança.
+ */
+async function lerPeloAssistente(
+  supabase: Banco,
+  lead: Linha,
+  config: ConfigDoAtendimento,
+  deps: Dependencias,
+  agora: Date,
+  autor: string,
+): Promise<{ ok: true } | { ok: false; status: number; erro: string }> {
+  try {
+    const leadId = String(lead.id);
+    const modelo = modeloDe(deps, config);
+    if (!modelo) return { ok: false, status: 503, erro: "Falta DEEPSEEK_API_KEY na Vercel: o assistente não tem como ler a conversa." };
+    const evolution = evolutionDe(deps);
+    if (evolution) await trazerHistoricoDoWhatsApp(supabase, { id: leadId, telefone: lead.telefone }, { evolution, transporte: deps.transporte });
+    const conversa = await lerConversa(supabase, leadId);
+    const doCliente = conversa.filter((m) => m.direcao === "entrada");
+    if (doCliente.length === 0) return { ok: false, status: 409, erro: "Ainda não há mensagem do cliente para o assistente ler." };
+
+    const base = await carregarBase(deps, config.informar_preco);
+    const fichaAntes = fichaDoLead(lead);
+    const sinaisAntes = sinaisDoLead(lead);
+    const chamada = await completarEmJson({
+      cfg: modelo,
+      mensagens: [
+        ...montarMensagensDoAgente({
+          instrucoes: montarInstrucoesFixas({ config, ...base }),
+          historico: conversa.map((m) => ({
+            autor: m.autor,
+            autor_nome: m.autor_nome,
+            conteudo: m.conteudo,
+            texto: m.texto,
+            criado_em: m.criado_em,
+            midia_url: m.midia_url,
+            veiculo_id: m.veiculo_id,
+            camada: m.camada,
+          })),
+          estado: {
+            ficha: fichaAntes,
+            sinais: sinaisAntes,
+            nomeDoCliente: lead.nome,
+            agora: horaDaLoja(agora),
+            lojaAberta: dentroDoExpediente(agora),
+            origem: origemLegivel(lead),
+            calendario: proximosDias(agora),
+            metodo: metodoNoEstado(prontidao(fichaAntes, agora, { nomeNoWhatsApp: lead.nome })),
+          },
+        }),
+        {
+          role: "system",
+          content:
+            "## Só leitura (não é resposta ao cliente)\nA equipe pediu que você leia a conversa inteira e preencha a ficha, os sinais e o resumo para o comercial. Nada do que você escrever em \"mensagens\" vai ao cliente.",
+        },
+      ],
+      temperatura: 0.3,
+      transporte: deps.transporte,
+    });
+    const resposta = chamada.ok ? lerRespostaDoAgente(chamada.conteudo) : null;
+    if (!chamada.ok || !resposta) {
+      return { ok: false, status: 502, erro: `O assistente não conseguiu ler a conversa (${chamada.ok ? "o modelo respondeu fora do formato" : chamada.motivo}).` };
+    }
+    const ficha = mesclarFicha(fichaAntes, resposta.ficha);
+    const sinais = mesclarSinais(sinaisAntes, resposta.sinais);
+    const aquecimento = calcularAquecimento(ficha, sinais, { pesos: config.pesos, limiares: config.limiares, mensagensDoCliente: doCliente.length });
+    const resumo = resposta.resumo ? semCpf(semLinks(resposta.resumo)) : null;
+    const { error } = await supabase
+      .from("leads")
+      .update({
+        aquecimento: aquecimento.pontos,
+        temperatura: aquecimento.temperatura,
+        qualificacao: { ...(lead.qualificacao ?? {}), ficha, sinais, motivos: aquecimento.motivos },
+        ...(resumo ? { resumo_ia: resumo, resumo_ia_em: agora.toISOString() } : {}),
+        // O que o cliente disse preenche o VAZIO dos dados do negócio, como na conversa.
+        ...(!lead.carro_na_troca && ficha.troca && !semCarroNaTroca(ficha.troca) ? { carro_na_troca: ficha.troca } : {}),
+        ...(!lead.pagamento_pretendido && ficha.pagamento ? { pagamento_pretendido: ficha.pagamento } : {}),
+        ...(!lead.interesse && ficha.interesse ? { interesse: ficha.interesse } : {}),
+      })
+      .eq("id", leadId);
+    if (error) return { ok: false, status: 500, erro: `A leitura não foi gravada: ${error.message}` };
+    await registrarRetrato(supabase, leadId, aquecimento, ficha, sinais, "painel", modelo.modelo, chamada.uso);
+    await anotarNoRastro(
+      supabase,
+      leadId,
+      `${config.nome_do_assistente} leu a conversa a pedido de ${autor} e resumiu para o comercial (${aquecimento.pontos}/100).`,
+      { acao: "leitura", aquecimento: aquecimento.pontos },
+    );
+    return { ok: true };
+  } catch (erro) {
+    return { ok: false, status: 500, erro: erro instanceof Error ? erro.message : String(erro) };
+  }
 }
 
 /**

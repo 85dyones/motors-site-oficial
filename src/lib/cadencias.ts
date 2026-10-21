@@ -306,12 +306,14 @@ export function interesseDaCadencia(lead: { canal?: string | null; interesse?: s
 }
 
 /**
- * As etapas de onde a base parada puxa (21/10): só o lead que parou antes de
- * avançar. Em proposta, visita ou negociação há um consultor no meio, e o
- * acompanhamento é dele — em produção, a lojista em visita com o dono recebeu
- * um toque genérico e respondeu "Qual carro?".
+ * As etapas de onde a base parada puxa (21/10): as de antes da visita — na
+ * loja, "Novo", "1º Contato" e "Recontato" (a chave `proposta`, renomeada na
+ * tela). Com a visita agendada, na negociação, no pós-venda ou em etapa que a
+ * loja criou, há um consultor no meio, e o acompanhamento é dele — em
+ * produção, a lojista em visita com o dono recebeu um toque genérico e
+ * respondeu "Qual carro?".
  */
-export const ETAPAS_DA_BASE: readonly string[] = ["novo", "em_contato"];
+export const ETAPAS_DA_BASE: readonly string[] = ["novo", "em_contato", "proposta"];
 
 /** O lead parado pode entrar na cadência? Nem o repasse (lojista, não compra no varejo), nem etapa avançada. */
 export function entraNaBase(lead: { canal?: string | null; situacao?: string | null }): boolean {

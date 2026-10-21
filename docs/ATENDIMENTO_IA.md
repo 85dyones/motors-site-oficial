@@ -242,6 +242,35 @@ do balão (e do toque da cadência) a frase de quem larga a conversa — "fico �
 disposição", "qualquer dúvida estou aqui", "é só chamar". A frase que termina
 em pergunta fica (é ela que conduz); se nada sobrar, vai o texto original.
 
+### 3.2 O playbook híbrido (21/10/2026)
+
+Pedido do dono: *"Avalie esse fluxo, acho mais interessante e completo para o
+atendimento, elabore nele se preciso"* — BANT/GPCT, SPIN, Sandler, MEDDIC e
+SNAP/Challenger, cada um no seu momento. A loja vende mais pelo WhatsApp, e as
+objeções que mais fazem perder tempo são cinco: crédito não aprovado, "vou
+falar com a esposa/família", avaliação do usado baixa, "vou pensar / vou ver
+outros" e parcela que não cabe.
+
+O que entrou, sem virar questionário (os 5P continuam mandando, e o próximo
+movimento continua sendo a visita ou a simulação):
+
+| Método | Onde entra | O que fica |
+|---|---|---|
+| BANT | a triagem dos 5P | necessidade, bolso e pressa, nas perguntas de sempre |
+| SPIN | depois da triagem, como sugestão | a **dor** (`dor`): o que incomoda no carro atual ou o que ele quer resolver; o carro do catálogo é mostrado como solução para ela |
+| MEDDIC | na proposta da visita | **quem decide** é convidado a vir junto (convite, não pergunta a mais) |
+| Sandler | quando já se sabe como paga | o **acordo de intenção** (`intencao`): "se a parcela ficar perto do que você falou e a avaliação for justa, você já fecha na visita?" — só com o valor que o cliente disse, e é um "se": nada de prometer parcela, aprovação ou avaliação |
+| SNAP | sempre | frase curta, um passo de cada vez |
+| Challenger | não entra | urgência só de verdade; "é o último" e "só hoje" ficam proibidos, e o fechamento é do consultor |
+
+As **objeções** ganharam uma seção no prompt, com o caminho de cada uma, e
+vão para a ficha (`objecoes`). A dor e o acordo entram no método como
+sugestões ("Depois, quando couber naturalmente…"), nunca como trava.
+
+**O roteiro do consultor**: o resumo ao vendedor ganha "O que quer resolver",
+"Acordo para fechar" e "Objeções" (só quando o cliente disse), ao lado de
+"Quem decide"; a ficha no painel mostra os três.
+
 ---
 
 ## 4. A entrega ao vendedor
@@ -401,8 +430,15 @@ registro do vendedor, nem conversa) e que **já conversaram** com o WhatsApp da
 loja — pelo Chatwoot ou por ele. Entram no follow-up (com carro de interesse)
 ou na reativação, com o primeiro toque na rodada seguinte — que lê a
 conversa antes (acima). Ficam de fora o **repasse** (lojista, que não compra
-no varejo) e quem já passou de **em contato**: em proposta, visita ou
-negociação, o acompanhamento é do consultor (`entraNaBase`). Se o cliente
+no varejo), quem já está depois do **Recontato** — com a visita agendada, na
+negociação, no pós-venda ou numa etapa que a loja criou, o acompanhamento é do
+consultor (`entraNaBase`; entram "Novo", "1º Contato" e "Recontato", que é a
+chave `proposta` renomeada na tela) — e o telefone que
+tem **outro lead aberto** (o mesmo cliente com a simulação em proposta e uma
+cópia parada em "em contato", visto em 21/10). A mesma régua vale no toque: o
+lead que a base puxou e já não entraria nela sai da cadência sem receber nada
+(`fora_da_base`); o engajamento, que o consultor devolve, não passa por ela.
+Se o cliente
 responder, o assistente qualifica e entrega ao **mesmo responsável**; se não,
 o lead volta para a equipe quando a cadência acaba. Cada lead puxado deixa uma
 nota no rastro. Tudo editável em **Configuração → Base parada** (liga e
@@ -533,8 +569,10 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   larga, abre a coluna do meio): a conversa — cliente, assistente, equipe e
   cadência, com as marcas "cadência", "passagem ao vendedor", "pelo celular
   da loja", "não saiu"; a caixa para responder pelo número da loja; e os
-  botões *Entregar ao vendedor agora*, *Pausar assistente*, *Devolver a
-  conversa ao assistente*, *Devolver para reaquecer*.
+  botões *Entregar ao vendedor agora* e *Pausar assistente* (com o Ney na
+  conversa) ou *Ney volta a responder*, *Ney retoma agora*, *Ney reaquece com
+  o tempo* e *Ney lê a conversa* (com ele fora — decisão 21), cada um com uma
+  linha dizendo o que faz.
 - **Detalhe do lead → bloco Aquecimento**, sempre à vista (resumo e
   aquecimento eram abas do atendimento; mudou no teste de 20/10/2026, a pedido
   do dono: *"deixe a tela do aquecimento sempre visível, do lado direito, no
@@ -959,12 +997,45 @@ tela, em **Leads → Atendimento IA → Configuração**.
     repasse, em visita com o dono; o toque saiu pelo texto pronto ("o carro
     que te interessou"), sem a conversa do Chatwoot no painel, e ela
     respondeu "Qual carro?". A base e as três cadências foram desligadas na
-    hora, e voltam com estas regras: o histórico do WhatsApp entra antes de
-    cada toque, o modelo lê e pode não escrever, o texto pronto não sai
-    sozinho, e a base deixa de fora o repasse e as etapas depois de "em
-    contato". A primeira resposta do Ney também traz o histórico antes,
+    hora, e voltaram (com o aval do dono, depois do deploy) com estas
+    regras: o histórico do WhatsApp entra antes de cada toque, o modelo lê e
+    pode não escrever, o texto pronto não sai sozinho, e a base deixa de
+    fora o repasse, as etapas depois do "Recontato" e o telefone com outro
+    lead aberto. A primeira resposta do Ney também traz o histórico antes,
     quando o painel não tem mensagem do cliente além das que acabaram de
     chegar (o lead novo, ou o da base que só tinha o toque da cadência).
+
+20. **O playbook híbrido** (21/10): *"Avalie esse fluxo, acho mais
+    interessante e completo para o atendimento, elabore nele se preciso"*.
+    As objeções escolhidas pelo dono: crédito não aprovado, "vou falar com a
+    esposa/família", avaliação do usado baixa, "vou pensar / vou ver outros"
+    e parcela que não cabe; o canal que mais vende é o WhatsApp. Ver §3.2.
+
+21. **Passar o lead ao Ney pelo painel, com escolha** (21/10): *"como
+    devolvo manualmente para o Ney? ou nestes casos apenas a cadência vai
+    assumir? seria interessante ter a opção de escolher... neste lead em
+    particular, ele nem leu a conversa ainda"*. Com o Ney fora da conversa
+    (nunca pegou, pausado ou entregue), o bloco de atendimento oferece:
+    - **Ney retoma agora** (`assumir`): lê a conversa — a ficha, a nota e o
+      resumo aparecem para a equipe — e escreve na próxima rodada, de onde a
+      conversa parou (follow-up com carro de interesse, reativação sem). Se a
+      conversa não pedir, não escreve, e o lead volta para a equipe. O toque
+      não passa pela régua da base (foi escolha da equipe) e sabe que um
+      consultor conversava com o cliente;
+    - **Ney reaquece com o tempo** (`devolver`, o engajamento de 7, 15 e 30
+      dias): agora também no lead que ele nunca pegou, e lendo a conversa na
+      hora;
+    - **Ney lê a conversa** (`ler`): só a ficha, a nota e o resumo para o
+      comercial; não escreve, não muda a fase nem o dono, e os sinais (até um
+      opt-out antigo) só ficam anotados.
+    Uma linha embaixo dos botões diz o que cada um faz. "Devolver a conversa
+    ao assistente" virou **Ney volta a responder** (o pausado, que responde
+    quando o cliente escrever).
+22. **Visita marcada pelo Ney vai para "Visita agendada", com o vendedor
+    definido** (21/10): *"visita agendada pelo Ney pode ir pra visita agendada
+    sim, com o vendedor definido, outros casos, deixar como está"*. É o que a
+    entrega já faz: a visita com dia e hora move o lead para a etapa, e o
+    rodízio (ligado na loja) define o vendedor quando o lead não tem dono.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).
