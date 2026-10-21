@@ -358,12 +358,12 @@ describe("o que vem de fora", () => {
     expect(pedido).toContain("Agora: quarta-feira, 21/10, 10:00.");
     expect(pedido).toContain("Última mensagem do cliente: 15/07 (há 98 dias).");
     expect(pedido).toContain('{"tocar": false, "porque"');
-    expect(pedido).not.toContain("O consultor devolveu este cliente");
+    expect(pedido).not.toContain("A equipe passou este cliente");
   });
 
   it("no engajamento, a conversa com o consultor que devolveu o lead não impede o toque", () => {
     const m = montarMensagensDoToque({ instrucoes: "x", historico: [], ficha: { ...FICHA_VAZIA }, nomeDoCliente: "Ana", objetivo: "retomar", modelo: "Oi!", devolvidoPeloConsultor: true });
-    expect(m.at(-1)!.content).toContain("O consultor devolveu este cliente ao assistente porque esfriou");
+    expect(m.at(-1)!.content).toContain("A equipe passou este cliente ao assistente");
   });
 
   it("o toque da cadência também usa o nome limpo", () => {

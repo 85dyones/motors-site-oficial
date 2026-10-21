@@ -569,8 +569,10 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   larga, abre a coluna do meio): a conversa — cliente, assistente, equipe e
   cadência, com as marcas "cadência", "passagem ao vendedor", "pelo celular
   da loja", "não saiu"; a caixa para responder pelo número da loja; e os
-  botões *Entregar ao vendedor agora*, *Pausar assistente*, *Devolver a
-  conversa ao assistente*, *Devolver para reaquecer*.
+  botões *Entregar ao vendedor agora* e *Pausar assistente* (com o Ney na
+  conversa) ou *Ney volta a responder*, *Ney retoma agora*, *Ney reaquece com
+  o tempo* e *Ney lê a conversa* (com ele fora — decisão 21), cada um com uma
+  linha dizendo o que faz.
 - **Detalhe do lead → bloco Aquecimento**, sempre à vista (resumo e
   aquecimento eram abas do atendimento; mudou no teste de 20/10/2026, a pedido
   do dono: *"deixe a tela do aquecimento sempre visível, do lado direito, no
@@ -1008,6 +1010,32 @@ tela, em **Leads → Atendimento IA → Configuração**.
     As objeções escolhidas pelo dono: crédito não aprovado, "vou falar com a
     esposa/família", avaliação do usado baixa, "vou pensar / vou ver outros"
     e parcela que não cabe; o canal que mais vende é o WhatsApp. Ver §3.2.
+
+21. **Passar o lead ao Ney pelo painel, com escolha** (21/10): *"como
+    devolvo manualmente para o Ney? ou nestes casos apenas a cadência vai
+    assumir? seria interessante ter a opção de escolher... neste lead em
+    particular, ele nem leu a conversa ainda"*. Com o Ney fora da conversa
+    (nunca pegou, pausado ou entregue), o bloco de atendimento oferece:
+    - **Ney retoma agora** (`assumir`): lê a conversa — a ficha, a nota e o
+      resumo aparecem para a equipe — e escreve na próxima rodada, de onde a
+      conversa parou (follow-up com carro de interesse, reativação sem). Se a
+      conversa não pedir, não escreve, e o lead volta para a equipe. O toque
+      não passa pela régua da base (foi escolha da equipe) e sabe que um
+      consultor conversava com o cliente;
+    - **Ney reaquece com o tempo** (`devolver`, o engajamento de 7, 15 e 30
+      dias): agora também no lead que ele nunca pegou, e lendo a conversa na
+      hora;
+    - **Ney lê a conversa** (`ler`): só a ficha, a nota e o resumo para o
+      comercial; não escreve, não muda a fase nem o dono, e os sinais (até um
+      opt-out antigo) só ficam anotados.
+    Uma linha embaixo dos botões diz o que cada um faz. "Devolver a conversa
+    ao assistente" virou **Ney volta a responder** (o pausado, que responde
+    quando o cliente escrever).
+22. **Visita marcada pelo Ney vai para "Visita agendada", com o vendedor
+    definido** (21/10): *"visita agendada pelo Ney pode ir pra visita agendada
+    sim, com o vendedor definido, outros casos, deixar como está"*. É o que a
+    entrega já faz: a visita com dia e hora move o lead para a etapa, e o
+    rodízio (ligado na loja) define o vendedor quando o lead não tem dono.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

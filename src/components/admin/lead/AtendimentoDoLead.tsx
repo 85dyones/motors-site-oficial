@@ -5,6 +5,7 @@ import { ACEITOS_NO_PAINEL, anexoDoPainel, tamanhoLegivel } from "../../../lib/a
 import { subirAnexo } from "../../../lib/anexoDoPainel-navegador";
 import GravadorDeAudio from "./GravadorDeAudio";
 import {
+  EXPLICACAO_DA_ACAO,
   ROTULO_DA_ACAO,
   acoesDisponiveis,
   anexoDaMensagem,
@@ -214,7 +215,8 @@ export default function AtendimentoDoLead({
       else {
         setErro(null);
         if (corpo?.aviso) setAviso(corpo.aviso);
-        if (acao === "entregar" || acao === "devolver") aoMudarOLead?.();
+        // A fase, a nota e o resumo mudaram: o resto do lead relê.
+        if (acao === "entregar" || acao === "devolver" || acao === "assumir" || acao === "ler") aoMudarOLead?.();
       }
     } catch {
       setErro("Não deu para mudar o assistente.");
@@ -423,12 +425,22 @@ export default function AtendimentoDoLead({
         </div>
 
         {acoes.length > 0 && (
-          <div className="flex flex-wrap gap-2 border-t border-mt-regua-fina pt-3">
-            {acoes.map((acao) => (
-              <button key={acao} type="button" onClick={() => void agir(acao)} disabled={ocupado} className={BOTAO_FINO}>
-                {ROTULO_DA_ACAO[acao]}
-              </button>
-            ))}
+          <div className="flex flex-col gap-2 border-t border-mt-regua-fina pt-3">
+            <div className="flex flex-wrap gap-2">
+              {acoes.map((acao) => (
+                <button key={acao} type="button" onClick={() => void agir(acao)} disabled={ocupado} className={BOTAO_FINO}>
+                  {ROTULO_DA_ACAO[acao]}
+                </button>
+              ))}
+            </div>
+            {/* A escolha de como passar o lead ao Ney (21/10): uma linha por botão. */}
+            <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-[11px] leading-snug text-mt-neutral-600">
+              {acoes.map((acao) => (
+                <li key={acao}>
+                  <strong className="font-semibold text-mt-neutral-700">{ROTULO_DA_ACAO[acao]}:</strong> {EXPLICACAO_DA_ACAO[acao]}.
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

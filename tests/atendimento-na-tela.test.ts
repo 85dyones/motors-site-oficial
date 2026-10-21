@@ -81,11 +81,13 @@ describe("o estado do assistente", () => {
 
   it("os botões de cada fase", () => {
     expect(acoesDisponiveis({ assistente_fase: "qualificando", optout_em: null })).toEqual(["entregar", "pausar"]);
-    expect(acoesDisponiveis({ assistente_fase: "entregue", optout_em: null })).toEqual(["devolver"]);
-    expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: null })).toEqual(["retomar", "devolver"]);
-    expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: "x" })).toEqual([]);
-    // Lead que o assistente nunca pegou: nada a retomar.
-    expect(acoesDisponiveis({ assistente_fase: null, optout_em: null })).toEqual([]);
+    // Com o Ney fora da conversa, a equipe escolhe como passar o lead a ele (21/10).
+    expect(acoesDisponiveis({ assistente_fase: "entregue", optout_em: null })).toEqual(["assumir", "devolver", "ler"]);
+    expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: null })).toEqual(["retomar", "assumir", "devolver", "ler"]);
+    // Lead que o assistente nunca pegou (a equipe já atendia): também.
+    expect(acoesDisponiveis({ assistente_fase: null, optout_em: null })).toEqual(["assumir", "devolver", "ler"]);
+    // Opt-out: o Ney não escreve, só lê.
+    expect(acoesDisponiveis({ assistente_fase: "pausado", optout_em: "x" })).toEqual(["ler"]);
   });
 });
 

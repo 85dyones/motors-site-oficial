@@ -696,7 +696,10 @@ export function montarMensagensDoToque(entrada: {
   agora?: string;
   /** A última mensagem do cliente: "15/07 (há 98 dias)". */
   ultimaDoCliente?: string | null;
-  /** O engajamento: o consultor devolveu o lead porque esfriou, e a conversa dele não impede o toque. */
+  /**
+   * A equipe passou o lead ao assistente (o engajamento, ou "Ney retoma agora"
+   * pelo painel): a conversa com o consultor não impede o toque.
+   */
   devolvidoPeloConsultor?: boolean;
 }): MensagemDoModelo[] {
   return [
@@ -714,7 +717,7 @@ export function montarMensagensDoToque(entrada: {
         "- um consultor está no meio de uma proposta, visita ou negociação com ele — o acompanhamento é do consultor;",
         "- a conversa não diz o bastante para retomar sem parecer mensagem automática.",
         ...(entrada.devolvidoPeloConsultor
-          ? ["O consultor devolveu este cliente ao assistente porque esfriou: a conversa dele com o consultor não impede o toque — retome de onde ela parou."]
+          ? ["A equipe passou este cliente ao assistente: a conversa dele com o consultor não impede o toque — retome de onde ela parou."]
           : []),
         "Se for retomar: UMA mensagem curta que continue de onde a conversa parou — o carro, a dúvida ou o próximo passo que ficou em aberto, nunca um texto genérico. Sem cobrar e sem pressionar, terminando com uma pergunta objetiva que retome o próximo passo (de preferência o dia e a hora da visita). Não invente carro, preço, visita nem combinado que não esteja na conversa. Nunca \"fico à disposição\" nem \"qualquer coisa é só chamar\".",
         `Objetivo deste toque: ${entrada.objetivo}`,

@@ -985,6 +985,94 @@ describe("o painel", () => {
     expect(banco.tabelas.atendimentos.at(-1)!.com_assistente).toBe(true);
   });
 
+  // Pedido do dono (21/10): "como devolvo manualmente para o Ney? [...] seria
+  // interessante ter a opção de escolher... neste lead em particular, ele nem
+  // leu a conversa ainda".
+  it("Ney retoma agora, num lead que a equipe atendia: lê a conversa (a nota e o resumo aparecem), e o toque é da próxima rodada", async () => {
+    const banco = montar({
+      leads: [leadAberto({ assistente_fase: null, responsavel: "Carla Souza", situacao: "visita", qualificacao: null })],
+      atendimento_mensagens: [jaEscreveu()],
+    });
+    const t = transporteDeTeste([respostaDoModelo(), TOQUE_QUE_LEU]);
+    const r = await mudarAssistente(banco.cliente, { leadId: "lead-1", acao: "assumir", autor: "Carla Souza" }, deps(t));
+
+    expect(r).toEqual({ ok: true, aviso: "Ney escreve na próxima rodada (até 15 minutos), depois de ler a conversa." });
+    // Leu: a ficha, a nota e o resumo, sem nada ao cliente.
+    expect(t.enviados).toHaveLength(0);
+    expect(JSON.stringify(t.pedidosAoModelo[0].messages)).toContain("Só leitura");
+    expect(banco.tabelas.leads[0]).toMatchObject({
+      assistente_fase: "reaquecendo",
+      cadencia: "follow_up",
+      cadencia_passo: 0,
+      cadencia_proximo_em: TERCA_10H.toISOString(),
+      resumo_ia: "Rafael quer o Onix LT 2020.",
+      aquecimento: expect.any(Number),
+      responsavel: "Carla Souza",
+    });
+    expect(banco.tabelas.leads[0].qualificacao.ficha.interesse).toBe("Onix LT 2020");
+    expect(banco.tabelas.atendimento_qualificacoes[0]).toMatchObject({ origem: "painel" });
+    expect(banco.tabelas.leads_eventos.map((e) => e.detalhe?.acao)).toEqual(expect.arrayContaining(["leitura", "assumir"]));
+
+    // A rodada: em visita, mas passado pela equipe — o toque sai, sabendo do consultor.
+    relogio = new Date(TERCA_10H.getTime() + 15 * 60 * 1000);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(rodada.toques).toEqual([expect.objectContaining({ lead_id: "lead-1", enviado: true })]);
+    expect(t.enviados).toEqual([{ numero: CLIENTE, texto: TEXTO_QUE_LEU }]);
+    expect(JSON.stringify(t.pedidosAoModelo[1].messages)).toContain("A equipe passou este cliente ao assistente");
+  });
+
+  it("Ney retoma agora: não com o Ney já na conversa, nem sem o cliente ter escrito; fora do horário, escreve na abertura", async () => {
+    const t = transporteDeTeste([respostaDoModelo()]);
+    const comEle = montar({ leads: [leadAberto({ assistente_fase: "qualificando" })], atendimento_mensagens: [jaEscreveu()] });
+    expect(await mudarAssistente(comEle.cliente, { leadId: "lead-1", acao: "assumir", autor: "Carla" }, deps(t))).toMatchObject({ ok: false, status: 409 });
+    const formulario = montar({ leads: [leadAberto({ assistente_fase: null })] });
+    expect(await mudarAssistente(formulario.cliente, { leadId: "lead-1", acao: "assumir", autor: "Carla" }, deps(t))).toMatchObject({ ok: false, status: 409 });
+    expect(formulario.tabelas.leads[0].assistente_fase).toBeNull();
+
+    relogio = TERCA_23H;
+    const noite = montar({ leads: [leadAberto({ assistente_fase: "pausado" })], atendimento_mensagens: [jaEscreveu()] });
+    expect(await mudarAssistente(noite.cliente, { leadId: "lead-1", acao: "assumir", autor: "Carla" }, deps(t))).toEqual({
+      ok: true,
+      aviso: "Fora do horário da loja: Ney escreve na abertura, depois de ler a conversa.",
+    });
+  });
+
+  it("Ney lê a conversa: a ficha, a nota e o resumo para o comercial — sem escrever, sem tirar o lead de ninguém", async () => {
+    const banco = montar({ leads: [leadAberto({ assistente_fase: null, responsavel: "Carla Souza", qualificacao: null })], atendimento_mensagens: [jaEscreveu()] });
+    const t = transporteDeTeste([respostaDoModelo({ sinais: { optout: true } })]);
+    const r = await mudarAssistente(banco.cliente, { leadId: "lead-1", acao: "ler", autor: "Carla Souza" }, deps(t));
+
+    expect(r).toEqual({ ok: true });
+    expect(t.enviados).toHaveLength(0);
+    // Ler não muda a fase, o dono, a cadência — nem marca opt-out: só anota.
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: null, responsavel: "Carla Souza", cadencia: null, resumo_ia: "Rafael quer o Onix LT 2020." });
+    expect(banco.tabelas.leads[0].optout_em ?? null).toBeNull();
+    expect(banco.tabelas.leads[0].qualificacao.sinais.optout).toBe(true);
+    const nota = banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "leitura");
+    expect(nota?.detalhe?.texto).toMatch(/^Ney leu a conversa a pedido de Carla Souza e resumiu para o comercial \(\d+\/100\)\.$/);
+    expect(contatos(banco)).toEqual([]);
+  });
+
+  it("Ney lê a conversa sem nada do cliente para ler, ou sem o modelo: diz por quê, e nada muda", async () => {
+    const vazio = montar({ leads: [leadAberto({ assistente_fase: null })] });
+    expect(await mudarAssistente(vazio.cliente, { leadId: "lead-1", acao: "ler", autor: "Carla" }, deps(transporteDeTeste()))).toEqual({
+      ok: false,
+      status: 409,
+      erro: "Ainda não há mensagem do cliente para o assistente ler.",
+    });
+    const semModelo = montar({ leads: [leadAberto({ assistente_fase: null })], atendimento_mensagens: [jaEscreveu()] });
+    expect(await mudarAssistente(semModelo.cliente, { leadId: "lead-1", acao: "ler", autor: "Carla" }, deps(transporteDeTeste(), { modelo: null }))).toMatchObject({ ok: false, status: 503 });
+    expect(semModelo.tabelas.leads[0].resumo_ia ?? null).toBeNull();
+  });
+
+  it("Ney reaquece com o tempo também no lead que ele nunca pegou: lê agora, e o engajamento começa", async () => {
+    const banco = montar({ leads: [leadAberto({ assistente_fase: null, responsavel: "Carla Souza", qualificacao: null })], atendimento_mensagens: [jaEscreveu()] });
+    const t = transporteDeTeste([respostaDoModelo()]);
+    expect(await mudarAssistente(banco.cliente, { leadId: "lead-1", acao: "devolver", autor: "Carla Souza" }, deps(t))).toEqual({ ok: true });
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "reaquecendo", cadencia: "engajamento", resumo_ia: "Rafael quer o Onix LT 2020." });
+    expect(t.enviados).toHaveLength(0);
+  });
+
   it("opt-out: o assistente não volta a escrever", async () => {
     const banco = montar({ leads: [leadAberto({ assistente_fase: "pausado", optout_em: "2026-10-19T10:00:00Z" })] });
     const r = await mudarAssistente(banco.cliente, { leadId: "lead-1", acao: "retomar", autor: "Carla" }, deps(transporteDeTeste()));
@@ -2267,7 +2355,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
     const t = transporteDeTeste([TOQUE_QUE_LEU]);
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
     expect(rodada.toques).toEqual([expect.objectContaining({ lead_id: "lead-01", cadencia: "engajamento", enviado: true })]);
-    expect(JSON.stringify(t.pedidosAoModelo[0].messages)).toContain("O consultor devolveu este cliente ao assistente");
+    expect(JSON.stringify(t.pedidosAoModelo[0].messages)).toContain("A equipe passou este cliente ao assistente");
   });
 
   // Visto em produção (21/10): a lojista do repasse, em visita com o dono,
