@@ -1,5 +1,16 @@
 # WEBHOOKS_N8N.md
 
+> **21/10/2026 — o Chatwoot saiu dos processos da Motors** (*"tire o chatwoot
+> de todos os processos da motors, tudo vira painel"*). Os fluxos
+> `lead-entrada` (Motors Store — Entrada de Lead do Site) e
+> `avaliacao-veiculo` (Motors Store — Avaliação de Veículo) só conferem o
+> contrato e respondem: não criam mais contato, conversa, nota nem etiqueta no
+> Chatwoot. Saíram do site a rota `POST /api/chatwoot/eventos`, a atribuição
+> da conversa, as etiquetas e a resolução no desfecho, e os documentos do
+> Captain (`/api/ney`, `/api/ney/loja`, `/api/ney/repasse`). A conversa mora no
+> painel (Evolution — `docs/ATENDIMENTO_IA.md`). As seções sobre o Chatwoot
+> abaixo ficam como registro.
+
 Contrato dos webhooks que o site emite para o n8n. **O site é o emissor; este
 documento descreve o que ele manda.** Se um workflow do n8n espera algo que não
 está aqui, o workflow está errado ou o contrato mudou sem aviso — as duas coisas
@@ -323,7 +334,7 @@ o emissor. Quem bate é o n8n, sem sessão, com um Bearer próprio.
 |---|---|---|
 | `POST /api/ciclo/motor/fila` | `CICLO_MOTOR_TOKEN` | A fila de gatilhos do Motors Ciclo (manual §4.1). |
 | `POST /api/funil/alertas` | `FUNIL_MOTOR_TOKEN` | A fila de avisos do funil de leads: lead sem dono, lead parado e lead a transferir. |
-| `POST /api/chatwoot/eventos` | `CHATWOOT_WEBHOOK_TOKEN` | Nada de útil no corpo — é o Chatwoot **contando** o que houve. Cria o lead e para o relógio da estagnação. |
+| ~~`POST /api/chatwoot/eventos`~~ | ~~`CHATWOOT_WEBHOOK_TOKEN`~~ | **Removida em 21/10/2026**, com o Chatwoot. Era o Chatwoot contando o que houve: criava o lead e parava o relógio da estagnação. |
 | `POST /api/atendimento/evolution` | `ATENDIMENTO_MOTOR_TOKEN` | A mensagem do WhatsApp pela Evolution (2026-10-20): grava a conversa, cria o lead e diz se o assistente responde (`responder`, `aguardar_ms`). |
 | `POST /api/atendimento/responder` | `ATENDIMENTO_MOTOR_TOKEN` | O assistente responde, depois da rajada. `{ lead_id, mensagem_id }`. |
 | `POST /api/atendimento/rodada` | `ATENDIMENTO_MOTOR_TOKEN` | Os resumos pendentes ao vendedor e os toques das cadências. `{ reservar: true }`; sem ele é prévia. |
@@ -428,7 +439,7 @@ O desenho inteiro — a régua do aquecimento, a entrega, as cadências, o que t
 o assistente da conversa e o passo a passo para ligar — está em
 `docs/ATENDIMENTO_IA.md`.
 
-### `POST /api/chatwoot/eventos` (2026-09-15)
+### `POST /api/chatwoot/eventos` (2026-09-15) — removida em 21/10/2026
 
 O webhook do Chatwoot, recebido **direto** — sem o n8n no meio. Quem quiser
 mediar pelo n8n pode: o corpo é repassado verbatim e o contrato é o mesmo.

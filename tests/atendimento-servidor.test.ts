@@ -815,18 +815,40 @@ describe("a rodada das cadências", () => {
     expect(banco.tabelas.leads[0]).toMatchObject({ cadencia_passo: 0, cadencia_proximo_em: "2026-10-20T12:00:00Z" });
   });
 
-  it("nada do cliente para ler (a conversa do Chatwoot que a Evolution não guardou): não aborda, e o lead volta para a equipe", async () => {
+  // Desde 21/10 ("tire o chatwoot de todos os processos da motors, tudo vira
+  // painel"), a conversa do Chatwoot sozinha não conta como o cliente ter
+  // escrito: só a do painel, com o histórico do WhatsApp.
+  it("só a conversa do Chatwoot, nada do cliente no painel: não aborda, e o lead volta para a equipe", async () => {
     const banco = montar({
       leads: [vencido({ assistente_fase: "reaquecendo" })],
       atendimentos: [{ id: "at-1", lead_id: "lead-1", chatwoot_conversation_id: 4821, com_assistente: true, created_at: "2026-07-01T12:00:00Z" }],
     });
     const t = transporteDeTeste([TOQUE_QUE_LEU]);
     const r = await executarRodada(banco.cliente, { reservar: true }, deps(t));
-    expect(r.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-1", motivo: "sem_historico" })]);
-    expect(r.devolvidos).toEqual([{ lead_id: "lead-1", motivo: "sem_historico" }]);
+    expect(r.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-1", motivo: "sem_conversa" })]);
+    expect(r.devolvidos).toEqual([{ lead_id: "lead-1", motivo: "sem_conversa" }]);
     expect(t.pedidosAoModelo).toHaveLength(0);
     expect(t.enviados).toHaveLength(0);
     expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "pausado", cadencia: null });
+  });
+
+  it("o cliente escreveu um dia, mas nada dele nas últimas mensagens: sem o que ler, não aborda", async () => {
+    const daLoja = Array.from({ length: 20 }, (_, i) => ({
+      id: `m-loja-${i}`,
+      lead_id: "lead-1",
+      telefone: CLIENTE,
+      direcao: "saida",
+      autor: "vendedor",
+      texto: `Oferta ${i}`,
+      situacao: "enviada",
+      criado_em: `2026-10-19T13:${String(i).padStart(2, "0")}:00.000Z`,
+    }));
+    const banco = montar({ leads: [vencido()], atendimento_mensagens: [jaEscreveu(), ...daLoja] });
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
+    const r = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(r.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-1", motivo: "sem_historico" })]);
+    expect(t.pedidosAoModelo).toHaveLength(0);
+    expect(t.enviados).toHaveLength(0);
   });
 
   it("o cliente escreveu enquanto o modelo lia: o toque não sai por cima", async () => {
@@ -2215,19 +2237,41 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
       ultimo_contato_em: "2026-10-10T12:00:00.000Z",
       ...parcial,
     });
-  const conversaDoChatwoot = (leadId: string, quando = "2026-10-10T12:00:00") => ({
-    id: `at-${leadId}`,
-    lead_id: leadId,
-    chatwoot_conversation_id: 4821,
-    created_at: quando,
-    updated_at: quando,
-    com_assistente: false,
-  });
-  const montarBase = (leads: Record<string, unknown>[], atendimentos: Record<string, unknown>[], extra: Record<string, Record<string, unknown>[]> = {}, base = BASE) =>
-    montar({ leads, atendimentos, ...extra }, { config: { base } });
+  // O lead que já conversou com o WhatsApp da loja: o atendimento e a mensagem
+  // dele no painel (com o histórico do WhatsApp que veio para lá). Desde
+  // 21/10, a conversa do Chatwoot sozinha não conta: "tudo vira painel".
+  const conversaNoPainel = (leadId: string, quando = "2026-10-10T12:00:00") => ({ leadId, quando });
+  const montarBase = (
+    leads: Record<string, unknown>[],
+    conversas: { leadId: string; quando: string }[],
+    extra: Record<string, Record<string, unknown>[]> = {},
+    base = BASE,
+  ) =>
+    montar(
+      {
+        leads,
+        atendimentos: conversas.map((c) => ({ id: `at-${c.leadId}`, lead_id: c.leadId, created_at: c.quando, updated_at: c.quando, com_assistente: false })),
+        ...extra,
+        atendimento_mensagens: [
+          ...conversas.map((c) => ({
+            id: `m-${c.leadId}`,
+            lead_id: c.leadId,
+            telefone: leads.find((l) => l.id === c.leadId)?.telefone,
+            direcao: "entrada",
+            autor: "cliente",
+            texto: "oi, tem onix?",
+            situacao: "recebida",
+            respondida_em: c.quando,
+            criado_em: c.quando,
+          })),
+          ...(extra.atendimento_mensagens ?? []),
+        ],
+      },
+      { config: { base } },
+    );
 
   it("puxa o parado que já conversou: follow-up (tem carro), primeiro toque já vencido, nota no rastro", async () => {
-    const banco = montarBase([parado("lead-01")], [conversaDoChatwoot("lead-01")]);
+    const banco = montarBase([parado("lead-01")], [conversaNoPainel("lead-01")]);
     const t = transporteDeTeste();
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
 
@@ -2248,7 +2292,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
   });
 
   it("na rodada seguinte, o toque traz a conversa do WhatsApp para o painel, lê, e só então sai; a resposta do cliente volta ao assistente", async () => {
-    const banco = montarBase([parado("lead-01")], [conversaDoChatwoot("lead-01")]);
+    const banco = montarBase([parado("lead-01")], [conversaNoPainel("lead-01")]);
     const LID = "777000111222333@lid";
     const quando = Math.floor(Date.parse("2026-10-10T12:00:00Z") / 1000);
     const t = transporteDeTeste([TOQUE_QUE_LEU], {
@@ -2285,7 +2329,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
   // Visto em produção (21/10): a base puxou leads com telefone faltando dígitos,
   // e cada toque falhou com "telefone inválido para envio".
   it("telefone que a Evolution recusa: não entra na base; o que já entrou sai da cadência e volta para a equipe", async () => {
-    const banco = montarBase([parado("lead-01", { telefone: "55419888662" })], [conversaDoChatwoot("lead-01")]);
+    const banco = montarBase([parado("lead-01", { telefone: "55419888662" })], [conversaNoPainel("lead-01")]);
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
     expect(rodada.base).toEqual([]);
     expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: null, cadencia: null });
@@ -2293,7 +2337,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
     // O que já estava na cadência (puxado antes da correção).
     const preso = montarBase(
       [parado("lead-01", { telefone: "55419888662", assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: TERCA_10H.toISOString() })],
-      [conversaDoChatwoot("lead-01")],
+      [conversaNoPainel("lead-01")],
     );
     const t = transporteDeTeste();
     const r = await executarRodada(preso.cliente, { reservar: true }, deps(t));
@@ -2305,7 +2349,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
   });
 
   it("sem carro de interesse, reativação", async () => {
-    const banco = montarBase([parado("lead-01", { interesse: null })], [conversaDoChatwoot("lead-01")]);
+    const banco = montarBase([parado("lead-01", { interesse: null })], [conversaNoPainel("lead-01")]);
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
     expect(rodada.base).toEqual([{ lead_id: "lead-01", cadencia: "reativacao" }]);
   });
@@ -2315,7 +2359,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
   it("telefone com outro lead aberto não entra: o consultor já fala com a pessoa", async () => {
     const banco = montarBase(
       [parado("lead-01"), parado("lead-02", { telefone: "5541999990001", situacao: "proposta", ultimo_contato_em: "2026-10-19T12:00:00.000Z" })],
-      [conversaDoChatwoot("lead-01"), conversaDoChatwoot("lead-02")],
+      [conversaNoPainel("lead-01"), conversaNoPainel("lead-02")],
     );
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
     expect(rodada.base).toEqual([]);
@@ -2327,7 +2371,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
       parado(id, { assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: "2026-10-20T12:00:00.000Z", ...parcial });
     const banco = montarBase(
       [naBase("lead-01", { situacao: "visita" }), naBase("lead-02"), leadAberto({ id: "lead-03", telefone: "5541999990002", situacao: "proposta", assistente_fase: null })],
-      [conversaDoChatwoot("lead-01"), conversaDoChatwoot("lead-02")],
+      [conversaNoPainel("lead-01"), conversaNoPainel("lead-02")],
       {},
       { ativa: false, por_dia: 30, dias_parado: 7 },
     );
@@ -2348,7 +2392,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
   it("o engajamento (o consultor devolveu o lead) não passa por essa régua: em proposta, o toque sai", async () => {
     const banco = montarBase(
       [parado("lead-01", { situacao: "proposta", assistente_fase: "reaquecendo", cadencia: "engajamento", cadencia_passo: 0, cadencia_proximo_em: "2026-10-20T12:00:00.000Z" })],
-      [conversaDoChatwoot("lead-01")],
+      [conversaNoPainel("lead-01")],
       { atendimento_mensagens: [jaEscreveu({ lead_id: "lead-01", telefone: "5541999990001" })] },
       { ativa: false, por_dia: 30, dias_parado: 7 },
     );
@@ -2372,7 +2416,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
         parado("lead-05", { situacao: "em_contato" }),
         parado("lead-06", { situacao: "nova_etapa_n9vi" }),
       ],
-      ids.map((id) => conversaDoChatwoot(id)),
+      ids.map((id) => conversaNoPainel(id)),
     );
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
     expect(rodada.base.map((b) => b.lead_id).sort()).toEqual(["lead-03", "lead-05"]);
@@ -2390,14 +2434,14 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
         parado("lead-07", { created_at: "2026-10-18T12:00:00.000Z", ultimo_contato_em: null }),
       ],
       [
-        conversaDoChatwoot("lead-01"),
-        // A conversa andou anteontem no Chatwoot: não está parado.
-        conversaDoChatwoot("lead-02", "2026-10-18T12:00:00"),
+        conversaNoPainel("lead-01"),
+        // A conversa andou anteontem: não está parado.
+        conversaNoPainel("lead-02", "2026-10-18T12:00:00"),
         // lead-03: nenhuma conversa com a loja.
-        conversaDoChatwoot("lead-04"),
-        conversaDoChatwoot("lead-05"),
-        conversaDoChatwoot("lead-06"),
-        conversaDoChatwoot("lead-07"),
+        conversaNoPainel("lead-04"),
+        conversaNoPainel("lead-05"),
+        conversaNoPainel("lead-06"),
+        conversaNoPainel("lead-07"),
       ],
     );
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
@@ -2415,11 +2459,11 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
 
   it("no máximo 3 por rodada, e o teto do dia conta os já puxados hoje", async () => {
     const ids = ["lead-01", "lead-02", "lead-03", "lead-04", "lead-05"];
-    const banco = montarBase(ids.map((id) => parado(id)), ids.map((id) => conversaDoChatwoot(id)));
+    const banco = montarBase(ids.map((id) => parado(id)), ids.map((id) => conversaNoPainel(id)));
     const primeira = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
     expect(primeira.base).toHaveLength(3);
 
-    const comTeto = montarBase(ids.map((id) => parado(id)), ids.map((id) => conversaDoChatwoot(id)), {
+    const comTeto = montarBase(ids.map((id) => parado(id)), ids.map((id) => conversaNoPainel(id)), {
       leads_eventos: [
         { lead_id: "x", tipo: "nota", detalhe: { acao: "base" }, criado_em: "2026-10-20T11:00:00.000Z" },
         // De ontem: não conta para hoje.
@@ -2432,7 +2476,7 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
 
   it("fora do horário da loja, desligada na configuração, ou na prévia: ninguém muda", async () => {
     const leads = [parado("lead-01")];
-    const conversas = [conversaDoChatwoot("lead-01")];
+    const conversas = [conversaNoPainel("lead-01")];
 
     relogio = TERCA_23H;
     const noite = montarBase(leads, conversas);

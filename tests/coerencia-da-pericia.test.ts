@@ -226,20 +226,14 @@ describe("a promessa do laudo carrega a condição", () => {
 describe("a promessa do laudo não volta como publicação automática", () => {
   /**
    * Só `src/app` e `src/lib` — onde mora o texto que o visitante, o Google e
-   * o Meta leem. Duas isenções, uma por arquivo, com o motivo ao lado:
+   * o Meta leem. Uma isenção, com o motivo ao lado (a das fichas do Ney do
+   * Chatwoot saiu com elas, em 21/10/2026):
    *
-   *   - `src/lib/fichasParaOAssistente.ts`: a frase lá é condicional e verdadeira —
-   *     `estadoDaPericia` só devolve "laudo na ficha" com
-   *     `pericia === "PERÍCIA APROVADA"`, e `tests/fichas-para-o-assistente.test.ts`
-   *     prende essa condição por conta própria.
    *   - `src/lib/textoDoLaudo.ts`: é a FONTE da frase nova, não reincidência —
    *     o docblock lá cita a redação antiga para explicar por que ela não
    *     volta, e essa trava já ignora comentário.
    */
-  const FORA_DE_ESCOPO = new Set([
-    "src/lib/fichasParaOAssistente.ts",
-    "src/lib/textoDoLaudo.ts",
-  ]);
+  const FORA_DE_ESCOPO = new Set(["src/lib/textoDoLaudo.ts"]);
 
   function arquivosDeAppELib(): string[] {
     const achados: string[] = [];

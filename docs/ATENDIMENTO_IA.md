@@ -427,7 +427,8 @@ precisam entrar na cadência do Ney também"*). A cada rodada, no horário da
 loja, o assistente puxa até 3 leads (até **30 por dia**) que já estavam no
 painel: abertos, nunca pegos por ele, **sem contato há 7 dias ou mais** (nem
 registro do vendedor, nem conversa) e que **já conversaram** com o WhatsApp da
-loja — pelo Chatwoot ou por ele. Entram no follow-up (com carro de interesse)
+loja — na conversa do painel, que tem o histórico do WhatsApp (a do Chatwoot
+deixou de contar em 21/10, decisão 23). Entram no follow-up (com carro de interesse)
 ou na reativação, com o primeiro toque na rodada seguinte — que lê a
 conversa antes (acima). Ficam de fora o **repasse** (lojista, que não compra
 no varejo), quem já está depois do **Recontato** — com a visita agendada, na
@@ -1036,6 +1037,27 @@ tela, em **Leads → Atendimento IA → Configuração**.
     sim, com o vendedor definido, outros casos, deixar como está"*. É o que a
     entrega já faz: a visita com dia e hora move o lead para a etapa, e o
     rodízio (ligado na loja) define o vendedor quando o lead não tem dono.
+
+23. **O Chatwoot sai de todos os processos da Motors** (21/10): *"tire o
+    chatwoot de todos os processos da motors, tudo vira painel"*.
+    - n8n: os fluxos Entrada de Lead do Site e Avaliação de Veículo só
+      conferem o contrato e respondem — sem contato, conversa, nota ou
+      etiqueta no Chatwoot. Os fluxos do atendimento (Evolution) nunca o
+      usaram; os da V2O5 são de outra conta e ficam.
+    - site: saíram o webhook `POST /api/chatwoot/eventos`, a atribuição da
+      conversa ao trocar o dono (no PATCH e no rodízio do funil), a
+      resolução da conversa no desfecho, as etiquetas na API do Chatwoot e os
+      documentos do Captain (`/api/ney*`). O texto da loja que o Ney lê
+      (`montarLoja`) ficou.
+    - "já conversou com a loja" (as cadências, a base parada, os botões do
+      painel) passa a ser só a conversa do painel, com o histórico do
+      WhatsApp; a do Chatwoot sozinha não conta. O lead em cadência sem
+      conversa no painel volta para a equipe.
+    - o banco não muda: as linhas antigas de `atendimentos` (com o id do
+      Chatwoot) continuam valendo como atendimento, e o histórico do lead
+      continua dizendo o que foi feito pelo Chatwoot.
+    - as variáveis `CHATWOOT_*` não são mais lidas e saem da Vercel depois do
+      deploy.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

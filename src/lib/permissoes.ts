@@ -254,7 +254,7 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
   },
   sdr: {
     descricao:
-      "Resgate de leads que o Comercial não converteu. Trabalha no Chatwoot; não entra no rodízio nem recebe lead.",
+      "Resgate de leads que o Comercial não converteu. Trabalha no painel; não entra no rodízio nem recebe lead.",
     chave: "Não recebe lead",
   },
 };

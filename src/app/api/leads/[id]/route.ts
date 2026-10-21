@@ -107,7 +107,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           .order("criado_em", { ascending: false }),
         supabase
           .from("atendimentos")
-          .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at, tags")
+          .select("lead_id, com_assistente, humano_assumiu_em, iniciado_em, created_at, tags")
           .eq("lead_id", id),
         supabase.from("funil_etapas").select("*").order("ordem"),
         // Todos, e não só os ativos: o histórico precisa do nome do motivo que
@@ -128,15 +128,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const todosOsMotivos = (motivosBanco.data ?? []) as MotivoDoFunil[];
     const etapa = etapas.find((e) => e.chave === lead.situacao) ?? null;
 
-    // A conversa mais recente, como a fila a escolhe (`maisRecentePrimeiro`).
+    // O atendimento mais recente, como a fila o escolhe (`maisRecentePrimeiro`).
     if (atendimentos.error) {
-      console.warn("[Leads] Sem atendimento do Chatwoot:", atendimentos.error.message);
-      avisos.push("Não deu para ler a conversa do Chatwoot deste lead. O botão cai no WhatsApp.");
+      console.warn("[Leads] Atendimento ilegível:", atendimentos.error.message);
+      avisos.push("Não deu para ler o atendimento deste lead pelo WhatsApp da loja. O botão cai no WhatsApp.");
     }
     const atendimento = maisRecentePrimeiro(atendimentos.data ?? [])[0] as Record<string, unknown> | undefined;
-    lead.chatwoot_conversation_id = atendimento?.chatwoot_conversation_id
-      ? Number(atendimento.chatwoot_conversation_id)
-      : null;
     lead.com_assistente = atendimento?.com_assistente === true;
     lead.tem_conversa = Boolean(atendimento);
     lead.humano_assumiu_em = atendimento?.humano_assumiu_em ?? null;

@@ -1845,8 +1845,8 @@ describe("o terceiro desfecho não pode ser esquecido pela lista nominal", () =>
  * (o PATCH do painel) e `criarMover` (o kanban). A captura fica intocada
  * enquanto nenhum caminho que ELA percorre chega a uma das duas, nem escolhe
  * etapa para o lead: quem decide onde o lead nasce é o `default` de
- * `leads.situacao`. O Chatwoot é o único que escreve a etapa, e escreve a de
- * entrada.
+ * `leads.situacao`. A entrada do WhatsApp (a Evolution, desde que o Chatwoot
+ * saiu, em 21/10/2026) cria o lead pela função do banco, sem escolher etapa.
  *
  * Asserção de fonte, e barata, de propósito: o que se afirma aqui é um grafo
  * de import e um campo ausente, não a condição de um `if`.
@@ -1856,7 +1856,7 @@ describe("a captura do site não passa pela regra do desfecho", () => {
   const CAPTURAS = [
     join("src", "app", "api", "leads", "route.ts"),
     join("src", "app", "api", "avaliacao", "route.ts"),
-    join("src", "app", "api", "chatwoot", "eventos", "route.ts"),
+    join("src", "app", "api", "atendimento", "evolution", "route.ts"),
   ];
 
   /** Os módulos do repositório que um arquivo alcança por import, ele incluído. */
@@ -1904,16 +1904,17 @@ describe("a captura do site não passa pela regra do desfecho", () => {
     }
   });
 
-  it("o formulário e a avaliação não escolhem etapa; o Chatwoot escolhe a de entrada", () => {
+  it("o formulário, a avaliação e a entrada do WhatsApp não escolhem etapa nem desfecho", () => {
     for (const rota of CAPTURAS.slice(0, 2)) {
       const codigo = semComentarios(readFileSync(join(RAIZ, rota), "utf8"));
       expect(codigo, `${rota} passou a gravar etapa`).not.toMatch(/\bsituacao\b/);
       expect(codigo, `${rota} passou a gravar desfecho`).not.toMatch(/\bdesfecho/);
     }
-
-    const chatwoot = semComentarios(readFileSync(join(RAIZ, CAPTURAS[2]), "utf8"));
-    const etapas = [...chatwoot.matchAll(/\bsituacao:\s*("[^"]*")/g)].map((x) => x[1]);
-    expect(etapas).toEqual(['"novo"']);
+    // A entrada do WhatsApp chama de "desfecho" o resultado da entrada: o que
+    // se prende é a gravação de etapa ou de desfecho do lead.
+    const whatsapp = semComentarios(readFileSync(join(RAIZ, CAPTURAS[2]), "utf8"));
+    expect(whatsapp).not.toMatch(/\bsituacao\s*:/);
+    expect(whatsapp).not.toMatch(/\bdesfecho(_motivo|_nota)?\s*:/);
     expect(ETAPAS_PADRAO.find((e) => e.chave === "novo")?.tipo).toBe("aberta");
   });
 });

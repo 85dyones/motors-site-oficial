@@ -1,8 +1,9 @@
 /**
  * As regras puras das etiquetas do lead (2026-09-25) — sem rede, sem segredo.
  *
- * Moram à parte de `etiquetasDoChatwoot.ts` para o card (componente de
- * cliente) importar daqui sem arrastar o cliente da API para o navegador.
+ * Puras para o card (componente de cliente) importar daqui. A gravação no
+ * Chatwoot (`etiquetasDoChatwoot.ts`) saiu com ele em 21/10/2026: as
+ * etiquetas moram no lead.
  *
  * ---------------------------------------------------------------------------
  * Duas réguas, e não uma

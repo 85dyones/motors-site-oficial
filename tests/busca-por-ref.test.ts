@@ -301,7 +301,6 @@ beforeEach(() => {
   ATENDIMENTOS = [
     {
       lead_id: "mesmo-2",
-      chatwoot_conversation_id: 77,
       com_assistente: false,
       humano_assumiu_em: "2026-09-12T12:10:00.000Z",
       iniciado_em: "2026-09-12T12:05:00.000Z",
@@ -361,10 +360,10 @@ describe("GET /api/leads/gerenciar?ref= — a busca, executada", () => {
 
   it("o lead achado vem com tudo o que o card da fila tem", async () => {
     // Uma resposta de outro formato desenharia o funil padrão no lugar do
-    // configurado, e o card perderia o Chatwoot e o relógio do assistente.
+    // configurado, e o card perderia a conversa e o relógio do assistente.
     const corpo = await (await chamar("?ref=0DCB1CDC")).json();
     const comConversa = corpo.leads.find((l: Linha) => l.id === "mesmo-2");
-    expect(comConversa.chatwoot_conversation_id).toBe(77);
+    expect(comConversa.tem_conversa).toBe(true);
     expect(comConversa.com_assistente).toBe(false);
     expect(comConversa.humano_assumiu_em).toBe("2026-09-12T12:10:00.000Z");
     expect(corpo.etapas).toHaveLength(ETAPAS_PADRAO.length);

@@ -14,8 +14,12 @@ import {
   TEXTO_DE_GARANTIA,
 } from "./paginasInstitucionais";
 
-/** O mesmo teto do documento de fichas — o Captain corta em 15000, calado. */
-const TETO_DO_CAPTAIN = 15000;
+/**
+ * O teto do documento. Veio do Captain do Chatwoot, que cortava em 15000
+ * calado; o Chatwoot saiu (21/10/2026), e o Ney de hoje lê este texto no
+ * prompt de cada conversa — o teto segura o tamanho (e o custo) dele.
+ */
+const TETO_DO_DOCUMENTO = 15000;
 const MARGEM = 1000;
 
 function bloco(titulo: string, linhas: (string | false | null | undefined)[]): string {
@@ -113,7 +117,7 @@ export function montarLoja(
     ...TEXTO_DE_GARANTIA,
     "",
     // As seções da página entram inteiras, cada uma com o próprio título: é o
-    // que o Captain recupera quando alguém pergunta "como aciono a garantia?",
+    // que o assistente acha quando alguém pergunta "como aciono a garantia?",
     // e o "avise antes de mexer" mora numa seção, não na abertura.
     ...SECOES_DE_GARANTIA.flatMap((secao) => [`### ${secao.titulo}`, ...secao.paragrafos, ""]),
     ...perguntas(semOAlcance(PERGUNTAS_DE_GARANTIA)),
@@ -166,8 +170,8 @@ export function montarLoja(
 
   // O teto vale para este documento também. Cortar aqui seria perder uma seção
   // inteira em silêncio — então o arquivo AVISA em vez de encolher sozinho.
-  if (texto.length > TETO_DO_CAPTAIN - MARGEM) {
-    return `${texto.slice(0, TETO_DO_CAPTAIN - MARGEM - 200)}\n\n---\n\n## AVISO\n\nEste arquivo passou do limite que o Chatwoot guarda e foi cortado aqui. Quem mexeu no texto institucional precisa encurtá-lo ou dividi-lo em dois documentos.\n`;
+  if (texto.length > TETO_DO_DOCUMENTO - MARGEM) {
+    return `${texto.slice(0, TETO_DO_DOCUMENTO - MARGEM - 200)}\n\n---\n\n## AVISO\n\nEste arquivo passou do limite do documento da loja e foi cortado aqui. Quem mexeu no texto institucional precisa encurtá-lo ou dividi-lo em dois documentos.\n`;
   }
   return texto;
 }

@@ -162,3 +162,30 @@ export function telefoneVisivel(
 
   return (company?.whatsapp ?? "").trim() || numero;
 }
+
+/**
+ * As formas em que o MESMO celular brasileiro aparece — com e sem o nono dígito.
+ *
+ * Sem isto o casamento falha exatamente onde dói. O site grava o que a pessoa
+ * digitou no formulário; o WhatsApp devolve o que a operadora registrou, e as
+ * duas formas convivem há mais de uma década. Um lead gravado como
+ * `5541999990000` e uma conversa que chega como `554199990000` são a mesma
+ * pessoa, e comparar string com string cria um lead duplicado a cada resposta.
+ *
+ * Só para celular (DDD + 9 dígitos começando em 9, ou DDD + 8). Fixo não tem
+ * nono dígito e é devolvido como veio.
+ */
+export function variantesDoTelefone(digitos: string | null | undefined): string[] {
+  const n = (digitos ?? "").replace(/\D/g, "");
+  if (!n) return [];
+
+  const ddi = n.slice(0, 2);
+  const ddd = n.slice(2, 4);
+  const resto = n.slice(4);
+  if (ddi !== "55" || ddd.length !== 2) return [n];
+
+  const formas = new Set<string>([n]);
+  if (resto.length === 8) formas.add(`55${ddd}9${resto}`);
+  if (resto.length === 9 && resto.startsWith("9")) formas.add(`55${ddd}${resto.slice(1)}`);
+  return [...formas];
+}
