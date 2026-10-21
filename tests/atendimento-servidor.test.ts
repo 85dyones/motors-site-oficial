@@ -2222,6 +2222,54 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
     expect(rodada.base).toEqual([{ lead_id: "lead-01", cadencia: "reativacao" }]);
   });
 
+  // Visto em produção (21/10): o mesmo cliente tinha o lead da simulação em
+  // proposta com o consultor e uma cópia parada em "em contato".
+  it("telefone com outro lead aberto não entra: o consultor já fala com a pessoa", async () => {
+    const banco = montarBase(
+      [parado("lead-01"), parado("lead-02", { telefone: "5541999990001", situacao: "proposta", ultimo_contato_em: "2026-10-19T12:00:00.000Z" })],
+      [conversaDoChatwoot("lead-01"), conversaDoChatwoot("lead-02")],
+    );
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.base).toEqual([]);
+    expect(banco.tabelas.leads.filter((l) => l.assistente_fase === "reaquecendo")).toHaveLength(0);
+  });
+
+  it("o lead que a base puxou e já não entraria nela (avançou de etapa, ou o telefone tem outro lead aberto): sai da cadência sem toque", async () => {
+    const naBase = (id: string, parcial: Record<string, unknown> = {}) =>
+      parado(id, { assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: "2026-10-20T12:00:00.000Z", ...parcial });
+    const banco = montarBase(
+      [naBase("lead-01", { situacao: "visita" }), naBase("lead-02"), leadAberto({ id: "lead-03", telefone: "5541999990002", situacao: "proposta", assistente_fase: null })],
+      [conversaDoChatwoot("lead-01"), conversaDoChatwoot("lead-02")],
+      {},
+      { ativa: false, por_dia: 30, dias_parado: 7 },
+    );
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    expect(rodada.suprimidos.map((s) => [s.lead_id, s.motivo]).sort()).toEqual([
+      ["lead-01", "fora_da_base"],
+      ["lead-02", "fora_da_base"],
+    ]);
+    expect(rodada.devolvidos.map((d) => d.lead_id).sort()).toEqual(["lead-01", "lead-02"]);
+    expect(t.pedidosAoModelo).toHaveLength(0);
+    expect(t.buscasDoHistorico).toHaveLength(0);
+    expect(t.enviados).toHaveLength(0);
+    expect(banco.tabelas.leads.find((l) => l.id === "lead-01")).toMatchObject({ assistente_fase: "pausado", cadencia: null });
+  });
+
+  it("o engajamento (o consultor devolveu o lead) não passa por essa régua: em proposta, o toque sai", async () => {
+    const banco = montarBase(
+      [parado("lead-01", { situacao: "proposta", assistente_fase: "reaquecendo", cadencia: "engajamento", cadencia_passo: 0, cadencia_proximo_em: "2026-10-20T12:00:00.000Z" })],
+      [conversaDoChatwoot("lead-01")],
+      { atendimento_mensagens: [jaEscreveu({ lead_id: "lead-01", telefone: "5541999990001" })] },
+      { ativa: false, por_dia: 30, dias_parado: 7 },
+    );
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(rodada.toques).toEqual([expect.objectContaining({ lead_id: "lead-01", cadencia: "engajamento", enviado: true })]);
+    expect(JSON.stringify(t.pedidosAoModelo[0].messages)).toContain("O consultor devolveu este cliente ao assistente");
+  });
+
   // Visto em produção (21/10): a lojista do repasse, em visita com o dono,
   // entrou na base e recebeu "o carro que te interessou" — "Qual carro?".
   it("o repasse e quem já passou de 'em contato' não entram: o acompanhamento é do consultor", async () => {

@@ -2115,7 +2115,15 @@ export interface ResultadoDaRodada {
   toques: ToqueDaRodada[];
   suprimidos: {
     lead_id: string;
-    motivo: MotivoSemToque | "sem_conversa" | "outra_rodada" | "telefone_invalido" | "sem_historico" | "conversa_sem_toque" | "trava_de_preco";
+    motivo:
+      | MotivoSemToque
+      | "sem_conversa"
+      | "outra_rodada"
+      | "telefone_invalido"
+      | "sem_historico"
+      | "conversa_sem_toque"
+      | "trava_de_preco"
+      | "fora_da_base";
     texto: string;
   }[];
   /** Os leads da base parada que entraram na cadência nesta rodada (ou entrariam, na prévia). */
@@ -2288,6 +2296,14 @@ export async function executarRodada(
       if (opcoes.reservar) await tirarDaCadencia("telefone_invalido", "o telefone do lead não serve para o WhatsApp");
       continue;
     }
+    // O lead que a base puxou (reaquecendo, fora do engajamento) só recebe o
+    // toque se ainda entraria nela hoje: avançou de etapa, é do repasse ou o
+    // telefone tem outro lead aberto, o acompanhamento é do consultor (21/10).
+    if (lead.assistente_fase === "reaquecendo" && lead.cadencia !== "engajamento" && !(await aindaEntraNaBase(supabase, lead))) {
+      resultado.suprimidos.push({ lead_id: leadId, motivo: "fora_da_base", texto: "O lead avançou de etapa, é do repasse ou o telefone tem outro lead aberto: o acompanhamento é do consultor." });
+      if (opcoes.reservar) await tirarDaCadencia("fora_da_base", "o lead avançou de etapa, é do repasse ou o telefone tem outro lead aberto: o acompanhamento é do consultor");
+      continue;
+    }
     // Nada automático para quem nunca escreveu deste telefone.
     if (!(await clienteJaEscreveu(supabase, leadId, lead.telefone))) {
       resultado.suprimidos.push({ lead_id: leadId, motivo: "sem_conversa", texto: "O cliente nunca escreveu para a loja deste telefone." });
@@ -2438,6 +2454,25 @@ export async function executarRodada(
 /** Quantos leads da base uma rodada puxa: o teto do dia se espalha pelo expediente. */
 const BASE_POR_RODADA = 3;
 
+/**
+ * Outro lead aberto do mesmo telefone? Em produção (21/10), o mesmo cliente
+ * tinha o lead da simulação em proposta com o consultor e uma cópia parada em
+ * "em contato" — e a base puxou a cópia. Na dúvida (a leitura falhou), conta
+ * como tendo: o robô não aborda.
+ */
+async function temOutroLeadAberto(supabase: Banco, lead: Linha): Promise<boolean> {
+  const formas = variantesDoTelefone(lead.telefone);
+  if (formas.length === 0) return false;
+  const { data, error } = await supabase.from("leads").select("id").in("telefone", formas).is("desfecho", null).neq("id", String(lead.id)).limit(1);
+  if (error) return true;
+  return ((data ?? []) as Linha[]).length > 0;
+}
+
+/** O lead que a base puxou ainda entraria nela hoje (`entraNaBase`, e sem outro lead aberto do mesmo telefone)? */
+async function aindaEntraNaBase(supabase: Banco, lead: Linha): Promise<boolean> {
+  return entraNaBase(lead) && !(await temOutroLeadAberto(supabase, lead));
+}
+
 /** "terça-feira, 20/10, 10:00", na hora da loja: o "agora" que o modelo lê. */
 function horaDaLoja(agora: Date): string {
   return agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -2537,6 +2572,9 @@ async function puxarABase(
       if (!entraNaBase(lead) || !conversou.has(leadId) || (ultimaAtividade.get(leadId) ?? 0) >= limiteMs) continue;
       // Telefone que a Evolution recusa não entra: cada toque falharia.
       if (!numeroParaEnvio(String(lead.telefone ?? ""))) continue;
+      // O mesmo telefone com outro lead aberto (o do formulário e o do
+      // WhatsApp, um deles em proposta): o consultor já fala com a pessoa.
+      if (await temOutroLeadAberto(supabase, lead)) continue;
       const cadencia = cadenciaDoSilencio(Boolean(interesseDaCadencia(lead, fichaDoLead(lead).interesse)));
       if (!config.cadencias[cadencia].ativa) continue;
       if (!reservar) {

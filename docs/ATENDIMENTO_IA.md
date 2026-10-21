@@ -401,8 +401,13 @@ registro do vendedor, nem conversa) e que **já conversaram** com o WhatsApp da
 loja — pelo Chatwoot ou por ele. Entram no follow-up (com carro de interesse)
 ou na reativação, com o primeiro toque na rodada seguinte — que lê a
 conversa antes (acima). Ficam de fora o **repasse** (lojista, que não compra
-no varejo) e quem já passou de **em contato**: em proposta, visita ou
-negociação, o acompanhamento é do consultor (`entraNaBase`). Se o cliente
+no varejo), quem já passou de **em contato** — em proposta, visita ou
+negociação, o acompanhamento é do consultor (`entraNaBase`) — e o telefone que
+tem **outro lead aberto** (o mesmo cliente com a simulação em proposta e uma
+cópia parada em "em contato", visto em 21/10). A mesma régua vale no toque: o
+lead que a base puxou e já não entraria nela sai da cadência sem receber nada
+(`fora_da_base`); o engajamento, que o consultor devolve, não passa por ela.
+Se o cliente
 responder, o assistente qualifica e entrega ao **mesmo responsável**; se não,
 o lead volta para a equipe quando a cadência acaba. Cada lead puxado deixa uma
 nota no rastro. Tudo editável em **Configuração → Base parada** (liga e
@@ -959,10 +964,11 @@ tela, em **Leads → Atendimento IA → Configuração**.
     repasse, em visita com o dono; o toque saiu pelo texto pronto ("o carro
     que te interessou"), sem a conversa do Chatwoot no painel, e ela
     respondeu "Qual carro?". A base e as três cadências foram desligadas na
-    hora, e voltam com estas regras: o histórico do WhatsApp entra antes de
-    cada toque, o modelo lê e pode não escrever, o texto pronto não sai
-    sozinho, e a base deixa de fora o repasse e as etapas depois de "em
-    contato". A primeira resposta do Ney também traz o histórico antes,
+    hora, e voltaram (com o aval do dono, depois do deploy) com estas
+    regras: o histórico do WhatsApp entra antes de cada toque, o modelo lê e
+    pode não escrever, o texto pronto não sai sozinho, e a base deixa de
+    fora o repasse, as etapas depois de "em contato" e o telefone com outro
+    lead aberto. A primeira resposta do Ney também traz o histórico antes,
     quando o painel não tem mensagem do cliente além das que acabaram de
     chegar (o lead novo, ou o da base que só tinha o toque da cadência).
 
