@@ -14,10 +14,11 @@ import { createAdminSupabaseClient } from "./supabase-server";
 /**
  * A base que o agente lê: o texto da loja e o catálogo do pátio.
  *
- * Módulo de servidor. É o equivalente vivo dos documentos que o site gera
- * para o Ney do Chatwoot (`/api/ney` e `/api/ney/loja`), com duas diferenças:
- * o catálogo entra INTEIRO (o Captain cortava em 15.000 bytes) e com o link
- * da ficha de cada carro, para o assistente mandar ao cliente.
+ * Módulo de servidor. É o sucessor vivo dos documentos que o site gerava
+ * para o Ney do Chatwoot (`/api/ney` e `/api/ney/loja`, que saíram com ele
+ * em 21/10/2026), com duas diferenças: o catálogo entra INTEIRO (o Captain
+ * cortava em 15.000 bytes) e com o link da ficha de cada carro, para o
+ * assistente mandar ao cliente.
  *
  * Cinco minutos de cache, com a etiqueta `inventory`: o sincronizador do
  * RevendaMais e o cadastro do painel já revalidam essa etiqueta quando o

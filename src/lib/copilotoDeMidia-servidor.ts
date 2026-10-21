@@ -45,11 +45,12 @@ import {
 } from "./copilotoDeMidia";
 
 /**
- * O canal que o webhook do Chatwoot grava no lead que nasce de conversa
- * (`src/app/api/chatwoot/eventos/route.ts`). Conversa que começou no WhatsApp
- * não passou pelo site e não tem como carregar gclid: fica fora de "do site".
+ * O canal do lead que nasce de conversa no WhatsApp da loja (a entrada da
+ * Evolution, `achar_ou_criar_lead_do_whatsapp`; antes, o webhook do
+ * Chatwoot). Conversa que começou no WhatsApp não passou pelo site e não tem
+ * como carregar gclid: fica fora de "do site".
  */
-export const CANAL_DO_CHATWOOT = "WhatsApp";
+export const CANAL_DO_WHATSAPP = "WhatsApp";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A porta do painel
@@ -286,7 +287,7 @@ export async function contarLeadsDaJanela(admin: SupabaseClient, janela: Janela,
 
   const [total, doSite, comGclid, comUtmGoogle] = await Promise.all([
     base(),
-    base().or(`canal.is.null,canal.neq.${CANAL_DO_CHATWOOT}`),
+    base().or(`canal.is.null,canal.neq.${CANAL_DO_WHATSAPP}`),
     base().or("gclid.not.is.null,gbraid.not.is.null,wbraid.not.is.null"),
     base().ilike("utm_source", "google%").or("utm_medium.ilike.cpc,utm_medium.ilike.ppc,utm_medium.ilike.paid*"),
   ]);

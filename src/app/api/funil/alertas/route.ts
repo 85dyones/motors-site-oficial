@@ -13,17 +13,8 @@ import {
 } from "../../../../lib/funil";
 import { urlDoLead } from "../../../../lib/filaDoFunil";
 import { urlDoSite } from "../../../../lib/site";
-import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
-import {
-  atribuirConversasDaFila,
-  conversasAbertasPorLead,
-  depoisDaResposta,
-} from "../../../../lib/donoDaConversa";
 
 export const dynamic = "force-dynamic";
-// A atribuição das conversas no Chatwoot corre depois da resposta e pode
-// levar dezenas de segundos (ver `lib/donoDaConversa`).
-export const maxDuration = 60;
 
 /**
  * A fila de alertas do funil — o que o n8n consome para cutucar o vendedor.
@@ -146,30 +137,23 @@ export async function POST(request: Request) {
       suprimido_por: l.suprimido_por,
     }));
 
-  // A conversa do Chatwoot de cada lead da fila, para o link do aviso
-  // (2026-10-09: o link é o do Chatwoot, não o `wa.me`). Uma leitura para a
-  // fila inteira, e a conversa mais recente de cada lead pela régua de
-  // `maisRecentePrimeiro` — a mesma do card do kanban.
+  // Quem tem conversa pelo WhatsApp da loja, para o link do aviso: desde
+  // 2026-10-21 o link é o do lead no painel, onde a conversa mora ("Falar
+  // agora"; sem conversa, "Abrir no painel"). Uma leitura para a fila inteira.
   //
   // Falhar aqui não pode segurar o aviso: no modo reservado o lead JÁ foi
   // transferido, e o novo dono precisa saber. Sem a leitura, o link diz
   // "Abrir no painel" em vez de "Falar agora" — leva ao mesmo lugar.
   const comConversa = new Set<string>();
-  // As abertas de cada lead, para o Chatwoot acompanhar a troca de dono (ver
-  // o fim da rota). Saem da mesma leitura.
-  let abertasPorLead = new Map<string, number[]>();
   const aEntregar = linhas.filter((l) => !l.suprimido_por).map((l) => l.lead_id);
   if (aEntregar.length > 0) {
     const { data: atendimentos, error: erroAtendimentos } = await supabase
       .from("atendimentos")
-      .select("lead_id, chatwoot_conversation_id, status_conversa, iniciado_em, created_at")
+      .select("lead_id")
       .in("lead_id", aEntregar);
     if (erroAtendimentos) {
       console.warn("[Funil] Sem as conversas nos avisos:", erroAtendimentos.message);
     } else {
-      abertasPorLead = conversasAbertasPorLead(atendimentos ?? []);
-      // Desde 2026-10-21 o link é o do lead no painel, onde a conversa pelo
-      // WhatsApp da loja mora (Chatwoot ou Evolution, tanto faz).
       for (const a of atendimentos ?? []) if (a.lead_id) comConversa.add(String(a.lead_id));
     }
   }
@@ -292,34 +276,6 @@ export async function POST(request: Request) {
     }
   }
 
-  // O dono novo também no Chatwoot (2026-10-10, pedido do dono: *"as conversas
-  // sobre responsabilidade do Rodrigo não aparecem pra ele"* — *"o painel
-  // precisa atribuir"*). O rodízio trocava o dono do lead e a conversa ficava
-  // atribuída a quem estava; o vendedor recebia o aviso e não achava o
-  // cliente em "Minhas" (`lib/donoDaConversa`).
-  //
-  // Só no modo reservado, o único que troca o dono, e só para o que foi
-  // entregue: lead suprimido não mudou de mão. DEPOIS da resposta: o Chatwoot
-  // leva uns 15 s para responder a uma atribuição (medido em 10/10), e a fila
-  // do n8n não espera por isso. A resposta diz quantas conversas ficaram
-  // agendadas; o resultado de cada uma fica no log.
-  const trocas = reservar
-    ? linhas
-        .filter((l) => !l.suprimido_por && avisoComCopiaAoGestor(l))
-        .map((l) => ({ leadId: l.lead_id, responsavel: l.novo_responsavel }))
-    : [];
-  const agendadas = trocas.reduce((n, t) => n + (abertasPorLead.get(t.leadId)?.length ?? 0), 0);
-  if (agendadas > 0) {
-    const cfg = configDoChatwoot();
-    depoisDaResposta(async () => {
-      const r = await atribuirConversasDaFila(trocas, abertasPorLead, cfg);
-      if (r.falhas.length > 0) {
-        console.warn("[Funil] Conversa do Chatwoot sem o dono novo:", r.falhas.join(" | "));
-      }
-      console.info(`[Funil] Conversas do Chatwoot com o dono novo: ${r.atribuidas} de ${agendadas}.`);
-    });
-  }
-
   return NextResponse.json({
     ok: true,
     reservado: reservar,
@@ -327,6 +283,5 @@ export async function POST(request: Request) {
     fila,
     suprimidos,
     ...(semDestinatario.length > 0 ? { sem_destinatario: semDestinatario } : {}),
-    ...(agendadas > 0 ? { conversas_no_chatwoot: { agendadas } } : {}),
   });
 }

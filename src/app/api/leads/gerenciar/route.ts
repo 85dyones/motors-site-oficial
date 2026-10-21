@@ -27,9 +27,6 @@ import {
 } from "../../../../lib/gestaoDoLead";
 import { lerValorDaAvaliacao } from "../../../../lib/avaliacaoDoLead";
 import { veiculosDepoisDoDesfecho } from "../../../../lib/veiculosDeInteresse-servidor";
-import { resolverConversasDoLead } from "../../../../lib/conversaDoDesfecho";
-import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
-import { AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO, atribuirConversasDoLead } from "../../../../lib/donoDaConversa";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
 import { BUCKET_DOS_ANEXOS } from "../../../../lib/anexosDoAtendimento";
 import {
@@ -52,9 +49,6 @@ import {
 } from "../../../../lib/funil";
 
 export const dynamic = "force-dynamic";
-// A troca de dono atribui as conversas no Chatwoot depois da resposta, e o
-// Chatwoot pode levar dezenas de segundos (ver `lib/donoDaConversa`).
-export const maxDuration = 60;
 
 /**
  * Leitura e gestão da fila de leads (telas A1 e A8).
@@ -107,7 +101,7 @@ export async function GET(request: NextRequest) {
     //
     // A busca não é rota à parte: é esta mesma leitura com um filtro a mais. O
     // card do lead achado precisa de tudo o que o card da fila tem — a conversa
-    // do Chatwoot, o estado do assistente, as etapas do funil —, e uma resposta
+    // pelo WhatsApp da loja, o estado do assistente, as etapas do funil —, e uma resposta
     // de outro formato faria a tela desenhar o funil padrão no lugar do
     // configurado.
     //
@@ -224,37 +218,26 @@ export async function GET(request: NextRequest) {
     const leads = (data ?? []).filter((l) => leadNoEscopo(visao, l.responsavel));
 
     // ------------------------------------------------------------------------
-    // A conversa no Chatwoot, quando já existe
+    // O atendimento pelo WhatsApp da loja, quando já existe
     // ------------------------------------------------------------------------
-    // Decisão do dono em 2026-08-31: o card leva para dentro do Chatwoot em vez
-    // do `wa.me`, para o consultor parar de responder pelo WhatsApp pessoal.
+    // Numa consulta separada, e não num `select` aninhado: se a leitura falhar
+    // — policy ausente, tabela ausente num ambiente atrasado —, o kanban
+    // continua inteiro, e o botão do card cai no `wa.me`. Derrubar a lista de
+    // leads por causa dele é a tela.
     //
-    // Numa consulta separada, e não num `select` aninhado: `atendimentos` é
-    // escrita pelo n8n com a chave de serviço e SÓ agora ganhou policy de
-    // leitura (migração 20260831140000). Se a leitura falhar — policy ausente,
-    // tabela ausente num ambiente atrasado —, o kanban continua inteiro e cai
-    // no `wa.me`, que é o degrau que `linkDeConversa` já implementa. Perder o
-    // link do Chatwoot é um botão pior; derrubar a lista de leads é a tela.
-    //
-    // A conversa mais RECENTE ganha: um cliente que volta meses depois abre
-    // conversa nova, e é nela que o consultor tem de responder.
+    // O atendimento mais RECENTE ganha: um cliente que volta meses depois abre
+    // atendimento novo. O Chatwoot saiu dos processos da Motors (21/10/2026,
+    // *"tudo vira painel"*); as linhas antigas dele continuam valendo como
+    // "houve conversa pelo WhatsApp da loja", e a conversa mora no painel.
     /**
-     * Do atendimento mais recente vêm TRÊS coisas, não uma.
-     *
-     * Além do id da conversa, o estado do assistente: `com_assistente` e
-     * `humano_assumiu_em` (decisão do dono em 2026-09-05 — o SLA só conta
+     * Do atendimento mais recente vem o estado do assistente: `com_assistente`
+     * e `humano_assumiu_em` (decisão do dono em 2026-09-05 — o SLA só conta
      * depois que o Ney sai do circuito). Sem eles aqui, `montar_fila_do_funil`
      * tira o lead da fila e o card continua pintando "3 dias parado": banco e
      * tela discordando sobre o mesmo lead, que é exatamente o que o cabeçalho
      * de `lib/funil.ts` existe para impedir.
-     *
-     * O `not is null` saiu do `chatwoot_conversation_id`: um atendimento pode
-     * existir com o assistente conversando ANTES de a conversa ter id
-     * espelhado, e filtrá-lo aqui apagaria o único sinal que pausa o relógio.
-     * Quem decide se há link é `linkDeConversa`, que já cai no `wa.me`.
      */
     interface DoAtendimento {
-      conversa: number | null;
       comAssistente: boolean;
       humanoAssumiuEm: string | null;
       etiquetas: string[];
@@ -266,11 +249,11 @@ export async function GET(request: NextRequest) {
     if (leads.length > 0) {
       const { data: atendimentos, error: erroAtendimento } = await supabase
         .from("atendimentos")
-        .select("lead_id, chatwoot_conversation_id, com_assistente, humano_assumiu_em, iniciado_em, created_at, tags")
+        .select("lead_id, com_assistente, humano_assumiu_em, iniciado_em, created_at, tags")
         .in("lead_id", leads.map((l: { id: string }) => l.id));
 
       if (erroAtendimento) {
-        console.warn("[Leads] Sem atendimento do Chatwoot:", erroAtendimento.message);
+        console.warn("[Leads] Atendimentos ilegíveis:", erroAtendimento.message);
       } else {
         // A MESMA régua do `montar_fila_do_funil`: `coalesce(iniciado_em,
         // created_at)` decrescente. Duas réguas de "mais recente" no mesmo
@@ -278,15 +261,14 @@ export async function GET(request: NextRequest) {
         for (const a of maisRecentePrimeiro(atendimentos ?? [])) {
           if (a.lead_id && !atendimentoPorLead.has(a.lead_id)) {
             atendimentoPorLead.set(a.lead_id, {
-              conversa: a.chatwoot_conversation_id ? Number(a.chatwoot_conversation_id) : null,
               // `=== true` e não coerção: coluna ausente num ambiente atrasado
               // devolve `undefined`, e `undefined` tem de significar relógio
               // rodando — a mesma direção segura do `default false` no banco.
               comAssistente: a.com_assistente === true,
               humanoAssumiuEm: a.humano_assumiu_em ?? null,
-              // As etiquetas da conversa, como o n8n as espelhou do Chatwoot
-              // (2026-09-25). Só valem num banco sem `leads.etiquetas` (antes
-              // da migração 20261023120000): dali em diante a lista é do lead.
+              // As etiquetas antigas da conversa (o espelho de 2026-09-25). Só
+              // valem num banco sem `leads.etiquetas` (antes da migração
+              // 20261023120000): dali em diante a lista é do lead.
               etiquetas: limparEtiquetas(a.tags),
             });
           }
@@ -307,7 +289,7 @@ export async function GET(request: NextRequest) {
     // resposta leva um aviso. A saída de verdade é uma view com
     // `distinct on (lead_id)`, que é mudança de banco.
     //
-    // Como a conversa do Chatwoot acima: se a leitura falhar, a fila continua
+    // Como o atendimento acima: se a leitura falhar, a fila continua
     // inteira, sem a última interação, e a resposta diz que ela faltou.
     const TETO_DE_INTERACOES = 1000;
     const avisos: string[] = [];
@@ -336,8 +318,7 @@ export async function GET(request: NextRequest) {
     const etiquetasNoLead = leadsGuardamEtiquetas(leads);
     for (const l of leads as Array<Record<string, unknown>>) {
       const a = atendimentoPorLead.get(String(l.id));
-      l.chatwoot_conversation_id = a?.conversa ?? null;
-      // Conversa pelo WhatsApp da loja (Chatwoot ou Evolution): o botão do card abre a do painel.
+      // Conversa pelo WhatsApp da loja: o botão do card abre a do painel.
       l.tem_conversa = Boolean(a);
       l.com_assistente = a?.comAssistente ?? false;
       l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
@@ -565,8 +546,6 @@ export async function PATCH(request: NextRequest) {
     const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     // O desfecho que ESTE pedido grava (ganho, perdido, descartado), ou nulo.
     let desfechoGravado: TipoDeDesfecho | null = null;
-    /** Os motivos lidos para a decisão: é deles que sai o rótulo da nota do Chatwoot. */
-    let motivosLidos: MotivoDoFunil[] = [];
     /** O tipo da etapa de destino, que vai no movimento para o Meta (o Purchase decide pelo desfecho gravado). */
     let tipoDaEtapaGravada: string | null = null;
     if (situacao !== undefined) atualizacao.situacao = situacao;
@@ -658,8 +637,7 @@ export async function PATCH(request: NextRequest) {
               console.warn("[Leads] Motivos ilegíveis antes do desfecho:", erroMotivos.message);
               return null;
             }
-            motivosLidos = (data ?? []) as MotivoDoFunil[];
-            return motivosLidos;
+            return (data ?? []) as MotivoDoFunil[];
           },
         },
       );
@@ -694,8 +672,8 @@ export async function PATCH(request: NextRequest) {
     // O escopo vai também na escrita: se o lead mudou de dono entre a leitura
     // do guarda e este ponto, a gravação não alcança linha nenhuma.
     // `select("id")` para saber se a gravação ALCANÇOU o lead: sem linha
-    // alcançada nada foi escrito, e o que vem depois do desfecho (os veículos,
-    // a conversa no Chatwoot) não pode agir sobre um desfecho que não houve.
+    // alcançada nada foi escrito, e o que vem depois do desfecho (os veículos)
+    // não pode agir sobre um desfecho que não houve.
     // A resposta deste caso continua a de sempre.
     const { data: gravados, error } = await comEscopoDeLeads(
       supabase.from("leads").update(atualizacao).eq("id", id),
@@ -707,23 +685,8 @@ export async function PATCH(request: NextRequest) {
     const alcancouOLead = Array.isArray(gravados) && gravados.length > 0;
     if (!alcancouOLead) desfechoGravado = null;
 
-    // ------------------------------------------------------------------------
-    // O dono novo também no Chatwoot (2026-10-10)
-    // ------------------------------------------------------------------------
-    // *"As conversas sobre responsabilidade do Rodrigo não aparecem pra ele"*
-    // — *"o painel precisa atribuir"*. Trocado o dono aqui, as conversas
-    // abertas do lead passam para o agente do Chatwoot com o mesmo nome
-    // (`lib/donoDaConversa`). A leitura (conversas e agentes) começa já e
-    // corre junto com o desfecho; o que ela recusa — vendedor que não é
-    // agente, token recusado — entra nos avisos da resposta mais abaixo. A
-    // atribuição em si corre depois da resposta, porque o Chatwoot demora;
-    // o resultado fica no log. Como o resto do Chatwoot nesta rota: depois do
-    // `update`, e falhar não desfaz a troca.
     const novoDono =
       alcancouOLead && typeof atualizacao.responsavel === "string" ? atualizacao.responsavel : null;
-    const atribuicao = novoDono
-      ? atribuirConversasDoLead(supabase, String(id), novoDono, configDoChatwoot())
-      : null;
 
     // ------------------------------------------------------------------------
     // O resumo do assistente para o dono escolhido (2026-10-20)
@@ -753,53 +716,13 @@ export async function PATCH(request: NextRequest) {
     // na resposta, para a tela abrir a resolução em lote
     // (`POST /api/leads/[id]/veiculos/resolver`). Sem a tabela, sem opção ou
     // com falha, os dois campos simplesmente não vêm.
-    //
-    // ------------------------------------------------------------------------
-    // A conversa no Chatwoot depois do desfecho (2026-10-06)
-    // ------------------------------------------------------------------------
-    // *"Encerrei um lead como perdido no painel e a conversa não foi resolvida
-    // automaticamente no chatwoot."* Encerrado o lead (ganho, perdido ou não é
-    // oportunidade), as conversas abertas dele são resolvidas, com uma nota
-    // privada dizendo quem encerrou e por quê (`lib/conversaDoDesfecho`).
-    //
-    // DEPOIS do `update`, como as etiquetas da passagem: o desfecho já valeu e
-    // o Chatwoot fora do ar não o desfaz. E dentro da resposta, com prazo
-    // curto, em vez de `after()`: só assim a tela consegue dizer que a
-    // conversa continuou aberta. Reabrir o lead não passa por aqui, e não
-    // reabre conversa nenhuma.
     const doDesfecho: Record<string, unknown> = {};
     if (desfechoGravado) {
-      const chaveDoMotivo = String(atualizacao.desfecho_motivo ?? "");
-      const [depois, conversa] = await Promise.all([
-        veiculosDepoisDoDesfecho(supabase, visaoDoAutor, String(id), desfechoGravado),
-        resolverConversasDoLead(
-          supabase,
-          String(id),
-          {
-            tipo: desfechoGravado,
-            motivo: motivosLidos.find((m) => m.chave === chaveDoMotivo)?.rotulo?.trim() || chaveDoMotivo,
-            autor: typeof profile?.full_name === "string" ? profile.full_name : null,
-            nota: typeof atualizacao.desfecho_nota === "string" ? atualizacao.desfecho_nota : null,
-          },
-          configDoChatwoot(),
-        ),
-      ]);
+      const depois = await veiculosDepoisDoDesfecho(supabase, visaoDoAutor, String(id), desfechoGravado);
       if (depois.veiculo_escolhido) doDesfecho.veiculo_escolhido = depois.veiculo_escolhido;
       if (depois.pendencias_de_veiculo.length > 0) doDesfecho.pendencias_de_veiculo = depois.pendencias_de_veiculo;
-      if (conversa.conversa_resolvida !== undefined) doDesfecho.conversa_resolvida = conversa.conversa_resolvida;
-      // A escolha que cabia e não foi feita, e a conversa que continuou
-      // aberta, não ficam só no log do servidor.
-      const avisos = [depois.aviso, conversa.aviso].filter(Boolean).join(" ");
-      if (avisos) doDesfecho.aviso = avisos;
-    }
-    if (atribuicao) {
-      const dono = await atribuicao;
-      if (!dono.ok) {
-        console.warn("[Leads] Conversa do Chatwoot sem o dono novo — lead", id, dono.motivo);
-        doDesfecho.aviso = [doDesfecho.aviso, `${AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO}: ${dono.motivo}.`]
-          .filter(Boolean)
-          .join(" ");
-      }
+      // A escolha que cabia e não foi feita não fica só no log do servidor.
+      if (depois.aviso) doDesfecho.aviso = depois.aviso;
     }
     // ------------------------------------------------------------------------
     // A qualificação de volta para o Meta (2026-10-16)

@@ -674,7 +674,7 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
         <h2 className="mt-rotulo border-b border-mt-regua-fina pb-2">Base parada</h2>
         <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-700">
           Os leads que já estavam no painel também entram na cadência: o assistente puxa o lead aberto, parado, que{" "}
-          <strong>já conversou</strong> com o WhatsApp da loja (pelo Chatwoot ou por ele) — mensagem para quem nunca
+          <strong>já conversou</strong> com o WhatsApp da loja (a conversa está no painel) — mensagem para quem nunca
           escreveu arrisca o bloqueio do número. Entra no follow-up (tem carro de interesse) ou na reativação, no horário da
           loja, poucos por vez. Se o cliente responder, ele qualifica e devolve ao mesmo responsável; se não, o lead volta
           para a equipe quando a cadência acaba.

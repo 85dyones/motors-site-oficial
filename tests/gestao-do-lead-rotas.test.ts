@@ -632,7 +632,7 @@ describe("GET /api/leads/[id] — o detalhe", () => {
       transferencias: 3,
       ref: "0DCB1CDC",
       utm_campaign: "Seminovos Outubro",
-      chatwoot_conversation_id: 4821,
+      tem_conversa: true,
       com_assistente: false,
       humano_assumiu_em: null,
       etiquetas: ["quer-comprar"],
@@ -1222,7 +1222,7 @@ describe("GET /api/leads/gerenciar — a última interação e o próximo passo"
       expect(d, campo).toHaveProperty(campo);
     }
     expect(d.busca).toBeNull();
-    expect(porId(d, DA_ANA)).toMatchObject({ chatwoot_conversation_id: 4821, com_assistente: false, etiquetas: ["quer-comprar"] });
+    expect(porId(d, DA_ANA)).toMatchObject({ tem_conversa: true, com_assistente: false, etiquetas: ["quer-comprar"] });
   });
 
   it("interações ilegíveis não derrubam a fila: os leads vêm, e a resposta avisa", async () => {

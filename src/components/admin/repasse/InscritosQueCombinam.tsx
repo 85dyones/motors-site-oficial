@@ -11,7 +11,7 @@ import { soParaLojistas, type Repasse } from "../../../lib/repasse";
 
 /**
  * "Inscritos que combinam" (spec §6): quem da lista avisar deste carro, a
- * mensagem pronta para colar no Chatwoot e o botão "avisado". O aviso é
+ * mensagem pronta para colar no WhatsApp da loja e o botão "avisado". O aviso é
  * manual; nada aqui manda mensagem.
  */
 export default function InscritosQueCombinam({
@@ -61,7 +61,7 @@ export default function InscritosQueCombinam({
         {soParaLojistas(repasse)
           ? "Enquanto o carro é só para lojistas, entram os lojistas com CNPJ conferido. Quem compra para usar entra quando você abrir para todos."
           : "Lojistas com CNPJ conferido e quem compra para usar na faixa de preço e na carroceria deste carro."}{" "}
-        Copie a mensagem, mande pelo Chatwoot e marque como avisado.
+        Copie a mensagem, mande pelo WhatsApp da loja e marque como avisado.
       </p>
       {lojistasSemConferencia > 0 && (
         <p className="text-[11px] text-mt-neutral-700">

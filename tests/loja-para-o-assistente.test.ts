@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ler, lerCodigo } from "./fonte";
+import { lerCodigo } from "./fonte";
 import type { CompanySettings } from "../src/types";
 import { montarLoja } from "../src/lib/lojaParaOAssistente";
 import {
@@ -12,28 +12,17 @@ import {
 } from "../src/lib/paginasInstitucionais";
 
 /**
- * O institucional que o assistente do WhatsApp lê.
+ * O institucional que o assistente do WhatsApp lê (`montarLoja`).
  *
- * ---------------------------------------------------------------------------
- * Por que existe uma rota em vez de ingerir `/garantia`
- * ---------------------------------------------------------------------------
- * O Captain **rastreia os links da página que recebe**. Medido em 05/09/2026:
- * ingerir três URLs produziu **48 documentos** — o rodapé do `/garantia`
- * arrastou treze hubs de marca, sete faixas de preço, dez âncoras da própria
- * política de privacidade, o `wa.me` e o site da ANPD.
- *
- * Vinte e seis deles carregavam preço de carro congelado, que é justamente o
- * que o assistente está proibido de dizer. E apagá-los à mão não resolve:
- * reingerir a mesma página os traz de volta.
- *
- * `text/plain` não tem `<a>`, então não há o que seguir. É a defesa inteira.
+ * Nasceu como documento para o Captain do Chatwoot, servido em `/api/ney/loja`
+ * como texto puro (o Captain rastreava os links da página que recebia). O
+ * Chatwoot saiu dos processos da Motors em 21/10/2026, e a rota com ele; o
+ * texto ficou, porque o Ney de hoje o lê no prompt de cada conversa
+ * (`baseDoAtendimento-servidor.ts`).
  */
 
-const ROTA = "src/app/api/ney/loja/route.ts";
-// A montagem mora em `src/lib`: rota de App Router só exporta handler. As
-// duas fontes juntas, para que toda ausência abaixo valha para as duas.
 const MONTAGEM = "src/lib/lojaParaOAssistente.ts";
-const fonte = lerCodigo(ROTA) + "\n" + lerCodigo(MONTAGEM);
+const fonte = lerCodigo(MONTAGEM);
 
 const EMPRESA = {
   name: "Motors Store",
@@ -44,30 +33,6 @@ const EMPRESA = {
 } as CompanySettings;
 
 const texto = montarLoja(EMPRESA, "05/09/2026, 12:00:00");
-
-describe("o arquivo não pode ser rastreável", () => {
-  it("é servido como texto puro, não como HTML", () => {
-    // É o que impede o Captain de seguir link e reingerir meio site.
-    expect(fonte).toMatch(/"Content-Type": "text\/plain; charset=utf-8"/);
-  });
-
-  it("e o motivo está escrito, para ninguém 'melhorar' isto depois", () => {
-    // `ler` e não `lerCodigo`: a razão vive num comentário de bloco, e é
-    // exatamente ela que impede a próxima pessoa de trocar isto por uma
-    // ingestão da página HTML "que dá na mesma".
-    const comComentarios = ler(ROTA);
-
-    expect(comComentarios).toMatch(/rastreia os links da página que recebe/);
-    expect(comComentarios).toMatch(/48 documentos/);
-  });
-
-  it("o conteúdo não tem marcação de link", () => {
-    // Markdown `[texto](url)` também é link para um rastreador que o entenda.
-    // As URLs entram cruas, para o assistente citar, não para ser seguidas.
-    expect(texto).not.toMatch(/\]\(https?:/);
-    expect(texto).not.toMatch(/<a\s/i);
-  });
-});
 
 describe("o institucional não carrega preço", () => {
   it("nem símbolo, nem parcela, nem taxa", () => {
@@ -182,17 +147,17 @@ describe("o alcance da entrega é conversa do consultor", () => {
   });
 });
 
-describe("cabe no teto do Captain", () => {
+describe("cabe no teto do documento", () => {
   it("o arquivo de hoje cabe com folga", () => {
-    // O Captain corta em 15000 bytes e não avisa — foi assim que o documento
-    // de fichas perdeu 15 dos 36 carros.
+    // O teto veio do Captain do Chatwoot, que cortava em 15000 bytes sem
+    // avisar; o Ney de hoje lê este texto em cada conversa.
     expect(texto.length).toBeLessThanOrEqual(14000);
   });
 
   it("e se um dia não couber, ele DIZ, em vez de encolher calado", () => {
     // Cortar aqui perderia uma seção inteira — a de LGPD é a última, e é a que
     // sumiria primeiro. O aviso é para quem mexeu no texto, não para o cliente.
-    expect(fonte).toMatch(/Este arquivo passou do limite que o Chatwoot guarda/);
+    expect(fonte).toMatch(/Este arquivo passou do limite do documento da loja/);
     expect(fonte).toMatch(/precisa encurtá-lo ou dividi-lo em dois documentos/);
   });
 

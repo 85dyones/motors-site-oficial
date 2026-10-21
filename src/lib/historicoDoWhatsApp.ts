@@ -1,5 +1,5 @@
 import { temArquivo, tipoBase } from "./anexosDoAtendimento";
-import { variantesDoTelefone } from "./chatwootEventos";
+import { variantesDoTelefone } from "./whatsapp";
 import { interpretarEventoDaEvolution } from "./evolutionEventos";
 
 /**

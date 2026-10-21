@@ -1,8 +1,3 @@
-// Único import deste módulo, e ele respeita a regra que o mantém puro: monta
-// endereço a partir de env, não conhece o banco nem o número DA LOJA. A trava
-// de `whatsapp-numero-unico` continua valendo — `linkDeConversa` fala com o
-// número do CLIENTE, e `chatwoot.ts` não sabe quem é a Motors.
-
 /**
  * O funil de vendas — as regras que não dependem de React nem de banco.
  *
@@ -204,19 +199,11 @@ export interface LeadDoFunil {
   /** Quantas vezes o motor já passou este lead adiante. Ver `seloDeRodizio`. */
   transferencias?: number | null;
   /**
-   * A conversa do Chatwoot, quando já existe (2026-08-31).
-   *
-   * Não é coluna de `leads`: vive em `atendimentos`, escrita pelo n8n a partir
-   * do webhook, e `/api/leads/gerenciar` a anexa à resposta. Ausente ou nula é
-   * o caso normal do lead que preencheu o formulário e ainda não escreveu —
-   * `linkDeConversa` cai no `wa.me`.
-   */
-  chatwoot_conversation_id?: number | string | null;
-  /**
    * O lead tem conversa pelo WhatsApp da loja — um atendimento em
-   * `atendimentos`, do Chatwoot ou da Evolution (2026-10-21). É o que faz o
-   * botão do card abrir a conversa no painel em vez do `wa.me`
-   * (`destinoDaConversa`). Anexado pelas rotas, como o id acima.
+   * `atendimentos` (2026-10-21; as linhas antigas, do Chatwoot, contam: a
+   * conversa delas veio para o painel com o histórico do WhatsApp). É o que
+   * faz o botão do card abrir a conversa no painel em vez do `wa.me`
+   * (`destinoDaConversa`). Anexado pelas rotas.
    */
   tem_conversa?: boolean | null;
   /**
@@ -227,7 +214,7 @@ export interface LeadDoFunil {
    * circuito.** Cobrar o vendedor pelo tempo em que o assistente estava
    * conversando é cobrar por trabalho que não era dele.
    *
-   * Vive em `atendimentos`, como o id da conversa, e é anexada pela mesma
+   * Vive em `atendimentos`, como `tem_conversa`, e é anexada pela mesma
    * rota. Nulo tem DOIS significados, e eles se separam por `com_assistente`:
    * ou o assistente ainda está com a conversa, ou nunca houve conversa
    * nenhuma — o lead que preencheu o formulário e não escreveu.

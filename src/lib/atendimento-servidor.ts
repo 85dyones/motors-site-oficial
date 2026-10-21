@@ -49,7 +49,7 @@ import {
   type MotivoSemToque,
   type NomeDaCadencia,
 } from "./cadencias";
-import { variantesDoTelefone } from "./chatwootEventos";
+import { variantesDoTelefone } from "./whatsapp";
 import { configValida, type ConfigDoAtendimento } from "./configDoAtendimento";
 import { completarEmJson, configDoModelo, MODELO_DE_VISAO, type ConfigDoModelo, type UsoDoModelo } from "./deepseek";
 import {
@@ -353,6 +353,11 @@ async function lerConversa(supabase: Banco, leadId: string, limite = MENSAGENS_D
  * O cliente já escreveu para a loja DESTE telefone? É a régua contra o
  * disparo frio: lead de formulário (telefone que qualquer um digita) não
  * recebe mensagem automática até a pessoa falar com a loja.
+ *
+ * Só a conversa do painel conta — com o histórico do WhatsApp que veio para
+ * ele (`trazerHistoricoDoWhatsApp`). A conversa do Chatwoot deixou de contar
+ * em 21/10/2026 (*"tire o chatwoot de todos os processos da motors, tudo vira
+ * painel"*): o que dela a Evolution guardou já está no painel.
  */
 async function clienteJaEscreveu(supabase: Banco, leadId: string, telefone: string | null): Promise<boolean> {
   const formas = variantesDoTelefone(telefone);
@@ -364,16 +369,7 @@ async function clienteJaEscreveu(supabase: Banco, leadId: string, telefone: stri
     .eq("direcao", "entrada")
     .in("telefone", formas)
     .limit(1);
-  if (((data ?? []) as Linha[]).length > 0) return true;
-  // A conversa de antes, no Chatwoot, com o mesmo número da loja: também é
-  // uma conversa que existiu (a base parada, 2026-10-20).
-  const { data: doChatwoot } = await supabase
-    .from("atendimentos")
-    .select("id")
-    .eq("lead_id", leadId)
-    .not("chatwoot_conversation_id", "is", null)
-    .limit(1);
-  return ((doChatwoot ?? []) as Linha[]).length > 0;
+  return ((data ?? []) as Linha[]).length > 0;
 }
 
 function fichaDoLead(lead: Linha): FichaDoLead {
@@ -390,7 +386,8 @@ function sinaisDoLead(lead: Linha): SinaisDaConversa {
 
 /**
  * A linha de `atendimentos` da conversa pela Evolution: a mais recente do lead
- * sem id do Chatwoot, pela mesma régua de "mais recente" de
+ * sem id do Chatwoot (as linhas com id são as antigas, de antes de 21/10/2026,
+ * e ficam como estão), pela mesma régua de "mais recente" de
  * `montar_fila_do_funil`. Cria se não houver, herdando as etiquetas do
  * atendimento anterior (a `resgate` do SDR não se perde na troca de porta).
  */
@@ -2307,10 +2304,11 @@ export async function executarRodada(
       if (opcoes.reservar) await tirarDaCadencia("fora_da_base", "o lead avançou de etapa, é do repasse ou o telefone tem outro lead aberto: o acompanhamento é do consultor");
       continue;
     }
-    // Nada automático para quem nunca escreveu deste telefone.
+    // Nada automático para quem nunca escreveu deste telefone — na conversa
+    // do painel, que tem o histórico do WhatsApp (a do Chatwoot não conta).
     if (!(await clienteJaEscreveu(supabase, leadId, lead.telefone))) {
       resultado.suprimidos.push({ lead_id: leadId, motivo: "sem_conversa", texto: "O cliente nunca escreveu para a loja deste telefone." });
-      if (opcoes.reservar) await supabase.from("leads").update({ cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", leadId);
+      if (opcoes.reservar) await tirarDaCadencia("sem_conversa", "não há conversa do cliente no painel para o assistente ler antes de abordar");
       continue;
     }
 
@@ -2569,26 +2567,23 @@ async function puxarABase(
     if (error || !candidatos?.length) return puxados;
     const ids = (candidatos as Linha[]).map((l) => String(l.id));
 
-    // A conversa: a última atividade dela também tem de ser antiga, e ela tem
-    // de existir — do Chatwoot (o número da loja de antes) ou do assistente.
-    const [doChatwoot, mensagens] = await Promise.all([
-      supabase.from("atendimentos").select("lead_id, chatwoot_conversation_id, created_at, updated_at").in("lead_id", ids),
-      supabase.from("atendimento_mensagens").select("lead_id, direcao, criado_em").in("lead_id", ids).order("criado_em", { ascending: false }).limit(500),
+    // A conversa: ela tem de existir no painel — o cliente escreveu, agora ou
+    // no histórico do WhatsApp que veio para o painel (desde 21/10/2026, a do
+    // Chatwoot não conta: "tudo vira painel") — e a última atividade dela, nos
+    // dois sentidos, também tem de ser antiga.
+    const [atendimentos, doCliente, recentes] = await Promise.all([
+      supabase.from("atendimentos").select("lead_id, created_at, updated_at").in("lead_id", ids),
+      supabase.from("atendimento_mensagens").select("lead_id").in("lead_id", ids).eq("direcao", "entrada").limit(1000),
+      supabase.from("atendimento_mensagens").select("lead_id, criado_em").in("lead_id", ids).gte("criado_em", limite).limit(1000),
     ]);
-    const conversou = new Set<string>();
+    const conversou = new Set<string>(((doCliente.data ?? []) as Linha[]).map((m) => String(m.lead_id)));
     const ultimaAtividade = new Map<string, number>();
     const anotar = (leadId: string, quando: unknown) => {
       const t = typeof quando === "string" ? new Date(quando).getTime() : NaN;
       if (Number.isFinite(t)) ultimaAtividade.set(leadId, Math.max(ultimaAtividade.get(leadId) ?? 0, t));
     };
-    for (const a of (doChatwoot.data ?? []) as Linha[]) {
-      if (a.chatwoot_conversation_id) conversou.add(String(a.lead_id));
-      anotar(String(a.lead_id), a.updated_at ?? a.created_at);
-    }
-    for (const m of (mensagens.data ?? []) as Linha[]) {
-      if (m.direcao === "entrada") conversou.add(String(m.lead_id));
-      anotar(String(m.lead_id), m.criado_em);
-    }
+    for (const a of (atendimentos.data ?? []) as Linha[]) anotar(String(a.lead_id), a.updated_at ?? a.created_at);
+    for (const m of (recentes.data ?? []) as Linha[]) anotar(String(m.lead_id), m.criado_em);
     const limiteMs = new Date(limite).getTime();
 
     for (const lead of candidatos as Linha[]) {
