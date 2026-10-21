@@ -13,7 +13,9 @@ import { describe, expect, it } from "vitest";
 const SCRIPT = join(__dirname, "..", "scripts", "vercel-regra-de-build.sh");
 
 function decide(env: Record<string, string>): "constroi" | "pula" {
-  const r = spawnSync("bash", [SCRIPT], { env: { PATH: process.env.PATH ?? "", ...env }, encoding: "utf-8" });
+  // Só o PATH do ambiente de fora: o resultado não pode depender das variáveis da Vercel de quem roda.
+  const ambiente = { PATH: process.env.PATH ?? "", ...env } as unknown as NodeJS.ProcessEnv;
+  const r = spawnSync("bash", [SCRIPT], { env: ambiente, encoding: "utf-8" });
   if (r.status === 0) return "pula";
   if (r.status === 1) return "constroi";
   throw new Error(`saída inesperada ${r.status}: ${r.stderr}`);
