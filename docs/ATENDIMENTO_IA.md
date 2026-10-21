@@ -378,10 +378,20 @@ loja**; **só para quem escreveu para a loja** (nunca disparo frio — o número
 entra no WhatsApp como aparelho conectado, e mensagem em massa é o caminho mais
 curto para o bloqueio — lead de formulário que nunca escreveu sai da
 cadência sem receber nada); param quando o cliente responde ou pede para sair.
-O modelo escreve cada toque a partir do texto pronto (que é o que sai quando o
-modelo não está disponível), com a mesma trava de preço da conversa. Depois do
-último toque, o cliente tem um dia para responder; sem resposta, o lead volta
-para a equipe.
+
+**Nenhum toque sem ler a conversa** (decisão 19). Antes de cada toque, o
+histórico do WhatsApp do lead entra no painel (`trazerHistoricoDoWhatsApp`), e
+o modelo lê as últimas 20 mensagens, com a data de agora e a idade da última
+mensagem do cliente. Ele retoma de onde a conversa parou, ou decide não
+escrever (`tocar: false`) quando a conversa não é de quem compra carro
+(lojista, fornecedor, quem só quer vender o dele), já se resolveu, é
+reclamação ou pós-venda, ou está com um consultor — e o lead sai da cadência,
+com o motivo no rastro. O texto pronto da régua é só a base do tom: não sai
+mais sozinho. Sem a Evolution, sem o modelo, com o modelo fora do formato ou
+com a trava de preço barrando o texto, o toque fica para a próxima rodada; sem
+nenhuma mensagem do cliente para ler, o lead sai da cadência. Depois do último
+toque, o cliente tem um dia para responder; sem resposta, o lead volta para a
+equipe.
 
 **A base parada** (decisão do dono, 20/10: *"os leads já existentes no painel
 precisam entrar na cadência do Ney também"*). A cada rodada, no horário da
@@ -389,7 +399,10 @@ loja, o assistente puxa até 3 leads (até **30 por dia**) que já estavam no
 painel: abertos, nunca pegos por ele, **sem contato há 7 dias ou mais** (nem
 registro do vendedor, nem conversa) e que **já conversaram** com o WhatsApp da
 loja — pelo Chatwoot ou por ele. Entram no follow-up (com carro de interesse)
-ou na reativação, com o primeiro toque na rodada seguinte. Se o cliente
+ou na reativação, com o primeiro toque na rodada seguinte — que lê a
+conversa antes (acima). Ficam de fora o **repasse** (lojista, que não compra
+no varejo) e quem já passou de **em contato**: em proposta, visita ou
+negociação, o acompanhamento é do consultor (`entraNaBase`). Se o cliente
 responder, o assistente qualifica e entrega ao **mesmo responsável**; se não,
 o lead volta para a equipe quando a cadência acaba. Cada lead puxado deixa uma
 nota no rastro. Tudo editável em **Configuração → Base parada** (liga e
@@ -939,6 +952,18 @@ tela, em **Leads → Atendimento IA → Configuração**.
     curta, sem duplo sentido, e a volta para o carro. Nunca na reclamação, no
     pós-venda ou em assunto sensível; insistência no inapropriado vira
     resposta séria; ameaça vira `pediu_humano`.
+
+19. **As cadências leem o histórico antes de abordar** (21/10): *"as
+    cadências do Ney precisam ler o histórico das conversas, não vamos
+    abordar antes disso"*. Em produção, a base parada puxou uma lojista do
+    repasse, em visita com o dono; o toque saiu pelo texto pronto ("o carro
+    que te interessou"), sem a conversa do Chatwoot no painel, e ela
+    respondeu "Qual carro?". A base e as três cadências foram desligadas na
+    hora, e voltam com estas regras: o histórico do WhatsApp entra antes de
+    cada toque, o modelo lê e pode não escrever, o texto pronto não sai
+    sozinho, e a base deixa de fora o repasse e as etapas depois de "em
+    contato". A primeira resposta do Ney também traz o histórico antes,
+    quando o painel só tem o que acabou de chegar.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

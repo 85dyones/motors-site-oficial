@@ -364,6 +364,11 @@ export function transporteDeTeste(
     arquivoDaMensagem?: (waId: string, converterParaMp4: boolean) => { conteudo: string; mimetype?: string; fileName?: string } | { erro: string; status?: number };
     /** A Evolution recusa (500) o anexo de número n (a partir de 1). */
     anexoRecusado?: (n: number) => boolean;
+    /**
+     * O histórico guardado na Evolution (`findMessages`), pelo filtro da
+     * busca. Sem a opção, a Evolution não tem nada guardado.
+     */
+    historico?: (filtro: { remoteJid?: string; remoteJidAlt?: string }) => Record<string, unknown>[] | { erro: string; status?: number };
   } = {},
 ) {
   const enviados: { numero: string; texto: string }[] = [];
@@ -384,12 +389,21 @@ export function transporteDeTeste(
   )[] = [];
   /** Os pedidos de arquivo de mensagem recebida: id e conversão. */
   const arquivosPedidos: { waId: string; converterParaMp4: boolean }[] = [];
+  /** As buscas no histórico da Evolution, na ordem. */
+  const buscasDoHistorico: { remoteJid?: string; remoteJidAlt?: string }[] = [];
   let tentativasDeAnexo = 0;
   let i = 0;
   let tentativas = 0;
   let tentativasDeFoto = 0;
   const transporte = async (url: string, init?: RequestInit) => {
     const corpo = init?.body ? JSON.parse(String(init.body)) : null;
+    if (url.includes("/chat/findMessages/")) {
+      const filtro = corpo?.where?.key ?? {};
+      buscasDoHistorico.push(filtro);
+      const r = opcoes.historico?.(filtro) ?? [];
+      if (!Array.isArray(r)) return new Response(JSON.stringify({ message: r.erro }), { status: r.status ?? 500 });
+      return new Response(JSON.stringify({ messages: { total: r.length, pages: 1, currentPage: 1, records: r } }), { status: 200 });
+    }
     if (url.includes("/chat/getBase64FromMediaMessage/")) {
       const waId = corpo?.message?.key?.id;
       arquivosPedidos.push({ waId, converterParaMp4: corpo?.convertToMp4 === true });
@@ -487,5 +501,6 @@ export function transporteDeTeste(
     modelosDaVisao,
     saidas,
     arquivosPedidos,
+    buscasDoHistorico,
   };
 }

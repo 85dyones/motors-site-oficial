@@ -5,6 +5,8 @@ import {
   cadenciaDoSilencio,
   decidirToque,
   dentroDoExpediente,
+  entraNaBase,
+  interesseDaCadencia,
   nomeParaTratar,
   podeAvisarAEquipe,
   preencherModelo,
@@ -98,6 +100,20 @@ describe("o calendário dos passos", () => {
   it("silêncio com carro de interesse é follow-up; sem, reativação", () => {
     expect(cadenciaDoSilencio(true)).toBe("follow_up");
     expect(cadenciaDoSilencio(false)).toBe("reativacao");
+  });
+
+  it("o carro da cadência: o da conversa, ou o do formulário — nunca a inscrição do repasse", () => {
+    expect(interesseDaCadencia({ canal: "WhatsApp", interesse: "Onix LT 2020" }, "Titano Volcano")).toBe("Titano Volcano");
+    expect(interesseDaCadencia({ canal: "WhatsApp Proposta", interesse: " Onix LT 2020 " }, null)).toBe("Onix LT 2020");
+    expect(interesseDaCadencia({ canal: "repasse-lojista", interesse: "Entrou na lista do repasse (lojista)." }, null)).toBeNull();
+    expect(interesseDaCadencia({ canal: "WhatsApp", interesse: "  " }, "")).toBeNull();
+  });
+
+  it("a base parada: só novo e em contato, e nunca o repasse", () => {
+    expect(entraNaBase({ canal: "WhatsApp", situacao: "novo" })).toBe(true);
+    expect(entraNaBase({ canal: null, situacao: "em_contato" })).toBe(true);
+    for (const situacao of ["proposta", "visita", "negociacao", null]) expect(entraNaBase({ canal: "WhatsApp", situacao }), String(situacao)).toBe(false);
+    for (const canal of ["repasse", "repasse-lojista", "repasse-exame", "repasse-whatsapp"]) expect(entraNaBase({ canal, situacao: "novo" }), canal).toBe(false);
   });
 
   it("de fábrica, todas têm no máximo três toques (a régua do manobrAI)", () => {

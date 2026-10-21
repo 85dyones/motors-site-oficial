@@ -617,8 +617,9 @@ function Configuracao({ inicial, aoGravar }: { inicial: RespostaDaConfig; aoGrav
         <h2 className="mt-rotulo border-b border-mt-regua-fina pb-2">Cadências de reaquecimento</h2>
         <p className="m-0 text-[11px] leading-relaxed text-mt-neutral-700">
           No máximo três toques, só no horário da loja, e só para quem escreveu para a loja. Param quando o cliente
-          responde ou pede para sair. O assistente escreve cada toque a partir do texto abaixo; sem o modelo, sai o texto
-          como está. Use {"{nome}"} e {"{interesse}"}.
+          responde ou pede para sair. Antes de cada toque, o assistente traz o histórico do WhatsApp e lê a conversa: retoma
+          de onde parou, no tom do texto abaixo, ou não escreve, quando a conversa não pede. O texto não sai sozinho. Use{" "}
+          {"{nome}"} e {"{interesse}"}.
         </p>
         {NOMES_DAS_CADENCIAS.map((nome) => (
           <fieldset key={nome} className="m-0 flex flex-col gap-2 border border-mt-regua-fina p-4">

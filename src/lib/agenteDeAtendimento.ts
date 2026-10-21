@@ -650,6 +650,20 @@ export function baloesSemPergunta(baloes: readonly string[]): string[] {
   return limpos.length > 0 ? limpos : [...baloes];
 }
 
+/** Quantas mensagens da conversa o toque da cadência lê: o bastante para continuar de onde parou. */
+export const MENSAGENS_DO_TOQUE = 20;
+
+/**
+ * O toque da cadência lê a conversa antes de abordar (pedido do dono, 21/10:
+ * *"as cadências do Ney precisam ler o histórico das conversas, não vamos
+ * abordar antes disso"*). Em produção, a lojista do repasse, em visita com o
+ * dono, recebeu "o carro que te interessou" e respondeu "Qual carro?".
+ *
+ * O histórico vem do WhatsApp (`trazerHistoricoDoWhatsApp`) antes desta
+ * chamada, e o modelo decide: retoma de onde a conversa parou, ou não escreve
+ * (`tocar: false`) quando a conversa não é de quem compra carro, já se
+ * resolveu ou é do consultor.
+ */
 export function montarMensagensDoToque(entrada: {
   instrucoes: string;
   historico: readonly MensagemDaConversa[];
@@ -657,27 +671,58 @@ export function montarMensagensDoToque(entrada: {
   nomeDoCliente: string | null;
   objetivo: string;
   modelo: string;
+  /** "quarta-feira, 21/10, 14:32" na hora da loja. */
+  agora?: string;
+  /** A última mensagem do cliente: "15/07 (há 98 dias)". */
+  ultimaDoCliente?: string | null;
+  /** O engajamento: o consultor devolveu o lead porque esfriou, e a conversa dele não impede o toque. */
+  devolvidoPeloConsultor?: boolean;
 }): MensagemDoModelo[] {
   return [
     { role: "system", content: entrada.instrucoes },
-    ...historicoParaOModelo(entrada.historico.slice(-10)),
+    ...historicoParaOModelo(entrada.historico.slice(-MENSAGENS_DO_TOQUE)),
     {
       role: "system",
       content: [
         "## Mensagem de acompanhamento (não é resposta a uma pergunta)",
-        "O cliente parou de responder. Escreva UMA mensagem curta para retomar o contato, sem cobrar e sem pressionar — e terminando com uma pergunta objetiva que retome o próximo passo (de preferência o dia e a hora da visita). Nunca \"fico à disposição\" nem \"qualquer coisa é só chamar\".",
+        "Antes de escrever, LEIA a conversa acima: é o histórico do WhatsApp deste cliente com a loja, inclusive o de antes do assistente (o que a loja escreveu aparece como consultor).",
+        "Só retome o contato se a conversa mostrar alguém que procurava carro para comprar e parou de responder. NÃO escreva (tocar: false) quando a conversa mostrar que:",
+        "- é lojista, revendedor, fornecedor, parceiro, alguém da equipe, ou quer vender o carro dele para a loja sem comprar outro;",
+        "- já comprou, desistiu, disse que resolveu ou pediu para não receber mensagens;",
+        "- o assunto é reclamação, pós-venda, documento, cobrança ou outro que não seja a compra de um carro;",
+        "- um consultor está no meio de uma proposta, visita ou negociação com ele — o acompanhamento é do consultor;",
+        "- a conversa não diz o bastante para retomar sem parecer mensagem automática.",
+        ...(entrada.devolvidoPeloConsultor
+          ? ["O consultor devolveu este cliente ao assistente porque esfriou: a conversa dele com o consultor não impede o toque — retome de onde ela parou."]
+          : []),
+        "Se for retomar: UMA mensagem curta que continue de onde a conversa parou — o carro, a dúvida ou o próximo passo que ficou em aberto, nunca um texto genérico. Sem cobrar e sem pressionar, terminando com uma pergunta objetiva que retome o próximo passo (de preferência o dia e a hora da visita). Não invente carro, preço, visita nem combinado que não esteja na conversa. Nunca \"fico à disposição\" nem \"qualquer coisa é só chamar\".",
         `Objetivo deste toque: ${entrada.objetivo}`,
         `Use como base o tom deste texto: "${entrada.modelo}"`,
+        ...(entrada.agora ? [`Agora: ${entrada.agora}.`] : []),
+        ...(entrada.ultimaDoCliente ? [`Última mensagem do cliente: ${entrada.ultimaDoCliente}.`] : []),
         `Nome no WhatsApp: ${nomeSeguro(entrada.nomeDoCliente) ?? "(sem nome)"}.`,
         `Ficha: ${JSON.stringify(entrada.ficha)}`,
-        'Responda só com JSON: {"mensagem": "o texto"}.',
+        'Responda só com JSON: {"tocar": true, "mensagem": "o texto"} — ou {"tocar": false, "porque": "o motivo, em poucas palavras"} quando a conversa não pede o toque.',
       ].join("\n"),
     },
   ];
 }
 
-export function lerToque(conteudo: string): string | null {
+export type LeituraDoToque = { tocar: true; mensagem: string } | { tocar: false; porque: string };
+
+/**
+ * O que o modelo decidiu depois de ler a conversa. A mensagem sem `tocar`
+ * vale como toque; `tocar: false` sem motivo ganha um. Nulo quando não serve
+ * — e o toque não sai.
+ */
+export function lerToque(conteudo: string): LeituraDoToque | null {
   const bruto = extrairJson(conteudo);
   if (!bruto || typeof bruto !== "object") return null;
-  return balao((bruto as Record<string, unknown>).mensagem);
+  const r = bruto as Record<string, unknown>;
+  if (r.tocar === false) {
+    const porque = typeof r.porque === "string" ? r.porque.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+    return { tocar: false, porque: porque || "a conversa não pede o toque" };
+  }
+  const mensagem = balao(r.mensagem);
+  return mensagem ? { tocar: true, mensagem } : null;
 }

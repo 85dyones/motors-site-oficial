@@ -1,6 +1,7 @@
 import { HORARIO_DA_LOJA, type ExpedienteDaLoja } from "./horarioDaLoja";
 import { primeiroNome } from "./funil";
 import { generoDeModelo } from "./generoDoVeiculo";
+import { ehCanalDoRepasse } from "./leadDoRepasse";
 
 /**
  * As cadências de reaquecimento: quem recebe mensagem de acompanhamento, e
@@ -290,6 +291,31 @@ export function vencimentoDoPasso(
  */
 export function cadenciaDoSilencio(temInteresse: boolean): NomeDaCadencia {
   return temInteresse ? "follow_up" : "reativacao";
+}
+
+/**
+ * O carro de interesse do lead, para a cadência: o da conversa (a ficha) ou
+ * o do formulário — menos no repasse, cujo "interesse" é a inscrição na lista
+ * ("Entrou na lista do repasse (lojista).") e não um carro.
+ */
+export function interesseDaCadencia(lead: { canal?: string | null; interesse?: string | null }, daFicha?: string | null): string | null {
+  const daConversa = (daFicha ?? "").trim();
+  if (daConversa) return daConversa;
+  if (ehCanalDoRepasse(lead.canal)) return null;
+  return (lead.interesse ?? "").trim() || null;
+}
+
+/**
+ * As etapas de onde a base parada puxa (21/10): só o lead que parou antes de
+ * avançar. Em proposta, visita ou negociação há um consultor no meio, e o
+ * acompanhamento é dele — em produção, a lojista em visita com o dono recebeu
+ * um toque genérico e respondeu "Qual carro?".
+ */
+export const ETAPAS_DA_BASE: readonly string[] = ["novo", "em_contato"];
+
+/** O lead parado pode entrar na cadência? Nem o repasse (lojista, não compra no varejo), nem etapa avançada. */
+export function entraNaBase(lead: { canal?: string | null; situacao?: string | null }): boolean {
+  return !ehCanalDoRepasse(lead.canal) && ETAPAS_DA_BASE.includes(String(lead.situacao ?? ""));
 }
 
 /**

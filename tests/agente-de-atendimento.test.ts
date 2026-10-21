@@ -11,6 +11,7 @@ import {
   montarInstrucoesFixas,
   montarMensagensDoAgente,
   montarMensagensDoToque,
+  MENSAGENS_DO_TOQUE,
   nomeSeguro,
   semLinks,
   valoresDoCliente,
@@ -247,9 +248,14 @@ describe("a resposta do modelo, conferida", () => {
     expect(lerRespostaDoAgente(JSON.stringify({ ficha: {} }))).toBeNull();
   });
 
-  it("o toque da cadência lê uma mensagem só", () => {
-    expect(lerToque('{"mensagem":"Oi, Maria!"}')).toBe("Oi, Maria!");
+  it("o toque da cadência: a mensagem, ou a decisão de não tocar com o motivo", () => {
+    expect(lerToque('{"tocar": true, "mensagem":"Oi, Maria!"}')).toEqual({ tocar: true, mensagem: "Oi, Maria!" });
+    // Sem `tocar`, a mensagem vale como toque.
+    expect(lerToque('{"mensagem":"Oi, Maria!"}')).toEqual({ tocar: true, mensagem: "Oi, Maria!" });
+    expect(lerToque('{"tocar": false, "porque": "  é lojista,\\n não compra  "}')).toEqual({ tocar: false, porque: "é lojista, não compra" });
+    expect(lerToque('{"tocar": false}')).toEqual({ tocar: false, porque: "a conversa não pede o toque" });
     expect(lerToque("{}")).toBeNull();
+    expect(lerToque('{"tocar": true}')).toBeNull();
   });
 });
 
@@ -303,6 +309,39 @@ describe("o que vem de fora", () => {
     expect(nomeSeguro("João D'Ávila-Neto")).toBe("João D'Ávila-Neto");
     expect(nomeSeguro("🚗🚗")).toBeNull();
     expect(nomeSeguro(null)).toBeNull();
+  });
+
+  it("o toque da cadência lê a conversa antes: a régua de quando não tocar, as últimas 20 mensagens, o agora e a idade da conversa", () => {
+    const historico = Array.from({ length: 25 }, (_, i) => ({ autor: (i % 2 ? "vendedor" : "cliente") as "vendedor" | "cliente", autor_nome: i % 2 ? "Loja" : null, conteudo: "texto", texto: `mensagem ${i}` }));
+    const m = montarMensagensDoToque({
+      instrucoes: "x",
+      historico,
+      ficha: { ...FICHA_VAZIA },
+      nomeDoCliente: "Ana",
+      objetivo: "retomar",
+      modelo: "Oi!",
+      agora: "quarta-feira, 21/10, 10:00",
+      ultimaDoCliente: "15/07 (há 98 dias)",
+    });
+    const conversa = m.slice(1, -1).map((x) => x.content);
+    expect(conversa).toHaveLength(MENSAGENS_DO_TOQUE);
+    expect(conversa[0]).toBe("[Consultor Loja] mensagem 5");
+    expect(conversa.at(-1)).toBe("mensagem 24");
+    const pedido = m.at(-1)!.content;
+    expect(pedido).toContain("LEIA a conversa");
+    expect(pedido).toContain("lojista, revendedor");
+    expect(pedido).toContain("já comprou, desistiu");
+    expect(pedido).toContain("o acompanhamento é do consultor");
+    expect(pedido).toContain("nunca um texto genérico");
+    expect(pedido).toContain("Agora: quarta-feira, 21/10, 10:00.");
+    expect(pedido).toContain("Última mensagem do cliente: 15/07 (há 98 dias).");
+    expect(pedido).toContain('{"tocar": false, "porque"');
+    expect(pedido).not.toContain("O consultor devolveu este cliente");
+  });
+
+  it("no engajamento, a conversa com o consultor que devolveu o lead não impede o toque", () => {
+    const m = montarMensagensDoToque({ instrucoes: "x", historico: [], ficha: { ...FICHA_VAZIA }, nomeDoCliente: "Ana", objetivo: "retomar", modelo: "Oi!", devolvidoPeloConsultor: true });
+    expect(m.at(-1)!.content).toContain("O consultor devolveu este cliente ao assistente porque esfriou");
   });
 
   it("o toque da cadência também usa o nome limpo", () => {
