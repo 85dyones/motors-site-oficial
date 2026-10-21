@@ -9,6 +9,7 @@ import {
   filtrarEsperando,
   minutosEsperando,
   nivelDaEspera,
+  pareceRespostaAutomatica,
   soEncerra,
   textoDaEspera,
   ultimaMensagem,
@@ -67,6 +68,29 @@ describe("desde quando o cliente espera", () => {
     expect(esperandoDesde([msg("entrada", 40), msg("saida", 35), msg("entrada", 34, { texto: "valeu 👍" })])).toBeNull();
     // Perguntou e depois agradeceu, sem resposta no meio: espera desde a pergunta.
     expect(esperandoDesde([msg("entrada", 20, { texto: "aceita troca?" }), msg("entrada", 19, { texto: "obrigado" })])).toBe(antes(20));
+  });
+});
+
+describe("a resposta automática do WhatsApp Business do cliente (21/10)", () => {
+  const BOAS_VINDAS = "Olá! Seja bem-vindo à *CÉSAS Effects & Designs!* 😊 Agradecemos muito pelo seu contato. Retornaremos com o orçamento o mais breve possível!";
+
+  it("frase de boas-vindas, ausência ou horário até um minuto depois da loja; \"mensagem automática\" a qualquer hora", () => {
+    expect(pareceRespostaAutomatica({ conteudo: "texto", texto: BOAS_VINDAS }, 9_000)).toBe(true);
+    expect(pareceRespostaAutomatica({ conteudo: "texto", texto: "No momento não podemos atender, nosso horário de atendimento é das 8h às 18h." }, 30_000)).toBe(true);
+    expect(pareceRespostaAutomatica({ conteudo: "texto", texto: BOAS_VINDAS }, 5 * 60_000)).toBe(false);
+    expect(pareceRespostaAutomatica({ conteudo: "texto", texto: BOAS_VINDAS }, null)).toBe(false);
+    expect(pareceRespostaAutomatica({ conteudo: "texto", texto: "Esta é uma mensagem automática. Em breve retornaremos." }, null)).toBe(true);
+    // Gente de verdade, mesmo rápida.
+    for (const texto of ["oi! tenho interesse sim", "te retorno mais tarde", "obrigado, vou ver com minha esposa"]) {
+      expect(pareceRespostaAutomatica({ conteudo: "texto", texto }, 5_000), texto).toBe(false);
+    }
+    expect(pareceRespostaAutomatica({ conteudo: "audio", texto: null }, 5_000)).toBe(false);
+  });
+
+  it("não deixa o card esperando resposta", () => {
+    expect(esperandoDesde([msg("saida", 10), msg("entrada", 10 - 0.15, { texto: BOAS_VINDAS })])).toBeNull();
+    // Depois dela, o cliente de verdade escreveu: espera desde a dele.
+    expect(esperandoDesde([msg("saida", 10), msg("entrada", 10 - 0.15, { texto: BOAS_VINDAS }), msg("entrada", 3, { texto: "oi, sou eu mesmo" })])).toBe(antes(3));
   });
 });
 

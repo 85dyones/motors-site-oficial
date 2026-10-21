@@ -54,7 +54,7 @@ import {
   type NomeDaCadencia,
 } from "./cadencias";
 import { variantesDoTelefone } from "./whatsapp";
-import { soEncerra } from "./conversaNoCard";
+import { pareceRespostaAutomatica, soEncerra } from "./conversaNoCard";
 import { configValida, type ConfigDoAtendimento } from "./configDoAtendimento";
 import { completarEmJson, configDoModelo, MODELO_DE_VISAO, type ConfigDoModelo, type UsoDoModelo } from "./deepseek";
 import {
@@ -179,8 +179,17 @@ export interface Dependencias {
   depois?: (tarefa: () => Promise<void>) => void | Promise<void>;
 }
 
-/** Quanto o n8n espera, depois da última mensagem, antes de pedir a resposta. */
-export const ESPERA_DA_RAJADA_MS = 12_000;
+/**
+ * Quanto o n8n espera, depois de cada mensagem, antes de pedir a resposta —
+ * e só a execução da última da rajada responde. Na primeira mensagem da vez
+ * (nenhuma outra do cliente esperando resposta), 30 s; nas seguintes, 20 s.
+ * Pedido do dono (21/10): *"dar um tempo pra ele esperar antes de responder
+ * o cliente após a primeira mensagem, pra dar tempo de receber mensagens
+ * picadas"* — com 12 s, o "oi" e o "tudo bem?" saíam respondidos antes do
+ * "queria saber do Polo".
+ */
+export const ESPERA_DA_PRIMEIRA_MENSAGEM_MS = 30_000;
+export const ESPERA_DA_RAJADA_MS = 20_000;
 /** Mensagem do cliente fora do assistente: repassa ao vendedor se a anterior foi há mais que isto. */
 const INTERVALO_DO_REPASSE_MS = 10 * 60 * 1000;
 /** O eco da mensagem que o site mandou chega em segundos; cinco minutos é folga. */
@@ -798,6 +807,22 @@ export async function registrarEntrada(
     await devolverAoHumano(supabase, leadId, agora, "o assistente está desligado");
     lead.assistente_fase = "pausado";
   }
+  // A resposta automática do WhatsApp Business do cliente (visto em produção,
+  // 21/10): chega segundos depois da mensagem da loja com "seja bem-vindo…
+  // retornaremos". Não é o cliente: fica gravada (já respondida), ninguém
+  // responde, a fase e a cadência não mudam e o vendedor não recebe.
+  const { data: saidas } = await supabase
+    .from("atendimento_mensagens")
+    .select("criado_em")
+    .eq("lead_id", leadId)
+    .eq("direcao", "saida")
+    .order("criado_em", { ascending: false })
+    .limit(1);
+  const ultimaSaida = ((saidas ?? []) as Linha[])[0]?.criado_em;
+  const automatica = pareceRespostaAutomatica(
+    { conteudo: evento.conteudo, texto: evento.texto },
+    ultimaSaida ? agora.getTime() - new Date(String(ultimaSaida)).getTime() : null,
+  );
   // O "ok, obrigado" à despedida do Ney (21/10): a conversa encerrada fica
   // encerrada — a retomada agendada continua, ninguém responde e o vendedor
   // não recebe o "valeu". Qualquer outra coisa reabre a conversa.
@@ -806,12 +831,13 @@ export async function registrarEntrada(
     lead.cadencia === "retomada" &&
     Number(lead.cadencia_passo ?? 0) === 0 &&
     soEncerra({ conteudo: evento.conteudo, texto: evento.texto });
-  const voltouDoReaquecimento = config.ativo && lead.assistente_fase === "reaquecendo" && !agradeceuADespedida;
+  const semConversaNova = agradeceuADespedida || automatica;
+  const voltouDoReaquecimento = config.ativo && lead.assistente_fase === "reaquecendo" && !semConversaNova;
   const humanoJaAtende = Boolean(lead.ultimo_contato_em) || (lead.situacao && lead.situacao !== "novo");
   let fase: string | null = lead.assistente_fase ?? null;
   if (voltouDoReaquecimento) fase = "qualificando";
-  else if (!fase && config.ativo && (novo || !humanoJaAtende)) fase = "qualificando";
-  const comAssistente = config.ativo && fase === "qualificando" && !lead.optout_em;
+  else if (!fase && config.ativo && !automatica && (novo || !humanoJaAtende)) fase = "qualificando";
+  const comAssistente = config.ativo && fase === "qualificando" && !lead.optout_em && !automatica;
 
   const { data: gravada, error: erroGravar } = await supabase
     .from("atendimento_mensagens")
@@ -827,6 +853,8 @@ export async function registrarEntrada(
       texto: evento.texto,
       wa_id: evento.waId,
       situacao: "recebida",
+      // A resposta automática já nasce respondida: nenhuma resposta a pega.
+      ...(automatica ? { respondida_em: agora.toISOString() } : {}),
       // `criado_em` é a hora de CHEGADA (o `default` do banco), e não a do
       // WhatsApp: a ordem da conversa e a régua de "já respondida" comparam
       // entradas com saídas, e as saídas são carimbadas pelo banco. Mensagem
@@ -845,7 +873,7 @@ export async function registrarEntrada(
 
   // O cliente respondeu: a cadência para (a régua do manobrAI).
   const patch: Linha = {};
-  if ((lead.cadencia || lead.cadencia_proximo_em) && !agradeceuADespedida) {
+  if ((lead.cadencia || lead.cadencia_proximo_em) && !semConversaNova) {
     patch.cadencia = null;
     patch.cadencia_passo = 0;
     patch.cadencia_proximo_em = null;
@@ -862,17 +890,25 @@ export async function registrarEntrada(
   // ninguém responde automaticamente: com o assistente ligado, a mensagem vai
   // ao vendedor, que pode estar atendendo do PRÓPRIO número e não ver o da
   // loja. Desligado, a entrada só grava.
-  if (config.ativo && fase !== "qualificando" && !agradeceuADespedida) {
+  if (config.ativo && fase !== "qualificando" && !semConversaNova) {
     await repassarAoVendedor(supabase, lead, evento, equipe, agora, deps);
+  }
+  if (automatica) {
+    await anotarNoRastro(supabase, leadId, "Chegou a resposta automática do WhatsApp do cliente: ninguém respondeu, e o que estava agendado segue.", {
+      acao: "resposta_automatica",
+    });
   }
 
   const responder = comAssistente && !lead.desfecho;
+  // A primeira da vez espera mais: dá tempo de chegar o resto da mensagem picada.
+  const primeiraDaVez = responder && (await pendentesDoCliente(supabase, leadId)).length <= 1;
   return {
     acao: "mensagem_registrada",
     lead: leadId,
     mensagem: String(gravada!.id),
     responder,
-    aguardar_ms: responder ? ESPERA_DA_RAJADA_MS : 0,
+    aguardar_ms: responder ? (primeiraDaVez ? ESPERA_DA_PRIMEIRA_MENSAGEM_MS : ESPERA_DA_RAJADA_MS) : 0,
+    ...(automatica ? { detalhe: "resposta automática do WhatsApp do cliente" } : {}),
   };
 }
 
