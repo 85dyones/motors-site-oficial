@@ -342,7 +342,9 @@ Vai abrir o Autologon (Microsoft Sysinternals). Nele:
 }
 
 Passo "6/6 Plataforma e reinicio dos runners"
-if ((NoWsl @("-d", $Distro, "-u", "runner", "-e", "test", "-d", "/home/runner/actions-runner-motors-plataforma-1")) -eq 0) {
+# `.runner` so existe depois de o config.sh registrar no GitHub: a pasta sozinha
+# fica para tras quando um registro falha no meio (token vencido, por exemplo).
+if ((NoWsl @("-d", $Distro, "-u", "runner", "-e", "test", "-f", "/home/runner/actions-runner-motors-plataforma-1/.runner")) -eq 0) {
   Write-Host "Instancias da motors-plataforma ja registradas."
 } else {
   $resposta = Read-Host "Registrar agora as instancias da motors-plataforma? (s/n)"
