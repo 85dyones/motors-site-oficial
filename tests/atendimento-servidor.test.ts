@@ -177,7 +177,8 @@ describe("a entrada", () => {
     const t = transporteDeTeste();
     const r = await clienteEscreve(banco, t, "Oi, tem Onix?");
 
-    expect(r).toMatchObject({ acao: "mensagem_registrada", responder: true, aguardar_ms: 12000 });
+    // A primeira da vez espera 30 s: dá tempo de chegar o resto da mensagem picada.
+    expect(r).toMatchObject({ acao: "mensagem_registrada", responder: true, aguardar_ms: 30000 });
     expect(banco.tabelas.leads).toHaveLength(1);
     expect(banco.tabelas.leads[0]).toMatchObject({ nome: "Rafael", telefone: CLIENTE, canal: "WhatsApp", situacao: "novo", assistente_fase: "qualificando" });
     expect(banco.tabelas.atendimentos[0]).toMatchObject({ lead_id: banco.tabelas.leads[0].id, com_assistente: true });
@@ -2788,5 +2789,65 @@ describe("o Ney encerra a conversa e agenda a retomada (decisão do dono, 21/10)
     expect(pedido).not.toContain("A equipe passou este cliente ao assistente");
     // O próximo toque, uma semana depois.
     expect(banco.tabelas.leads[0]).toMatchObject({ cadencia_passo: 1, cadencia_proximo_em: "2026-10-27T13:00:00.000Z" });
+  });
+});
+
+// O dono (21/10/2026), depois de ver o Ney responder a uma mensagem automática:
+// "acho que o ney se perdeu, precisamos dar um tempo pra ele esperar antes de
+// responder o cliente após a primeira mensagem, pra dar tempo de receber
+// mensagens picadas".
+describe("o Ney espera as mensagens picadas e não responde à resposta automática do WhatsApp", () => {
+  // A mensagem que o WhatsApp Business do Javier mandou sozinho, 9 s depois do toque.
+  const BOAS_VINDAS =
+    "Olá! Seja bem-vindo à *CÉSAS Effects & Designs!* 😊\nAgradecemos muito pelo seu contato.\nPara agilizar, nos envie:\n📍 Localização do imóvel\nAssim que recebermos esses detalhes, retornaremos com o orçamento o mais breve possível! 🙌";
+
+  it("a primeira mensagem da vez espera 30 s; as seguintes da rajada, 20 s", async () => {
+    const banco = montar({ leads: [leadAberto()] });
+    const t = transporteDeTeste();
+    expect(await clienteEscreve(banco, t, "oi")).toMatchObject({ responder: true, aguardar_ms: 30000 });
+    expect(await clienteEscreve(banco, t, "tudo bem?")).toMatchObject({ responder: true, aguardar_ms: 20000 });
+    expect(await clienteEscreve(banco, t, "queria saber do Polo")).toMatchObject({ responder: true, aguardar_ms: 20000 });
+  });
+
+  it("a resposta automática segundos depois do toque: gravada já respondida, ninguém responde, a cadência segue e o vendedor não recebe", async () => {
+    const banco = montar({
+      leads: [leadAberto({ assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: "2026-10-22T13:00:00.000Z", responsavel: "Carla Souza", situacao: "proposta" })],
+      atendimento_mensagens: [
+        jaEscreveu(),
+        { id: "m-toque", lead_id: "lead-1", telefone: CLIENTE, direcao: "saida", autor: "assistente", autor_nome: "Ney", texto: "Oi, Rafael! Sobre o Polo Track…", situacao: "enviada", gatilho: "cadencia", criado_em: new Date(TERCA_10H.getTime() - 9_000).toISOString() },
+      ],
+    });
+    const t = transporteDeTeste();
+    const r = await clienteEscreve(banco, t, BOAS_VINDAS);
+
+    expect(r).toMatchObject({ acao: "mensagem_registrada", responder: false, aguardar_ms: 0, detalhe: "resposta automática do WhatsApp do cliente" });
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: "2026-10-22T13:00:00.000Z" });
+    const gravada = banco.tabelas.atendimento_mensagens.find((m) => m.texto === BOAS_VINDAS)!;
+    expect(gravada.respondida_em).toBe(TERCA_10H.toISOString());
+    expect(t.enviados).toEqual([]);
+    expect(banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "resposta_automatica")).toBeDefined();
+    // E a resposta que o n8n pedisse mesmo assim não acha nada para responder.
+    expect((await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: String(gravada.id) }, deps(t))).acao).not.toBe("respondido");
+  });
+
+  it("com o Ney na conversa, a mensagem de ausência do cliente também não ganha resposta", async () => {
+    const banco = montar({
+      leads: [leadAberto({ assistente_fase: "qualificando" })],
+      atendimento_mensagens: [
+        jaEscreveu(),
+        { id: "m-ney", lead_id: "lead-1", telefone: CLIENTE, direcao: "saida", autor: "assistente", autor_nome: "Ney", texto: "Tenho sim!", situacao: "enviada", gatilho: "resposta", criado_em: new Date(TERCA_10H.getTime() - 20_000).toISOString() },
+      ],
+    });
+    const r = await clienteEscreve(banco, transporteDeTeste(), "No momento não podemos atender. Nosso horário de atendimento é de segunda a sexta, das 8h às 18h.");
+    expect(r).toMatchObject({ responder: false });
+    expect(banco.tabelas.leads[0].assistente_fase).toBe("qualificando");
+  });
+
+  it("o cliente de verdade, mesmo rápido, é respondido; e a mesma saudação muito depois do toque também", async () => {
+    const saida = (ms: number) => ({ id: "m-toque", lead_id: "lead-1", telefone: CLIENTE, direcao: "saida", autor: "assistente", autor_nome: "Ney", texto: "Oi!", situacao: "enviada", gatilho: "cadencia", criado_em: new Date(TERCA_10H.getTime() - ms).toISOString() });
+    const rapido = montar({ leads: [leadAberto({ assistente_fase: "reaquecendo", cadencia: "follow_up" })], atendimento_mensagens: [jaEscreveu(), saida(5_000)] });
+    expect(await clienteEscreve(rapido, transporteDeTeste(), "oi! ainda tenho interesse sim, ele aceita troca?")).toMatchObject({ responder: true });
+    const depois = montar({ leads: [leadAberto({ assistente_fase: "reaquecendo", cadencia: "follow_up" })], atendimento_mensagens: [jaEscreveu(), saida(3 * 60 * 60_000)] });
+    expect(await clienteEscreve(depois, transporteDeTeste(), "Seja bem-vindo! Agradecemos o contato.")).toMatchObject({ responder: true });
   });
 });

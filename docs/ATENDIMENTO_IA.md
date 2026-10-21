@@ -62,7 +62,7 @@ não negociam preço; só passam o lead qualificado. O AutoSDR usa **nota de 0 a
 ```
  cliente ──WhatsApp──▶ Evolution ──webhook──▶ n8n "Entrada" ──▶ POST /api/atendimento/evolution
                                                   │                 (grava, cria o lead, diz se responde)
-                                                  │ espera a rajada (12 s)
+                                                  │ espera a rajada (30 s / 20 s)
                                                   └──────────────▶ POST /api/atendimento/responder
                                                                     │  DeepSeek lê base + conversa
                                                                     │  régua calcula o aquecimento
@@ -670,7 +670,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 
 | Rota | Quem chama | O que faz |
 |---|---|---|
-| `POST /api/atendimento/evolution` | n8n (`ATENDIMENTO_MOTOR_TOKEN`, só `Authorization: Bearer`) | Grava a mensagem, cria o lead, devolve `responder` e `aguardar_ms`. Nunca erra fora de autenticação. |
+| `POST /api/atendimento/evolution` | n8n (`ATENDIMENTO_MOTOR_TOKEN`, só `Authorization: Bearer`) | Grava a mensagem, cria o lead, devolve `responder` e `aguardar_ms` (30 s na primeira da vez, 20 s nas seguintes). A resposta automática do WhatsApp do cliente volta com `responder: false`. Nunca erra fora de autenticação. |
 | `POST /api/atendimento/responder` | n8n | `{ lead_id, mensagem_id }`. Só a última da rajada responde; até 120 s (duas voltas). |
 | `POST /api/atendimento/rodada` | n8n, a cada 15 min | `{ reservar: true }` envia e devolve; sem ele é **prévia**. |
 | `GET/POST /api/leads/[id]/conversa` | painel | Lê a conversa (pela sessão, com o escopo do lead) / responde pelo número da loja — texto, ou `anexo.caminho` com a legenda. |
@@ -1173,6 +1173,34 @@ tela, em **Leads → Atendimento IA → Configuração**.
     - a entrega ao vendedor (visita marcada, pediu uma pessoa, pós-venda…) e o
       opt-out mandam mais que o encerramento. Com a cadência de retomada
       desligada na configuração, a despedida sai e o lead volta para a equipe.
+
+27. **O Ney espera a mensagem picada e não conversa com a máquina do
+    cliente** (21/10): *"acho que o ney se perdeu, precisamos dar um tempo pra
+    ele esperar antes de responder o cliente após a primeira mensagem, pra dar
+    tempo de receber mensagens picadas"*. Na conversa do Javier, o toque da
+    cadência saiu às 16:45:14 e, 9 segundos depois, chegou "Olá! Seja
+    bem-vindo à *CÉSAS Effects & Designs!* 😊 Agradecemos muito pelo seu
+    contato… retornaremos com o orçamento" — a resposta automática do
+    WhatsApp Business **do cliente**. O Ney respondeu como se fosse ele (três
+    balões) e entregou o lead de novo ao vendedor com a ficha antiga.
+    - **a espera**: o n8n espera o `aguardar_ms` que o site devolve, e só a
+      última mensagem da rajada responde. Era 12 s para todas; agora a
+      primeira mensagem da vez (nenhuma outra do cliente sem resposta) espera
+      **30 s**, e as seguintes **20 s** — o "oi", o "tudo bem?" e o "queria
+      saber do Polo" viram uma resposta só. O fluxo do n8n não muda: ele já
+      lê o número da resposta do site;
+    - **a resposta automática** (`pareceRespostaAutomatica`, em
+      `lib/conversaNoCard`): a mensagem de boas-vindas, ausência ou horário
+      ("seja bem-vindo", "agradecemos o contato", "retornaremos", "horário de
+      atendimento", "no momento não podemos") que chega **até um minuto**
+      depois de uma mensagem da loja é a máquina do cliente; "mensagem
+      automática" com todas as letras vale a qualquer hora. Ela fica gravada
+      (já respondida), ninguém responde, a fase e a cadência não mudam, o
+      vendedor não recebe e o histórico anota "Chegou a resposta automática
+      do WhatsApp do cliente". O selo "Esperando resposta" também não acende
+      por ela. O cliente de verdade que escreve depois disso é atendido
+      normalmente — inclusive o "seja bem-vindo" de quem cumprimenta horas
+      depois.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

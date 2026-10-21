@@ -108,6 +108,32 @@ export function soEncerra(m: Pick<MensagemDoCard, "conteudo" | "texto">): boolea
   return palavras.every((p) => PALAVRAS_DE_QUEM_ENCERRA.has(p) || PALAVRAS_DE_QUEM_ENCERRA.has(p.replace(/s$/, "")));
 }
 
+/**
+ * A resposta automática do WhatsApp Business do cliente (visto em produção,
+ * 21/10): o Ney tocou o Javier e, 9 segundos depois, chegou "Olá! Seja
+ * bem-vindo à *CÉSAS Effects & Designs!* 😊 Agradecemos muito pelo seu
+ * contato… retornaremos com o orçamento". O Ney respondeu como se fosse o
+ * cliente e entregou o lead de novo ao vendedor.
+ *
+ * Reconhece pela frase e pela pressa: a mensagem de boas-vindas, ausência ou
+ * horário que chega até um minuto depois de uma mensagem da loja é a máquina
+ * do cliente respondendo, não ele. "Mensagem automática" dita com todas as
+ * letras vale a qualquer hora. Gente de verdade escreve "te retorno", não
+ * "retornaremos".
+ */
+export const JANELA_DA_RESPOSTA_AUTOMATICA_MS = 60_000;
+const FRASE_AUTOMATICA_SEMPRE = /\b(mensagem|resposta|atendimento)\s+autom[aá]tic[oa]\b/i;
+const FRASE_AUTOMATICA_NA_PRESSA =
+  /\b(seja|sejam)\s+bem[-\s]?vind[oa]s?\b|\bagradecemos\b[^.!?\n]{0,40}\b(contato|mensagem|prefer[eê]ncia)|\bobrigad[oa]\s+por\s+(entrar\s+em\s+contato|nos\s+contatar|sua\s+mensagem|seu\s+contato)|\bretornaremos\b|\bem\s+breve\s+(retornaremos|responderemos|entraremos)|\bhor[aá]rio\s+de\s+atendimento\b|\bfora\s+do\s+(nosso\s+)?hor[aá]rio\b|\bno\s+momento\s+n[aã]o\s+(podemos|estamos|conseguimos)/i;
+
+export function pareceRespostaAutomatica(m: Pick<MensagemDoCard, "conteudo" | "texto">, msDesdeASaidaDaLoja: number | null): boolean {
+  if ((m.conteudo ?? "texto") !== "texto") return false;
+  const texto = (m.texto ?? "").trim();
+  if (!texto) return false;
+  if (FRASE_AUTOMATICA_SEMPRE.test(texto)) return true;
+  return msDesdeASaidaDaLoja !== null && msDesdeASaidaDaLoja >= 0 && msDesdeASaidaDaLoja <= JANELA_DA_RESPOSTA_AUTOMATICA_MS && FRASE_AUTOMATICA_NA_PRESSA.test(texto);
+}
+
 const instante = (iso: string) => {
   const t = Date.parse(iso);
   return Number.isFinite(t) ? t : 0;
@@ -121,10 +147,18 @@ const instante = (iso: string) => {
 export function esperandoDesde(mensagens: readonly MensagemDoCard[]): string | null {
   const emOrdem = [...mensagens].sort((a, b) => instante(a.criado_em) - instante(b.criado_em));
   let desde: string | null = null;
+  let ultimaSaida: number | null = null;
   for (const m of emOrdem) {
     if (m.direcao === "saida") {
       if (m.situacao !== "falhou") desde = null;
-    } else if (m.direcao === "entrada" && desde === null && !soEncerra(m)) {
+      ultimaSaida = instante(m.criado_em);
+    } else if (
+      m.direcao === "entrada" &&
+      desde === null &&
+      !soEncerra(m) &&
+      // A resposta automática do WhatsApp do cliente também não espera ninguém.
+      !pareceRespostaAutomatica(m, ultimaSaida === null ? null : instante(m.criado_em) - ultimaSaida)
+    ) {
       desde = m.criado_em;
     }
   }

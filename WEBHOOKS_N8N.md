@@ -418,8 +418,13 @@ conversa é o do painel.
 ```jsonc
 // POST /api/atendimento/evolution — o corpo da Evolution (messages.upsert), inteiro
 { "ok": true, "acao": "mensagem_registrada", "lead": "…", "mensagem": "…",
-  "responder": true, "aguardar_ms": 12000 }
+  "responder": true, "aguardar_ms": 30000 }
 ```
+
+`aguardar_ms` (21/10/2026): 30 s na primeira mensagem da vez, 20 s nas
+seguintes — o tempo de chegar a mensagem picada. A resposta automática do
+WhatsApp Business do cliente volta com `responder: false` e
+`detalhe: "resposta automática do WhatsApp do cliente"`.
 
 **Aqui o site ENVIA.** Diferente de tudo acima, a resposta do assistente (e
 as fotos do carro, por `sendMedia`), a mensagem escrita no painel, o toque da
