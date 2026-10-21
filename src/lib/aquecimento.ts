@@ -127,6 +127,15 @@ export interface SinaisDaConversa {
    * pedido do HB20.
    */
   assunto_em_aberto?: boolean;
+  /**
+   * Reclamação ou pós-venda (2026-10-21): o cliente reclama do atendimento,
+   * de um carro, de alguém, ou já comprou e fala de documento, garantia,
+   * defeito, parcela. O assistente faz a triagem em tom sério e marca quando
+   * tem o essencial — ou quando o cliente se irrita. Entrega na hora, fora do
+   * rodízio (*"assuma uma postura séria, receba o atendimento e transfira
+   * direto pro atendente pós triagem"*, o dono).
+   */
+  pos_venda?: boolean;
 }
 
 export const FICHA_VAZIA: FichaDoLead = {
@@ -161,6 +170,7 @@ export const SINAIS_NEUTROS: SinaisDaConversa = {
   desinteresse: false,
   optout: false,
   assunto_em_aberto: false,
+  pos_venda: false,
 };
 
 /** Cada peso tem nome: é a chave que vira motivo na tela. */
@@ -481,6 +491,7 @@ export function sinaisValidos(bruto: unknown): SinaisDaConversa {
     desinteresse: b.desinteresse === true,
     optout: b.optout === true,
     assunto_em_aberto: b.assunto_em_aberto === true,
+    pos_venda: b.pos_venda === true,
   };
 }
 
@@ -493,7 +504,7 @@ export function sinaisValidos(bruto: unknown): SinaisDaConversa {
  * dois finais que o método de qualificação persegue: a visita com dia e hora,
  * ou os dados prontos para o consultor simular o financiamento.
  */
-export type MotivoDaEntrega = "agendou" | "simulacao" | "quente" | "pediu_humano" | "pediu_condicao";
+export type MotivoDaEntrega = "agendou" | "simulacao" | "quente" | "pediu_humano" | "pediu_condicao" | "pos_venda";
 
 export const ROTULO_DO_MOTIVO_DA_ENTREGA: Record<MotivoDaEntrega, string> = {
   agendou: "Visita marcada com dia e hora",
@@ -501,6 +512,7 @@ export const ROTULO_DO_MOTIVO_DA_ENTREGA: Record<MotivoDaEntrega, string> = {
   quente: "Lead quente",
   pediu_humano: "Pediu para falar com um consultor",
   pediu_condicao: "Pediu o que só o consultor resolve",
+  pos_venda: "Reclamação ou pós-venda",
 };
 
 export type DecisaoDeEntrega = { entregar: true; motivo: MotivoDaEntrega } | { entregar: false; motivo: null };
@@ -525,6 +537,10 @@ export type DecisaoDeEntrega = { entregar: true; motivo: MotivoDaEntrega } | { e
  *     assistente segue até a visita com hora ou a simulação; o lead quente
  *     que PARA de responder vai ao vendedor pela rodada (`ESPERA_DO_QUENTE_MS`).
  *
+ *   - **pós-venda ou reclamação** (2026-10-21): sempre, antes de tudo — a
+ *     triagem já foi feita na conversa, e quem reclama não pode esperar o
+ *     roteiro de vendas.
+ *
  * Opt-out nunca entrega: o cliente pediu para pararmos de escrever.
  */
 export function decidirEntrega(
@@ -535,6 +551,7 @@ export function decidirEntrega(
   opcoes: { conduzindo?: boolean } = {},
 ): DecisaoDeEntrega {
   if (sinais.optout) return { entregar: false, motivo: null };
+  if (sinais.pos_venda) return { entregar: true, motivo: "pos_venda" };
   if (sinais.pediu_humano) return { entregar: true, motivo: "pediu_humano" };
   // Pronto, mas com um pedido do cliente em andamento: o assistente termina o
   // assunto, e a entrega sai quando a conversa assentar (a rodada, depois de

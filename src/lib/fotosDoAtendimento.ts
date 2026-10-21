@@ -438,7 +438,7 @@ export const MAIS_FOTOS_DA_GALERIA = "Quer ver mais fotos?";
 
 /** A camada pedida já foi inteira: lembra onde estão e oferece o que sobrou. */
 export function fotosJaMostradas(oferta: string | null): string {
-  return oferta ? `Essas fotos já estão aí em cima 🙂 ${oferta}` : "Essas são todas as fotos que tenho dele aqui 🙂";
+  return oferta ? `Essas fotos já estão aí em cima 🙂 ${oferta}` : "Essas são todas as fotos que tenho desse carro aqui 🙂";
 }
 
 /** A camada pedida pode estar entre as fotos que o modelo ainda não separou: não dá para dizer que não tem. */

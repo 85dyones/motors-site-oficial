@@ -358,3 +358,138 @@ describe("os anexos na conversa", () => {
     falhaDaSubida = null;
   });
 });
+
+// O dono (21/10/2026): "é possível trazer o histórico mais recente de mensagens
+// dos leads ainda ativos no painel?"
+describe("o histórico do WhatsApp", () => {
+  it("o botão traz as mensagens de antes da troca, diz quantas e relê a conversa", async () => {
+    await montar();
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const metodo = opcoes?.method ?? "GET";
+      chamadas.push({ metodo, url, corpo: opcoes?.body ? JSON.parse(String(opcoes.body)) : undefined });
+      if (url.endsWith("/conversa/historico")) return { ok: true, status: 200, json: async () => ({ ok: true, trazidas: 12, ja_estavam: 3 }) };
+      return { ok: true, status: 200, json: async () => (metodo === "GET" ? RESPOSTA : { ok: true }) };
+    }) as never;
+    const leituras = () => chamadas.filter((c) => c.metodo === "GET").length;
+    const antes = leituras();
+
+    await clicar(botao("↻ Trazer histórico do WhatsApp"));
+
+    expect(chamadas.filter((c) => c.metodo === "POST").map((c) => c.url)).toEqual(["/api/leads/lead-1/conversa/historico"]);
+    expect(texto()).toContain("12 mensagens antigas trazidas do WhatsApp.");
+    expect(leituras()).toBeGreaterThan(antes);
+  });
+
+  it("nada novo, ou a Evolution fora: o painel diz", async () => {
+    await montar();
+    let resposta: { ok: boolean; status: number; corpo: unknown } = { ok: true, status: 200, corpo: { ok: true, trazidas: 0, ja_estavam: 40 } };
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const metodo = opcoes?.method ?? "GET";
+      if (url.endsWith("/conversa/historico")) return { ok: resposta.ok, status: resposta.status, json: async () => resposta.corpo };
+      return { ok: true, status: 200, json: async () => (metodo === "GET" ? RESPOSTA : { ok: true }) };
+    }) as never;
+    await clicar(botao("↻ Trazer histórico do WhatsApp"));
+    expect(texto()).toContain("O histórico do WhatsApp já está todo aqui.");
+
+    resposta = { ok: false, status: 502, corpo: { error: "Não deu para trazer o histórico: a Evolution não entregou o histórico (HTTP 500)." } };
+    await clicar(botao("↻ Trazer histórico do WhatsApp"));
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("a Evolution não entregou o histórico");
+  });
+});
+
+// O dono (21/10/2026): "é possível inserir a funcionalidade de gravar áudio no painel?"
+describe("o áudio gravado no painel", () => {
+  const LEAD = "lead-1";
+  let faixasParadas: number;
+  let pedidoDoMicrofone: () => Promise<unknown>;
+
+  /** Um gravador de mentira: grava o que `falar` mandar e entrega no stop. */
+  class GravadorFalso {
+    static isTypeSupported = (tipo: string) => tipo === "audio/webm;codecs=opus";
+    state: "inactive" | "recording" = "inactive";
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
+    constructor(
+      public fluxo: unknown,
+      public opcoes: { mimeType: string },
+    ) {}
+    start() {
+      this.state = "recording";
+    }
+    stop() {
+      this.state = "inactive";
+      this.ondataavailable?.({ data: new Blob(["opus-de-mentira"], { type: "audio/webm;codecs=opus" }) });
+      this.onstop?.();
+    }
+  }
+
+  beforeEach(() => {
+    faixasParadas = 0;
+    pedidoDoMicrofone = async () => ({ getTracks: () => [{ stop: () => (faixasParadas += 1) }] });
+    (window as unknown as { MediaRecorder: unknown }).MediaRecorder = GravadorFalso;
+    Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia: () => pedidoDoMicrofone() }, configurable: true });
+    subidas.length = 0;
+    falhaDaSubida = null;
+  });
+
+  afterEach(() => {
+    delete (window as unknown as { MediaRecorder?: unknown }).MediaRecorder;
+  });
+
+  it("grava, para, mostra o áudio na caixa e envia como anexo de áudio, com o texto à parte", async () => {
+    await montar();
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const metodo = opcoes?.method ?? "GET";
+      chamadas.push({ metodo, url, corpo: opcoes?.body ? JSON.parse(String(opcoes.body)) : undefined });
+      if (url.endsWith("/conversa/anexo")) return { ok: true, status: 200, json: async () => ({ ok: true, caminho: `${LEAD}/painel-voz.webm`, token: "tok-voz" }) };
+      return { ok: true, status: 200, json: async () => (metodo === "GET" ? RESPOSTA : { ok: true }) };
+    }) as never;
+
+    await clicar(botao("🎙️ Gravar áudio"));
+    expect(container.querySelector("[data-gravando]")!.textContent).toContain("Gravando 0:00 / 5:00");
+    await clicar(botao("■ Parar"));
+
+    // O microfone fechou, e o áudio entrou na caixa.
+    expect(faixasParadas).toBe(1);
+    expect(container.querySelector("[data-gravando]")).toBeNull();
+    const escolhido = container.querySelector("[data-anexo-escolhido]")!.textContent!;
+    expect(escolhido).toMatch(/^audio-\d{4}-\d{2}-\d{2}-\d{4}\.webm · 15 B$/);
+    expect(container.querySelector("textarea")!.getAttribute("placeholder")).toBe("Texto à parte (opcional)…");
+    expect(botao("ENVIAR →").disabled).toBe(false);
+
+    await clicar(botao("ENVIAR →"));
+    const nome = escolhido.split(" · ")[0];
+    expect(chamadas.filter((c) => c.metodo === "POST")).toEqual([
+      { metodo: "POST", url: `/api/leads/${LEAD}/conversa/anexo`, corpo: { nome, tipo: "audio/webm", bytes: 15 } },
+      { metodo: "POST", url: `/api/leads/${LEAD}/conversa`, corpo: { texto: "", anexo: { caminho: `${LEAD}/painel-voz.webm`, nome } } },
+    ]);
+    expect(subidas).toEqual([{ caminho: `${LEAD}/painel-voz.webm`, token: "tok-voz", nome }]);
+    expect(container.querySelector("[data-anexo-escolhido]")).toBeNull();
+  });
+
+  it("cancelar descarta a gravação e devolve o microfone, sem nada na caixa", async () => {
+    await montar();
+    await clicar(botao("🎙️ Gravar áudio"));
+    await clicar(botao("Cancelar"));
+    expect(faixasParadas).toBe(1);
+    expect(container.querySelector("[data-anexo-escolhido]")).toBeNull();
+    expect(botao("🎙️ Gravar áudio")).toBeTruthy();
+  });
+
+  it("microfone negado: o painel diz como liberar, e nada é gravado", async () => {
+    pedidoDoMicrofone = async () => {
+      throw Object.assign(new Error("Permission denied"), { name: "NotAllowedError" });
+    };
+    await montar();
+    await clicar(botao("🎙️ Gravar áudio"));
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("Libere o microfone para este site");
+    expect(container.querySelector("[data-gravando]")).toBeNull();
+  });
+
+  it("navegador sem gravador: o motivo, e o clipe como saída", async () => {
+    delete (window as unknown as { MediaRecorder?: unknown }).MediaRecorder;
+    await montar();
+    await clicar(botao("🎙️ Gravar áudio"));
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("Este navegador não grava áudio");
+  });
+});

@@ -337,6 +337,8 @@ export async function GET(request: NextRequest) {
     for (const l of leads as Array<Record<string, unknown>>) {
       const a = atendimentoPorLead.get(String(l.id));
       l.chatwoot_conversation_id = a?.conversa ?? null;
+      // Conversa pelo WhatsApp da loja (Chatwoot ou Evolution): o botão do card abre a do painel.
+      l.tem_conversa = Boolean(a);
       l.com_assistente = a?.comAssistente ?? false;
       l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
       // A lista do lead (migração 20261023120000), como está — ver o

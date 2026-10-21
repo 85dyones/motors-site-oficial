@@ -11,7 +11,6 @@ import {
   numeroDiscavel,
   type LinhaDaFilaDoFunil,
 } from "../../../../lib/funil";
-import { maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
 import { urlDoLead } from "../../../../lib/filaDoFunil";
 import { urlDoSite } from "../../../../lib/site";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
@@ -153,9 +152,9 @@ export async function POST(request: Request) {
   // `maisRecentePrimeiro` — a mesma do card do kanban.
   //
   // Falhar aqui não pode segurar o aviso: no modo reservado o lead JÁ foi
-  // transferido, e o novo dono precisa saber. Sem a conversa, o link cai no
-  // painel.
-  const conversaPorLead = new Map<string, number>();
+  // transferido, e o novo dono precisa saber. Sem a leitura, o link diz
+  // "Abrir no painel" em vez de "Falar agora" — leva ao mesmo lugar.
+  const comConversa = new Set<string>();
   // As abertas de cada lead, para o Chatwoot acompanhar a troca de dono (ver
   // o fim da rota). Saem da mesma leitura.
   let abertasPorLead = new Map<string, number[]>();
@@ -166,15 +165,12 @@ export async function POST(request: Request) {
       .select("lead_id, chatwoot_conversation_id, status_conversa, iniciado_em, created_at")
       .in("lead_id", aEntregar);
     if (erroAtendimentos) {
-      console.warn("[Funil] Sem a conversa do Chatwoot nos avisos:", erroAtendimentos.message);
+      console.warn("[Funil] Sem as conversas nos avisos:", erroAtendimentos.message);
     } else {
       abertasPorLead = conversasAbertasPorLead(atendimentos ?? []);
-      for (const a of maisRecentePrimeiro(atendimentos ?? [])) {
-        const conversa = Number(a.chatwoot_conversation_id);
-        if (a.lead_id && !conversaPorLead.has(a.lead_id) && conversa > 0) {
-          conversaPorLead.set(a.lead_id, conversa);
-        }
-      }
+      // Desde 2026-10-21 o link é o do lead no painel, onde a conversa pelo
+      // WhatsApp da loja mora (Chatwoot ou Evolution, tanto faz).
+      for (const a of atendimentos ?? []) if (a.lead_id) comConversa.add(String(a.lead_id));
     }
   }
 
@@ -216,7 +212,7 @@ export async function POST(request: Request) {
     const numero = destinatarioDoAviso(linha);
     const opcoes = {
       loja,
-      conversaChatwoot: conversaPorLead.get(linha.lead_id) ?? null,
+      temConversa: comConversa.has(linha.lead_id),
       linkDoLead: urlDoSite(urlDoLead(linha.lead_id)),
     };
     const lead = {

@@ -41,6 +41,11 @@ export interface BancoDeTeste {
    */
   quebrarLeitura: (tabela: string, trechoDasColunas: string) => void;
   /**
+   * Faz o update desta tabela que grave `valor` em `coluna` falhar como uma
+   * restrição do banco (23514) — o banco sem a migração que aceita o valor.
+   */
+  recusarNoUpdate: (tabela: string, coluna: string, valor: unknown) => void;
+  /**
    * O Storage em memória (os anexos, 2026-10-20): `bucket/caminho` → o
    * arquivo. `upload`, `list` (com `search`), `createSignedUrl`,
    * `createSignedUploadUrl` e `remove`. `quebrarStorage` faz a próxima
@@ -90,6 +95,7 @@ export function bancoDeTeste(
   for (const [nome, linhas] of Object.entries(inicial)) tabelas[nome] = linhas.map((l) => ({ ...l }));
   const chamadasRpc: { nome: string; args: any }[] = [];
   const quebradas: { tabela: string; trecho: string }[] = [];
+  const recusas: { tabela: string; coluna: string; valor: unknown }[] = [];
 
   const cadeia = (tabela: string) => {
     let operacao: "select" | "insert" | "update" | "delete" = "select";
@@ -133,6 +139,9 @@ export function bancoDeTeste(
         }
       } else {
         afetadas = linhas.filter((l) => filtros.every((f) => f(l)));
+        if (operacao === "update" && recusas.some((r) => r.tabela === tabela && valores && valores[r.coluna] === r.valor)) {
+          return { data: null, error: { message: "new row violates check constraint", code: "23514" } };
+        }
         if (operacao === "update") for (const l of afetadas) Object.assign(l, valores);
         if (operacao === "delete") tabelas[tabela] = linhas.filter((l) => !afetadas.includes(l));
       }
@@ -319,6 +328,7 @@ export function bancoDeTeste(
     cliente,
     rpcs: chamadasRpc,
     quebrarLeitura: (tabela, trecho) => quebradas.push({ tabela, trecho }),
+    recusarNoUpdate: (tabela, coluna, valor) => recusas.push({ tabela, coluna, valor }),
     objetos,
     quebrarStorage: (operacao) => quebrasDoStorage.add(operacao),
   };
@@ -354,6 +364,11 @@ export function transporteDeTeste(
     arquivoDaMensagem?: (waId: string, converterParaMp4: boolean) => { conteudo: string; mimetype?: string; fileName?: string } | { erro: string; status?: number };
     /** A Evolution recusa (500) o anexo de número n (a partir de 1). */
     anexoRecusado?: (n: number) => boolean;
+    /**
+     * O histórico guardado na Evolution (`findMessages`), pelo filtro da
+     * busca. Sem a opção, a Evolution não tem nada guardado.
+     */
+    historico?: (filtro: { remoteJid?: string; remoteJidAlt?: string }) => Record<string, unknown>[] | { erro: string; status?: number };
   } = {},
 ) {
   const enviados: { numero: string; texto: string }[] = [];
@@ -374,12 +389,21 @@ export function transporteDeTeste(
   )[] = [];
   /** Os pedidos de arquivo de mensagem recebida: id e conversão. */
   const arquivosPedidos: { waId: string; converterParaMp4: boolean }[] = [];
+  /** As buscas no histórico da Evolution, na ordem. */
+  const buscasDoHistorico: { remoteJid?: string; remoteJidAlt?: string }[] = [];
   let tentativasDeAnexo = 0;
   let i = 0;
   let tentativas = 0;
   let tentativasDeFoto = 0;
   const transporte = async (url: string, init?: RequestInit) => {
     const corpo = init?.body ? JSON.parse(String(init.body)) : null;
+    if (url.includes("/chat/findMessages/")) {
+      const filtro = corpo?.where?.key ?? {};
+      buscasDoHistorico.push(filtro);
+      const r = opcoes.historico?.(filtro) ?? [];
+      if (!Array.isArray(r)) return new Response(JSON.stringify({ message: r.erro }), { status: r.status ?? 500 });
+      return new Response(JSON.stringify({ messages: { total: r.length, pages: 1, currentPage: 1, records: r } }), { status: 200 });
+    }
     if (url.includes("/chat/getBase64FromMediaMessage/")) {
       const waId = corpo?.message?.key?.id;
       arquivosPedidos.push({ waId, converterParaMp4: corpo?.convertToMp4 === true });
@@ -477,5 +501,6 @@ export function transporteDeTeste(
     modelosDaVisao,
     saidas,
     arquivosPedidos,
+    buscasDoHistorico,
   };
 }

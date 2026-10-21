@@ -36,6 +36,7 @@ export const CABECALHO_DA_ENTREGA: Record<MotivoDaEntrega | "painel", string> = 
   quente: "🔥 LEAD QUENTE",
   pediu_humano: "🙋 PEDIU UM CONSULTOR",
   pediu_condicao: "💰 PEDIU CONDIÇÃO",
+  pos_venda: "⚠️ RECLAMAÇÃO OU PÓS-VENDA — atender com prioridade",
   painel: "📋 LEAD ENTREGUE PELO PAINEL",
 };
 
@@ -126,8 +127,20 @@ export function mensagemDePassagemAoCliente(dados: {
   simulacao?: boolean;
   /** O cliente parou de responder e a rodada o passa: "Oi", não "Perfeito". */
   retomada?: boolean;
+  /** Reclamação ou pós-venda: tom sério, sem "Perfeito" e sem "consultores" de venda. */
+  posVenda?: boolean;
 }): string {
   const nome = nomeParaTratar(dados.nomeDoCliente);
+  if (dados.posVenda) {
+    // Quem reclama não lê "Perfeito!": lê que foi ouvido e quem vai cuidar.
+    const abertura = nome ? `Obrigado por explicar, ${nome}.` : "Obrigado por explicar.";
+    const quando = dados.equipeDisponivel ? "que já vai te chamar" : "que te chama assim que a loja abrir";
+    if (dados.vendedor) {
+      const numero = dados.vendedor.whatsapp ? formatarTelefone(dados.vendedor.whatsapp) : null;
+      return `${abertura} Já passei o seu caso para ${primeiroNome(dados.vendedor.nome)}, da nossa equipe, ${quando}${numero ? ` pelo WhatsApp ${numero}` : ""}.`;
+    }
+    return `${abertura} Já passei o seu caso para a nossa equipe, ${quando}.`;
+  }
   const saudacao = dados.retomada ? "Oi" : "Perfeito";
   const abertura = `${nome ? `${saudacao}, ${nome}!` : `${saudacao}!`}${
     dados.visita ? ` Visita marcada: ${dados.visita}.` : dados.simulacao ? " Já deixei os dados da sua simulação com a equipe." : ""

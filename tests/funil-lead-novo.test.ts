@@ -162,8 +162,8 @@ describe("o lead novo vai a quem distribui e ao gestor", () => {
         "• Responsável: ninguém ainda\n" +
         "• Esperando há 7 min\n" +
         "• Canal: WhatsApp Proposta\n\n" +
-        `Definir o responsável: ${urlDoSite(urlDoLead("lead-ana"))}\n` +
-        "Conversa: https://app.chat.v2o5.com.br/app/accounts/3/conversations/512",
+        // Desde 2026-10-21 a conversa (Chatwoot fora de cena) está no próprio lead.
+        `Definir o responsável: ${urlDoSite(urlDoLead("lead-ana"))}`,
     );
   });
 

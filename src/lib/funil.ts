@@ -2,7 +2,6 @@
 // endereço a partir de env, não conhece o banco nem o número DA LOJA. A trava
 // de `whatsapp-numero-unico` continua valendo — `linkDeConversa` fala com o
 // número do CLIENTE, e `chatwoot.ts` não sabe quem é a Motors.
-import { linkDaConversa } from "./chatwoot";
 
 /**
  * O funil de vendas — as regras que não dependem de React nem de banco.
@@ -213,6 +212,13 @@ export interface LeadDoFunil {
    * `linkDeConversa` cai no `wa.me`.
    */
   chatwoot_conversation_id?: number | string | null;
+  /**
+   * O lead tem conversa pelo WhatsApp da loja — um atendimento em
+   * `atendimentos`, do Chatwoot ou da Evolution (2026-10-21). É o que faz o
+   * botão do card abrir a conversa no painel em vez do `wa.me`
+   * (`destinoDaConversa`). Anexado pelas rotas, como o id acima.
+   */
+  tem_conversa?: boolean | null;
   /**
    * Quando um humano assumiu a conversa, tirando o assistente do circuito.
    *
@@ -1023,29 +1029,16 @@ export function mensagemParaCliente(
  * `lib/whatsapp.ts` já usa para o número da loja.
  *
  * ---------------------------------------------------------------------------
- * Desde 2026-08-31: o Chatwoot vem primeiro, quando existe
+ * Desde 2026-10-21: o Chatwoot saiu, e a conversa é a do painel
  * ---------------------------------------------------------------------------
- * Decisão do dono. Abrir `wa.me` fazia o consultor responder pelo WhatsApp
- * pessoal, e a conversa não ficava registrada em lugar nenhum.
- *
- * O degrau existe porque conversa de WhatsApp no Chatwoot só nasce quando o
- * CLIENTE escreve: o lead que acabou de preencher o formulário — justamente o
- * que alguém precisa abordar primeiro — ainda não tem conversa. Sem o degrau,
- * o caso mais comum ficaria sem botão.
- *
- * A mensagem pré-escrita viaja SÓ no `wa.me`. O Chatwoot não aceita texto na
- * URL: lá o consultor cai dentro da conversa e digita. `mensagemNoLink` diz
- * qual dos dois aconteceu, para a tela não prometer o que não vai entregar.
+ * De 2026-08-31 a 2026-10-21 o link levava à conversa no Chatwoot quando ela
+ * existia (decisão do dono: o `wa.me` fazia o consultor responder pelo
+ * WhatsApp pessoal, sem registro). Com o Chatwoot fora de cena, a conversa
+ * registrada mora no próprio lead — o bloco de atendimento, pelo WhatsApp da
+ * loja —, e quem leva até ela é o botão do card (`destinoDaConversa`
+ * "painel"). Este link é só o `wa.me`, com a mensagem já escrita.
  */
-export function linkDeConversa(
-  telefone: string | null | undefined,
-  mensagem?: string,
-  /** Id da conversa no Chatwoot, quando o atendimento já existe. */
-  conversaChatwoot?: number | string | null,
-): string {
-  const noChatwoot = linkDaConversa(conversaChatwoot);
-  if (noChatwoot) return noChatwoot;
-
+export function linkDeConversa(telefone: string | null | undefined, mensagem?: string): string {
   const numero = numeroDiscavel(telefone);
   if (!numero) return "";
   const texto = mensagem?.trim() ? `?text=${encodeURIComponent(mensagem)}` : "";
@@ -1053,22 +1046,19 @@ export function linkDeConversa(
 }
 
 /** Para onde o botão de conversa leva — a tela precisa dizer a verdade. */
-export type DestinoDaConversa = "chatwoot" | "whatsapp" | "nenhum";
+export type DestinoDaConversa = "painel" | "whatsapp" | "nenhum";
 
 /**
- * Onde este link vai abrir.
+ * Onde o botão de conversa do card leva (2026-10-21, o Chatwoot fora de cena).
  *
- * Existe porque os dois destinos se comportam diferente e o vendedor precisa
- * saber ANTES de clicar: no `wa.me` a mensagem já vai escrita; no Chatwoot,
- * não. Rotular os dois de "WhatsApp" faria a pessoa colar um texto que ela
- * achava que já estava lá.
+ * Com conversa pelo WhatsApp da loja, à conversa no painel: é lá que ela fica
+ * registrada e que o vendedor responde pelo número da loja — o papel que era
+ * do Chatwoot. Sem conversa (o formulário em que o cliente ainda não
+ * escreveu), ao `wa.me`, com a mensagem já escrita.
  */
-export function destinoDaConversa(
-  telefone: string | null | undefined,
-  conversaChatwoot?: number | string | null,
-): DestinoDaConversa {
-  if (linkDaConversa(conversaChatwoot)) return "chatwoot";
-  return numeroDiscavel(telefone) ? "whatsapp" : "nenhum";
+export function destinoDaConversa(telefone: string | null | undefined, temConversa?: boolean | null): DestinoDaConversa {
+  if (!numeroDiscavel(telefone)) return "nenhum";
+  return temConversa === true ? "painel" : "whatsapp";
 }
 
 // ---------------------------------------------------------------------------
@@ -1113,33 +1103,27 @@ export interface LinhaDaFilaDoFunil {
  *  3. **Nunca cita valor nem CPF.** A mensagem trafega por WhatsApp; o mínimo
  *     necessário é nome, carro e link.
  *
- * O link é a conversa no **Chatwoot**, nunca `wa.me` (pedido do dono em
- * 2026-10-09: *"esse link do falar agora precisa ser o do chatwoot"*). É a
- * mesma razão da decisão de 2026-08-31 para o card: o `wa.me` abria o WhatsApp
- * pessoal do vendedor, a conversa saía do registro, e a resposta dele não
- * reiniciava o relógio do funil — o mesmo relógio que gerou o aviso.
- *
- * A conversa é a mais recente do lead em `atendimentos`, pela régua de
- * `maisRecentePrimeiro` — a mesma do card, para aviso e card abrirem a mesma
- * conversa. Lead sem conversa (formulário em que o cliente ainda não
- * escreveu) recebe o link do lead no painel, onde o vendedor vê tudo e decide
- * por onde abordar. Diferente do botão do card, o aviso não cai no `wa.me`.
+ * O link nunca é `wa.me` (pedido do dono em 2026-10-09: *"esse link do falar
+ * agora precisa ser o do chatwoot"*): o `wa.me` abria o WhatsApp pessoal do
+ * vendedor, a conversa saía do registro, e a resposta dele não reiniciava o
+ * relógio do funil — o mesmo relógio que gerou o aviso. Desde 2026-10-21, com
+ * o Chatwoot fora de cena, o link é o do lead no painel, onde a conversa pelo
+ * WhatsApp da loja mora: "Falar agora" quando há conversa, "Abrir no painel"
+ * quando o cliente ainda não escreveu.
  */
 export interface OpcoesDoAviso {
   loja?: string | null;
-  /** Id da conversa mais recente do lead no Chatwoot, quando existe. */
-  conversaChatwoot?: number | string | null;
-  /** Endereço absoluto do lead no painel, para quando não há conversa. */
+  /** O lead tem conversa pelo WhatsApp da loja (um atendimento em `atendimentos`). */
+  temConversa?: boolean | null;
+  /** Endereço absoluto do lead no painel. */
   linkDoLead?: string | null;
 }
 
-/** O link do fim do aviso: a conversa no Chatwoot, ou o lead no painel. */
-function rodapeDoAviso(opcoes: OpcoesDoAviso, rotuloDoChatwoot = "Falar agora"): string {
-  const noChatwoot = linkDaConversa(opcoes.conversaChatwoot);
+/** O link do fim do aviso: o lead no painel, onde está a conversa. */
+function rodapeDoAviso(opcoes: OpcoesDoAviso, rotuloComConversa = "Falar agora"): string {
   const noPainel = opcoes.linkDoLead?.trim() ?? "";
-  if (noChatwoot) return `\n\n${rotuloDoChatwoot}: ${noChatwoot}`;
-  if (noPainel) return `\n\nAbrir no painel: ${noPainel}`;
-  return "";
+  if (!noPainel) return "";
+  return `\n\n${opcoes.temConversa === true ? rotuloComConversa : "Abrir no painel"}: ${noPainel}`;
 }
 
 export function mensagemDeAlerta(linha: LinhaDaFilaDoFunil, opcoes: OpcoesDoAviso = {}): string {
@@ -1231,7 +1215,7 @@ export type QuemRecebeLeadNovo = "administrador" | "gestor";
  *
  * Ao administrador vai uma ordem — defina o responsável — com o link do lead
  * no painel, que é onde se escolhe o dono. Ao gestor vai o registro, com o
- * mesmo status. Os dois levam a conversa do Chatwoot quando ela já existe.
+ * mesmo status. A conversa, quando existe, está no próprio lead.
  */
 export function mensagemDeLeadNovo(
   linha: LinhaDaFilaDoFunil,
@@ -1254,12 +1238,9 @@ export function mensagemDeLeadNovo(
     ...(linha.canal?.trim() ? [`• Canal: ${linha.canal.trim()}`] : []),
   ].join("\n");
 
+  // A conversa (se houver) está no próprio lead: o link do painel leva às duas coisas.
   const painel = opcoes.linkDoLead?.trim() ?? "";
-  const conversa = linkDaConversa(opcoes.conversaChatwoot);
-  const links = [
-    ...(painel ? [`${para === "administrador" ? "Definir o responsável" : "Abrir no painel"}: ${painel}`] : []),
-    ...(conversa ? [`Conversa: ${conversa}`] : []),
-  ];
+  const links = painel ? [`${para === "administrador" ? "Definir o responsável" : "Abrir no painel"}: ${painel}`] : [];
 
   return `${loja}${titulo}\n\n${linha.nome}${carro}\n\n${status}${links.length ? `\n\n${links.join("\n")}` : ""}`;
 }

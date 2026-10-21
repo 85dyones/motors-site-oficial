@@ -1,5 +1,7 @@
 import { HORARIO_DA_LOJA, type ExpedienteDaLoja } from "./horarioDaLoja";
 import { primeiroNome } from "./funil";
+import { generoDeModelo } from "./generoDoVeiculo";
+import { ehCanalDoRepasse } from "./leadDoRepasse";
 
 /**
  * As cadências de reaquecimento: quem recebe mensagem de acompanhamento, e
@@ -90,8 +92,8 @@ export const CADENCIAS_DE_FABRICA: ReguaDeCadencias = {
       },
       {
         apos_horas: 72,
-        objetivo: "Encerrar com gentileza, deixando a porta aberta.",
-        modelo: "Vou deixar seu atendimento em pausa por aqui, {nome}. Quando quiser retomar, é só me chamar!",
+        objetivo: "Último toque: perguntar, sem pressionar, se o carro ainda faz sentido ou se ele já resolveu.",
+        modelo: "{nome}, pra não te incomodar vou pausar por aqui. O {interesse} ainda faz sentido pra você, ou já resolveu?",
       },
     ],
   },
@@ -110,8 +112,8 @@ export const CADENCIAS_DE_FABRICA: ReguaDeCadencias = {
       },
       {
         apos_horas: 24,
-        objetivo: "Encerrar com gentileza, deixando a porta aberta.",
-        modelo: "Fico à disposição, {nome}. Quando quiser, é só mandar uma mensagem por aqui.",
+        objetivo: "Último toque: perguntar, sem pressionar, se ele ainda está procurando carro ou já resolveu.",
+        modelo: "{nome}, pra não te incomodar vou parar por aqui. Ainda está procurando carro, ou já resolveu?",
       },
     ],
   },
@@ -130,8 +132,8 @@ export const CADENCIAS_DE_FABRICA: ReguaDeCadencias = {
       },
       {
         apos_horas: 24 * 30,
-        objetivo: "Último contato, deixando a porta aberta.",
-        modelo: "Oi, {nome}! Se em algum momento quiser voltar a ver carro, é só me chamar aqui. Abraço!",
+        objetivo: "Último contato: perguntar se ainda está procurando carro ou já resolveu.",
+        modelo: "Oi, {nome}! Passando uma última vez: ainda está procurando carro, ou já resolveu?",
       },
     ],
   },
@@ -292,6 +294,31 @@ export function cadenciaDoSilencio(temInteresse: boolean): NomeDaCadencia {
 }
 
 /**
+ * O carro de interesse do lead, para a cadência: o da conversa (a ficha) ou
+ * o do formulário — menos no repasse, cujo "interesse" é a inscrição na lista
+ * ("Entrou na lista do repasse (lojista).") e não um carro.
+ */
+export function interesseDaCadencia(lead: { canal?: string | null; interesse?: string | null }, daFicha?: string | null): string | null {
+  const daConversa = (daFicha ?? "").trim();
+  if (daConversa) return daConversa;
+  if (ehCanalDoRepasse(lead.canal)) return null;
+  return (lead.interesse ?? "").trim() || null;
+}
+
+/**
+ * As etapas de onde a base parada puxa (21/10): só o lead que parou antes de
+ * avançar. Em proposta, visita ou negociação há um consultor no meio, e o
+ * acompanhamento é dele — em produção, a lojista em visita com o dono recebeu
+ * um toque genérico e respondeu "Qual carro?".
+ */
+export const ETAPAS_DA_BASE: readonly string[] = ["novo", "em_contato"];
+
+/** O lead parado pode entrar na cadência? Nem o repasse (lojista, não compra no varejo), nem etapa avançada. */
+export function entraNaBase(lead: { canal?: string | null; situacao?: string | null }): boolean {
+  return !ehCanalDoRepasse(lead.canal) && ETAPAS_DA_BASE.includes(String(lead.situacao ?? ""));
+}
+
+/**
  * O primeiro nome, quando parece nome. O `pushName` do WhatsApp é o que a
  * pessoa escreveu no perfil — apelido, emoji, nome da empresa — e o lead sem
  * nome nasce como "WhatsApp 1234". "Oi, Whatsapp!" é pior do que "Oi!".
@@ -303,14 +330,41 @@ export function nomeParaTratar(nome: string | null | undefined): string {
   return /^[A-Za-zÀ-ÖØ-öø-ÿ'-]{2,20}$/.test(primeiro) ? primeiro : "";
 }
 
+const ARTIGO_FEMININO: Record<string, string> = { o: "a", no: "na", do: "da", pelo: "pela", ao: "à", um: "uma", num: "numa" };
+
+/**
+ * O interesse é feminino? "Titano Volcano 2025", "Fiat Strada": basta uma das
+ * três primeiras palavras estar na tabela do site (`generoDoVeiculo.ts`) — a
+ * marca às vezes vem antes. O interesse é texto livre da ficha, sem carroceria
+ * para consultar; "carro que você procurava" fica no masculino.
+ */
+function interesseFeminino(interesse: string): boolean {
+  return interesse
+    .split(/[\s;,]+/)
+    .slice(0, 3)
+    .some((palavra) => palavra !== "" && generoDeModelo(palavra) === "f");
+}
+
 /**
  * `{nome}` e `{interesse}` preenchidos, sem chave sobrando. Sem nome, a
  * vírgula que o acompanhava sai junto: "Oi, {nome}!" vira "Oi!".
+ *
+ * O artigo colado no `{interesse}` concorda com o carro (pedido do dono em
+ * 2026-10-21, *"a Titano, a Saveiro, o Onix"*): "Ainda tem interesse no
+ * {interesse}?" vira "na Titano Volcano 2025". O texto pronto é o que sai
+ * quando o modelo falha, e o tom que ele copia quando não falha.
  */
 export function preencherModelo(modelo: string, dados: { nome?: string | null; interesse?: string | null }): string {
   const nome = nomeParaTratar(dados.nome);
   const interesse = (dados.interesse ?? "").trim() || "carro que você procurava";
-  let texto = modelo.replace(/\{interesse\}/g, interesse);
+  let texto = interesseFeminino(interesse)
+    ? modelo.replace(/(?<![\p{L}])(o|no|do|pelo|ao|um|num)(\s+\{interesse\})/giu, (_casado, artigo: string, resto: string) => {
+        const feminino = ARTIGO_FEMININO[artigo.toLowerCase()];
+        const maiuscula = artigo[0] !== artigo[0].toLowerCase();
+        return `${maiuscula ? feminino[0].toUpperCase() + feminino.slice(1) : feminino}${resto}`;
+      })
+    : modelo;
+  texto = texto.replace(/\{interesse\}/g, interesse);
   texto = nome
     ? texto.replace(/\{nome\}/g, nome)
     : texto

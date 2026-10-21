@@ -378,10 +378,20 @@ loja**; **só para quem escreveu para a loja** (nunca disparo frio — o número
 entra no WhatsApp como aparelho conectado, e mensagem em massa é o caminho mais
 curto para o bloqueio — lead de formulário que nunca escreveu sai da
 cadência sem receber nada); param quando o cliente responde ou pede para sair.
-O modelo escreve cada toque a partir do texto pronto (que é o que sai quando o
-modelo não está disponível), com a mesma trava de preço da conversa. Depois do
-último toque, o cliente tem um dia para responder; sem resposta, o lead volta
-para a equipe.
+
+**Nenhum toque sem ler a conversa** (decisão 19). Antes de cada toque, o
+histórico do WhatsApp do lead entra no painel (`trazerHistoricoDoWhatsApp`), e
+o modelo lê as últimas 20 mensagens, com a data de agora e a idade da última
+mensagem do cliente. Ele retoma de onde a conversa parou, ou decide não
+escrever (`tocar: false`) quando a conversa não é de quem compra carro
+(lojista, fornecedor, quem só quer vender o dele), já se resolveu, é
+reclamação ou pós-venda, ou está com um consultor — e o lead sai da cadência,
+com o motivo no rastro. O texto pronto da régua é só a base do tom: não sai
+mais sozinho. Sem a Evolution, sem o modelo, com o modelo fora do formato ou
+com a trava de preço barrando o texto, o toque fica para a próxima rodada; sem
+nenhuma mensagem do cliente para ler, o lead sai da cadência. Depois do último
+toque, o cliente tem um dia para responder; sem resposta, o lead volta para a
+equipe.
 
 **A base parada** (decisão do dono, 20/10: *"os leads já existentes no painel
 precisam entrar na cadência do Ney também"*). A cada rodada, no horário da
@@ -389,7 +399,10 @@ loja, o assistente puxa até 3 leads (até **30 por dia**) que já estavam no
 painel: abertos, nunca pegos por ele, **sem contato há 7 dias ou mais** (nem
 registro do vendedor, nem conversa) e que **já conversaram** com o WhatsApp da
 loja — pelo Chatwoot ou por ele. Entram no follow-up (com carro de interesse)
-ou na reativação, com o primeiro toque na rodada seguinte. Se o cliente
+ou na reativação, com o primeiro toque na rodada seguinte — que lê a
+conversa antes (acima). Ficam de fora o **repasse** (lojista, que não compra
+no varejo) e quem já passou de **em contato**: em proposta, visita ou
+negociação, o acompanhamento é do consultor (`entraNaBase`). Se o cliente
 responder, o assistente qualifica e entrega ao **mesmo responsável**; se não,
 o lead volta para a equipe quando a cadência acaba. Cada lead puxado deixa uma
 nota no rastro. Tudo editável em **Configuração → Base parada** (liga e
@@ -559,6 +572,36 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   recebeu** antes de mandar a Evolution buscá-lo por uma URL assinada de 10
   minutos. O arquivo abre sempre pela porta do painel, que confere o escopo do
   lead; a exclusão do titular (LGPD) apaga a pasta do lead.
+- **🎙️ Gravar áudio** (21/10, *"é possível inserir a funcionalidade de gravar
+  áudio no painel?"*): o microfone do navegador grava (`GravadorDeAudio`,
+  `MediaRecorder`), com cronômetro e teto de 5 minutos; parar põe o áudio na
+  caixa como anexo, com um player para ouvir antes, e ele sai pelo mesmo
+  caminho do 📎 — bucket, `sendWhatsAppAudio`, nota de voz. Cada navegador
+  grava num formato (Firefox em Ogg/Opus, Chrome e Edge em WebM, Safari em
+  MP4), e a Evolution converte. O texto, se houver, vai à parte. O microfone
+  abre só no clique e fecha ao parar, cancelar ou sair da tela; permissão
+  negada diz como liberar (`lib/gravacaoDeAudio.ts`).
+- **↻ Trazer histórico do WhatsApp** (21/10, *"é possível trazer o histórico
+  mais recente de mensagens dos leads ainda ativos no painel?"*): a conversa do
+  painel começou na troca; o que veio antes (Chatwoot, celular da loja) está
+  na instância da Evolution desde julho. O botão — e, para os leads abertos, a
+  rota do motor em lotes — busca as conversas do lead em três chaves (o
+  telefone, com e sem o nono dígito; o telefone ao lado do LID, que é como o
+  WhatsApp entrega o cliente; e o próprio LID, onde moram as respostas da
+  loja), lê cada mensagem como o webhook lê e grava as 50 mais recentes. O id
+  do WhatsApp não repete; a mensagem do cliente entra já respondida (o
+  assistente não responde ao passado); quem escreveu pela loja antes da troca
+  entra como "Loja"; foto, áudio e documento antigos ficam como marca
+  ("arquivo só no celular da loja"). O rastro do lead diz quantas vieram
+  (`lib/historicoDoWhatsApp.ts`).
+- **O botão do card leva à conversa do painel** (21/10, *"revisar os cards do
+  whatsapp no painel que ainda tem o atalho do chatwoot"*): lead com conversa
+  pelo WhatsApp da loja (um atendimento, do Chatwoot ou da Evolution) mostra
+  **Conversa**, que abre o lead já na caixa de resposta; sem conversa, segue o
+  **WhatsApp** com a mensagem escrita. O cabeçalho do lead ganha **Conversa**
+  ao lado do WhatsApp (que fica, com a retomada, para quem atende do próprio
+  número). Os avisos do funil trocaram o link do Chatwoot pelo do lead no
+  painel ("Falar agora" com conversa, "Abrir no painel" sem).
 - **O botão de WhatsApp do cabeçalho retoma de onde o assistente parou**: com
   a ficha preenchida, o rascunho se apresenta, lista o que o cliente disse
   (carro, troca, pagamento, visita) para ele confirmar e termina no próximo
@@ -592,6 +635,8 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/responder` | n8n | `{ lead_id, mensagem_id }`. Só a última da rajada responde; até 120 s (duas voltas). |
 | `POST /api/atendimento/rodada` | n8n, a cada 15 min | `{ reservar: true }` envia e devolve; sem ele é **prévia**. |
 | `GET/POST /api/leads/[id]/conversa` | painel | Lê a conversa (pela sessão, com o escopo do lead) / responde pelo número da loja — texto, ou `anexo.caminho` com a legenda. |
+| `POST /api/leads/[id]/conversa/historico` | painel | "↻ Trazer histórico do WhatsApp": as 50 mensagens mais recentes que a Evolution guardou entram na conversa do lead, sem repetir (21/10). |
+| `POST /api/atendimento/historico` | à mão, com o token do motor | O mesmo para os leads abertos, em lotes: `{ limite, depois_de }` → `proximo` até voltar nulo (21/10). |
 | `POST /api/leads/[id]/conversa/anexo` | painel | `{ nome, tipo, bytes }` → `{ caminho, token }`: a URL assinada de upload na pasta do lead, só para o que o WhatsApp aceita. |
 | `GET /api/leads/[id]/conversa/midia/[mensagem]` | painel | O arquivo da mensagem: confere o escopo, lê a mensagem pela sessão e responde 307 para a URL assinada de 5 min (`?baixar=1` baixa com o nome). |
 | `POST /api/leads/[id]/assistente` | painel | `pausar`, `retomar`, `entregar`, `devolver`. |
@@ -600,7 +645,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261026120000_base_parada_no_assistente.sql`
+## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261027120000_entrega_pos_venda.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -680,8 +725,9 @@ A sétima guarda a régua da **base parada** em `atendimento_config.base`
    `20261022120000_atendimento_entrega_pronta.sql`,
    `20261023120000_etiquetas_no_lead.sql`,
    `20261024120000_anexos_do_atendimento.sql`,
-   `20261025120000_etiquetas_automaticas.sql` e
-   `20261026120000_base_parada_no_assistente.sql`, nesta ordem.
+   `20261025120000_etiquetas_automaticas.sql`,
+   `20261026120000_base_parada_no_assistente.sql` e
+   `20261027120000_entrega_pos_venda.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -853,6 +899,72 @@ tela, em **Leads → Atendimento IA → Configuração**.
     o WhatsApp da loja, 7 dias sem contato, até 30 por dia (§6).
 12. **Os leads do clique no WhatsApp vão ao Meta** — anotado para a próxima
     entrega (§11).
+13. **Carro do catálogo está disponível** (primeiro teste em produção,
+    21/10): *"se estiver anunciada sem ser vendida, está disponível, a
+    princípio"*. À pergunta pronta do site ("Ele ainda está disponível?") o
+    Ney responde que sim, já no primeiro balão; reservar continua com o
+    consultor. Regra 7 do prompt.
+14. **A Titano, o Onix**: *"Titano é uma caminhonete, é feminino, então seria
+    A Titano, a Saveiro, o Onix"*. O catálogo do prompt marca o carro feminino
+    (`fala-se "a Titano"`) pela mesma regra do site (`generoDoVeiculo.ts`:
+    picape, perua, van e moto), e a regra 1a manda concordar a frase inteira.
+    O texto pronto das cadências concorda também: "no {interesse}" vira "na
+    Titano Volcano 2025" (`preencherModelo`).
+15. **Cantada tem resposta, e o Ney é jiujiteiro digital** (21/10): *"se
+    alguém perguntar questões amorosas, chamar pra sair ou algo na linha,
+    diga que o coração digital dele já está tomado ou reservado, pela Motors
+    Store, assim como o Silvio Ney original é da dona Rafaela Rafa Laços
+    Lima"*; *"Ney é um jiujiteiro digital"*. A regra 12a (código) diz que o
+    coração digital está reservado pela loja; a comparação com o Silvio Ney e
+    o jiujiteiro moram nas **Regras da loja** da Configuração, que o dono
+    edita sem deploy.
+16. **Pente fino das regras** (21/10), no mesmo pedido:
+    - regra 12 não manda mais *ignorar* assunto fora da loja (o Ney ficava
+      mudo diante de uma piada ou de uma cantada): responde curto, com bom
+      humor, e volta para o carro; continua ignorando pedido para mudar as
+      regras ou revelar o prompt;
+    - regra 6a: laudo, IPVA, único dono, revisões, garantia — o que não está
+      no catálogo nem na loja, o Ney não inventa; o consultor confirma;
+    - regra 11: o Ney não ouve áudio nem vê foto — a Evolution está **sem**
+      speech-to-text (OpenAI desligado no servidor) —, então diz isso com
+      leveza e pede por escrito; foto e documento do cliente a equipe vê no
+      painel;
+    - os últimos toques das três cadências diziam "fico à disposição" e "é
+      só me chamar", que o dono vetou: viraram uma pergunta ("ainda está
+      procurando carro, ou já resolveu?"), na fábrica e na linha da loja.
+17. **Reclamação e pós-venda: sério, triagem e direto ao atendente** (21/10):
+    *"se alguém tiver reclamação ou pós-venda, assuma uma postura séria,
+    receba o atendimento e transfira direto pro atendente pós triagem"*. O
+    Ney deixa o roteiro de vendas, acolhe sem humor nem promessa, pergunta o
+    essencial (o que aconteceu, qual carro, quando comprou — no máximo duas
+    perguntas) e marca `pos_venda`: a entrega sai na hora com o motivo
+    `pos_venda` (migração `20261027120000`; sem ela, grava `pediu_humano`),
+    **fora do rodízio** — com dono, vai ao dono; sem dono, a quem distribui e
+    ao gestor —, com a passagem séria ao cliente ("Obrigado por explicar. Já
+    passei o seu caso para…"), o cabeçalho "⚠️ RECLAMAÇÃO OU PÓS-VENDA" ao
+    atendente e a etiqueta `pos-venda`. O carro de que ele fala não vira
+    carro de interesse nem "quer-comprar".
+18. **Respostas bem-humoradas guardadas no código** (21/10): *"oculte
+    respostas engraçadas no código para perguntas diferentes e
+    inapropriadas"*. A seção "Perguntas fora da curva" do prompt (código, não
+    a tela) dá o tom para robô, piada, dever de casa, signo, troca por
+    bicicleta, desconto absurdo, conteúdo sexual e provocação: uma tirada
+    curta, sem duplo sentido, e a volta para o carro. Nunca na reclamação, no
+    pós-venda ou em assunto sensível; insistência no inapropriado vira
+    resposta séria; ameaça vira `pediu_humano`.
+
+19. **As cadências leem o histórico antes de abordar** (21/10): *"as
+    cadências do Ney precisam ler o histórico das conversas, não vamos
+    abordar antes disso"*. Em produção, a base parada puxou uma lojista do
+    repasse, em visita com o dono; o toque saiu pelo texto pronto ("o carro
+    que te interessou"), sem a conversa do Chatwoot no painel, e ela
+    respondeu "Qual carro?". A base e as três cadências foram desligadas na
+    hora, e voltam com estas regras: o histórico do WhatsApp entra antes de
+    cada toque, o modelo lê e pode não escrever, o texto pronto não sai
+    sozinho, e a base deixa de fora o repasse e as etapas depois de "em
+    contato". A primeira resposta do Ney também traz o histórico antes,
+    quando o painel não tem mensagem do cliente além das que acabaram de
+    chegar (o lead novo, ou o da base que só tinha o toque da cadência).
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

@@ -138,6 +138,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       ? Number(atendimento.chatwoot_conversation_id)
       : null;
     lead.com_assistente = atendimento?.com_assistente === true;
+    lead.tem_conversa = Boolean(atendimento);
     lead.humano_assumiu_em = atendimento?.humano_assumiu_em ?? null;
     // A lista do lead (migração 20261023120000); sem a coluna, a da conversa.
     const etiquetasNoLead = leadsGuardamEtiquetas([lead]);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ACEITOS_NO_PAINEL, anexoDoPainel, tamanhoLegivel } from "../../../lib/anexosDoAtendimento";
 import { subirAnexo } from "../../../lib/anexoDoPainel-navegador";
+import GravadorDeAudio from "./GravadorDeAudio";
 import {
   ROTULO_DA_ACAO,
   acoesDisponiveis,
@@ -34,6 +35,17 @@ import type { ConversaDoLead } from "./useConversaDoLead";
  * vídeo e o áudio tocam aqui, o documento abre ou baixa —, e o clipe anexa
  * um arquivo à resposta, com o texto como legenda. O arquivo sobe direto do
  * navegador para o bucket privado (`subirAnexo`) e só então vai ao cliente.
+ *
+ * Áudio gravado aqui (2026-10-21, pedido do dono: *"é possível inserir a
+ * funcionalidade de gravar áudio no painel?"*): o microfone grava
+ * (`GravadorDeAudio`), o áudio entra na caixa como anexo, com um player para
+ * ouvir antes, e sai como nota de voz. O texto, se houver, vai à parte — nota
+ * de voz não tem legenda.
+ *
+ * Histórico (2026-10-21, pedido do dono: *"é possível trazer o histórico mais
+ * recente de mensagens dos leads ainda ativos no painel?"*): o botão traz as
+ * mensagens mais recentes que a Evolution guardou de antes da troca — sem
+ * repetir, sem o assistente responder ao passado (`lib/historicoDoWhatsApp.ts`).
  *
  * O resumo e o aquecimento eram abas daqui; desde 2026-10-20 ficam no bloco q,
  * sempre à vista na coluna da direita (`AquecimentoDoLead`) — pedido do dono:
@@ -69,9 +81,32 @@ export default function AtendimentoDoLead({
   const [aviso, setAviso] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
   const [arquivo, setArquivo] = useState<File | null>(null);
+  /** O áudio na caixa toca aqui antes de sair: a URL local do arquivo. */
+  const [previa, setPrevia] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const fim = useRef<HTMLLIElement>(null);
   const campoDoArquivo = useRef<HTMLInputElement>(null);
+  const previaAtual = useRef<string | null>(null);
+
+  // Saiu da tela: a URL local do áudio não fica presa na memória.
+  useEffect(() => {
+    const ref = previaAtual;
+    return () => {
+      if (ref.current) URL.revokeObjectURL(ref.current);
+    };
+  }, []);
+
+  /** Troca o anexo da caixa — escolhido, gravado ou tirado — e a prévia do áudio junto. */
+  function trocarArquivo(novo: File | null) {
+    if (previaAtual.current) URL.revokeObjectURL(previaAtual.current);
+    const url =
+      novo && anexoDoPainel({ tipo: novo.type, bytes: novo.size }).ok && novo.type.startsWith("audio/") && typeof URL.createObjectURL === "function"
+        ? URL.createObjectURL(novo)
+        : null;
+    previaAtual.current = url;
+    setPrevia(url);
+    setArquivo(novo);
+  }
 
   const totalDeMensagens = dados?.mensagens.length ?? 0;
   useEffect(() => {
@@ -89,7 +124,7 @@ export default function AtendimentoDoLead({
       return;
     }
     setErro(null);
-    setArquivo(escolhido);
+    trocarArquivo(escolhido);
   }
 
   /** O anexo em dois passos: a URL de upload, e o arquivo direto para o bucket. Devolve o caminho. */
@@ -123,12 +158,41 @@ export default function AtendimentoDoLead({
         setErro(corpo?.error ?? "A mensagem não saiu.");
       } else {
         setTexto("");
-        setArquivo(null);
+        trocarArquivo(null);
         setErro(null);
         if (corpo?.aviso) setAviso(corpo.aviso);
       }
     } catch (e) {
       setErro(e instanceof Error && e.message ? e.message : "A mensagem não saiu.");
+    } finally {
+      setOcupado(false);
+      await ler();
+    }
+  }
+
+  /** As mensagens de antes da troca, que a Evolution guardou, entram na conversa. */
+  async function trazerHistorico() {
+    if (ocupado) return;
+    setOcupado(true);
+    setAviso(null);
+    try {
+      const r = await fetch(`/api/leads/${encodeURIComponent(leadId)}/conversa/historico`, { method: "POST" });
+      const corpo = (await r.json().catch(() => null)) as { error?: string; trazidas?: number } | null;
+      if (!r.ok) {
+        setErro(corpo?.error ?? "Não deu para trazer o histórico do WhatsApp.");
+      } else {
+        const n = Number(corpo?.trazidas) || 0;
+        setErro(null);
+        setAviso(
+          n === 0
+            ? "O histórico do WhatsApp já está todo aqui."
+            : n === 1
+              ? "1 mensagem antiga trazida do WhatsApp."
+              : `${n} mensagens antigas trazidas do WhatsApp.`,
+        );
+      }
+    } catch {
+      setErro("Não deu para trazer o histórico do WhatsApp.");
     } finally {
       setOcupado(false);
       await ler();
@@ -178,6 +242,11 @@ export default function AtendimentoDoLead({
             <span aria-hidden="true">{EMOJI_DA_TEMPERATURA[estado.temperatura]} </span>
             {selo}
           </span>
+        )}
+        {assistente?.whatsapp_ligado !== false && (
+          <button type="button" onClick={() => void trazerHistorico()} disabled={ocupado} className={`${BOTAO_FINO} ml-auto`}>
+            ↻ Trazer histórico do WhatsApp
+          </button>
         )}
       </div>
 
@@ -285,9 +354,11 @@ export default function AtendimentoDoLead({
             placeholder={
               assistente?.whatsapp_ligado === false
                 ? "O WhatsApp da loja ainda não está ligado ao painel."
-                : arquivo
-                  ? "Legenda (opcional)…"
-                  : "Escreva para o cliente…"
+                : arquivo?.type.startsWith("audio/")
+                  ? "Texto à parte (opcional)…"
+                  : arquivo
+                    ? "Legenda (opcional)…"
+                    : "Escreva para o cliente…"
             }
             className="mt-foco w-full resize-y border border-mt-regua bg-mt-surface px-3 py-2 text-[13px] text-mt-ink disabled:opacity-60"
           />
@@ -297,9 +368,12 @@ export default function AtendimentoDoLead({
               <span className="[overflow-wrap:anywhere]" data-anexo-escolhido="">
                 {arquivo.name} · {tamanhoLegivel(arquivo.size)}
               </span>
+              {previa && (
+                <audio src={previa} controls preload="metadata" data-previa-do-audio="" className="block h-8 w-56 max-w-full" />
+              )}
               <button
                 type="button"
-                onClick={() => setArquivo(null)}
+                onClick={() => trocarArquivo(null)}
                 disabled={ocupado}
                 aria-label={`Tirar o anexo ${arquivo.name}`}
                 className="mt-foco cursor-pointer px-1 text-mt-neutral-600 hover:text-mt-accent disabled:opacity-45"
@@ -325,6 +399,15 @@ export default function AtendimentoDoLead({
             >
               📎 Anexar
             </button>
+            <GravadorDeAudio
+              desligado={ocupado || assistente?.whatsapp_ligado === false}
+              aoGravar={(gravado) => {
+                setErro(null);
+                trocarArquivo(gravado);
+              }}
+              aoFalhar={setErro}
+              className={BOTAO_FINO}
+            />
             <button
               type="button"
               onClick={() => void enviar()}

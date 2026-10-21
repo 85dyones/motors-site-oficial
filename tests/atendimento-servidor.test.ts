@@ -275,6 +275,65 @@ describe("a entrada", () => {
 });
 
 describe("a resposta", () => {
+  it("a primeira resposta lê o que veio antes: o histórico do WhatsApp entra no painel, já respondido, e vai ao modelo — e na segunda não busca de novo", async () => {
+    const banco = montar();
+    const quando = Math.floor(Date.parse("2026-08-02T15:00:00Z") / 1000);
+    const t = transporteDeTeste([respostaDoModelo(), respostaDoModelo()], {
+      historico: (filtro) =>
+        filtro.remoteJid === `${CLIENTE}@s.whatsapp.net`
+          ? [
+              { key: { id: "H-1", fromMe: false, remoteJid: `${CLIENTE}@s.whatsapp.net` }, message: { conversation: "Vocês pegam Uno na troca?" }, messageTimestamp: quando, pushName: "Rafael" },
+              { key: { id: "H-2", fromMe: true, remoteJid: `${CLIENTE}@s.whatsapp.net` }, message: { conversation: "Pegamos sim! Traz pra avaliar." }, messageTimestamp: quando + 60 },
+            ]
+          : [],
+    });
+    const entrada = await clienteEscreve(banco, t, "Oi, tem Onix?");
+    const r = await responderAoLead(banco.cliente, { leadId: entrada.lead!, mensagemId: entrada.mensagem }, deps(t));
+
+    expect(r).toMatchObject({ acao: "respondido", enviadas: 1 });
+    const antiga = banco.tabelas.atendimento_mensagens.find((m) => m.wa_id === "H-1");
+    expect(antiga).toMatchObject({ direcao: "entrada", texto: "Vocês pegam Uno na troca?" });
+    // Já respondida: o assistente não responde ao passado.
+    expect(antiga!.respondida_em).not.toBeNull();
+    const pedido = JSON.stringify(t.pedidosAoModelo[0].messages);
+    expect(pedido).toContain("Vocês pegam Uno na troca?");
+    expect(pedido).toContain("[Consultor Loja] Pegamos sim! Traz pra avaliar.");
+    expect(t.enviados).toHaveLength(1);
+
+    const buscas = t.buscasDoHistorico.length;
+    expect(buscas).toBeGreaterThan(0);
+    relogio = new Date(TERCA_10H.getTime() + 5 * 60 * 1000);
+    const segunda = await clienteEscreve(banco, t, "E o preço?");
+    await responderAoLead(banco.cliente, { leadId: segunda.lead!, mensagemId: segunda.mensagem }, deps(t));
+    expect(t.buscasDoHistorico).toHaveLength(buscas);
+  });
+
+  it("o lead da base que só tinha o toque da cadência e respondeu: o histórico entra antes da resposta", async () => {
+    const banco = montar({
+      leads: [leadAberto({ assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: "2026-10-22T12:00:00Z", situacao: "em_contato" })],
+      atendimento_mensagens: [
+        { id: "m-toque", lead_id: "lead-1", telefone: CLIENTE, direcao: "saida", autor: "assistente", autor_nome: "Ney", texto: "Oi, Rafael! Ainda procurando carro?", situacao: "enviada", gatilho: "cadencia", criado_em: "2026-10-20T12:00:00.000Z" },
+      ],
+    });
+    const t = transporteDeTeste([respostaDoModelo()], {
+      historico: (filtro) =>
+        filtro.remoteJid === `${CLIENTE}@s.whatsapp.net`
+          ? [{ key: { id: "H-1", fromMe: false, remoteJid: `${CLIENTE}@s.whatsapp.net` }, message: { conversation: "Quero um Onix até 60 mil" }, messageTimestamp: Math.floor(Date.parse("2026-09-01T15:00:00Z") / 1000), pushName: "Rafael" }]
+          : [],
+    });
+    const entrada = await clienteEscreve(banco, t, "Ainda quero");
+    await responderAoLead(banco.cliente, { leadId: entrada.lead!, mensagemId: entrada.mensagem }, deps(t));
+    expect(JSON.stringify(t.pedidosAoModelo[0].messages)).toContain("Quero um Onix até 60 mil");
+  });
+
+  it("a Evolution não entrega o histórico na primeira resposta: o cliente escreveu, e a resposta sai assim mesmo", async () => {
+    const banco = montar();
+    const t = transporteDeTeste([respostaDoModelo()], { historico: () => ({ erro: "instance not connected", status: 500 }) });
+    const entrada = await clienteEscreve(banco, t, "Oi, tem Onix?");
+    const r = await responderAoLead(banco.cliente, { leadId: entrada.lead!, mensagemId: entrada.mensagem }, deps(t));
+    expect(r).toMatchObject({ acao: "respondido", enviadas: 1 });
+  });
+
   it("responde, preenche a ficha, calcula o aquecimento, agenda o follow-up e grava o retrato", async () => {
     const banco = montar();
     const t = transporteDeTeste([respostaDoModelo()]);
@@ -677,32 +736,110 @@ describe("o método 5P: o lead pronto para o comercial", () => {
   });
 });
 
+/** O toque que o modelo escreve depois de ler a conversa. */
+const TEXTO_QUE_LEU = "Oi, Rafael! O Onix LT 2020 que você perguntou ainda está aqui. Quer vir ver no sábado de manhã?";
+const TOQUE_QUE_LEU = JSON.stringify({ tocar: true, mensagem: TEXTO_QUE_LEU });
+
 describe("a rodada das cadências", () => {
-  const vencido = () =>
+  const vencido = (parcial: Record<string, unknown> = {}) =>
     leadAberto({
       qualificacao: { ficha: { interesse: "Onix LT 2020", interesse_especifico: true } },
       cadencia: "follow_up",
       cadencia_passo: 0,
       cadencia_proximo_em: "2026-10-20T12:00:00Z",
+      ...parcial,
     });
 
-  it("o toque vencido sai, anda um passo e agenda o próximo; sem o modelo, o texto pronto", async () => {
+  it("o toque vencido lê a conversa antes (o histórico do WhatsApp primeiro), sai, anda um passo e agenda o próximo", async () => {
+    const banco = montar({ leads: [vencido()], atendimento_mensagens: [jaEscreveu()] });
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
+    const r = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    expect(r.toques).toEqual([{ lead_id: "lead-1", cadencia: "follow_up", passo: 0, mensagem: TEXTO_QUE_LEU, enviado: true }]);
+    expect(t.enviados).toEqual([{ numero: CLIENTE, texto: TEXTO_QUE_LEU }]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ cadencia_passo: 1, cadencia_proximo_em: new Date(TERCA_10H.getTime() + 48 * 3600 * 1000).toISOString() });
+    expect(banco.tabelas.atendimento_mensagens.at(-1)).toMatchObject({ gatilho: "cadencia", autor: "assistente" });
+    // Buscou o histórico na Evolution e só depois chamou o modelo, com a conversa e a régua de quando não tocar.
+    expect(t.buscasDoHistorico).toContainEqual({ remoteJid: `${CLIENTE}@s.whatsapp.net` });
+    const pedido = JSON.stringify(t.pedidosAoModelo[0].messages);
+    expect(pedido).toContain("oi, tem onix?");
+    expect(pedido).toContain("LEIA a conversa");
+    expect(pedido).toContain("Última mensagem do cliente: 19/10 (há 1 dia)");
+    expect(banco.tabelas.atendimento_qualificacoes[0]).toMatchObject({ origem: "cadencia", tokens_entrada: 1000 });
+  });
+
+  it("sem o modelo, o toque não sai: o texto pronto não lê a conversa, e o lead espera a próxima rodada", async () => {
     const banco = montar({ leads: [vencido()], atendimento_mensagens: [jaEscreveu()] });
     const t = transporteDeTeste();
     const r = await executarRodada(banco.cliente, { reservar: true }, deps(t, { modelo: null }));
-
-    expect(r.toques).toEqual([{ lead_id: "lead-1", cadencia: "follow_up", passo: 0, mensagem: expect.any(String), enviado: true }]);
-    expect(t.enviados).toEqual([{ numero: CLIENTE, texto: "Oi, Rafael! Ainda tem interesse no Onix LT 2020? Se quiser, te mando mais fotos ou tiro alguma dúvida. 🙂" }]);
-    expect(banco.tabelas.leads[0]).toMatchObject({ cadencia_passo: 1, cadencia_proximo_em: new Date(TERCA_10H.getTime() + 48 * 3600 * 1000).toISOString() });
-    expect(banco.tabelas.atendimento_mensagens.at(-1)).toMatchObject({ gatilho: "cadencia", autor: "assistente" });
+    expect(r.toques).toEqual([expect.objectContaining({ lead_id: "lead-1", enviado: false, motivo: expect.stringContaining("não sai sem ler a conversa") })]);
+    expect(r.falhas).toBe(1);
+    expect(t.enviados).toHaveLength(0);
+    expect(banco.tabelas.leads[0]).toMatchObject({ cadencia_passo: 0, cadencia_proximo_em: "2026-10-20T12:00:00Z" });
   });
 
-  it("com o modelo, ele escreve o toque — e a trava de preço vale aqui também", async () => {
+  it("a trava de preço barra o toque: o texto genérico não entra no lugar, e a próxima rodada escreve de novo", async () => {
     const banco = montar({ leads: [vencido()], atendimento_mensagens: [jaEscreveu()] });
-    const t = transporteDeTeste(['{"mensagem":"Oi Rafael! O Onix ainda está aqui, por R$ 79.900."}']);
+    const t = transporteDeTeste(['{"tocar":true,"mensagem":"Oi Rafael! O Onix ainda está aqui, por R$ 79.900."}', TOQUE_QUE_LEU]);
+    const primeira = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(primeira.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-1", motivo: "trava_de_preco" })]);
+    expect(t.enviados).toHaveLength(0);
+    expect(banco.tabelas.leads[0].cadencia_passo).toBe(0);
+
+    relogio = new Date(TERCA_10H.getTime() + 15 * 60 * 1000);
     await executarRodada(banco.cliente, { reservar: true }, deps(t));
-    expect(t.enviados[0].texto).not.toContain("R$");
-    expect(t.enviados[0].texto).toContain("Ainda tem interesse no Onix LT 2020?");
+    expect(t.enviados).toEqual([{ numero: CLIENTE, texto: TEXTO_QUE_LEU }]);
+  });
+
+  it("leu e não é caso de abordar (a lojista do repasse, 21/10): nada sai, o lead volta para a equipe e o rastro diz por quê", async () => {
+    const banco = montar({ leads: [vencido({ canal: "repasse-lojista", situacao: "visita" })], atendimento_mensagens: [jaEscreveu({ texto: "me manda a lista do repasse da semana" })] });
+    const t = transporteDeTeste(['{"tocar": false, "porque": "é lojista do repasse, não compra no varejo"}']);
+    const r = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    expect(t.enviados).toHaveLength(0);
+    expect(r.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-1", motivo: "conversa_sem_toque", texto: "Ney leu a conversa e não abordou: é lojista do repasse, não compra no varejo." })]);
+    expect(r.devolvidos).toEqual([{ lead_id: "lead-1", motivo: "conversa_sem_toque" }]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "pausado", cadencia: null, cadencia_proximo_em: null });
+    const nota = banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "devolucao_automatica");
+    expect(nota?.detalhe?.texto).toBe("O lead voltou para a equipe: Ney leu a conversa e não abordou: é lojista do repasse, não compra no varejo.");
+    expect(r.falhas).toBe(0);
+  });
+
+  it("a Evolution não entrega o histórico: sem ler, o toque espera a próxima rodada", async () => {
+    const banco = montar({ leads: [vencido()], atendimento_mensagens: [jaEscreveu()] });
+    const t = transporteDeTeste([TOQUE_QUE_LEU], { historico: () => ({ erro: "instance not connected", status: 500 }) });
+    const r = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(r.toques).toEqual([expect.objectContaining({ enviado: false, motivo: expect.stringContaining("o histórico do WhatsApp não veio") })]);
+    expect(t.pedidosAoModelo).toHaveLength(0);
+    expect(t.enviados).toHaveLength(0);
+    expect(banco.tabelas.leads[0]).toMatchObject({ cadencia_passo: 0, cadencia_proximo_em: "2026-10-20T12:00:00Z" });
+  });
+
+  it("nada do cliente para ler (a conversa do Chatwoot que a Evolution não guardou): não aborda, e o lead volta para a equipe", async () => {
+    const banco = montar({
+      leads: [vencido({ assistente_fase: "reaquecendo" })],
+      atendimentos: [{ id: "at-1", lead_id: "lead-1", chatwoot_conversation_id: 4821, com_assistente: true, created_at: "2026-07-01T12:00:00Z" }],
+    });
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
+    const r = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(r.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-1", motivo: "sem_historico" })]);
+    expect(r.devolvidos).toEqual([{ lead_id: "lead-1", motivo: "sem_historico" }]);
+    expect(t.pedidosAoModelo).toHaveLength(0);
+    expect(t.enviados).toHaveLength(0);
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "pausado", cadencia: null });
+  });
+
+  it("o cliente escreveu enquanto o modelo lia: o toque não sai por cima", async () => {
+    const banco = montar({ leads: [vencido()], atendimento_mensagens: [jaEscreveu()] });
+    const t = transporteDeTeste([TOQUE_QUE_LEU], {
+      antesDoModelo: async () => {
+        // O que a entrada faz com a cadência quando o cliente responde.
+        Object.assign(banco.tabelas.leads[0], { cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null });
+      },
+    });
+    const r = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(t.enviados).toHaveLength(0);
+    expect(r.suprimidos).toEqual([expect.objectContaining({ motivo: "outra_rodada" })]);
   });
 
   it("a prévia não envia nem grava", async () => {
@@ -748,10 +885,10 @@ describe("a rodada das cadências", () => {
 
   it("duas rodadas sobrepostas no mesmo toque: só uma envia", async () => {
     const banco = montar({ leads: [vencido()], atendimento_mensagens: [jaEscreveu()] });
-    const t = transporteDeTeste();
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
     const [a, b] = await Promise.all([
-      executarRodada(banco.cliente, { reservar: true }, deps(t, { modelo: null })),
-      executarRodada(banco.cliente, { reservar: true }, deps(t, { modelo: null })),
+      executarRodada(banco.cliente, { reservar: true }, deps(t)),
+      executarRodada(banco.cliente, { reservar: true }, deps(t)),
     ]);
     expect(t.enviados).toHaveLength(1);
     expect([...a.suprimidos, ...b.suprimidos].map((s) => s.motivo)).toContain("outra_rodada");
@@ -1918,6 +2055,55 @@ describe("as etiquetas do assistente e a etapa Visita (decisões do dono, 20/10)
     }
   });
 
+  // O dono (21/10/2026): "se alguém tiver reclamação ou pós-venda, assuma uma
+  // postura séria, receba o atendimento e transfira direto pro atendente pós
+  // triagem".
+  it("reclamação ou pós-venda: entrega na hora, fora do rodízio, com passagem séria, cabeçalho e etiqueta", async () => {
+    const banco = montar({ leads: [leadAberto()], funil_etapas: ETAPAS }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste([
+      respostaDoModelo({
+        mensagens: ["Sinto muito pelo transtorno, Rafael. Já anotei: o documento da Saveiro que você comprou em agosto ainda não chegou."],
+        sinais: { pos_venda: true },
+        resumo: "Comprou a Saveiro em agosto; o documento de transferência não chegou. Quer saber o prazo.",
+      }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "comprei a saveiro em agosto e até agora nada do documento, que absurdo");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    // Sem dono e fora do rodízio: o caso vai a quem distribui e ao gestor.
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", entregue_motivo: "pos_venda", responsavel: null, aviso_de_entrega_para: "administrador", situacao: "novo" });
+    const aoCliente = t.enviados.filter((e) => e.numero === CLIENTE).map((e) => e.texto);
+    expect(aoCliente.at(-1)).toBe("Obrigado por explicar, Rafael. Já passei o seu caso para a nossa equipe, que já vai te chamar.");
+    expect(aoCliente.join(" ")).not.toContain("Perfeito");
+    const paraEquipe = t.enviados.filter((e) => e.numero !== CLIENTE);
+    expect(paraEquipe.map((e) => e.numero)).toEqual(["5541977776666", "5541966665555"]);
+    expect(paraEquipe[0].texto).toMatch(/^⚠️ RECLAMAÇÃO OU PÓS-VENDA/);
+    expect(paraEquipe[0].texto).toContain("o documento de transferência não chegou");
+    expect(etiquetagens(banco).at(-1)).toEqual({ p_lead: "lead-1", p_incluir: ["pos-venda"], p_autor: "Ney" });
+    // O carro de que ele fala já foi comprado: nem "quer-comprar", nem carro de interesse.
+    expect(etiquetagens(banco).flatMap((e) => e.p_incluir)).toEqual(["pos-venda"]);
+  });
+
+  it("pós-venda com dono: vai ao dono, pelo nome e pelo número dele", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Entendi, já anotei o que aconteceu."], sinais: { pos_venda: true } })]);
+    const entrada = await clienteEscreve(banco, t, "o carro que comprei está com barulho no motor");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    expect(banco.tabelas.leads[0]).toMatchObject({ entregue_motivo: "pos_venda", responsavel: "Carla Souza", aviso_de_entrega_para: "Carla Souza" });
+    const passagem = t.enviados.filter((e) => e.numero === CLIENTE).at(-1)!.texto;
+    expect(passagem).toMatch(/^Obrigado por explicar, Rafael\. Já passei o seu caso para Carla, da nossa equipe, que já vai te chamar pelo WhatsApp /);
+  });
+
+  it("banco sem a migração do pós-venda: a entrega grava como 'pediu um consultor', e não fica pela metade", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    banco.recusarNoUpdate("leads", "entregue_motivo", "pos_venda");
+    const t = transporteDeTeste([respostaDoModelo({ sinais: { pos_venda: true } })]);
+    const entrada = await clienteEscreve(banco, t, "quero reclamar do atendimento");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", entregue_motivo: "pediu_humano" });
+  });
+
   it("entrega que não é visita (quente) não move a etapa", async () => {
     const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })], funil_etapas: ETAPAS });
     const t = transporteDeTeste([respostaDoModelo({ ficha: ONIX, sinais: { pediu_humano: true } })]);
@@ -1973,15 +2159,34 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
     expect(t.enviados).toHaveLength(0);
   });
 
-  it("na rodada seguinte, o toque sai pela conversa do Chatwoot, e a resposta do cliente volta ao assistente", async () => {
+  it("na rodada seguinte, o toque traz a conversa do WhatsApp para o painel, lê, e só então sai; a resposta do cliente volta ao assistente", async () => {
     const banco = montarBase([parado("lead-01")], [conversaDoChatwoot("lead-01")]);
-    const t = transporteDeTeste();
+    const LID = "777000111222333@lid";
+    const quando = Math.floor(Date.parse("2026-10-10T12:00:00Z") / 1000);
+    const t = transporteDeTeste([TOQUE_QUE_LEU], {
+      historico: (filtro) =>
+        filtro.remoteJidAlt === "5541999990001@s.whatsapp.net"
+          ? [{ key: { id: "H-1", fromMe: false, remoteJid: LID, remoteJidAlt: "5541999990001@s.whatsapp.net" }, message: { conversation: "O Onix LT 2020 ainda está aí? Dá pra financiar?" }, messageTimestamp: quando, pushName: "Rafael" }]
+          : filtro.remoteJid === LID
+            ? [{ key: { id: "H-2", fromMe: true, remoteJid: LID }, message: { conversation: "Está sim! Financia, sim." }, messageTimestamp: quando + 60 }]
+            : [],
+    });
     await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(t.buscasDoHistorico).toHaveLength(0);
     relogio = new Date(TERCA_10H.getTime() + 15 * 60 * 1000);
     const segunda = await executarRodada(banco.cliente, { reservar: true }, deps(t));
 
     expect(segunda.toques).toEqual([expect.objectContaining({ lead_id: "lead-01", cadencia: "follow_up", passo: 0, enviado: true })]);
-    expect(t.enviados.map((e) => e.numero)).toEqual(["5541999990001"]);
+    expect(t.enviados).toEqual([{ numero: "5541999990001", texto: TEXTO_QUE_LEU }]);
+    // A conversa de antes está no painel, e o modelo leu — com a idade dela.
+    expect(banco.tabelas.atendimento_mensagens.filter((m) => m.wa_id === "H-1" || m.wa_id === "H-2").map((m) => [m.direcao, m.autor_nome])).toEqual([
+      ["entrada", "Rafael"],
+      ["saida", "Loja"],
+    ]);
+    const pedido = JSON.stringify(t.pedidosAoModelo[0].messages);
+    expect(pedido).toContain("O Onix LT 2020 ainda está aí? Dá pra financiar?");
+    expect(pedido).toContain("[Consultor Loja] Está sim! Financia, sim.");
+    expect(pedido).toContain("Última mensagem do cliente: 10/10 (há 10 dias)");
 
     relogio = new Date(TERCA_10H.getTime() + 60 * 60 * 1000);
     const resposta = await registrarEntrada(banco.cliente, evento({ texto: "ainda quero sim", telefone: "5541999990001" }), deps(t));
@@ -1989,10 +2194,50 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
     expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "qualificando", cadencia: null });
   });
 
+  // Visto em produção (21/10): a base puxou leads com telefone faltando dígitos,
+  // e cada toque falhou com "telefone inválido para envio".
+  it("telefone que a Evolution recusa: não entra na base; o que já entrou sai da cadência e volta para a equipe", async () => {
+    const banco = montarBase([parado("lead-01", { telefone: "55419888662" })], [conversaDoChatwoot("lead-01")]);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.base).toEqual([]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: null, cadencia: null });
+
+    // O que já estava na cadência (puxado antes da correção).
+    const preso = montarBase(
+      [parado("lead-01", { telefone: "55419888662", assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: TERCA_10H.toISOString() })],
+      [conversaDoChatwoot("lead-01")],
+    );
+    const t = transporteDeTeste();
+    const r = await executarRodada(preso.cliente, { reservar: true }, deps(t));
+    expect(r.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-01", motivo: "telefone_invalido" })]);
+    expect(r.devolvidos).toEqual([{ lead_id: "lead-01", motivo: "telefone_invalido" }]);
+    expect(r.falhas).toBe(0);
+    expect(t.enviados).toHaveLength(0);
+    expect(preso.tabelas.leads[0]).toMatchObject({ cadencia: null });
+  });
+
   it("sem carro de interesse, reativação", async () => {
     const banco = montarBase([parado("lead-01", { interesse: null })], [conversaDoChatwoot("lead-01")]);
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
     expect(rodada.base).toEqual([{ lead_id: "lead-01", cadencia: "reativacao" }]);
+  });
+
+  // Visto em produção (21/10): a lojista do repasse, em visita com o dono,
+  // entrou na base e recebeu "o carro que te interessou" — "Qual carro?".
+  it("o repasse e quem já passou de 'em contato' não entram: o acompanhamento é do consultor", async () => {
+    const ids = ["lead-01", "lead-02", "lead-03", "lead-04", "lead-05"];
+    const banco = montarBase(
+      [
+        parado("lead-01", { canal: "repasse-lojista", interesse: "Entrou na lista do repasse (lojista)." }),
+        parado("lead-02", { situacao: "visita" }),
+        parado("lead-03", { situacao: "proposta" }),
+        parado("lead-04", { situacao: "negociacao" }),
+        parado("lead-05", { situacao: "em_contato" }),
+      ],
+      ids.map((id) => conversaDoChatwoot(id)),
+    );
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.base).toEqual([{ lead_id: "lead-05", cadencia: "follow_up" }]);
   });
 
   it("quem não entra: contato recente, conversa recente, nunca conversou, fechado, opt-out, já com o assistente", async () => {
