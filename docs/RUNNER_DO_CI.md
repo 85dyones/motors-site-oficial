@@ -37,6 +37,24 @@ Cada instância de runner roda um job por vez: com uma instância, os 5 jobs de 
 em fila e ela leva perto de 7 a 8 minutos. No runner próprio o workflow já limita o `vitest` a 2
 processos (`runner.environment == 'self-hosted'`).
 
+## A regra de builds da Vercel (21/10/2026)
+
+Pedido do dono: *"precisamos desta regra, já temos uma cobrança absurda extra este mês"*. Na semana
+de 14 a 21/10, 84 de cada 100 deploys da Vercel foram prévias de branch — cada push num branch de
+trabalho virava um build pago (*Build CPU Minutes*), que ninguém abria.
+
+`scripts/vercel-regra-de-build.sh`, ligado no `ignoreCommand` do `vercel.json`:
+
+- a **`main`** (o site no ar) sempre constrói;
+- deploy **sem branch** (CLI, manual) constrói;
+- **branch de trabalho** só constrói quando o commit pede: `[preview]` (ou `[previa]`/`[prévia]`)
+  na mensagem.
+
+O job `deploy-vercel` roda o mesmo arquivo antes de esperar a Vercel: commit sem prévia passa com
+um aviso, em vez de esperar 10 minutos por um deploy que não vem. A regra vale para o commit que
+traz o `vercel.json` com ela — branch antigo, aberto antes, continua construindo até receber a
+`main`.
+
 ## Como o workflow escolhe a máquina
 
 O primeiro job, `maquina`, roda sempre no GitHub e decide onde rodam os outros cinco:

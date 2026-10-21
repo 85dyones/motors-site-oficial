@@ -253,9 +253,36 @@ jobs:
     runs-on: ${{ needs.maquina.outputs.runner || (github.event.repository.private && vars.RUNNER_CI) || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
+      contents: read
       statuses: read
     steps:
+      # A regra de builds (2026-10-21, `scripts/vercel-regra-de-build.sh`): a
+      # Vercel só constrói a `main` e o commit de branch que pede `[preview]`.
+      # O mesmo arquivo decide aqui, para o job não esperar um deploy que não vem.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts
+      - name: a Vercel constrói este commit?
+        id: regra
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          MENSAGEM=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/commits/$SHA" | jq -r '.commit.message // ""')
+          if MENSAGEM="$MENSAGEM" BRANCH="$BRANCH" bash scripts/vercel-regra-de-build.sh; then
+            echo "pular=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=deploy-vercel::Prévia pulada pela regra de builds: este commit não gera deploy na Vercel (ponha [preview] na mensagem para gerar)."
+          else
+            echo "pular=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: esperar o deploy da Vercel deste commit
+        if: steps.regra.outputs.pular != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
