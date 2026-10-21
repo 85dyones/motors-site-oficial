@@ -3,6 +3,8 @@ import {
   CADENCIAS_DE_FABRICA,
   MAXIMO_DE_PASSOS,
   cadenciaDoSilencio,
+  dataDaRetomada,
+  decidirEncerramento,
   decidirToque,
   dentroDoExpediente,
   entraNaBase,
@@ -141,6 +143,37 @@ describe("o calendário dos passos", () => {
     const semContato = etapas.filter((e) => e.chave !== "em_contato");
     expect(etapaDaVolta("novo", semContato)).toBe("novo");
     expect(etapaDaVolta(null, [{ chave: "fechado", tipo: "ganho", ativa: true, ordem: 1 }])).toBeNull();
+  });
+
+  // O dono (21/10): "7 / 30 / 60 dias", e com data dita, uma semana antes.
+  it("a retomada do encerramento: pelo prazo da compra, ou uma semana antes da data dita, às 10h da loja", () => {
+    const agora = new Date("2026-10-20T13:00:00Z"); // terça, 10h em Curitiba
+    const em = (ficha: Record<string, unknown>) => dataDaRetomada(ficha, agora).em.toISOString();
+    expect(em({ prazo: "este_mes" })).toBe("2026-10-27T13:00:00.000Z");
+    expect(em({ prazo: "imediato" })).toBe("2026-10-27T13:00:00.000Z");
+    expect(em({ prazo: "proximos_meses" })).toBe("2026-11-19T13:00:00.000Z");
+    expect(em({ prazo: "sem_pressa" })).toBe("2026-12-19T13:00:00.000Z");
+    expect(em({ prazo: null })).toBe("2026-11-19T13:00:00.000Z");
+    // "Em março": uma semana antes do dia 1º.
+    expect(dataDaRetomada({ prazo: "proximos_meses", retomar_data: "2027-03-01" }, agora)).toEqual({
+      em: new Date("2027-02-22T13:00:00.000Z"),
+      porque: "o cliente falou em 01/03/2027",
+    });
+    // Data perto demais: amanhã, nunca antes.
+    expect(em({ retomar_data: "2026-10-23" })).toBe("2026-10-21T13:00:00.000Z");
+    // Data passada ou além de um ano não vale: fica o prazo.
+    expect(em({ prazo: "este_mes", retomar_data: "2026-10-01" })).toBe("2026-10-27T13:00:00.000Z");
+    expect(em({ prazo: "sem_pressa", retomar_data: "2028-01-15" })).toBe("2026-12-19T13:00:00.000Z");
+  });
+
+  it("o encerramento: a entrega, o opt-out e o pós-venda mandam mais; desistiu não agenda nada", () => {
+    const agora = new Date("2026-10-20T13:00:00Z");
+    expect(decidirEncerramento({ encerrar: true }, { prazo: "sem_pressa" }, false, agora)).toMatchObject({ tipo: "retomada", porque: "sem pressa para comprar" });
+    expect(decidirEncerramento({ desistiu: true, encerrar: true }, {}, false, agora)).toEqual({ tipo: "desistiu" });
+    expect(decidirEncerramento({ encerrar: true }, {}, true, agora)).toBeNull();
+    expect(decidirEncerramento({ encerrar: true, optout: true }, {}, false, agora)).toBeNull();
+    expect(decidirEncerramento({ desistiu: true, pos_venda: true }, {}, false, agora)).toBeNull();
+    expect(decidirEncerramento({}, {}, false, agora)).toBeNull();
   });
 
   it("de fábrica, todas têm no máximo três toques (a régua do manobrAI)", () => {

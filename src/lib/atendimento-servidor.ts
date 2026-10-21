@@ -36,6 +36,7 @@ import type { BaseDaLoja } from "./baseDoAtendimento-servidor";
 import {
   ROTULO_DA_CADENCIA,
   cadenciaDoSilencio,
+  decidirEncerramento,
   decidirToque,
   dentroDoExpediente,
   entraNaBase,
@@ -53,6 +54,7 @@ import {
   type NomeDaCadencia,
 } from "./cadencias";
 import { variantesDoTelefone } from "./whatsapp";
+import { soEncerra } from "./conversaNoCard";
 import { configValida, type ConfigDoAtendimento } from "./configDoAtendimento";
 import { completarEmJson, configDoModelo, MODELO_DE_VISAO, type ConfigDoModelo, type UsoDoModelo } from "./deepseek";
 import {
@@ -796,7 +798,15 @@ export async function registrarEntrada(
     await devolverAoHumano(supabase, leadId, agora, "o assistente está desligado");
     lead.assistente_fase = "pausado";
   }
-  const voltouDoReaquecimento = config.ativo && lead.assistente_fase === "reaquecendo";
+  // O "ok, obrigado" à despedida do Ney (21/10): a conversa encerrada fica
+  // encerrada — a retomada agendada continua, ninguém responde e o vendedor
+  // não recebe o "valeu". Qualquer outra coisa reabre a conversa.
+  const agradeceuADespedida =
+    lead.assistente_fase === "reaquecendo" &&
+    lead.cadencia === "retomada" &&
+    Number(lead.cadencia_passo ?? 0) === 0 &&
+    soEncerra({ conteudo: evento.conteudo, texto: evento.texto });
+  const voltouDoReaquecimento = config.ativo && lead.assistente_fase === "reaquecendo" && !agradeceuADespedida;
   const humanoJaAtende = Boolean(lead.ultimo_contato_em) || (lead.situacao && lead.situacao !== "novo");
   let fase: string | null = lead.assistente_fase ?? null;
   if (voltouDoReaquecimento) fase = "qualificando";
@@ -835,7 +845,7 @@ export async function registrarEntrada(
 
   // O cliente respondeu: a cadência para (a régua do manobrAI).
   const patch: Linha = {};
-  if (lead.cadencia || lead.cadencia_proximo_em) {
+  if ((lead.cadencia || lead.cadencia_proximo_em) && !agradeceuADespedida) {
     patch.cadencia = null;
     patch.cadencia_passo = 0;
     patch.cadencia_proximo_em = null;
@@ -852,7 +862,7 @@ export async function registrarEntrada(
   // ninguém responde automaticamente: com o assistente ligado, a mensagem vai
   // ao vendedor, que pode estar atendendo do PRÓPRIO número e não ver o da
   // loja. Desligado, a entrada só grava.
-  if (config.ativo && fase !== "qualificando") {
+  if (config.ativo && fase !== "qualificando" && !agradeceuADespedida) {
     await repassarAoVendedor(supabase, lead, evento, equipe, agora, deps);
   }
 
@@ -1295,9 +1305,15 @@ async function responderUmaVez(
   // O cliente acabou de escrever: o assistente CONDUZ, e a temperatura sozinha
   // não corta a conversa no meio (o "sábado" sem hora do teste do branch).
   const decisao = decidirEntrega(aquecimento, sinais, config.avisar_a_partir, pronto, { conduzindo: true });
+  // O Ney encerra a conversa (21/10, pedido do dono): quem compra mais
+  // adiante ganha a retomada agendada; quem desistiu volta ao vendedor. A
+  // entrega e o opt-out mandam mais (`decidirEncerramento`).
+  const encerramento = decidirEncerramento(sinais, ficha, decisao.entregar, agora);
   // Segurado: quente, ou pronto com um pedido do cliente em andamento. Se o
-  // cliente parar de responder, a rodada entrega.
-  const quenteSegurado = !decisao.entregar && !sinais.optout && (Boolean(pronto) || temperaturaAlcanca(aquecimento.temperatura, config.avisar_a_partir));
+  // cliente parar de responder, a rodada entrega. O cliente que disse "não é
+  // agora" não é segurado: a despedida já saiu.
+  const quenteSegurado =
+    !decisao.entregar && !encerramento && !sinais.optout && (Boolean(pronto) || temperaturaAlcanca(aquecimento.temperatura, config.avisar_a_partir));
   // O que pode aparecer em reais é o orçamento e a entrada que o cliente
   // disse — nunca um preço que ele "viu" e pede para confirmar.
   const vigiados = vigiarPreco(
@@ -1305,10 +1321,10 @@ async function responderUmaVez(
     valoresDoCliente(ficha, doCliente.map((m) => m.texto)),
     config.informar_preco,
   ).mensagens;
-  // E nada de "fico à disposição" (pedido do dono, 2026-10-20). Na entrega,
-  // nenhuma pergunta: o assistente sai da conversa logo depois.
+  // E nada de "fico à disposição" (pedido do dono, 2026-10-20). Na entrega
+  // e na despedida, nenhuma pergunta: a conversa termina nesta resposta.
   const semDisposicaoNenhuma = baloesSemDisposicao(vigiados);
-  const mensagens = decisao.entregar ? baloesSemPergunta(semDisposicaoNenhuma) : semDisposicaoNenhuma;
+  const mensagens = decisao.entregar || encerramento ? baloesSemPergunta(semDisposicaoNenhuma) : semDisposicaoNenhuma;
 
   const atendimento = await garantirAtendimento(supabase, leadId, agora);
   let enviadas = 0;
@@ -1360,8 +1376,14 @@ async function responderUmaVez(
     ...(!lead.pagamento_pretendido && ficha.pagamento ? { pagamento_pretendido: ficha.pagamento } : {}),
     ...(!lead.interesse && ficha.interesse ? { interesse: ficha.interesse } : {}),
   };
+  // A retomada só com a cadência ligada; desligada, o encerramento devolve à equipe.
+  const retomada = encerramento?.tipo === "retomada" && config.cadencias.retomada.ativa ? encerramento : null;
   if (sinais.optout) {
     Object.assign(patch, { optout_em: agora.toISOString(), assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null });
+  } else if (retomada) {
+    Object.assign(patch, { assistente_fase: "reaquecendo", cadencia: "retomada", cadencia_passo: 0, cadencia_proximo_em: retomada.em.toISOString() });
+  } else if (encerramento) {
+    Object.assign(patch, { assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null });
   } else if (quenteSegurado) {
     // Quente e conduzindo: se o cliente parar de responder, a rodada o
     // entrega ao vendedor daqui a meia hora, em vez do toque da cadência.
@@ -1372,13 +1394,45 @@ async function responderUmaVez(
     const proximo = config.cadencias[cadencia].ativa ? vencimentoDoPasso(config.cadencias, cadencia, 0, agora) : null;
     Object.assign(patch, { cadencia: proximo ? cadencia : null, cadencia_passo: 0, cadencia_proximo_em: proximo });
   }
-  const { error: erroLead } = await supabase.from("leads").update(patch).eq("id", leadId);
+  let { error: erroLead } = await supabase.from("leads").update(patch).eq("id", leadId);
+  // Banco sem a 20261029120000 ainda não conhece a cadência `retomada`: a
+  // retomada sai como a do silêncio, na mesma data — o lead não pode ficar
+  // sem a ficha e a nota por causa disso (a despedida já saiu).
+  if (erroLead && retomada) {
+    patch.cadencia = cadenciaDoSilencio(Boolean(interesseDaCadencia(lead, ficha.interesse)));
+    ({ error: erroLead } = await supabase.from("leads").update(patch).eq("id", leadId));
+  }
   if (erroLead) console.error("[Atendimento] Lead não atualizado:", erroLead.message);
 
   if (sinais.optout) {
     await assistenteNoSla(supabase, leadId, false, agora);
     await voltarDoReaquecimento(supabase, leadId);
     await anotarNoRastro(supabase, leadId, "O cliente pediu para não receber mais mensagens.", { acao: "optout" });
+  } else if (retomada) {
+    // O Ney fica com o lead até a retomada, na coluna Reaquecendo — a mesma
+    // régua da base (escolha do dono). O card e o histórico dizem quando.
+    await assistenteNoSla(supabase, leadId, true, agora);
+    const naColuna = lead.situacao === ETAPA_DO_REAQUECIMENTO || (await moverParaOReaquecimento(supabase, lead));
+    await anotarNoRastro(
+      supabase,
+      leadId,
+      `${config.nome_do_assistente} encerrou a conversa (${retomada.porque}): retoma em ${dataParaLer(retomada.em)}${naColuna ? ", na etapa Reaquecendo" : ""}. Se o cliente escrever antes, a conversa recomeça.`,
+      { acao: "encerrou", retomar_em: retomada.em.toISOString(), porque: retomada.porque },
+    );
+  } else if (encerramento) {
+    // Desistiu ou já comprou (escolha do dono: o Ney encerra e o vendedor
+    // marca o desfecho), ou a retomada está desligada: volta para a equipe.
+    await assistenteNoSla(supabase, leadId, false, agora);
+    await voltarDoReaquecimento(supabase, leadId);
+    if (encerramento.tipo === "desistiu") await etiquetarPeloAssistente(supabase, leadId, ["desistiu"], config.nome_do_assistente);
+    await anotarNoRastro(
+      supabase,
+      leadId,
+      encerramento.tipo === "desistiu"
+        ? `${config.nome_do_assistente} encerrou a conversa: o cliente disse que já comprou ou desistiu. Marque o desfecho no quadro.`
+        : `${config.nome_do_assistente} encerrou a conversa (${encerramento.porque}), mas a cadência de retomada está desligada: o lead voltou para a equipe.`,
+      { acao: encerramento.tipo === "desistiu" ? "desistiu" : "encerrou_sem_retomada" },
+    );
   }
 
   // Os carros da conversa viram carros de interesse do lead — os que o modelo
@@ -1435,6 +1489,7 @@ async function responderUmaVez(
     aquecimento: aquecimento.pontos,
     temperatura: aquecimento.temperatura,
     entregue,
+    ...(encerramento ? { encerrado: encerramento.tipo } : {}),
     ...(fotos > 0 ? { fotos } : {}),
   };
 }
@@ -2382,8 +2437,10 @@ export async function executarRodada(
     // telefone tem outro lead aberto, o acompanhamento é do consultor (21/10).
     // Quem o vendedor passou pelo painel ("Ney retoma agora") não passa por
     // essa régua: foi escolha da equipe.
-    const passadoPeloPainel = lead.assistente_fase === "reaquecendo" && lead.cadencia !== "engajamento" && (await quemPassouOLead(supabase, leadId)) === "painel";
-    if (lead.assistente_fase === "reaquecendo" && lead.cadencia !== "engajamento" && !passadoPeloPainel && !(await aindaEntraNaBase(supabase, lead))) {
+    // A retomada também não: foi combinada com o próprio cliente (21/10).
+    const daBase = lead.assistente_fase === "reaquecendo" && lead.cadencia !== "engajamento" && lead.cadencia !== "retomada";
+    const passadoPeloPainel = daBase && (await quemPassouOLead(supabase, leadId)) === "painel";
+    if (daBase && !passadoPeloPainel && !(await aindaEntraNaBase(supabase, lead))) {
       resultado.suprimidos.push({ lead_id: leadId, motivo: "fora_da_base", texto: "O lead avançou de etapa, é do repasse ou o telefone tem outro lead aberto: o acompanhamento é do consultor." });
       if (opcoes.reservar) await tirarDaCadencia("fora_da_base", "o lead avançou de etapa, é do repasse ou o telefone tem outro lead aberto: o acompanhamento é do consultor");
       continue;
@@ -2582,6 +2639,13 @@ async function aindaEntraNaBase(supabase: Banco, lead: Linha): Promise<boolean> 
 /** "terça-feira, 20/10, 10:00", na hora da loja: o "agora" que o modelo lê. */
 function horaDaLoja(agora: Date): string {
   return agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/** "28/10, quarta-feira", na hora da loja: a data da retomada no rastro. */
+function dataParaLer(quando: Date): string {
+  const dia = quando.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" });
+  const semana = quando.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long" });
+  return `${dia}, ${semana}`;
 }
 
 /** "15/07 (há 98 dias)", na hora da loja: o toque sabe quanto tempo a conversa está parada. */
