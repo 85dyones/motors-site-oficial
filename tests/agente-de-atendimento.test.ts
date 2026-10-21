@@ -276,6 +276,8 @@ describe("a resposta do modelo, conferida", () => {
     expect(lerToque('{"mensagem":"Oi, Maria!"}')).toEqual({ tocar: true, mensagem: "Oi, Maria!" });
     expect(lerToque('{"tocar": false, "porque": "  é lojista,\\n não compra  "}')).toEqual({ tocar: false, porque: "é lojista, não compra" });
     expect(lerToque('{"tocar": false}')).toEqual({ tocar: false, porque: "a conversa não pede o toque" });
+    // O ponto final sai: a frase do rastro põe o dela (visto em produção: "é dele..").
+    expect(lerToque('{"tocar": false, "porque": "o acompanhamento é dele."}')).toEqual({ tocar: false, porque: "o acompanhamento é dele" });
     expect(lerToque("{}")).toBeNull();
     expect(lerToque('{"tocar": true}')).toBeNull();
   });

@@ -744,7 +744,8 @@ export function lerToque(conteudo: string): LeituraDoToque | null {
   if (!bruto || typeof bruto !== "object") return null;
   const r = bruto as Record<string, unknown>;
   if (r.tocar === false) {
-    const porque = typeof r.porque === "string" ? r.porque.replace(/\s+/g, " ").trim().slice(0, 200) : "";
+    // Sem o ponto final: quem chama monta a frase ("Ney leu a conversa e não abordou: …").
+    const porque = typeof r.porque === "string" ? r.porque.replace(/\s+/g, " ").trim().slice(0, 200).replace(/[.;!\s]+$/, "") : "";
     return { tocar: false, porque: porque || "a conversa não pede o toque" };
   }
   const mensagem = balao(r.mensagem);
