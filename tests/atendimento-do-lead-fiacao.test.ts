@@ -359,6 +359,44 @@ describe("os anexos na conversa", () => {
   });
 });
 
+// O dono (21/10/2026): "é possível trazer o histórico mais recente de mensagens
+// dos leads ainda ativos no painel?"
+describe("o histórico do WhatsApp", () => {
+  it("o botão traz as mensagens de antes da troca, diz quantas e relê a conversa", async () => {
+    await montar();
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const metodo = opcoes?.method ?? "GET";
+      chamadas.push({ metodo, url, corpo: opcoes?.body ? JSON.parse(String(opcoes.body)) : undefined });
+      if (url.endsWith("/conversa/historico")) return { ok: true, status: 200, json: async () => ({ ok: true, trazidas: 12, ja_estavam: 3 }) };
+      return { ok: true, status: 200, json: async () => (metodo === "GET" ? RESPOSTA : { ok: true }) };
+    }) as never;
+    const leituras = () => chamadas.filter((c) => c.metodo === "GET").length;
+    const antes = leituras();
+
+    await clicar(botao("↻ Trazer histórico do WhatsApp"));
+
+    expect(chamadas.filter((c) => c.metodo === "POST").map((c) => c.url)).toEqual(["/api/leads/lead-1/conversa/historico"]);
+    expect(texto()).toContain("12 mensagens antigas trazidas do WhatsApp.");
+    expect(leituras()).toBeGreaterThan(antes);
+  });
+
+  it("nada novo, ou a Evolution fora: o painel diz", async () => {
+    await montar();
+    let resposta: { ok: boolean; status: number; corpo: unknown } = { ok: true, status: 200, corpo: { ok: true, trazidas: 0, ja_estavam: 40 } };
+    globalThis.fetch = (async (url: string, opcoes?: RequestInit) => {
+      const metodo = opcoes?.method ?? "GET";
+      if (url.endsWith("/conversa/historico")) return { ok: resposta.ok, status: resposta.status, json: async () => resposta.corpo };
+      return { ok: true, status: 200, json: async () => (metodo === "GET" ? RESPOSTA : { ok: true }) };
+    }) as never;
+    await clicar(botao("↻ Trazer histórico do WhatsApp"));
+    expect(texto()).toContain("O histórico do WhatsApp já está todo aqui.");
+
+    resposta = { ok: false, status: 502, corpo: { error: "Não deu para trazer o histórico: a Evolution não entregou o histórico (HTTP 500)." } };
+    await clicar(botao("↻ Trazer histórico do WhatsApp"));
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("a Evolution não entregou o histórico");
+  });
+});
+
 // O dono (21/10/2026): "é possível inserir a funcionalidade de gravar áudio no painel?"
 describe("o áudio gravado no painel", () => {
   const LEAD = "lead-1";

@@ -7,6 +7,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  * falar agora precisa ser o do chatwoot"*. O id da conversa já estava no
  * banco, em `atendimentos.chatwoot_conversation_id`; a rota só não o lia.
  *
+ * Desde 2026-10-21, com o Chatwoot fora de cena, o link é o do lead no
+ * painel, onde a conversa pelo WhatsApp da loja mora: "Falar agora" quando o
+ * lead tem conversa (um atendimento, do Chatwoot ou da Evolution), "Abrir no
+ * painel" quando o cliente ainda não escreveu. Nunca o `wa.me`.
+ *
  * A rota é chamada com o banco em memória: `montar_fila_do_funil` devolve a
  * fila, `atendimentos` devolve as conversas, e o texto que o n8n entrega ao
  * vendedor é conferido inteiro.
@@ -117,58 +122,43 @@ afterEach(() => {
 });
 
 describe("o link do aviso ao vendedor", () => {
-  it("é a conversa do lead no Chatwoot, e não o wa.me do cliente", async () => {
+  const PAINEL = /https?:\/\/\S+\/admin\/leads\/lead-jorge/;
+
+  it("com conversa, é a conversa no painel — nem o Chatwoot, nem o wa.me do cliente", async () => {
     atendimentos = [{ lead_id: "lead-jorge", chatwoot_conversation_id: 436, iniciado_em: "2026-10-05T12:00:00Z" }];
 
     const [aviso] = await pedirAFila();
 
     expect(aviso.mensagem).toContain("Lead transferido para você (estava com Rodrigo Naumowicz)");
-    expect(aviso.mensagem).toContain("Falar agora: https://app.chat.v2o5.com.br/app/accounts/3/conversations/436");
+    expect(aviso.mensagem).toMatch(new RegExp(`Falar agora: ${PAINEL.source}`));
+    expect(aviso.mensagem).not.toContain("/conversations/");
     expect(aviso.mensagem).not.toContain("wa.me");
   });
 
-  it("com mais de uma conversa, vale a mais recente — a mesma que o card abre", async () => {
-    atendimentos = [
-      { lead_id: "lead-jorge", chatwoot_conversation_id: 120, iniciado_em: "2026-09-01T12:00:00Z" },
-      { lead_id: "lead-jorge", chatwoot_conversation_id: 494, iniciado_em: "2026-10-09T14:01:00Z" },
-      { lead_id: "lead-jorge", chatwoot_conversation_id: 301, created_at: "2026-09-20T12:00:00Z" },
-    ];
+  it("a conversa pela Evolution (atendimento sem id do Chatwoot) também conta", async () => {
+    atendimentos = [{ lead_id: "lead-jorge", chatwoot_conversation_id: null, iniciado_em: "2026-10-21T12:00:00Z" }];
 
     const [aviso] = await pedirAFila();
 
-    expect(aviso.mensagem).toContain("/conversations/494");
-  });
-
-  it("atendimento sem id de conversa não estraga o link: vale a próxima conversa", async () => {
-    atendimentos = [
-      { lead_id: "lead-jorge", chatwoot_conversation_id: null, iniciado_em: "2026-10-09T15:00:00Z" },
-      { lead_id: "lead-jorge", chatwoot_conversation_id: 436, iniciado_em: "2026-10-05T12:00:00Z" },
-    ];
-
-    const [aviso] = await pedirAFila();
-
-    expect(aviso.mensagem).toContain("/conversations/436");
+    expect(aviso.mensagem).toMatch(new RegExp(`Falar agora: ${PAINEL.source}`));
   });
 
   it("lead sem conversa leva ao lead no painel, e não ao WhatsApp", async () => {
     const [aviso] = await pedirAFila();
 
-    expect(aviso.mensagem).toMatch(/Abrir no painel: https?:\/\/\S+\/admin\/leads\/lead-jorge/);
+    expect(aviso.mensagem).toMatch(new RegExp(`Abrir no painel: ${PAINEL.source}`));
     expect(aviso.mensagem).not.toContain("wa.me");
   });
 
-  it("cada lead leva a sua conversa", async () => {
+  it("cada lead leva o seu link", async () => {
     fila = [linhaDaFila(), linhaDaFila({ lead_id: "lead-ana", nome: "Ana Souza" })];
-    atendimentos = [
-      { lead_id: "lead-ana", chatwoot_conversation_id: 77, iniciado_em: "2026-10-01T12:00:00Z" },
-      { lead_id: "lead-jorge", chatwoot_conversation_id: 436, iniciado_em: "2026-10-05T12:00:00Z" },
-    ];
+    atendimentos = [{ lead_id: "lead-jorge", chatwoot_conversation_id: 436, iniciado_em: "2026-10-05T12:00:00Z" }];
 
     const avisos = await pedirAFila();
     const doLead = (id: string) => avisos.find((a) => a.lead_id === id)?.mensagem ?? "";
 
-    expect(doLead("lead-jorge")).toContain("/conversations/436");
-    expect(doLead("lead-ana")).toContain("/conversations/77");
+    expect(doLead("lead-jorge")).toMatch(/Falar agora: \S+\/admin\/leads\/lead-jorge/);
+    expect(doLead("lead-ana")).toMatch(/Abrir no painel: \S+\/admin\/leads\/lead-ana/);
   });
 
   it("se a leitura das conversas falhar, o aviso sai mesmo assim, com o link do painel", async () => {
@@ -179,10 +169,7 @@ describe("o link do aviso ao vendedor", () => {
 
     expect(avisos).toHaveLength(1);
     expect(avisos[0].mensagem).toContain("Abrir no painel:");
-    expect(console.warn).toHaveBeenCalledWith(
-      "[Funil] Sem a conversa do Chatwoot nos avisos:",
-      "fora do ar",
-    );
+    expect(console.warn).toHaveBeenCalledWith("[Funil] Sem as conversas nos avisos:", "fora do ar");
   });
 
   it("linha suprimida não entra na leitura das conversas", async () => {
@@ -194,6 +181,7 @@ describe("o link do aviso ao vendedor", () => {
     expect(avisos).toEqual([]);
   });
 });
+
 
 /**
  * A cópia do gestor (2026-10-10): *"configure o gestor para receber cada lead
@@ -229,7 +217,7 @@ describe("o gestor recebe cada lead que entra ou é transferido", () => {
     expect(copia.mensagem).toContain("• Responsável: Davi Perez");
     expect(copia.mensagem).toContain("• Antes: Rodrigo Naumowicz");
     expect(copia.mensagem).toContain("• Parado há 4,2 dias");
-    expect(copia.mensagem).toContain("Conversa: https://app.chat.v2o5.com.br/app/accounts/3/conversations/436");
+    expect(copia.mensagem).toMatch(/Conversa: \S+\/admin\/leads\/lead-jorge/);
     expect(copia.mensagem).not.toContain("wa.me");
   });
 

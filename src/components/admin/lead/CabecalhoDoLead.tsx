@@ -25,6 +25,7 @@ import type { FichaDoLead } from "../../../lib/aquecimento";
 import { iniciais, opcaoSemResponsavel, opcoesDoCard } from "../../../lib/leadsKanban";
 import { mensagemDeRetomadaAoCliente } from "../../../lib/resumoParaOVendedor";
 import { Segmentado } from "../SegmentadoDoPainel";
+import { irParaAConversa } from "./irParaAConversa";
 
 /**
  * Bloco h do detalhe: quem é o lead, onde ele está e os gestos que mudam isso.
@@ -88,14 +89,16 @@ export default function CabecalhoDoLead({
   const fecham = destinos.filter((e) => !ehDescarte(e.tipo));
   const descartam = destinos.filter((e) => ehDescarte(e.tipo));
 
+  // O `wa.me` fica sempre, com a retomada escrita: é do vendedor que atende do
+  // próprio número. Com conversa pelo WhatsApp da loja, "Conversa" leva ao
+  // bloco de atendimento logo abaixo — o atalho que era do Chatwoot.
   const conversa = linkDeConversa(
     lead.telefone,
     (retomada &&
       mensagemDeRetomadaAoCliente({ nomeDoCliente: lead.nome, vendedor: lead.responsavel, nomeDoAssistente: retomada.nomeDoAssistente, ficha: retomada.ficha })) ||
       mensagemParaCliente(lead, { vendedor: lead.responsavel }),
-    lead.chatwoot_conversation_id,
   );
-  const destino = destinoDaConversa(lead.telefone, lead.chatwoot_conversation_id);
+  const destino = destinoDaConversa(lead.telefone, lead.tem_conversa);
   const telefone = formatarTelefone(lead.telefone);
   const discavel = numeroDiscavel(lead.telefone);
   const aviso = AVISO_DE_ESTAGNACAO[nivel];
@@ -134,6 +137,15 @@ export default function CabecalhoDoLead({
       </div>
 
       <div className="flex flex-wrap items-stretch gap-2">
+        {destino === "painel" && (
+          <button
+            type="button"
+            onClick={() => irParaAConversa(lead.id)}
+            className="mt-foco flex cursor-pointer items-center gap-1.5 border border-mt-accent bg-mt-accent px-3 py-[9px] text-[11px] font-semibold text-mt-bg hover:opacity-90 pointer-coarse:min-h-11"
+          >
+            Conversa
+          </button>
+        )}
         {conversa && (
           <a
             href={conversa}
@@ -142,7 +154,7 @@ export default function CabecalhoDoLead({
             onClick={aoConversar}
             className="mt-foco flex items-center gap-1.5 border border-mt-accent bg-mt-bg px-3 py-[9px] text-[11px] font-semibold text-mt-accent hover:bg-mt-accent-100 pointer-coarse:min-h-11"
           >
-            {destino === "chatwoot" ? "Abrir no Chatwoot" : "WhatsApp"}
+            WhatsApp
             <span className="font-normal tabular-nums text-mt-neutral-700">{telefone}</span>
           </a>
         )}

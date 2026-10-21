@@ -238,6 +238,41 @@ export async function baixarMidia(
   }
 }
 
+/**
+ * As mensagens que a instância guardou, de uma conversa (2026-10-21, o
+ * histórico do WhatsApp no painel). Nunca lança.
+ *
+ * `filtro` é aplicado à `key` da mensagem: `{ remoteJid }` ou `{ remoteJidAlt }`
+ * — o WhatsApp entrega quem tem LID como `…@lid`, com o telefone em
+ * `remoteJidAlt`. A Evolution devolve da mais nova para a mais velha.
+ */
+export async function buscarMensagens(
+  filtro: { remoteJid: string } | { remoteJidAlt: string },
+  cfg: ConfigDaEvolution,
+  opcoes: { quantas?: number; transporte?: Transporte; timeoutMs?: number } = {},
+): Promise<{ ok: true; registros: Record<string, unknown>[] } | { ok: false; motivo: string }> {
+  const transporte = opcoes.transporte ?? fetch;
+  const controle = new AbortController();
+  const relogio = setTimeout(() => controle.abort(), opcoes.timeoutMs ?? TIMEOUT_MS);
+  try {
+    const resposta = await transporte(`${cfg.url}/chat/findMessages/${encodeURIComponent(cfg.instancia)}`, {
+      method: "POST",
+      headers: { apikey: cfg.chave, "Content-Type": "application/json" },
+      body: JSON.stringify({ where: { key: filtro }, page: 1, offset: Math.max(1, Math.min(opcoes.quantas ?? 100, 200)) }),
+      signal: controle.signal,
+    });
+    const corpo = (await resposta.json().catch(() => null)) as { messages?: { records?: unknown } } | null;
+    if (!resposta.ok) return { ok: false, motivo: `a Evolution não entregou o histórico (HTTP ${resposta.status})` };
+    const registros = Array.isArray(corpo?.messages?.records) ? (corpo!.messages!.records as unknown[]) : [];
+    return { ok: true, registros: registros.filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === "object") };
+  } catch (erro) {
+    const abortou = erro instanceof Error && erro.name === "AbortError";
+    return { ok: false, motivo: abortou ? "a Evolution não entregou o histórico a tempo" : `falha ao falar com a Evolution: ${erro instanceof Error ? erro.message : String(erro)}` };
+  } finally {
+    clearTimeout(relogio);
+  }
+}
+
 export interface AnexoParaEnvio {
   /** Uma URL que a Evolution consegue baixar (a assinada do bucket). */
   url: string;

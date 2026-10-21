@@ -54,10 +54,10 @@ describe("o card do lead", () => {
     }
   });
 
-  it("no toque, o link da conversa e as setas têm 44px", () => {
+  it("no toque, o botão da conversa (o do painel e o do WhatsApp) e as setas têm 44px", () => {
     // O tablet de balcão é uso real desta tela (ver o cabeçalho do LeadsKanban).
     const alvos = card.match(/pointer-coarse:min-h-11/g) ?? [];
-    expect(alvos.length).toBe(3);
+    expect(alvos.length).toBe(4);
     expect(card.match(/pointer-coarse:min-w-11/g) ?? []).toHaveLength(2);
   });
 });

@@ -568,6 +568,27 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   MP4), e a Evolution converte. O texto, se houver, vai à parte. O microfone
   abre só no clique e fecha ao parar, cancelar ou sair da tela; permissão
   negada diz como liberar (`lib/gravacaoDeAudio.ts`).
+- **↻ Trazer histórico do WhatsApp** (21/10, *"é possível trazer o histórico
+  mais recente de mensagens dos leads ainda ativos no painel?"*): a conversa do
+  painel começou na troca; o que veio antes (Chatwoot, celular da loja) está
+  na instância da Evolution desde julho. O botão — e, para os leads abertos, a
+  rota do motor em lotes — busca as conversas do lead em três chaves (o
+  telefone, com e sem o nono dígito; o telefone ao lado do LID, que é como o
+  WhatsApp entrega o cliente; e o próprio LID, onde moram as respostas da
+  loja), lê cada mensagem como o webhook lê e grava as 50 mais recentes. O id
+  do WhatsApp não repete; a mensagem do cliente entra já respondida (o
+  assistente não responde ao passado); quem escreveu pela loja antes da troca
+  entra como "Loja"; foto, áudio e documento antigos ficam como marca
+  ("arquivo só no celular da loja"). O rastro do lead diz quantas vieram
+  (`lib/historicoDoWhatsApp.ts`).
+- **O botão do card leva à conversa do painel** (21/10, *"revisar os cards do
+  whatsapp no painel que ainda tem o atalho do chatwoot"*): lead com conversa
+  pelo WhatsApp da loja (um atendimento, do Chatwoot ou da Evolution) mostra
+  **Conversa**, que abre o lead já na caixa de resposta; sem conversa, segue o
+  **WhatsApp** com a mensagem escrita. O cabeçalho do lead ganha **Conversa**
+  ao lado do WhatsApp (que fica, com a retomada, para quem atende do próprio
+  número). Os avisos do funil trocaram o link do Chatwoot pelo do lead no
+  painel ("Falar agora" com conversa, "Abrir no painel" sem).
 - **O botão de WhatsApp do cabeçalho retoma de onde o assistente parou**: com
   a ficha preenchida, o rascunho se apresenta, lista o que o cliente disse
   (carro, troca, pagamento, visita) para ele confirmar e termina no próximo
@@ -601,6 +622,8 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/responder` | n8n | `{ lead_id, mensagem_id }`. Só a última da rajada responde; até 120 s (duas voltas). |
 | `POST /api/atendimento/rodada` | n8n, a cada 15 min | `{ reservar: true }` envia e devolve; sem ele é **prévia**. |
 | `GET/POST /api/leads/[id]/conversa` | painel | Lê a conversa (pela sessão, com o escopo do lead) / responde pelo número da loja — texto, ou `anexo.caminho` com a legenda. |
+| `POST /api/leads/[id]/conversa/historico` | painel | "↻ Trazer histórico do WhatsApp": as 50 mensagens mais recentes que a Evolution guardou entram na conversa do lead, sem repetir (21/10). |
+| `POST /api/atendimento/historico` | à mão, com o token do motor | O mesmo para os leads abertos, em lotes: `{ limite, depois_de }` → `proximo` até voltar nulo (21/10). |
 | `POST /api/leads/[id]/conversa/anexo` | painel | `{ nome, tipo, bytes }` → `{ caminho, token }`: a URL assinada de upload na pasta do lead, só para o que o WhatsApp aceita. |
 | `GET /api/leads/[id]/conversa/midia/[mensagem]` | painel | O arquivo da mensagem: confere o escopo, lê a mensagem pela sessão e responde 307 para a URL assinada de 5 min (`?baixar=1` baixa com o nome). |
 | `POST /api/leads/[id]/assistente` | painel | `pausar`, `retomar`, `entregar`, `devolver`. |

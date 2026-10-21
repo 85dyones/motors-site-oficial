@@ -47,7 +47,8 @@ const JOANA = leadDeTeste("l1", "Joana", {
   proximo_passo_vence_em: HA_DOIS_DIAS,
   ultima_interacao: { tipo: "whatsapp", quando: HA_DOIS_DIAS, texto: "Pediu a simulação com entrada de dez mil.", autor: "Ana" },
 });
-const PEDRO = leadDeTeste("l2", "Pedro", { interesse: "Onix 2022", responsavel: "Ana", situacao: "em_contato" });
+// Pedro já conversa pelo WhatsApp da loja: o botão abre a conversa no painel.
+const PEDRO = leadDeTeste("l2", "Pedro", { interesse: "Onix 2022", responsavel: "Ana", situacao: "em_contato", tem_conversa: true });
 
 let escopo: string;
 let chamadas: Array<{ metodo: string; url: string; corpo?: Record<string, unknown> }>;
@@ -152,6 +153,21 @@ describe("o card enxuto, na tela", () => {
     await clicar(link);
     expect(patches().map((p) => p.corpo)).toEqual([{ id: "l1", contato: "whatsapp" }]);
     expect(gaveta()).toBeNull();
+  });
+
+  // 2026-10-21: o atalho do Chatwoot saiu. Com conversa pelo WhatsApp da loja,
+  // o botão leva à conversa no painel — sem wa.me, sem Chatwoot.
+  it("lead com conversa: o botão Conversa abre o detalhe, sem registrar contato nem link de fora", async () => {
+    await montar();
+    const card = cardDe(container, "l2")!;
+    expect(card.querySelector("a")).toBeNull();
+    const botao = [...card.querySelectorAll("button")].find((b) => (b.textContent ?? "").startsWith("Conversa"))!;
+    expect(botao.textContent).toContain("Conversa");
+    expect(card.textContent).not.toContain("Chatwoot");
+    await clicar(botao);
+    expect(patches()).toEqual([]);
+    expect(gaveta()).not.toBeNull();
+    expect(urlDaTela()).toContain("lead=l2");
   });
 
   it("clicar no card abre a gaveta, marca o card e põe o lead na URL", async () => {

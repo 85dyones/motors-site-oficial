@@ -42,6 +42,11 @@ import type { ConversaDoLead } from "./useConversaDoLead";
  * ouvir antes, e sai como nota de voz. O texto, se houver, vai à parte — nota
  * de voz não tem legenda.
  *
+ * Histórico (2026-10-21, pedido do dono: *"é possível trazer o histórico mais
+ * recente de mensagens dos leads ainda ativos no painel?"*): o botão traz as
+ * mensagens mais recentes que a Evolution guardou de antes da troca — sem
+ * repetir, sem o assistente responder ao passado (`lib/historicoDoWhatsApp.ts`).
+ *
  * O resumo e o aquecimento eram abas daqui; desde 2026-10-20 ficam no bloco q,
  * sempre à vista na coluna da direita (`AquecimentoDoLead`) — pedido do dono:
  * o resumo sempre pronto, junto com os dados do aquecimento. Os dois blocos
@@ -165,6 +170,35 @@ export default function AtendimentoDoLead({
     }
   }
 
+  /** As mensagens de antes da troca, que a Evolution guardou, entram na conversa. */
+  async function trazerHistorico() {
+    if (ocupado) return;
+    setOcupado(true);
+    setAviso(null);
+    try {
+      const r = await fetch(`/api/leads/${encodeURIComponent(leadId)}/conversa/historico`, { method: "POST" });
+      const corpo = (await r.json().catch(() => null)) as { error?: string; trazidas?: number } | null;
+      if (!r.ok) {
+        setErro(corpo?.error ?? "Não deu para trazer o histórico do WhatsApp.");
+      } else {
+        const n = Number(corpo?.trazidas) || 0;
+        setErro(null);
+        setAviso(
+          n === 0
+            ? "O histórico do WhatsApp já está todo aqui."
+            : n === 1
+              ? "1 mensagem antiga trazida do WhatsApp."
+              : `${n} mensagens antigas trazidas do WhatsApp.`,
+        );
+      }
+    } catch {
+      setErro("Não deu para trazer o histórico do WhatsApp.");
+    } finally {
+      setOcupado(false);
+      await ler();
+    }
+  }
+
   async function agir(acao: AcaoNaTela) {
     if (ocupado) return;
     setOcupado(true);
@@ -208,6 +242,11 @@ export default function AtendimentoDoLead({
             <span aria-hidden="true">{EMOJI_DA_TEMPERATURA[estado.temperatura]} </span>
             {selo}
           </span>
+        )}
+        {assistente?.whatsapp_ligado !== false && (
+          <button type="button" onClick={() => void trazerHistorico()} disabled={ocupado} className={`${BOTAO_FINO} ml-auto`}>
+            ↻ Trazer histórico do WhatsApp
+          </button>
         )}
       </div>
 

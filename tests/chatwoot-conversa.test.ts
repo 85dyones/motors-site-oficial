@@ -70,39 +70,29 @@ describe("o endereço da conversa", () => {
   });
 });
 
-describe("o degrau: Chatwoot quando existe, WhatsApp quando não", () => {
-  // Sem env no ambiente de teste, `linkDaConversa` interno devolve "" e o
-  // degrau cai no wa.me. É exatamente o comportamento de uma instalação sem
-  // Chatwoot configurado — a falta de configuração degrada, não quebra.
-  it("sem Chatwoot configurado, continua abrindo o WhatsApp", () => {
-    expect(linkDeConversa("41999990000", undefined, 4821)).toBe("https://wa.me/5541999990000");
-    expect(destinoDaConversa("41999990000", 4821)).toBe("whatsapp");
+// Desde 2026-10-21 o Chatwoot saiu de cena: o card leva à conversa no painel
+// (lead com conversa pelo WhatsApp da loja) ou ao WhatsApp (sem conversa).
+describe("o botão de conversa: o painel quando há conversa, o WhatsApp quando não", () => {
+  it("lead com conversa pelo WhatsApp da loja: a conversa no painel", () => {
+    expect(destinoDaConversa("41999990000", true)).toBe("painel");
   });
 
   it("lead sem conversa cai no WhatsApp — é o caso do lead recém-chegado", () => {
-    expect(linkDeConversa("41999990000", undefined, null)).toBe("https://wa.me/5541999990000");
+    expect(linkDeConversa("41999990000")).toBe("https://wa.me/5541999990000");
+    expect(destinoDaConversa("41999990000", false)).toBe("whatsapp");
     expect(destinoDaConversa("41999990000", null)).toBe("whatsapp");
   });
 
   it("a mensagem pré-escrita continua viajando no WhatsApp", () => {
-    // Ela foi pedida pelo dono como "atalho para FALAR". O Chatwoot não aceita
-    // texto na URL, e é por isso que `destinoDaConversa` existe: a tela não
-    // pode prometer uma mensagem que só um dos dois caminhos entrega.
     const url = linkDeConversa("41999990000", "Olá, tudo bem?");
     expect(url).toBe("https://wa.me/5541999990000?text=Ol%C3%A1%2C%20tudo%20bem%3F");
   });
 
-  it("sem número e sem conversa, não há botão", () => {
-    expect(linkDeConversa("", undefined, null)).toBe("");
+  it("sem número, não há botão — nem com conversa", () => {
+    expect(linkDeConversa("")).toBe("");
     expect(linkDeConversa(null)).toBe("");
     expect(destinoDaConversa(null, null)).toBe("nenhum");
-  });
-
-  it("id inválido não engole o WhatsApp", () => {
-    // Se um id corrompido fizesse o Chatwoot "ganhar" o degrau devolvendo algo
-    // não-vazio, o vendedor perderia o único caminho que funciona.
-    for (const ruim of ["", "abc", "0", "-1"]) {
-      expect(linkDeConversa("41999990000", undefined, ruim)).toBe("https://wa.me/5541999990000");
-    }
+    expect(destinoDaConversa("", true)).toBe("nenhum");
   });
 });
+

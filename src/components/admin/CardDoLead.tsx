@@ -21,6 +21,7 @@ import {
 import { iniciais } from "../../lib/leadsKanban";
 import { seloDaTemperatura } from "../../lib/atendimentoNaTela";
 import { EMOJI_DA_TEMPERATURA, SELO_DA_TEMPERATURA } from "./lead/temperaturaNaTela";
+import { irParaAConversa } from "./lead/irParaAConversa";
 
 /**
  * O card enxuto do quadro (desenho de 23/09/2026, `docs/design/gestao_do_lead`).
@@ -81,14 +82,12 @@ export default function CardDoLead({
   aoTerminarArrasto: () => void;
 }) {
   const aviso = AVISO_DE_ESTAGNACAO[nivel];
-  // O id da conversa vem na resposta de `/api/leads/gerenciar`. Existindo, o
-  // link abre o Chatwoot; senão cai no WhatsApp, com a mensagem já escrita.
-  const conversa = linkDeConversa(
-    l.telefone,
-    mensagemParaCliente(l, { vendedor: l.responsavel }),
-    l.chatwoot_conversation_id,
-  );
-  const destino = destinoDaConversa(l.telefone, l.chatwoot_conversation_id);
+  // Com conversa pelo WhatsApp da loja (`tem_conversa`, de
+  // `/api/leads/gerenciar`), o botão abre a conversa no painel — o papel que
+  // era do Chatwoot até 2026-10-21. Sem conversa, o WhatsApp, com a mensagem
+  // já escrita.
+  const conversa = linkDeConversa(l.telefone, mensagemParaCliente(l, { vendedor: l.responsavel }));
+  const destino = destinoDaConversa(l.telefone, l.tem_conversa);
   const telefone = formatarTelefone(l.telefone);
   const etiquetas = l.etiquetas ?? [];
   const ultima = l.ultima_interacao ?? null;
@@ -215,7 +214,22 @@ export default function CardDoLead({
       )}
 
       <div className="flex items-stretch gap-1">
-        {conversa ? (
+        {destino === "painel" ? (
+          <button
+            type="button"
+            draggable={false}
+            onClick={(e) => {
+              e.stopPropagation();
+              aoAbrir(l.id);
+              irParaAConversa(l.id);
+            }}
+            className="mt-foco flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 border border-mt-accent bg-transparent px-2 py-1 text-[11px] font-semibold text-mt-accent hover:bg-mt-accent-100 pointer-coarse:min-h-11"
+          >
+            {/* A conversa pelo WhatsApp da loja, no painel: responder ali fica registrado. */}
+            Conversa
+            <span className="truncate font-normal tabular-nums text-mt-neutral-700">{telefone}</span>
+          </button>
+        ) : conversa ? (
           <a
             href={conversa}
             target="_blank"
@@ -227,9 +241,8 @@ export default function CardDoLead({
             }}
             className="mt-foco flex min-w-0 flex-1 items-center justify-center gap-1.5 border border-mt-accent px-2 py-1 text-[11px] font-semibold text-mt-accent hover:bg-mt-accent-100 pointer-coarse:min-h-11"
           >
-            {/* O rótulo diz para ONDE vai: no WhatsApp a mensagem já vai
-                escrita; no Chatwoot o consultor digita. */}
-            {destino === "chatwoot" ? "Chatwoot" : "WhatsApp"}
+            {/* O rótulo diz para ONDE vai: no WhatsApp a mensagem já vai escrita. */}
+            WhatsApp
             <span className="truncate font-normal tabular-nums text-mt-neutral-700">{telefone}</span>
           </a>
         ) : (
