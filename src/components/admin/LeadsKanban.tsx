@@ -35,8 +35,10 @@ import {
   type EstadoNaUrl,
   type LeadDaFila,
 } from "../../lib/filaDoFunil";
+import { aplicarNovidades, esperandoPrimeiro, filtrarEsperando } from "../../lib/conversaNoCard";
+import { filtrarComONey } from "../../lib/atendimentoNaTela";
 import ModalDeDesfecho, { type DesfechoEscolhido } from "./ModalDeDesfecho";
-import CardDoLead from "./CardDoLead";
+import CardDoLead, { type ResultadoDoEnvioAoNey } from "./CardDoLead";
 import ControlesDoFunil from "./ControlesDoFunil";
 import DetalheDoLead from "./DetalheDoLead";
 import FechadosDoFunil from "./FechadosDoFunil";
@@ -163,6 +165,11 @@ const telaLarga = () => typeof window.matchMedia !== "function" || window.matchM
 /** A pausa de digitação antes de a busca sair. */
 const PAUSA_DA_BUSCA_MS = 350;
 
+/** A cada quanto o quadro pergunta o que mudou na conversa e no Ney (21/10/2026). */
+const INTERVALO_DAS_NOVIDADES_MS = 60_000;
+/** O lead mexido nesta tela há menos que isto não recebe o estado das novidades. */
+const JANELA_DO_MEXIDO_MS = 2 * 60_000;
+
 /** Leva o foco de volta a quem abriu o detalhe: o card, a linha da lista. */
 function focarQuemAbriu(id: string) {
   const alvo = [...document.querySelectorAll<HTMLElement>("[data-abre-lead]")].find(
@@ -209,6 +216,9 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
 
   const [chip, setChip] = useState<ChipDoFunil | null>(null);
   const [soParados, setSoParados] = useState(false);
+  /** "Esperando resposta" e "Com o Ney" (21/10/2026): os filtros da conversa. */
+  const [soEsperando, setSoEsperando] = useState(false);
+  const [soComONey, setSoComONey] = useState(false);
   const [soSemDono, setSoSemDono] = useState(false);
   /** Há registro começado no detalhe aberto (quem diz é o detalhe). */
   const [rascunhoAberto, setRascunhoAberto] = useState(false);
@@ -277,6 +287,36 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
     return () => clearInterval(t);
   }, []);
 
+  // ── a conversa e o Ney, ao vivo (21/10/2026) ──────────────────────────
+  // "Uma visualização clara sobre leads que estão com o Ney, assim como as
+  // mensagens, para não precisar abrir cada um." A fila só se relia ao abrir
+  // e no Atualizar; o selo de cliente esperando e o do Ney ficariam velhos
+  // em minutos. A cada minuto, com a aba à vista, o quadro pergunta o que
+  // mudou (`/api/leads/novidades`) e junta (`aplicarNovidades`), sem relê-lo.
+  /** Quando cada lead foi mexido nesta tela: a novidade não desfaz o arrasto de agora há pouco. */
+  const mexidos = useRef(new Map<string, number>());
+  const marcarMexido = useCallback((id: string) => {
+    mexidos.current.set(id, Date.now());
+  }, []);
+  /** O `agora` do servidor na última resposta: a próxima pergunta é "desde então". */
+  const desdeDasNovidades = useRef<string | null>(null);
+  const buscarNovidades = useCallback(async () => {
+    try {
+      const desde = desdeDasNovidades.current;
+      const res = await fetch(`/api/leads/novidades${desde ? `?desde=${encodeURIComponent(desde)}` : ""}`);
+      if (!res.ok) return;
+      const d = (await res.json().catch(() => null)) as { agora?: unknown } | null;
+      if (!d || typeof d.agora !== "string") return;
+      desdeDasNovidades.current = d.agora;
+      const agoraMs = Date.now();
+      const intocaveis = new Set([...mexidos.current].filter(([, quando]) => agoraMs - quando < JANELA_DO_MEXIDO_MS).map(([id]) => id));
+      setLeads((atual) => aplicarNovidades(atual, d, intocaveis));
+      setAgora(agoraMs);
+    } catch {
+      // Sem rede agora: a próxima volta tenta de novo.
+    }
+  }, []);
+
   /**
    * Lê a fila — ou, com `buscaPedida`, a busca. Sem parâmetro de propósito.
    *
@@ -309,6 +349,8 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
         setAgregado({ total: d.total, porSituacao: d.porSituacao });
       } else {
         setLeads(d.leads ?? []);
+        // A fila acabou de vir inteira: a próxima novidade conta daqui.
+        desdeDasNovidades.current = null;
         // Junto com os leads, e só quando eles chegam: se a busca falhar, a
         // tela continua mostrando — e dizendo — o que mostrava antes.
         setBuscaNaTela(d.busca ?? null);
@@ -338,6 +380,23 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  // As novidades: a cada minuto com a aba à vista, e na volta à aba.
+  const temFila = !migracaoPendente && !agregado;
+  useEffect(() => {
+    if (!temFila) return;
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") void buscarNovidades();
+    }, INTERVALO_DAS_NOVIDADES_MS);
+    const aoVoltarParaAAba = () => {
+      if (document.visibilityState === "visible") void buscarNovidades();
+    };
+    document.addEventListener("visibilitychange", aoVoltarParaAAba);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", aoVoltarParaAAba);
+    };
+  }, [temFila, buscarNovidades]);
 
   // As etiquetas de todos os leads etiquetados, uma vez, e só se dá para
   // editar. Falhou, o detalhe fica com as vistas na fila.
@@ -444,6 +503,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
         camposDoLead.desfecho = ehTipoDeDesfecho(tipo) ? tipo : null;
         camposDoLead.desfecho_em = ehTipoDeDesfecho(tipo) ? new Date().toISOString() : null;
       }
+      marcarMexido(id);
       setLeads((atual) =>
         atual.map((l) =>
           l.id === id
@@ -481,7 +541,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
         falhou(e.message);
       }
     },
-    [falhou, etapas],
+    [falhou, etapas, marcarMexido],
   );
 
   /**
@@ -536,13 +596,44 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
     [salvar],
   );
 
+  /**
+   * "Enviar ao Ney" do card (21/10/2026): o "Ney retoma agora" do detalhe —
+   * ele lê a conversa e escreve na próxima rodada; o card fica na etapa.
+   * Quem recusa (assistente desligado, cliente que nunca escreveu) é o
+   * servidor, e o card mostra o porquê.
+   */
+  const enviarAoNey = useCallback(
+    async (lead: LeadDaFila): Promise<ResultadoDoEnvioAoNey> => {
+      try {
+        const res = await fetch(`/api/leads/${encodeURIComponent(lead.id)}/assistente`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ acao: "assumir" }),
+        });
+        const d = (await res.json().catch(() => null)) as { error?: string; aviso?: string } | null;
+        if (!res.ok) return { ok: false, texto: d?.error ?? "Não deu para enviar ao Ney." };
+        setLeads((atual) =>
+          atual.map((l) =>
+            l.id === lead.id ? { ...l, assistente_fase: "reaquecendo", cadencia_passo: 0, cadencia_proximo_em: new Date().toISOString() } : l,
+          ),
+        );
+        void buscarNovidades();
+        return { ok: true, texto: d?.aviso ?? "O Ney ficou com o lead." };
+      } catch {
+        return { ok: false, texto: "Não deu para enviar ao Ney." };
+      }
+    },
+    [buscarNovidades],
+  );
+
   /** O detalhe mudou o lead (registro, etapa, responsável): o card acompanha. */
   const aoMudarLead = useCallback((id: string, campos: Partial<LeadDaFila>) => {
+    marcarMexido(id);
     setLeads((atual) => atual.map((l) => (l.id === id ? { ...l, ...campos } : l)));
     // O relógio da tela acompanha: o passo que acabou de ser gravado para
     // "agora" não pode se ler como futuro até o próximo tique.
     setAgora(Date.now());
-  }, []);
+  }, [marcarMexido]);
 
   const aoSairDeSincronia = useCallback(() => {
     void carregar();
@@ -570,11 +661,16 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   const veSemDono = escopoDoServidor === "todos";
   const semDono = useMemo(() => filtrarPorResponsavel(emAberto, SEM_DONO), [emAberto]);
   const parados = useMemo(() => filtrarParados(emAberto, etapas, agora), [emAberto, etapas, agora]);
+  const esperando = useMemo(() => filtrarEsperando(emAberto, agora), [emAberto, agora]);
+  const comONey = useMemo(() => filtrarComONey(emAberto), [emAberto]);
   /** O que os filtros de ligar e desligar deixam: é o que a Lista do dia agrupa. */
   const filtrados = useMemo(() => {
-    const porDono = soSemDono && veSemDono ? filtrarPorResponsavel(emAberto, SEM_DONO) : emAberto;
-    return soParados ? filtrarParados(porDono, etapas, agora) : porDono;
-  }, [emAberto, soSemDono, veSemDono, soParados, etapas, agora]);
+    let lista = soSemDono && veSemDono ? filtrarPorResponsavel(emAberto, SEM_DONO) : emAberto;
+    if (soParados) lista = filtrarParados(lista, etapas, agora);
+    if (soEsperando) lista = filtrarEsperando(lista, agora);
+    if (soComONey) lista = filtrarComONey(lista);
+    return lista;
+  }, [emAberto, soSemDono, veSemDono, soParados, soEsperando, soComONey, etapas, agora]);
   const visiveis = useMemo(() => filtrarPorChip(filtrados, chip, agora), [filtrados, chip, agora]);
 
   // As colunas do quadro são só as etapas ABERTAS: ganho e perdido viraram
@@ -837,6 +933,12 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
           parados={parados.length}
           soParados={soParados}
           aoAlternarParados={() => setSoParados((v) => !v)}
+          esperando={esperando.length}
+          soEsperando={soEsperando}
+          aoAlternarEsperando={() => setSoEsperando((v) => !v)}
+          comONey={comONey.length}
+          soComONey={soComONey}
+          aoAlternarComONey={() => setSoComONey((v) => !v)}
           semResponsavel={veSemDono ? semDono.length : null}
           soSemResponsavel={soSemDono && veSemDono}
           aoAlternarSemResponsavel={() => {
@@ -990,7 +1092,11 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
                 className="relative flex gap-0.5 overflow-x-auto pb-4"
               >
                 {colunasVisiveis.map((etapa, i) => {
-                  const daEtapa = visiveis.filter((l) => l.situacao === etapa.chave);
+                  // Quem espera resposta no topo da coluna, o mais antigo primeiro.
+                  const daEtapa = esperandoPrimeiro(
+                    visiveis.filter((l) => l.situacao === etapa.chave),
+                    agora,
+                  );
                   const alvo = colunaAlvo === etapa.chave && arrastando !== null;
                   return (
                     <div
@@ -1066,6 +1172,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
                             aoVoltar={() => mover(l.id, colunasVisiveis[i - 1].chave)}
                             aoAvancar={() => mover(l.id, colunasVisiveis[i + 1].chave)}
                             aoConversar={falarNoWhatsApp}
+                            aoEnviarAoNey={enviarAoNey}
                             aoComecarArrasto={(e) => {
                               e.dataTransfer.setData("text/plain", l.id);
                               e.dataTransfer.effectAllowed = "move";

@@ -39,12 +39,15 @@ import {
   decidirToque,
   dentroDoExpediente,
   entraNaBase,
+  etapaDaVolta,
   interesseDaCadencia,
+  ETAPA_DO_REAQUECIMENTO,
   ETAPAS_DA_BASE,
   podeAvisarAEquipe,
   preencherModelo,
   vencimentoDoPasso,
   MOTIVO_SEM_TOQUE,
+  type EtapaParaAVolta,
   type LeadNaCadencia,
   type MotivoSemToque,
   type NomeDaCadencia,
@@ -593,6 +596,7 @@ async function devolverAoHumano(supabase: Banco, leadId: string, agora: Date, mo
     .update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null })
     .eq("id", leadId);
   await assistenteNoSla(supabase, leadId, false, agora);
+  await voltarDoReaquecimento(supabase, leadId);
   await anotarNoRastro(supabase, leadId, `O lead voltou para a equipe: ${motivo}.`, { acao: "devolucao_automatica", motivo });
 }
 
@@ -963,6 +967,7 @@ async function registrarSaidaDaLoja(
       .update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null })
       .eq("id", leadId);
     await assistenteNoSla(supabase, leadId, false, agora);
+    await voltarDoReaquecimento(supabase, leadId);
     await anotarNoRastro(supabase, leadId, "Alguém respondeu pelo celular da loja: o assistente saiu da conversa.", {
       acao: "pausa",
       por: "celular_da_loja",
@@ -1372,6 +1377,7 @@ async function responderUmaVez(
 
   if (sinais.optout) {
     await assistenteNoSla(supabase, leadId, false, agora);
+    await voltarDoReaquecimento(supabase, leadId);
     await anotarNoRastro(supabase, leadId, "O cliente pediu para não receber mais mensagens.", { acao: "optout" });
   }
 
@@ -1807,7 +1813,10 @@ async function moverParaVisita(supabase: Banco, lead: Linha): Promise<boolean> {
     const visita = lista.find((e) => e.chave === ETAPA_DE_VISITA);
     if (!visita || visita.ativa !== true || visita.tipo !== "aberta") return false;
     const atual = lista.find((e) => e.chave === lead.situacao);
-    if (atual && (atual.tipo !== "aberta" || Number(atual.ordem) >= Number(visita.ordem))) return false;
+    // De "Reaquecendo" vai sempre: é a etapa do assistente, onde quer que o
+    // dono a ponha no funil.
+    const doReaquecimento = lead.situacao === ETAPA_DO_REAQUECIMENTO;
+    if (atual && !doReaquecimento && (atual.tipo !== "aberta" || Number(atual.ordem) >= Number(visita.ordem))) return false;
     const { data: movidos, error: erroAoMover } = await supabase
       .from("leads")
       .update({ situacao: ETAPA_DE_VISITA })
@@ -1822,6 +1831,78 @@ async function moverParaVisita(supabase: Banco, lead: Linha): Promise<boolean> {
     return ((movidos ?? []) as Linha[]).length > 0;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Põe o lead na etapa "Reaquecendo" (pedido do dono, 21/10: *"os leads que o
+ * Ney estiver reaquecendo ou recuperando, vão para a etapa"*). Quem chama é a
+ * base parada e o "Ney reaquece com o tempo"; o "Ney retoma agora" deixa o
+ * lead onde está. Só lead aberto, numa etapa aberta, e só com a etapa ativa
+ * no funil (migração 20261028120000; sem ela, nada muda). A troca grava no
+ * rastro de onde ele saiu — é por ali que ele volta. Nunca lança.
+ */
+async function moverParaOReaquecimento(supabase: Banco, lead: Linha): Promise<boolean> {
+  try {
+    if (lead.desfecho || lead.situacao === ETAPA_DO_REAQUECIMENTO) return false;
+    const { data: etapas, error } = await supabase.from("funil_etapas").select("chave, tipo, ativa");
+    if (error) return false;
+    const lista = (etapas ?? []) as Linha[];
+    const destino = lista.find((e) => e.chave === ETAPA_DO_REAQUECIMENTO);
+    if (!destino || destino.ativa !== true || destino.tipo !== "aberta") return false;
+    const atual = lista.find((e) => e.chave === lead.situacao);
+    if (atual && atual.tipo !== "aberta") return false;
+    const { data: movidos, error: erroAoMover } = await supabase
+      .from("leads")
+      .update({ situacao: ETAPA_DO_REAQUECIMENTO })
+      .eq("id", String(lead.id))
+      .eq("situacao", lead.situacao)
+      .is("desfecho", null)
+      .select("id");
+    if (erroAoMover) {
+      console.error("[Atendimento] Lead não foi para Reaquecendo:", erroAoMover.message);
+      return false;
+    }
+    return ((movidos ?? []) as Linha[]).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * O assistente largou o lead (entregou, a cadência acabou, alguém pausou ou
+ * respondeu): se ele ainda está em "Reaquecendo", volta para a etapa de onde
+ * entrou — escolha do dono, 21/10 —, que o rastro guarda (`etapaDaVolta`). O
+ * lead que alguém já tirou da coluna fica onde a pessoa pôs. Nunca lança.
+ */
+async function voltarDoReaquecimento(supabase: Banco, leadId: string): Promise<void> {
+  try {
+    const { data: lead } = await supabase.from("leads").select("id, situacao, desfecho").eq("id", leadId).maybeSingle();
+    if (!lead || lead.desfecho || lead.situacao !== ETAPA_DO_REAQUECIMENTO) return;
+    const [{ data: entrada }, { data: etapas, error }] = await Promise.all([
+      supabase
+        .from("leads_eventos")
+        .select("de, criado_em")
+        .eq("lead_id", leadId)
+        .eq("tipo", "etapa")
+        .eq("para", ETAPA_DO_REAQUECIMENTO)
+        .order("criado_em", { ascending: false })
+        .limit(1),
+      supabase.from("funil_etapas").select("chave, tipo, ativa, ordem"),
+    ]);
+    if (error) return;
+    const de = ((entrada ?? []) as Linha[])[0]?.de ?? null;
+    const destino = etapaDaVolta(de, (etapas ?? []) as unknown as EtapaParaAVolta[]);
+    if (!destino) return;
+    const { error: erroAoVoltar } = await supabase
+      .from("leads")
+      .update({ situacao: destino })
+      .eq("id", leadId)
+      .eq("situacao", ETAPA_DO_REAQUECIMENTO)
+      .is("desfecho", null);
+    if (erroAoVoltar) console.error("[Atendimento] Lead não voltou de Reaquecendo:", erroAoVoltar.message);
+  } catch (erro) {
+    console.warn("[Atendimento] Lead não voltou de Reaquecendo:", erro instanceof Error ? erro.message : String(erro));
   }
 }
 
@@ -1924,6 +2005,9 @@ async function entregarAoVendedor(
   // Visita (decisão do dono, 20/10). É a etapa que conta como qualificado
   // para o Meta (`ETAPAS_QUALIFICADAS`): o envio de hora em hora a vê.
   const foiParaVisita = momento ? await moverParaVisita(supabase, lead) : false;
+  // Fora a visita, o lead que estava em "Reaquecendo" volta para a etapa de
+  // onde entrou: o vendedor o retoma de onde parou.
+  if (!foiParaVisita) await voltarDoReaquecimento(supabase, leadId);
 
   // Pediu condição, fechou visita ou está pronto para simular: negociando.
   await etiquetarPeloAssistente(supabase, leadId, etiquetasDaConversa(ficha, motivo), config.nome_do_assistente);
@@ -2613,11 +2697,12 @@ async function puxarABase(
         .select("id");
       if (!reservado || (reservado as Linha[]).length === 0) continue;
       await assistenteNoSla(supabase, leadId, true, agora);
+      const naColuna = await moverParaOReaquecimento(supabase, lead);
       const dias = Math.floor((agora.getTime() - (ultimaAtividade.get(leadId) ?? new Date(String(lead.created_at)).getTime())) / (24 * 60 * 60 * 1000));
       await anotarNoRastro(
         supabase,
         leadId,
-        `${config.nome_do_assistente} puxou o lead da base parada (${dias} dias sem contato) para a cadência de ${ROTULO_DA_CADENCIA[cadencia].toLowerCase()}. Se o cliente responder, ele qualifica e devolve ao mesmo responsável.`,
+        `${config.nome_do_assistente} puxou o lead da base parada (${dias} dias sem contato) para a cadência de ${ROTULO_DA_CADENCIA[cadencia].toLowerCase()}${naColuna ? ", na etapa Reaquecendo" : ""}. Se o cliente responder, ele qualifica e devolve ao mesmo responsável.`,
         { acao: "base", cadencia, dias_parado: dias },
       );
       puxados.push({ lead_id: leadId, cadencia });
@@ -2745,6 +2830,7 @@ export async function enviarDoPainel(
   if (FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
     await supabase.from("leads").update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", lead.id);
     await assistenteNoSla(supabase, String(lead.id), false, agora);
+    await voltarDoReaquecimento(supabase, String(lead.id));
     await anotarNoRastro(supabase, String(lead.id), `${pedido.autor} respondeu pelo painel: o assistente saiu da conversa.`, { acao: "pausa", por: "painel" }, pedido.autor);
   }
   return aviso ? { ok: true, aviso } : { ok: true };
@@ -2771,6 +2857,7 @@ export async function mudarAssistente(
   if (pedido.acao === "pausar") {
     await supabase.from("leads").update({ assistente_fase: "pausado", cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", leadId);
     await assistenteNoSla(supabase, leadId, false, agora);
+    await voltarDoReaquecimento(supabase, leadId);
     await anotarNoRastro(supabase, leadId, `${pedido.autor} pausou o assistente neste lead.`, { acao: "pausa", por: "painel" }, pedido.autor);
     return { ok: true };
   }
@@ -2869,7 +2956,14 @@ export async function mudarAssistente(
     .update({ assistente_fase: "reaquecendo", cadencia: "engajamento", cadencia_passo: 0, cadencia_proximo_em: proximo })
     .eq("id", leadId);
   await assistenteNoSla(supabase, leadId, true, agora);
-  await anotarNoRastro(supabase, leadId, `${pedido.autor} devolveu o lead ao assistente para reaquecer.`, { acao: "devolucao" }, pedido.autor);
+  const naColuna = await moverParaOReaquecimento(supabase, lead);
+  await anotarNoRastro(
+    supabase,
+    leadId,
+    `${pedido.autor} devolveu o lead ao assistente para reaquecer${naColuna ? ": o lead foi para a etapa Reaquecendo e volta para a de antes quando o assistente o largar" : ""}.`,
+    { acao: "devolucao" },
+    pedido.autor,
+  );
   return { ok: true };
 }
 

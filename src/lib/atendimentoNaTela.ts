@@ -234,8 +234,8 @@ export const EXPLICACAO_DA_ACAO: Record<AcaoNaTela, string> = {
   pausar: "o Ney sai da conversa e o SLA do vendedor volta a correr",
   retomar: "o Ney responde quando o cliente escrever",
   entregar: "passa ao vendedor agora, com o resumo",
-  assumir: "lê a conversa e escreve na próxima rodada, de onde ela parou — ou não escreve, se a conversa não pedir",
-  devolver: "toques em 7, 15 e 30 dias, lendo a conversa antes de cada um",
+  assumir: "lê a conversa e escreve na próxima rodada, de onde ela parou — ou não escreve, se a conversa não pedir; o card fica na etapa em que está",
+  devolver: "toques em 7, 15 e 30 dias, lendo a conversa antes de cada um; o card vai para Reaquecendo e volta para esta etapa quando o Ney largar",
   ler: "só a ficha, a nota e o resumo para o comercial, sem escrever ao cliente",
 };
 
@@ -360,4 +360,59 @@ export function linhaDaCadencia(
 export function posicaoNaRegua(pontos: number | null | undefined): number {
   const n = Number(pontos);
   return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+}
+
+// ---------------------------------------------------------------------------
+// O Ney no card do quadro (21/10/2026)
+// ---------------------------------------------------------------------------
+// Pedido do dono: "temos que ter uma visualização clara sobre leads que estão
+// com o Ney, assim como as mensagens, para não precisar abrir cada um, se
+// tiver um botão de enviar agora para o ney no card resumo, acho que seria
+// interessante também".
+
+/** O que o selo do Ney lê do lead. */
+export interface LeadDoNeyNoCard {
+  assistente_fase?: string | null;
+  cadencia_passo?: number | null;
+  cadencia_proximo_em?: string | null;
+  desfecho?: string | null;
+}
+
+export interface SeloDoNey {
+  /** `conversando`: qualificando com o cliente. `reaquecendo`: na cadência, esperando o cliente voltar. */
+  tom: "conversando" | "reaquecendo";
+  texto: string;
+}
+
+/**
+ * "Ney conversando", "Ney reaquecendo · 1º toque hoje 15:00", "Ney
+ * reaquecendo · 2 toques enviados". Nulo quando o Ney não está com o lead
+ * (nunca pegou, pausado, entregue) ou o negócio acabou. O card não sabe
+ * quantos toques a cadência tem — a configuração mora no servidor —, então
+ * diz o que já foi, e o primeiro, quando sai.
+ */
+export function seloDoNey(lead: LeadDoNeyNoCard, agora: Date, nome = "Ney"): SeloDoNey | null {
+  if (lead.desfecho) return null;
+  if (lead.assistente_fase === "qualificando") return { tom: "conversando", texto: `${nome} conversando` };
+  if (lead.assistente_fase !== "reaquecendo") return null;
+  const enviados = Math.max(0, Number(lead.cadencia_passo ?? 0));
+  if (enviados > 0) return { tom: "reaquecendo", texto: `${nome} reaquecendo · ${enviados} ${enviados === 1 ? "toque enviado" : "toques enviados"}` };
+  const proximo = lead.cadencia_proximo_em ? Date.parse(lead.cadencia_proximo_em) : NaN;
+  const quando = !Number.isFinite(proximo) ? "" : proximo <= agora.getTime() ? " na próxima rodada" : ` ${horaDaMensagem(lead.cadencia_proximo_em as string, agora)}`;
+  return { tom: "reaquecendo", texto: `${nome} reaquecendo · 1º toque${quando}` };
+}
+
+/** O filtro "Com o Ney": quem ele está qualificando ou reaquecendo. */
+export function filtrarComONey<T extends LeadDoNeyNoCard>(leads: readonly T[]): T[] {
+  return leads.filter((l) => !l.desfecho && (l.assistente_fase === "qualificando" || l.assistente_fase === "reaquecendo"));
+}
+
+/**
+ * O card oferece "Enviar ao Ney" (o "Ney retoma agora" do detalhe)? Só onde o
+ * detalhe ofereceria, e só no lead que conversa pelo WhatsApp da loja: sem
+ * conversa, o servidor recusaria ("o assistente não começa conversa").
+ */
+export function podeEnviarAoNey(lead: LeadDoNeyNoCard & { optout_em?: string | null; tem_conversa?: boolean | null }): boolean {
+  if (lead.desfecho || lead.tem_conversa !== true) return false;
+  return acoesDisponiveis({ assistente_fase: (lead.assistente_fase ?? null) as EstadoDoAtendimento["assistente_fase"], optout_em: lead.optout_em ?? null }).includes("assumir");
 }

@@ -312,8 +312,46 @@ export function interesseDaCadencia(lead: { canal?: string | null; interesse?: s
  * loja criou, há um consultor no meio, e o acompanhamento é dele — em
  * produção, a lojista em visita com o dono recebeu um toque genérico e
  * respondeu "Qual carro?".
+ *
+ * E "Reaquecendo" (21/10): é a etapa do próprio assistente. O lead que a base
+ * puxou mora nela durante a cadência — sem ela aqui, o primeiro toque o
+ * acharia "fora da base" e o devolveria à equipe.
  */
-export const ETAPAS_DA_BASE: readonly string[] = ["novo", "em_contato", "proposta"];
+export const ETAPA_DO_REAQUECIMENTO = "reaquecendo";
+export const ETAPAS_DA_BASE: readonly string[] = ["novo", "em_contato", "proposta", ETAPA_DO_REAQUECIMENTO];
+
+/** O que `etapaDaVolta` lê de cada etapa do funil. */
+export interface EtapaParaAVolta {
+  chave: string;
+  tipo: string;
+  ativa: boolean | null;
+  ordem: number | null;
+}
+
+/**
+ * Para onde volta o lead que sai do reaquecimento (o Ney entregou, a cadência
+ * acabou, alguém pausou ou respondeu): a etapa de onde ele entrou — escolha
+ * do dono, 21/10. Quem diz qual foi é o rastro (`de`, da última entrada em
+ * "Reaquecendo").
+ *
+ * "Novo" volta como "1º Contato" (`em_contato`): só entra no reaquecimento
+ * quem já conversou com a loja, e conversa tira de "Novo" — a mesma régua de
+ * `registrar_contato_do_lead`. Voltar para "Novo" dispararia o aviso de lead
+ * novo e a transferência em uma hora.
+ *
+ * Etapa que sumiu, foi arquivada ou é terminal: "1º Contato"; sem ela, a
+ * primeira etapa aberta. `null` só se não houver etapa aberta nenhuma.
+ */
+export function etapaDaVolta(de: string | null | undefined, etapas: readonly EtapaParaAVolta[]): string | null {
+  const abertas = etapas
+    .filter((e) => e.tipo === "aberta" && e.ativa === true && e.chave !== ETAPA_DO_REAQUECIMENTO)
+    .sort((a, b) => Number(a.ordem ?? 0) - Number(b.ordem ?? 0));
+  const existe = (chave: string) => abertas.some((e) => e.chave === chave);
+  const pedida = de === "novo" ? "em_contato" : de;
+  if (pedida && existe(pedida)) return pedida;
+  if (existe("em_contato")) return "em_contato";
+  return abertas[0]?.chave ?? null;
+}
 
 /** O lead parado pode entrar na cadência? Nem o repasse (lojista, não compra no varejo), nem etapa avançada. */
 export function entraNaBase(lead: { canal?: string | null; situacao?: string | null }): boolean {

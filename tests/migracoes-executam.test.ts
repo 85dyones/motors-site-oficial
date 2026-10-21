@@ -342,6 +342,11 @@ const CADEIA = [
   "20261025120000_etiquetas_automaticas.sql",
   "20261026120000_base_parada_no_assistente.sql",
   "20261027120000_entrega_pos_venda.sql",
+  // A etapa "Reaquecendo" (2026-10-21): cria a etapa depois de Recontato,
+  // anda as seguintes uma casa e põe nela quem a base já reaquece. Entra na
+  // cadeia porque depende de `funil_etapas`, do rastro e das colunas do
+  // assistente no lead.
+  "20261028120000_etapa_reaquecendo.sql",
 ];
 
 /**

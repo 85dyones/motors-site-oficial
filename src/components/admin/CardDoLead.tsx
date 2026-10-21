@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   destinoDaConversa,
   espera,
@@ -19,7 +20,8 @@ import {
   type LeadDaFila,
 } from "../../lib/filaDoFunil";
 import { iniciais } from "../../lib/leadsKanban";
-import { seloDaTemperatura } from "../../lib/atendimentoNaTela";
+import { podeEnviarAoNey, seloDaTemperatura, seloDoNey } from "../../lib/atendimentoNaTela";
+import { minutosEsperando, nivelDaEspera, textoDaEspera, type NivelDaEspera } from "../../lib/conversaNoCard";
 import { EMOJI_DA_TEMPERATURA, SELO_DA_TEMPERATURA } from "./lead/temperaturaNaTela";
 import { irParaAConversa } from "./lead/irParaAConversa";
 
@@ -38,6 +40,25 @@ import { irParaAConversa } from "./lead/irParaAConversa";
  *  · o link e as setas param a propagação: são gestos próprios, e não abrem o
  *    detalhe.
  */
+
+/**
+ * O selo do cliente esperando resposta (21/10/2026): âmbar até 10 minutos,
+ * vermelho cheio dali em diante — escolha do dono. As cores são as da
+ * temperatura (`--mt-morno`) e o acento.
+ */
+export const SELO_DA_ESPERA: Record<NivelDaEspera, string> = {
+  esperando: "border-mt-morno bg-mt-morno-100 text-mt-morno",
+  atrasada: "border-mt-accent bg-mt-accent text-mt-inverso",
+};
+
+/** O selo do Ney: tinta cheia conversando, contorno reaquecendo. */
+export const SELO_DO_NEY: Record<"conversando" | "reaquecendo", string> = {
+  conversando: "border-mt-ink bg-mt-ink text-mt-bg",
+  reaquecendo: "border-mt-ink bg-transparent text-mt-ink",
+};
+
+/** O resultado do "Enviar ao Ney", que o quadro devolve ao card. */
+export type ResultadoDoEnvioAoNey = { ok: boolean; texto: string };
 
 /** A moldura do card, por nível de estagnação. Régua, nunca sombra. */
 export const MOLDURA: Record<NivelDeEstagnacao, string> = {
@@ -60,6 +81,7 @@ export default function CardDoLead({
   aoVoltar,
   aoAvancar,
   aoConversar,
+  aoEnviarAoNey,
   aoComecarArrasto,
   aoTerminarArrasto,
 }: {
@@ -78,6 +100,8 @@ export default function CardDoLead({
   aoAvancar: () => void;
   /** O link da conversa foi aberto: registra o contato. */
   aoConversar: (lead: LeadDaFila) => void;
+  /** "Enviar ao Ney" confirmado: o "Ney retoma agora" do detalhe. Sem ele, o card não oferece o botão. */
+  aoEnviarAoNey?: (lead: LeadDaFila) => Promise<ResultadoDoEnvioAoNey>;
   aoComecarArrasto: (e: React.DragEvent<HTMLDivElement>) => void;
   aoTerminarArrasto: () => void;
 }) {
@@ -98,7 +122,28 @@ export default function CardDoLead({
   // se ele está com a conversa agora. Um lead "Novo" parado há uma hora que
   // está com o assistente não é um lead abandonado — o selo diz isso.
   const temperatura = seloDaTemperatura(l.temperatura, l.aquecimento);
-  const comOAssistente = l.com_assistente === true && l.assistente_fase === "qualificando";
+  // O Ney no card e a conversa (21/10/2026): "uma visualização clara sobre
+  // leads que estão com o Ney, assim como as mensagens, para não precisar
+  // abrir cada um". O selo do Ney, o do cliente esperando (âmbar, vermelho aos
+  // 10 minutos) e a última mensagem.
+  const ney = seloDoNey(l, new Date(agora));
+  const nivelDaResposta = nivelDaEspera(minutosEsperando(l, agora));
+  const ultimaMensagem = l.ultima_mensagem ?? null;
+  const ofereceONey = Boolean(aoEnviarAoNey) && podeEnviarAoNey(l);
+  // Dois toques: o envio escreve ao cliente, e o tablet do balcão erra dedo.
+  const [confirmandoNey, setConfirmandoNey] = useState(false);
+  const [enviandoAoNey, setEnviandoAoNey] = useState(false);
+  const [retornoDoNey, setRetornoDoNey] = useState<ResultadoDoEnvioAoNey | null>(null);
+  const enviarAoNey = async () => {
+    if (!aoEnviarAoNey || enviandoAoNey) return;
+    setEnviandoAoNey(true);
+    try {
+      setRetornoDoNey(await aoEnviarAoNey(l));
+    } finally {
+      setEnviandoAoNey(false);
+      setConfirmandoNey(false);
+    }
+  };
 
   return (
     <div
@@ -134,7 +179,7 @@ export default function CardDoLead({
             {l.interesse}
           </div>
         )}
-        {(temperatura || comOAssistente) && (
+        {(temperatura || ney) && (
           <div className="flex flex-wrap items-center gap-1">
             {temperatura && (
               <span
@@ -147,10 +192,37 @@ export default function CardDoLead({
                 {temperatura}
               </span>
             )}
-            {comOAssistente && (
-              <span className="text-[9px] font-semibold uppercase tracking-[.1em] text-mt-neutral-600">Com o assistente</span>
+            {ney && (
+              <span
+                data-ney={ney.tom}
+                className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-[.1em] tabular-nums ${SELO_DO_NEY[ney.tom]}`}
+              >
+                <span aria-hidden="true">🤖 </span>
+                {ney.texto}
+              </span>
             )}
           </div>
+        )}
+        {nivelDaResposta && (
+          <div
+            data-espera={nivelDaResposta}
+            className={`self-start border px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none tracking-[.08em] tabular-nums ${SELO_DA_ESPERA[nivelDaResposta]}`}
+          >
+            <span aria-hidden="true">💬 </span>
+            {textoDaEspera(l, agora)}
+          </div>
+        )}
+        {ultimaMensagem && (
+          // A última mensagem da conversa, de quem for: o card responde "o que
+          // está acontecendo aqui?" sem abrir o lead.
+          <p
+            data-ultima-mensagem={ultimaMensagem.autor}
+            title={ultimaMensagem.texto}
+            className="m-0 line-clamp-2 text-[11px] leading-[1.4] text-mt-neutral-800 [overflow-wrap:anywhere]"
+          >
+            <span className="font-semibold text-mt-ink">{ultimaMensagem.quem}:</span> {ultimaMensagem.texto}{" "}
+            <span className="tabular-nums text-mt-neutral-600">· {espera(ultimaMensagem.criado_em, agora)}</span>
+          </p>
         )}
         {aviso && (
           <div
@@ -275,6 +347,61 @@ export default function CardDoLead({
           →
         </button>
       </div>
+
+      {ofereceONey && !confirmandoNey && (
+        <button
+          type="button"
+          draggable={false}
+          onClick={(e) => {
+            e.stopPropagation();
+            setRetornoDoNey(null);
+            setConfirmandoNey(true);
+          }}
+          className="mt-foco cursor-pointer border border-mt-ink bg-transparent px-2 py-1 text-[11px] font-semibold text-mt-ink hover:bg-mt-bg pointer-coarse:min-h-11"
+        >
+          <span aria-hidden="true">🤖 </span>Enviar ao Ney
+        </button>
+      )}
+      {ofereceONey && confirmandoNey && (
+        <div
+          role="group"
+          aria-label={`Enviar ${l.nome} ao Ney`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex flex-col gap-1.5 border border-mt-ink bg-mt-bg p-2"
+        >
+          <p className="m-0 text-[11px] leading-snug text-mt-neutral-800">
+            O Ney lê a conversa e escreve na próxima rodada, de onde ela parou. O card fica nesta etapa.
+          </p>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              draggable={false}
+              disabled={enviandoAoNey}
+              onClick={() => void enviarAoNey()}
+              className="mt-foco flex-1 cursor-pointer border border-mt-ink bg-mt-ink px-2 py-1 text-[11px] font-semibold text-mt-bg disabled:cursor-wait disabled:opacity-60 pointer-coarse:min-h-11"
+            >
+              {enviandoAoNey ? "Enviando…" : "Confirmar"}
+            </button>
+            <button
+              type="button"
+              draggable={false}
+              disabled={enviandoAoNey}
+              onClick={() => setConfirmandoNey(false)}
+              className="mt-foco cursor-pointer border border-mt-regua-fina bg-transparent px-2 py-1 text-[11px] text-mt-neutral-700 hover:border-mt-ink disabled:opacity-60 pointer-coarse:min-h-11"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      {retornoDoNey && (
+        <p
+          role="status"
+          className={`m-0 text-[11px] leading-snug ${retornoDoNey.ok ? "text-mt-neutral-800" : "text-mt-accent-800"}`}
+        >
+          {retornoDoNey.texto}
+        </p>
+      )}
 
       <div className="flex items-center gap-1.5 text-[10px] text-mt-neutral-800">
         {!soOsMeus && (
