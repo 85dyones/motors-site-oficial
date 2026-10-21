@@ -1217,10 +1217,12 @@ async function responderUmaVez(
 
   let conversa = await lerConversa(supabase, leadId);
   // A primeira resposta também lê o que veio antes (pedido do dono, 21/10):
-  // sem nada no painel além do que acabou de chegar, o histórico do WhatsApp
-  // entra primeiro — quem já falou com a loja não é atendido como novo. Sem a
-  // Evolution responder, a resposta sai assim mesmo: o cliente escreveu.
-  if (conversa.every((m) => ids.includes(String(m.id)))) {
+  // sem mensagem do cliente no painel além das que acabaram de chegar (o
+  // lead novo, ou o que só tinha o toque da cadência), o histórico do
+  // WhatsApp entra primeiro — quem já falou com a loja não é atendido como
+  // novo. Sem a Evolution responder, a resposta sai assim mesmo: o cliente
+  // escreveu.
+  if (conversa.every((m) => m.direcao !== "entrada" || ids.includes(String(m.id)))) {
     const trazido = await trazerHistoricoDoWhatsApp(supabase, { id: leadId, telefone: lead.telefone }, { evolution, transporte: deps.transporte });
     if (trazido.ok && trazido.trazidas > 0) conversa = await lerConversa(supabase, leadId);
   }

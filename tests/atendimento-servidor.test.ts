@@ -308,6 +308,24 @@ describe("a resposta", () => {
     expect(t.buscasDoHistorico).toHaveLength(buscas);
   });
 
+  it("o lead da base que só tinha o toque da cadência e respondeu: o histórico entra antes da resposta", async () => {
+    const banco = montar({
+      leads: [leadAberto({ assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: "2026-10-22T12:00:00Z", situacao: "em_contato" })],
+      atendimento_mensagens: [
+        { id: "m-toque", lead_id: "lead-1", telefone: CLIENTE, direcao: "saida", autor: "assistente", autor_nome: "Ney", texto: "Oi, Rafael! Ainda procurando carro?", situacao: "enviada", gatilho: "cadencia", criado_em: "2026-10-20T12:00:00.000Z" },
+      ],
+    });
+    const t = transporteDeTeste([respostaDoModelo()], {
+      historico: (filtro) =>
+        filtro.remoteJid === `${CLIENTE}@s.whatsapp.net`
+          ? [{ key: { id: "H-1", fromMe: false, remoteJid: `${CLIENTE}@s.whatsapp.net` }, message: { conversation: "Quero um Onix até 60 mil" }, messageTimestamp: Math.floor(Date.parse("2026-09-01T15:00:00Z") / 1000), pushName: "Rafael" }]
+          : [],
+    });
+    const entrada = await clienteEscreve(banco, t, "Ainda quero");
+    await responderAoLead(banco.cliente, { leadId: entrada.lead!, mensagemId: entrada.mensagem }, deps(t));
+    expect(JSON.stringify(t.pedidosAoModelo[0].messages)).toContain("Quero um Onix até 60 mil");
+  });
+
   it("a Evolution não entrega o histórico na primeira resposta: o cliente escreveu, e a resposta sai assim mesmo", async () => {
     const banco = montar();
     const t = transporteDeTeste([respostaDoModelo()], { historico: () => ({ erro: "instance not connected", status: 500 }) });

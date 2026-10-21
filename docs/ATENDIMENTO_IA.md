@@ -963,7 +963,8 @@ tela, em **Leads → Atendimento IA → Configuração**.
     cada toque, o modelo lê e pode não escrever, o texto pronto não sai
     sozinho, e a base deixa de fora o repasse e as etapas depois de "em
     contato". A primeira resposta do Ney também traz o histórico antes,
-    quando o painel só tem o que acabou de chegar.
+    quando o painel não tem mensagem do cliente além das que acabaram de
+    chegar (o lead novo, ou o da base que só tinha o toque da cadência).
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).
