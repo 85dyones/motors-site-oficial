@@ -559,6 +559,15 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
   recebeu** antes de mandar a Evolution buscá-lo por uma URL assinada de 10
   minutos. O arquivo abre sempre pela porta do painel, que confere o escopo do
   lead; a exclusão do titular (LGPD) apaga a pasta do lead.
+- **🎙️ Gravar áudio** (21/10, *"é possível inserir a funcionalidade de gravar
+  áudio no painel?"*): o microfone do navegador grava (`GravadorDeAudio`,
+  `MediaRecorder`), com cronômetro e teto de 5 minutos; parar põe o áudio na
+  caixa como anexo, com um player para ouvir antes, e ele sai pelo mesmo
+  caminho do 📎 — bucket, `sendWhatsAppAudio`, nota de voz. Cada navegador
+  grava num formato (Firefox em Ogg/Opus, Chrome e Edge em WebM, Safari em
+  MP4), e a Evolution converte. O texto, se houver, vai à parte. O microfone
+  abre só no clique e fecha ao parar, cancelar ou sair da tela; permissão
+  negada diz como liberar (`lib/gravacaoDeAudio.ts`).
 - **O botão de WhatsApp do cabeçalho retoma de onde o assistente parou**: com
   a ficha preenchida, o rascunho se apresenta, lista o que o cliente disse
   (carro, troca, pagamento, visita) para ele confirmar e termina no próximo
