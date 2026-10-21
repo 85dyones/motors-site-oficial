@@ -2,6 +2,10 @@
 
 import { ordenarListaDoDia, rotuloDoPasso } from "../../lib/gestaoDoLead";
 import { linhaDosSemPasso, textoDoVazioDaLista, type ChipDoFunil, type LeadDaFila } from "../../lib/filaDoFunil";
+import { seloDoNey } from "../../lib/atendimentoNaTela";
+import { minutosEsperando, nivelDaEspera, textoDaEspera } from "../../lib/conversaNoCard";
+import { espera } from "../../lib/funil";
+import { SELO_DA_ESPERA, SELO_DO_NEY } from "./CardDoLead";
 
 /**
  * A Lista do dia: a fila do vendedor, por vencimento do próximo passo.
@@ -11,6 +15,10 @@ import { linhaDosSemPasso, textoDoVazioDaLista, type ChipDoFunil, type LeadDaFil
  * passo não tem hora e não entra nos grupos; a linha do fim diz quantos são e
  * leva ao Quadro, onde eles estão. Lead que some da lista sem aviso é o lead
  * que ninguém atende.
+ *
+ * A conversa e o Ney (21/10/2026) aparecem aqui como no card do Quadro: o
+ * selo de cliente esperando, o do Ney e a última mensagem — o vendedor, que
+ * abre a tela nesta vista, não pode ficar sem eles.
  */
 
 type Grupo = "atrasados" | "hoje" | "proximos";
@@ -67,6 +75,9 @@ export default function ListaDoDia({
             {lista[g].map((l) => {
               const atrasado = g === "atrasados";
               const aberto = leadAberto === l.id;
+              const ney = seloDoNey(l, new Date(agora));
+              const nivel = nivelDaEspera(minutosEsperando(l, agora));
+              const mensagem = l.ultima_mensagem ?? null;
               return (
                 <li key={l.id}>
                   <button
@@ -99,6 +110,34 @@ export default function ListaDoDia({
                       </span>
                       {l.ultima_interacao?.texto && (
                         <span className="truncate text-[11px] text-mt-neutral-600">{l.ultima_interacao.texto}</span>
+                      )}
+                      {(ney || nivel) && (
+                        <span className="flex flex-wrap items-center gap-1 pt-0.5">
+                          {nivel && (
+                            <span
+                              data-espera={nivel}
+                              className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-[.08em] tabular-nums ${SELO_DA_ESPERA[nivel]}`}
+                            >
+                              <span aria-hidden="true">💬 </span>
+                              {textoDaEspera(l, agora)}
+                            </span>
+                          )}
+                          {ney && (
+                            <span
+                              data-ney={ney.tom}
+                              className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-[.1em] tabular-nums ${SELO_DO_NEY[ney.tom]}`}
+                            >
+                              <span aria-hidden="true">🤖 </span>
+                              {ney.texto}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {mensagem && (
+                        <span data-ultima-mensagem={mensagem.autor} className="truncate text-[11px] text-mt-neutral-700">
+                          <span className="font-semibold text-mt-ink">{mensagem.quem}:</span> {mensagem.texto}{" "}
+                          <span className="tabular-nums text-mt-neutral-600">· {espera(mensagem.criado_em, agora)}</span>
+                        </span>
                       )}
                     </span>
                     <span className="text-[10px] font-semibold uppercase tracking-[.06em] text-mt-neutral-600">

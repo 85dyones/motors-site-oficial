@@ -143,6 +143,8 @@ describe("as novidades do minuto", () => {
     expect(juntos[0].situacao).toBe("em_contato");
     expect(aplicarNovidades(leads, { leads: "lixo", conversas: [] })).toEqual(leads);
     expect(aplicarNovidades(leads, null)).toEqual(leads);
+    // A leitura das mensagens falhou no servidor: os selos da tela ficam.
+    expect(aplicarNovidades(leads, { conversas: null, leads: [] })).toEqual(leads);
   });
 });
 

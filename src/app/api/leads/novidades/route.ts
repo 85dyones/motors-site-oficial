@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
  *   - `conversas`: a conversa de cada lead que teve mensagem na última
  *     semana — quem falou por último e desde quando o cliente espera
  *     (`lib/conversaNoCard`). O lead que não está aqui não espera ninguém.
+ *     Nulo quando a leitura falhou: o quadro mantém o que mostra.
  *   - `leads`: o estado dos leads que mudaram desde `desde` — a etapa, o
  *     dono, o desfecho e o que o Ney está fazendo. Só colunas de estado: nome,
  *     telefone e o resto do card vêm da fila.
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       agora: agora.toISOString(),
-      conversas: Object.fromEntries(conversas.porLead),
+      conversas: conversas.lida ? Object.fromEntries(conversas.porLead) : null,
       leads,
       avisos,
     });

@@ -1471,6 +1471,14 @@ describe("a conversa no card: GET /api/leads/gerenciar e GET /api/leads/novidade
     expect((await pedirNovidades()).d.leads.map((l: Linha) => l.id)).toEqual([NEGOCIANDO]);
   });
 
+  it("mensagens ilegíveis nas novidades: `conversas` nulo (o quadro mantém os selos), e o aviso", async () => {
+    falhas.atendimento_mensagens = { message: "tempo esgotado" };
+    const { status, d } = await pedirNovidades();
+    expect(status).toBe(200);
+    expect(d.conversas).toBeNull();
+    expect(d.avisos).toEqual(["Não deu para ler as mensagens: o selo de cliente esperando não aparece agora."]);
+  });
+
   it("as novidades têm a porta da gestão do lead: Marketing e perfil desativado recebem 403, sem ler nada", async () => {
     for (const quem of ["u-mkt", "u-saiu"]) {
       usuario = quem;

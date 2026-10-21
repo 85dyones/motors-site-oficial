@@ -170,6 +170,11 @@ const INTERVALO_DAS_NOVIDADES_MS = 60_000;
 /** O lead mexido nesta tela há menos que isto não recebe o estado das novidades. */
 const JANELA_DO_MEXIDO_MS = 2 * 60_000;
 
+/** Os filtros da fila, um por vez: os chips de data e os de ligar e desligar. */
+type FiltroDoFunil = ChipDoFunil | "parados" | "esperando" | "com_o_ney" | "sem_dono";
+/** Os que só fazem sentido no Quadro: quem eles mostram quase nunca tem próximo passo. */
+const FILTROS_DO_QUADRO: readonly FiltroDoFunil[] = ["esperando", "com_o_ney", "sem_dono"];
+
 /** Leva o foco de volta a quem abriu o detalhe: o card, a linha da lista. */
 function focarQuemAbriu(id: string) {
   const alvo = [...document.querySelectorAll<HTMLElement>("[data-abre-lead]")].find(
@@ -214,12 +219,18 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   const [migracaoPendente, setMigracaoPendente] = useState(false);
   const [agregado, setAgregado] = useState<{ total: number; porSituacao: Record<string, number> } | null>(null);
 
-  const [chip, setChip] = useState<ChipDoFunil | null>(null);
-  const [soParados, setSoParados] = useState(false);
-  /** "Esperando resposta" e "Com o Ney" (21/10/2026): os filtros da conversa. */
-  const [soEsperando, setSoEsperando] = useState(false);
-  const [soComONey, setSoComONey] = useState(false);
-  const [soSemDono, setSoSemDono] = useState(false);
+  /**
+   * O filtro da fila: UM por vez (pedido do dono, 21/10/2026 — "filtros se
+   * somam" era bug para quem usa). Ligar outro troca; tocar no ligado desliga.
+   * Atrasados e Hoje são o `chip`, que a Lista do dia também lê, por grupo.
+   */
+  const [filtro, setFiltro] = useState<FiltroDoFunil | null>(null);
+  const chip: ChipDoFunil | null = filtro === "atrasados" || filtro === "hoje" ? filtro : null;
+  const soParados = filtro === "parados";
+  const soEsperando = filtro === "esperando";
+  const soComONey = filtro === "com_o_ney";
+  const soSemDono = filtro === "sem_dono";
+  const alternarFiltro = (f: FiltroDoFunil) => setFiltro((atual) => (atual === f ? null : f));
   /** Há registro começado no detalhe aberto (quem diz é o detalhe). */
   const [rascunhoAberto, setRascunhoAberto] = useState(false);
   /** O card que foi clicado com um registro começado em outro lead. */
@@ -300,17 +311,29 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
   }, []);
   /** O `agora` do servidor na última resposta: a próxima pergunta é "desde então". */
   const desdeDasNovidades = useRef<string | null>(null);
-  const buscarNovidades = useCallback(async () => {
+  /**
+   * `liberar`: o lead cujo estado acabou de mudar no servidor por um gesto
+   * desta tela que não é edição local — a ação do Ney no detalhe. Ele sai da
+   * proteção do "mexido agora há pouco" e recebe o estado já nesta volta.
+   */
+  const buscarNovidades = useCallback(async (liberar?: string) => {
     try {
+      if (liberar) mexidos.current.delete(liberar);
       const desde = desdeDasNovidades.current;
       const res = await fetch(`/api/leads/novidades${desde ? `?desde=${encodeURIComponent(desde)}` : ""}`);
       if (!res.ok) return;
-      const d = (await res.json().catch(() => null)) as { agora?: unknown } | null;
+      const d = (await res.json().catch(() => null)) as { agora?: unknown; leads?: unknown; avisos?: unknown } | null;
       if (!d || typeof d.agora !== "string") return;
-      desdeDasNovidades.current = d.agora;
       const agoraMs = Date.now();
       const intocaveis = new Set([...mexidos.current].filter(([, quando]) => agoraMs - quando < JANELA_DO_MEXIDO_MS).map(([id]) => id));
+      // O relógio só anda se nenhum lead que mudou foi pulado: o pulado volta
+      // na próxima pergunta, em vez de se perder até mudar de novo (visto em
+      // produção, 21/10: o "Ney retoma agora" num lead recém-mexido deixava o
+      // "Enviar ao Ney" no card até o cliente responder).
+      const pulou = Array.isArray(d.leads) && (d.leads as Array<{ id?: unknown }>).some((l) => typeof l?.id === "string" && intocaveis.has(l.id));
+      if (!pulou) desdeDasNovidades.current = d.agora;
       setLeads((atual) => aplicarNovidades(atual, d, intocaveis));
+      if (Array.isArray(d.avisos) && d.avisos.length > 0) setAvisosDaFila(d.avisos.filter((a): a is string => typeof a === "string"));
       setAgora(agoraMs);
     } catch {
       // Sem rede agora: a próxima volta tenta de novo.
@@ -429,9 +452,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
     if (filtroDaBusca(valor)) {
       // Buscar limpa os filtros escolhidos para a fila, que esconderiam
       // justamente o lead procurado.
-      setChip(null);
-      setSoParados(false);
-      setSoSemDono(false);
+      setFiltro(null);
     } else {
       // Campo vazio ou termo curto demais: a tela volta para a fila.
       setBuscaPedida(null);
@@ -617,7 +638,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
             l.id === lead.id ? { ...l, assistente_fase: "reaquecendo", cadencia_passo: 0, cadencia_proximo_em: new Date().toISOString() } : l,
           ),
         );
-        void buscarNovidades();
+        void buscarNovidades(lead.id);
         return { ok: true, texto: d?.aviso ?? "O Ney ficou com o lead." };
       } catch {
         return { ok: false, texto: "Não deu para enviar ao Ney." };
@@ -922,29 +943,37 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
           aoMudarEscopo={(novo) => navegar({ escopo: novo })}
           vista={vista}
           aoMudarVista={(nova) => {
-            // Lead sem dono não tem próximo passo: na Lista do dia o filtro
-            // deixaria a tela vazia sem dizer por quê.
-            if (nova === "lista") setSoSemDono(false);
+            // Lead sem dono, quem espera resposta e quem está com o Ney quase
+            // nunca têm próximo passo: na Lista do dia esses filtros deixariam
+            // a tela vazia sem dizer por quê.
+            if (nova === "lista" && filtro && FILTROS_DO_QUADRO.includes(filtro)) setFiltro(null);
             navegar({ vista: nova });
           }}
           chip={chip}
           contasDosChips={contasDosChips}
-          aoMudarChip={setChip}
+          aoMudarChip={(novo) => setFiltro(novo)}
           parados={parados.length}
           soParados={soParados}
-          aoAlternarParados={() => setSoParados((v) => !v)}
+          aoAlternarParados={() => alternarFiltro("parados")}
           esperando={esperando.length}
           soEsperando={soEsperando}
-          aoAlternarEsperando={() => setSoEsperando((v) => !v)}
+          aoAlternarEsperando={() => {
+            // Ligar leva ao Quadro: na Lista só entra quem tem próximo passo.
+            if (!soEsperando) navegar({ vista: "quadro" });
+            alternarFiltro("esperando");
+          }}
           comONey={comONey.length}
           soComONey={soComONey}
-          aoAlternarComONey={() => setSoComONey((v) => !v)}
+          aoAlternarComONey={() => {
+            if (!soComONey) navegar({ vista: "quadro" });
+            alternarFiltro("com_o_ney");
+          }}
           semResponsavel={veSemDono ? semDono.length : null}
           soSemResponsavel={soSemDono && veSemDono}
           aoAlternarSemResponsavel={() => {
             // Ligar o filtro leva ao Quadro: é onde o lead sem dono está.
             if (!soSemDono) navegar({ vista: "quadro" });
-            setSoSemDono((v) => !v);
+            alternarFiltro("sem_dono");
           }}
           fechados={fechados.length}
           vendoFechados={vendoFechados}
@@ -1050,7 +1079,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
               buscando={buscando}
               aoAbrir={abrirLead}
               aoVerNoQuadro={() => {
-                setChip(null);
+                setFiltro(null);
                 navegar({ vista: "quadro" });
               }}
             />
@@ -1225,6 +1254,7 @@ export default function LeadsKanban({ meuNome = null }: { meuNome?: string | nul
           aoSumir={aoSumirOLead}
           aoMudarLead={aoMudarLead}
           aoSairDeSincronia={aoSairDeSincronia}
+          aoMudarOAssistente={() => void buscarNovidades(leadNaGaveta)}
         />
       )}
 

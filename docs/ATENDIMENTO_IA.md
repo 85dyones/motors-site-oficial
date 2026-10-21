@@ -1124,6 +1124,18 @@ tela, em **Leads → Atendimento IA → Configuração**.
       quadro pergunta `GET /api/leads/novidades` — a conversa de cada lead e
       o estado dos que mudaram — e junta, sem relê-lo. O card mexido nesta
       tela há menos de 2 minutos não recebe o estado (o arrasto não desfaz).
+    - **o bug do quadro** (21/10, visto em produção: *"as informações novas
+      aparecem e somem, quando mudamos filtros"*; *"entrego o lead para o ney
+      e continua aparecendo o botão"*): a mudança pulada por ser de um card
+      mexido agora há pouco se perdia — o relógio das novidades andava assim
+      mesmo; agora ele espera, e a mudança volta na próxima pergunta. O "Ney
+      retoma agora" (e as outras ações do Ney) no detalhe avisa o quadro na
+      hora. Os filtros passaram a ser **um por vez**: "Esperando resposta" e
+      "Com o Ney" somados com outro deixavam o quadro vazio com "(1)" no
+      botão. A Lista do dia ganhou os selos e a última mensagem, e esses dois
+      filtros (como o "Sem responsável") levam ao Quadro, onde está quem não
+      tem próximo passo. Leitura de mensagens que falha nas novidades devolve
+      `conversas` nulo: o quadro mantém os selos e mostra o aviso.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).
