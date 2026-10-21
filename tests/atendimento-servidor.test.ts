@@ -2038,6 +2038,28 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
     expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "qualificando", cadencia: null });
   });
 
+  // Visto em produção (21/10): a base puxou leads com telefone faltando dígitos,
+  // e cada toque falhou com "telefone inválido para envio".
+  it("telefone que a Evolution recusa: não entra na base; o que já entrou sai da cadência e volta para a equipe", async () => {
+    const banco = montarBase([parado("lead-01", { telefone: "55419888662" })], [conversaDoChatwoot("lead-01")]);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.base).toEqual([]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: null, cadencia: null });
+
+    // O que já estava na cadência (puxado antes da correção).
+    const preso = montarBase(
+      [parado("lead-01", { telefone: "55419888662", assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_passo: 1, cadencia_proximo_em: TERCA_10H.toISOString() })],
+      [conversaDoChatwoot("lead-01")],
+    );
+    const t = transporteDeTeste();
+    const r = await executarRodada(preso.cliente, { reservar: true }, deps(t));
+    expect(r.suprimidos).toEqual([expect.objectContaining({ lead_id: "lead-01", motivo: "telefone_invalido" })]);
+    expect(r.devolvidos).toEqual([{ lead_id: "lead-01", motivo: "telefone_invalido" }]);
+    expect(r.falhas).toBe(0);
+    expect(t.enviados).toHaveLength(0);
+    expect(preso.tabelas.leads[0]).toMatchObject({ cadencia: null });
+  });
+
   it("sem carro de interesse, reativação", async () => {
     const banco = montarBase([parado("lead-01", { interesse: null })], [conversaDoChatwoot("lead-01")]);
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));

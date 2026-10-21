@@ -56,6 +56,7 @@ import {
   enviarImagem,
   enviarTexto,
   motivoSemEvolution,
+  numeroParaEnvio,
   type ConfigDaEvolution,
   type Transporte,
 } from "./evolution";
@@ -2097,7 +2098,7 @@ export interface ResultadoDaRodada {
   /** Leads devolvidos à equipe: resposta travada, cadência que acabou, assistente desligado. */
   devolvidos: { lead_id: string; motivo: string }[];
   toques: ToqueDaRodada[];
-  suprimidos: { lead_id: string; motivo: MotivoSemToque | "sem_conversa" | "outra_rodada"; texto: string }[];
+  suprimidos: { lead_id: string; motivo: MotivoSemToque | "sem_conversa" | "outra_rodada" | "telefone_invalido"; texto: string }[];
   /** Os leads da base parada que entraram na cadência nesta rodada (ou entrariam, na prévia). */
   base: { lead_id: string; cadencia: NomeDaCadencia }[];
   falhas: number;
@@ -2252,6 +2253,20 @@ export async function executarRodada(
         const porque = decisao.motivo === "cadencia_desligada" ? "a cadência foi desligada" : "a cadência terminou sem resposta do cliente";
         await devolverAoHumano(supabase, leadId, agora, porque);
         resultado.devolvidos.push({ lead_id: leadId, motivo: decisao.motivo });
+      } else {
+        await supabase.from("leads").update({ cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", leadId);
+      }
+      continue;
+    }
+    // Telefone que a Evolution recusa (faltam dígitos): o toque falharia a
+    // cada passo. A cadência acaba, e o lead volta para a equipe corrigir o
+    // número (visto em produção, 21/10).
+    if (!numeroParaEnvio(lead.telefone)) {
+      resultado.suprimidos.push({ lead_id: leadId, motivo: "telefone_invalido", texto: "O telefone do lead não serve para o WhatsApp: corrija o número no lead." });
+      if (!opcoes.reservar) continue;
+      if (FASES_COM_O_ASSISTENTE.includes(lead.assistente_fase)) {
+        await devolverAoHumano(supabase, leadId, agora, "o telefone do lead não serve para o WhatsApp");
+        resultado.devolvidos.push({ lead_id: leadId, motivo: "telefone_invalido" });
       } else {
         await supabase.from("leads").update({ cadencia: null, cadencia_passo: 0, cadencia_proximo_em: null }).eq("id", leadId);
       }
@@ -2442,6 +2457,8 @@ async function puxarABase(
       if (puxados.length >= lote) break;
       const leadId = String(lead.id);
       if (!conversou.has(leadId) || (ultimaAtividade.get(leadId) ?? 0) >= limiteMs) continue;
+      // Telefone que a Evolution recusa não entra: cada toque falharia.
+      if (!numeroParaEnvio(String(lead.telefone ?? ""))) continue;
       const cadencia = cadenciaDoSilencio(Boolean(String(lead.interesse ?? "").trim()));
       if (!config.cadencias[cadencia].ativa) continue;
       if (!reservar) {
