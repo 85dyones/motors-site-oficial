@@ -134,6 +134,14 @@ vi.mock("../src/lib/supabase-server", () => ({
   createAdminSupabaseClient: () => CLIENTE,
 }));
 vi.mock("../src/lib/autorizacaoDoFunil", () => ({ autorizarFunil: async () => ({ erro: null }) }));
+/** O resumo do assistente ao dono novo (2026-10-20): só a fiação, o envio tem testes próprios. */
+const { avisarEntregaPendente } = vi.hoisted(() => ({
+  avisarEntregaPendente: vi.fn<(...args: unknown[]) => Promise<{ avisado: boolean; motivo?: string }>>(async () => ({ avisado: false, motivo: "fora_da_entrega" })),
+}));
+vi.mock("../src/lib/atendimento-servidor", async (original) => ({
+  ...(await original<typeof import("../src/lib/atendimento-servidor")>()),
+  avisarEntregaPendente,
+}));
 vi.mock("../src/lib/settings", () => ({
   getCachedSettings: async () => ({ companySettings: { name: "Motors Store" } }),
 }));
@@ -191,6 +199,7 @@ const leiturasDosAgentes = () => chamadas.filter((c) => c.url === `${RAIZ}/agent
 const ANA = { role: "comercial", papeis: ["comercial"], full_name: "Ana Lima" };
 
 beforeEach(() => {
+  avisarEntregaPendente.mockClear();
   falhas = {};
   chamadas = [];
   pedidosDaFila = [];
@@ -397,6 +406,13 @@ describe("PATCH /api/leads/gerenciar: trocar o dono atribui a conversa", () => {
     const { corpo } = await gravar({ observacoes: "ligar amanhã" });
     expect(corpo).toEqual({ ok: true });
     expect(chamadas).toEqual([]);
+    expect(avisarEntregaPendente).not.toHaveBeenCalled();
+  });
+
+  it("a troca no quadro manda o resumo do assistente ao dono novo, como troca do administrador (rodízio de 20/10/2026)", async () => {
+    await gravar({ responsavel: "Bia Souza" });
+    expect(avisarEntregaPendente).toHaveBeenCalledTimes(1);
+    expect(avisarEntregaPendente).toHaveBeenCalledWith(CLIENTE, "lead-1", {}, { trocaManual: true });
   });
 
   it("a gravação que não alcança o lead não atribui nada", async () => {

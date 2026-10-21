@@ -901,7 +901,9 @@ describe("o aviso do desfecho e a página estreita", () => {
     definirLargura(false);
     await montarDetalhe();
     const ordem = () => [...container.querySelectorAll<HTMLElement>("[data-bloco]")].map((b) => b.dataset.bloco);
-    expect(ordem()).toEqual(["h", "p", "v", "c", "t", "d"]);
+    // O atendimento (a, 2026-10-20) fica logo abaixo do cabeçalho; os carros
+    // seguem logo depois do próximo passo.
+    expect(ordem()).toEqual(["h", "a", "q", "p", "v", "c", "t", "d"]);
     expect(carros().closest('[data-coluna="d"]')).toBeNull();
   });
 

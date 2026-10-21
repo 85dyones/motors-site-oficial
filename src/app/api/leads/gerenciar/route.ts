@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
-import { createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { createAdminSupabaseClient, createServerSupabaseClient } from "../../../../lib/supabase-server";
+import { avisarEntregaPendente } from "../../../../lib/atendimento-servidor";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import {
   AVISO_DE_RESPONSAVEL_OBRIGATORIO,
@@ -30,10 +31,12 @@ import { resolverConversasDoLead } from "../../../../lib/conversaDoDesfecho";
 import { configDoChatwoot } from "../../../../lib/etiquetasDoChatwoot";
 import { AVISO_DE_CONVERSA_COM_O_DONO_ANTIGO, atribuirConversasDoLead } from "../../../../lib/donoDaConversa";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
+import { BUCKET_DOS_ANEXOS } from "../../../../lib/anexosDoAtendimento";
 import {
   contarPassagensCreditadas,
   etiquetarPassagemDoSdr,
   etiquetasConhecidas,
+  leadsGuardamEtiquetas,
   maisRecentePrimeiro,
 } from "../../../../lib/etiquetasDoLead";
 import { pixelIdDasSettings, qualificarNoMeta } from "../../../../lib/qualificacaoParaMeta-servidor";
@@ -257,8 +260,8 @@ export async function GET(request: NextRequest) {
       etiquetas: string[];
     }
     const atendimentoPorLead = new Map<string, DoAtendimento>();
-    // Toda etiqueta que aparece nas conversas lidas — o que o card oferece
-    // para pôr enquanto a lista da conta do Chatwoot não chega.
+    // Toda etiqueta que aparece nos leads lidos — o que o card oferece para
+    // pôr enquanto a lista de `/api/leads/etiquetas` não chega.
     const etiquetasVistas: unknown[] = [];
     if (leads.length > 0) {
       const { data: atendimentos, error: erroAtendimento } = await supabase
@@ -273,7 +276,6 @@ export async function GET(request: NextRequest) {
         // created_at)` decrescente. Duas réguas de "mais recente" no mesmo
         // sistema é o motor escolhendo uma conversa e a tela outra.
         for (const a of maisRecentePrimeiro(atendimentos ?? [])) {
-          if (Array.isArray(a.tags)) etiquetasVistas.push(...a.tags);
           if (a.lead_id && !atendimentoPorLead.has(a.lead_id)) {
             atendimentoPorLead.set(a.lead_id, {
               conversa: a.chatwoot_conversation_id ? Number(a.chatwoot_conversation_id) : null,
@@ -282,11 +284,9 @@ export async function GET(request: NextRequest) {
               // rodando — a mesma direção segura do `default false` no banco.
               comAssistente: a.com_assistente === true,
               humanoAssumiuEm: a.humano_assumiu_em ?? null,
-              // As etiquetas da conversa, como o n8n as espelhou (2026-09-25).
-              // Da MESMA conversa do link do card: é nela que o card grava.
-              // Como estão, sem normalizar — ver o cabeçalho de `lib/etiquetas`.
-              // É o espelho, e pode estar atrás: por isso o card manda MUDANÇA,
-              // e nunca esta lista de volta.
+              // As etiquetas da conversa, como o n8n as espelhou do Chatwoot
+              // (2026-09-25). Só valem num banco sem `leads.etiquetas` (antes
+              // da migração 20261023120000): dali em diante a lista é do lead.
               etiquetas: limparEtiquetas(a.tags),
             });
           }
@@ -331,12 +331,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Antes do laço, que preenche `etiquetas` em todo lead: lido depois, o
+    // banco sem a coluna pareceria tê-la.
+    const etiquetasNoLead = leadsGuardamEtiquetas(leads);
     for (const l of leads as Array<Record<string, unknown>>) {
       const a = atendimentoPorLead.get(String(l.id));
       l.chatwoot_conversation_id = a?.conversa ?? null;
       l.com_assistente = a?.comAssistente ?? false;
       l.humano_assumiu_em = a?.humanoAssumiuEm ?? null;
-      l.etiquetas = a?.etiquetas ?? [];
+      // A lista do lead (migração 20261023120000), como está — ver o
+      // cabeçalho de `lib/etiquetas`. Sem a coluna, a da conversa.
+      l.etiquetas = etiquetasNoLead ? limparEtiquetas(l.etiquetas) : (a?.etiquetas ?? []);
+      etiquetasVistas.push(...(l.etiquetas as string[]));
       l.ultima_interacao = ultimaPorLead.get(String(l.id)) ?? null;
       // Já vêm no `select("*")`; aqui só se garante o nulo num banco sem a
       // migração da gestão do lead, para a tela não receber `undefined`.
@@ -403,10 +409,11 @@ export async function GET(request: NextRequest) {
       // Leituras secundárias que falharam ou vieram cortadas. Vazio é o normal.
       avisos,
       // As etiquetas do card (2026-09-25). `etiquetasEditaveis` diz se o
-      // servidor consegue gravar no Chatwoot — sem token, o card mostra as
-      // etiquetas e não oferece editar, em vez de oferecer e falhar no clique.
+      // banco já guarda a lista no lead — sem a migração 20261023120000, o
+      // card mostra as etiquetas e não oferece editar, em vez de oferecer e
+      // falhar no clique.
       etiquetasDisponiveis: etiquetasConhecidas(etiquetasVistas),
-      etiquetasEditaveis: configDoChatwoot() !== null,
+      etiquetasEditaveis: etiquetasNoLead,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -717,6 +724,24 @@ export async function PATCH(request: NextRequest) {
       : null;
 
     // ------------------------------------------------------------------------
+    // O resumo do assistente para o dono escolhido (2026-10-20)
+    // ------------------------------------------------------------------------
+    // O lead que o assistente entregou sem dono (distribuição pelo
+    // administrador) ganhou dono agora: o resumo vai a ele já, e não na
+    // próxima rodada do n8n — velocidade de resposta é o que decide o lead
+    // quente. Lead que não veio do assistente sai na primeira leitura. Com a
+    // chave de serviço porque o envio é do servidor; falhar não desfaz a troca.
+    if (novoDono) {
+      try {
+        // Troca feita no quadro: com o rodízio, o dono novo recebe o resumo
+        // mesmo que o rodízio já tenha avisado outro vendedor.
+        await avisarEntregaPendente(createAdminSupabaseClient(), String(id), {}, { trocaManual: true });
+      } catch (erro) {
+        console.warn("[Leads] Resumo do assistente não enviado ao dono novo:", erro instanceof Error ? erro.message : erro);
+      }
+    }
+
+    // ------------------------------------------------------------------------
     // Os veículos de interesse depois do desfecho (2026-10-05)
     // ------------------------------------------------------------------------
     // Fechar NÃO é bloqueado por opção pendente nesta versão (decisão da
@@ -809,16 +834,16 @@ export async function PATCH(request: NextRequest) {
     //
     // Duas metades, e só esta mora aqui. O CRÉDITO fica no rastro, pelo
     // gatilho da migração 20260925180000, no mesmo `update` acima — não
-    // depende do Chatwoot nem desta rota. E é o gatilho que decide se a
+    // depende desta rota. E é o gatilho que decide se a
     // passagem conta: só lead parado ou reaberto, passado por quem é só SDR
     // (decisões do dono, 25/09). A rota não repete a régua; ela CONTA os
-    // resgates do lead antes e depois do `update`, e põe as ETIQUETAS na
-    // conversa só se o gatilho creditou. Etiqueta e crédito medem a mesma
-    // coisa, ou o filtro do Chatwoot e o relatório do banco discordam.
+    // resgates do lead antes e depois do `update`, e põe as ETIQUETAS no
+    // lead só se o gatilho creditou. Etiqueta e crédito medem a mesma coisa,
+    // ou o filtro do card e o relatório do banco discordam.
     //
-    // As etiquetas vão DEPOIS de a passagem estar gravada: o Chatwoot fora do
-    // ar não pode travar o lead com o SDR. Falhou, a resposta leva o aviso e
-    // a passagem continua valendo.
+    // As etiquetas vão DEPOIS de a passagem estar gravada: uma falha ao
+    // etiquetar não pode travar o lead com o SDR. Falhou, a resposta leva o
+    // aviso e a passagem continua valendo.
     if (passaComoSdr) {
       const resgatesDepois = await contarPassagensCreditadas(supabase, id);
       if (resgatesAntes === null || resgatesDepois === null) {
@@ -826,7 +851,7 @@ export async function PATCH(request: NextRequest) {
           ok: true,
           ...doDesfecho,
           aviso: comAviso(
-            "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não foram para o Chatwoot.",
+            "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não entraram no lead.",
           ),
         });
       }
@@ -835,11 +860,11 @@ export async function PATCH(request: NextRequest) {
           ok: true,
           ...doDesfecho,
           aviso: comAviso(
-            "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no Chatwoot.",
+            "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no lead.",
           ),
         });
       }
-      const passagem = await etiquetarPassagemDoSdr(supabase, id, configDoChatwoot());
+      const passagem = await etiquetarPassagemDoSdr(supabase, id);
       return NextResponse.json({
         ok: true,
         ...doDesfecho,
@@ -851,6 +876,26 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true, ...doDesfecho });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+/** Apaga a pasta do lead no bucket dos anexos. Nunca lança. */
+async function apagarArquivosDoLead(leadId: string): Promise<{ ok: true } | { ok: false; aviso: string }> {
+  const aviso = "O lead foi excluído, mas os arquivos da conversa ficaram no bucket atendimento-midia: repita a exclusão ou apague a pasta do lead.";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(leadId)) return { ok: true };
+  try {
+    const bucket = createAdminSupabaseClient().storage.from(BUCKET_DOS_ANEXOS);
+    for (let volta = 0; volta < 20; volta += 1) {
+      const { data, error } = await bucket.list(leadId, { limit: 100 });
+      if (error) return { ok: false, aviso };
+      const caminhos = (data ?? []).filter((o) => o.name).map((o) => `${leadId}/${o.name}`);
+      if (caminhos.length === 0) return { ok: true };
+      const { error: erroAoApagar } = await bucket.remove(caminhos);
+      if (erroAoApagar) return { ok: false, aviso };
+    }
+    return { ok: false, aviso };
+  } catch {
+    return { ok: false, aviso };
   }
 }
 
@@ -893,7 +938,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    // Os arquivos da conversa (fotos, documentos do cliente — 2026-10-20)
+    // moram na pasta do lead no bucket privado: a conversa sai pelo cascade,
+    // e os arquivos saem aqui. O lead já foi apagado; o que falhar vira aviso,
+    // para o Administrador repetir.
+    const arquivos = await apagarArquivosDoLead(id);
+    return NextResponse.json(arquivos.ok ? { ok: true } : { ok: true, aviso: arquivos.aviso });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

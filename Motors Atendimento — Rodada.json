@@ -1,0 +1,172 @@
+{
+  "name": "Motors Atendimento — Rodada",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "c2000000-0000-4000-8000-000000000001",
+      "name": "A cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "A cada 15 minutos, TODO dia. Quem decide se pode mandar agora é a rota: o toque ao cliente só sai no horário da loja, e o resumo ao vendedor, das 8h às 20h, fora domingo. A régua de horário aqui a duplicaria — a mesma escolha do workflow de alertas do funil."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://motorsstore.com.br/api/atendimento/rodada",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"reservar\": true } }}",
+        "options": {
+          "timeout": 70000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "c2000000-0000-4000-8000-000000000002",
+      "name": "Pedir a rodada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUBSTITUIR_NA_IMPORTACAO",
+          "name": "ATENDIMENTO_MOTOR_TOKEN"
+        }
+      },
+      "notes": "`reservar: true` é produção: manda os resumos pendentes e os toques das cadências. `false` é prévia — mostra o que sairia, sem enviar. Confira a prévia antes de ligar.\n\nCredencial Header Auth:\n  Name  = Authorization\n  Value = Bearer <ATENDIMENTO_MOTOR_TOKEN>\n\nÉ um segredo PRÓPRIO, não o FUNIL_MOTOR_TOKEN nem o CHATWOOT_WEBHOOK_TOKEN: esta porta escreve conversa e lead e faz o site mandar WhatsApp a cliente."
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * A execução termina VERMELHA quando algo não saiu: resumo sem ninguém para receber ou toque\n * que a Evolution recusou. Fila que falha calada é fila que ninguém audita.\n */\nconst r = $input.first().json;\nif (r.statusCode !== 200) {\n  throw new Error('A rodada do atendimento respondeu HTTP ' + r.statusCode + ': ' + JSON.stringify(r.body).slice(0, 300));\n}\nconst corpo = r.body || {};\nif (corpo.falhas > 0) {\n  const toques = (corpo.toques || []).filter((t) => t.enviado === false).map((t) => t.lead_id + ' (' + (t.motivo || '?') + ')');\n  const entregas = (corpo.entregas || []).filter((e) => e.avisado === false && e.motivo === 'sem_destinatario').map((e) => e.lead_id);\n  throw new Error('RODADA COM FALHA: ' + corpo.falhas + '. Toques não enviados: ' + (toques.join('; ') || 'nenhum')\n    + '. Entregas sem destinatário: ' + (entregas.join('; ') || 'nenhuma') + '.');\n}\nreturn [{ json: { ativo: corpo.ativo, entregas: (corpo.entregas || []).length, toques: (corpo.toques || []).length } }];\n"
+      },
+      "id": "c2000000-0000-4000-8000-000000000003",
+      "name": "Conferir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://motorsstore.com.br/api/atendimento/fotos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {} }}",
+        "options": {
+          "timeout": 70000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "c2000000-0000-4000-8000-000000000004",
+      "name": "Classificar as fotos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        520
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SUBSTITUIR_NA_IMPORTACAO",
+          "name": "ATENDIMENTO_MOTOR_TOKEN"
+        }
+      },
+      "notes": "A rodada das fotos: o modelo de visão da DeepSeek classifica, por camada (fora, interior, detalhes da versão, rodas, motor, porta-malas), as fotos do estoque que ainda não viu. Uma vez por foto; cada rodada adianta a fila por até 40 s. O carro que o cliente pedir antes disso é classificado na hora pela conversa.\n\nMesma credencial da rodada (ATENDIMENTO_MOTOR_TOKEN). Em paralelo com a rodada do atendimento: uma não espera a outra."
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Vermelho quando a classificação não andou: falta a chave da DeepSeek, ou um pedido ao modelo\n * de visão falhou (as fotos dele continuam na fila e a próxima rodada tenta de novo).\n */\nconst r = $input.first().json;\nif (r.statusCode !== 200) {\n  throw new Error('A rodada das fotos respondeu HTTP ' + r.statusCode + ': ' + JSON.stringify(r.body).slice(0, 300));\n}\nconst corpo = r.body || {};\nif (corpo.ok === false || corpo.falhas > 0) {\n  throw new Error('FOTOS COM FALHA: ' + (corpo.motivo || 'sem motivo') + '. Pedidos que falharam: ' + (corpo.falhas || 0) + '.');\n}\nreturn [{ json: { classificadas: corpo.fotos_classificadas || 0, carros: corpo.carros_classificados || 0, restantes: corpo.restantes || 0 } }];\n"
+      },
+      "id": "c2000000-0000-4000-8000-000000000005",
+      "name": "Conferir as fotos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        520
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "A cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Pedir a rodada",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Classificar as fotos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedir a rodada": {
+      "main": [
+        [
+          {
+            "node": "Conferir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificar as fotos": {
+      "main": [
+        [
+          {
+            "node": "Conferir as fotos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timezone": "America/Sao_Paulo",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all"
+  },
+  "tags": []
+}

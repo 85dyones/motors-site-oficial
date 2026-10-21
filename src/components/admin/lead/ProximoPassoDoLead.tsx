@@ -36,7 +36,11 @@ export default function ProximoPassoDoLead({
   const com = lead.responsavel ? `Com ${lead.responsavel}` : "Sem responsável";
 
   return (
-    <section data-bloco="p" aria-labelledby="titulo-do-proximo-passo" className={`flex flex-col gap-3 px-6 py-5 ${className}`}>
+    <section
+      data-bloco="p"
+      aria-labelledby="titulo-do-proximo-passo"
+      className={`flex flex-col gap-3 border-t border-mt-regua-fina px-6 py-5 ${className}`}
+    >
       <TituloDeBloco id="titulo-do-proximo-passo">Próximo passo</TituloDeBloco>
 
       {passo ? (

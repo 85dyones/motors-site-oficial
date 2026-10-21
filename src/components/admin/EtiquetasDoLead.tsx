@@ -1,38 +1,44 @@
 "use client";
 
-import { ehEtiquetaDaPassagem, mesmaEtiqueta } from "../../lib/etiquetas";
+import { useState } from "react";
+import { ehEtiquetaDaPassagem, mesmaEtiqueta, normalizarEtiqueta } from "../../lib/etiquetas";
 
 /**
- * As etiquetas da conversa do Chatwoot, dentro do card do lead (2026-09-25).
+ * As etiquetas do lead, dentro do detalhe (2026-09-25; no lead desde
+ * 2026-10-20, quando o Chatwoot saiu de cena).
  *
  * Pedido do dono: *"ele [o SDR] tem que ter acesso às etiquetas"*; decisão
- * dele: ver e editar no card. Pôr é um select com as etiquetas que existem;
- * tirar é o × do chip. Cada clique manda UMA mudança (esta entra, esta sai),
- * e o servidor a aplica sobre o que a conversa tem agora — nunca a lista que
- * o card desenhou, que vem do espelho e pode estar atrás.
+ * dele: ver e editar no card. Pôr é um select com as etiquetas que já existem
+ * nos leads, mais "nova etiqueta…" para criar uma (era a conta do Chatwoot
+ * que guardava a lista; agora ela é o que os leads têm); tirar é o × do chip.
+ * Cada clique manda UMA mudança (esta entra, esta sai), e o servidor a aplica
+ * sobre o que o lead tem agora — nunca a lista que a tela desenhou, que pode
+ * estar atrás de outra aba.
  *
  * "resgate" e "reaquecido" aparecem com a régua de destaque, SEM × e fora do
  * "+ etiqueta": são as que medem o trabalho do SDR, e entram sozinhas na
- * passagem (o dono pediu *"automático"* e *"manter"*). Engano se desfaz no
- * próprio Chatwoot.
+ * passagem (o dono pediu *"automático"* e *"manter"*).
  *
- * Três jeitos de não oferecer edição, e cada um com o seu motivo:
- *   - sem conversa no Chatwoot, não há onde gravar — e sem etiqueta nenhuma
- *     não há o que mostrar, então o bloco some (é o lead recém-chegado, o mais
- *     comum; uma linha "sem etiqueta" em cada um seria ruído);
- *   - sem `CHATWOOT_API_TOKEN` no servidor, as etiquetas aparecem, sem × e
- *     sem select — oferecer e falhar no clique ensina que o botão não presta;
+ * Dois jeitos de não oferecer edição, e cada um com o seu motivo:
+ *   - banco sem a migração 20261023120000: as etiquetas (da conversa)
+ *     aparecem, sem × e sem select — oferecer e falhar no clique ensina que o
+ *     botão não presta;
  *   - enquanto o lead tem gravação no ar — de etiqueta OU de responsável —,
- *     os controles travam. A passagem do SDR também escreve etiqueta no
- *     Chatwoot, e duas escritas da mesma conversa em voo, a segunda grava por
- *     cima da primeira.
+ *     os controles travam: a passagem do SDR também escreve etiqueta.
  */
+
+/** O valor do select que abre o campo de etiqueta nova. */
+const NOVA = "__nova__";
+
+/** O que se digitou, no formato das etiquetas: minúsculas, espaço vira hífen. */
+export function etiquetaDigitada(texto: string): string | null {
+  return normalizarEtiqueta(texto.trim().replace(/\s+/g, "-"));
+}
 
 export default function EtiquetasDoLead({
   nome,
   etiquetas,
   disponiveis,
-  temConversa,
   editavel,
   ocupado = false,
   onIncluir,
@@ -41,13 +47,14 @@ export default function EtiquetasDoLead({
   nome: string;
   etiquetas: readonly string[];
   disponiveis: readonly string[];
-  temConversa: boolean;
   editavel: boolean;
   ocupado?: boolean;
   onIncluir: (etiqueta: string) => void;
   onRetirar: (etiqueta: string) => void;
 }) {
-  const podeEditar = editavel && temConversa;
+  const [criando, setCriando] = useState(false);
+  const [digitada, setDigitada] = useState("");
+  const podeEditar = editavel;
   if (etiquetas.length === 0 && !podeEditar) return null;
 
   // As duas da passagem nunca entram à mão — ver `editarEtiquetasDoLead`.
@@ -82,14 +89,15 @@ export default function EtiquetasDoLead({
         );
       })}
 
-      {podeEditar && paraPor.length > 0 && (
+      {podeEditar && !criando && (
         <select
           // Sempre no "+ etiqueta": o select é um botão de pôr, não um estado.
           value=""
           disabled={ocupado}
           onChange={(ev) => {
             const nova = ev.target.value;
-            if (nova) onIncluir(nova);
+            if (nova === NOVA) setCriando(true);
+            else if (nova) onIncluir(nova);
           }}
           aria-label={`Pôr etiqueta em ${nome}`}
           className="mt-foco cursor-pointer border border-dashed border-mt-regua bg-mt-bg px-1 py-0.5 text-[10px] text-mt-neutral-700 disabled:cursor-wait disabled:opacity-50"
@@ -100,8 +108,98 @@ export default function EtiquetasDoLead({
               {e}
             </option>
           ))}
+          <option value={NOVA}>nova etiqueta…</option>
         </select>
       )}
+
+      {podeEditar && criando && (
+        <NovaEtiqueta
+          nome={nome}
+          valor={digitada}
+          ocupado={ocupado}
+          jaTem={(e) => etiquetas.some((t) => mesmaEtiqueta(t, e))}
+          onMudar={setDigitada}
+          onPor={(e) => {
+            onIncluir(e);
+            setDigitada("");
+            setCriando(false);
+          }}
+          onDesistir={() => {
+            setDigitada("");
+            setCriando(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** O campo da etiqueta nova: Enter põe, Esc desiste. */
+function NovaEtiqueta({
+  nome,
+  valor,
+  ocupado,
+  jaTem,
+  onMudar,
+  onPor,
+  onDesistir,
+}: {
+  nome: string;
+  valor: string;
+  ocupado: boolean;
+  jaTem: (etiqueta: string) => boolean;
+  onMudar: (texto: string) => void;
+  onPor: (etiqueta: string) => void;
+  onDesistir: () => void;
+}) {
+  const etiqueta = etiquetaDigitada(valor);
+  // A da passagem não entra à mão nem digitada — ver `editarEtiquetasDoLead`.
+  const problema = !valor.trim()
+    ? null
+    : !etiqueta
+      ? "Use letras, números, hífen ou sublinhado (até 50)."
+      : ehEtiquetaDaPassagem(etiqueta)
+        ? "Resgate e reaquecido entram sozinhas, na passagem do SDR."
+        : jaTem(etiqueta)
+          ? "O lead já tem essa etiqueta."
+          : null;
+  const pode = Boolean(etiqueta) && !problema && !ocupado;
+  return (
+    <form
+      className="flex flex-wrap items-center gap-1"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        if (pode && etiqueta) onPor(etiqueta);
+      }}
+    >
+      <input
+        autoFocus
+        value={valor}
+        maxLength={60}
+        disabled={ocupado}
+        onChange={(ev) => onMudar(ev.target.value)}
+        onKeyDown={(ev) => {
+          if (ev.key === "Escape") onDesistir();
+        }}
+        placeholder="nova etiqueta"
+        aria-label={`Nova etiqueta para ${nome}`}
+        className="mt-foco w-32 border border-mt-regua bg-mt-bg px-1 py-0.5 text-[10px] text-mt-ink"
+      />
+      <button
+        type="submit"
+        disabled={!pode}
+        className="mt-foco cursor-pointer border border-mt-regua px-1.5 py-0.5 text-[10px] text-mt-neutral-800 hover:border-mt-accent disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Pôr
+      </button>
+      <button
+        type="button"
+        onClick={onDesistir}
+        className="mt-foco cursor-pointer px-1 py-0.5 text-[10px] text-mt-neutral-600 hover:text-mt-accent"
+      >
+        Cancelar
+      </button>
+      {problema && <span className="w-full text-[10px] text-mt-accent-800">{problema}</span>}
+    </form>
   );
 }

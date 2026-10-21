@@ -113,6 +113,14 @@ export default function SidebarNav({ perfis }: SidebarNavProps) {
         // venda". A rota omite o recorte por vendedor para quem a matriz A17
         // mantém longe do contato individual.
         { name: "Ganhos e perdas", href: "/admin/leads/relatorio", roles: [...QUEM_VE_O_GERAL] },
+        // O atendimento por IA (2026-10-20): origem, equipe e assistente, e a
+        // configuração para quem a matriz deixa ligar. Só quem vê lead — a
+        // rota recorta pelo escopo, e Marketing e Financeiro não veem lead.
+        {
+          name: "Atendimento IA",
+          href: "/admin/leads/atendimento",
+          roles: ["admin", "gestor", "comercial"],
+        },
         // Configurar, não: a régua vale para a equipe inteira.
         {
           name: "Configurar funil",

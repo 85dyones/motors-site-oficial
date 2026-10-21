@@ -301,6 +301,9 @@ export const ACAO_GERENCIAR_AGENDA = "Gerenciar clientes e fornecedores";
  */
 export const ACAO_COPILOTO_DE_MIDIA = "Aprovar mudanças do Copiloto de Mídia";
 
+/** O atendimento por IA (2026-10-20): a tela e a rota de configuração perguntam por ela. */
+export const ACAO_CONFIGURAR_ATENDIMENTO = "Configurar o atendimento por IA";
+
 /** A matriz do A17, na ordem do doc. */
 export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
   linha(
@@ -449,6 +452,15 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     "Configurar o funil de vendas",
     ["faz", "faz", "nao_ve", "nao_ve", "nao_ve"],
     "A régua vale para a equipe — quem é cobrado pelo prazo não o define",
+  ),
+  // Linha ACRESCENTADA em 2026-10-20, com o atendimento por IA: ligar o
+  // assistente, os pesos do aquecimento, a distribuição e as cadências. Os
+  // mesmos de quem configura o funil, pelo mesmo motivo — e ligar é mandar
+  // mensagem a cliente de verdade.
+  linha(
+    ACAO_CONFIGURAR_ATENDIMENTO,
+    ["faz", "faz", "nao_ve", "nao_ve", "nao_ve"],
+    "Ligar o assistente manda mensagem a cliente de verdade",
   ),
   linha(
     "Gerenciar campanhas de mídia paga",

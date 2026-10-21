@@ -717,13 +717,13 @@ describe("montarHistorico", () => {
     expect(frase(evento("etiqueta", { autor: "Felipe", detalhe: detalhe(["negociando", "quer-comprar"], ["origem-site"]) }))).toMatchObject({
       rotulo: "Etiquetas",
       autor: "Felipe",
-      texto: "Etiquetas da conversa: incluiu negociando e quer-comprar; retirou origem-site.",
+      texto: "Etiquetas: incluiu negociando e quer-comprar; retirou origem-site.",
     });
     expect(frase(evento("etiqueta", { detalhe: detalhe(["a", "b", "c"], []) })).texto).toBe(
-      "Etiquetas da conversa: incluiu a, b e c.",
+      "Etiquetas: incluiu a, b e c.",
     );
-    expect(frase(evento("etiqueta", { para: "x, y", detalhe: detalhe([], []) })).texto).toBe("Etiquetas da conversa: x, y.");
-    expect(frase(evento("etiqueta", { detalhe: null })).texto).toBe("Etiquetas da conversa alteradas.");
+    expect(frase(evento("etiqueta", { para: "x, y", detalhe: detalhe([], []) })).texto).toBe("Etiquetas: x, y.");
+    expect(frase(evento("etiqueta", { detalhe: null })).texto).toBe("Etiquetas alteradas.");
   });
 
   it("etiquetas da passagem do SDR: o crédito de resgate, com o motivo e a passagem", () => {

@@ -318,6 +318,29 @@ const CADEIA = [
   // `org_padrao`, `nucleo_so_encerra_vigencia` e `orgs`; o andaime não
   // precisou de nada novo.
   "20261019120000_niveis_da_consulta_de_placa.sql",
+  // O atendimento por IA (2026-10-20): conversa, retratos do aquecimento,
+  // configuração e as colunas de estado no lead. Entra na cadeia porque a
+  // leitura da conversa HERDA o escopo de `leads` por subconsulta — o aceite
+  // veste dois vendedores, o marketing e o anônimo para provar que um não lê
+  // a conversa do outro — e porque recria `registrar_contato_do_lead`, que a
+  // 20261014120000, logo acima, deixou com o `chatwoot` tirando de "Novo".
+  "20261020120000_atendimento_ia.sql",
+  // As fotos do estoque classificadas por camada para o atendimento
+  // (2026-10-20): a tabela da classificação e a foto na conversa. Entra na
+  // cadeia porque acrescenta restrições a `atendimento_mensagens`, da
+  // migração logo acima, e o aceite prova que a sessão só lê.
+  "20261021120000_fotos_do_atendimento.sql",
+  // A entrega do lead pronto para o comercial (2026-10-20): troca a regra do
+  // motivo de entrega da 20261020120000 pela que aceita `agendou` e
+  // `simulacao`. Entra na cadeia porque depende da regra criada lá.
+  "20261022120000_atendimento_entrega_pronta.sql",
+  // As etiquetas moram no lead (2026-10-20, o Chatwoot sai de cena): a coluna,
+  // a carga a partir do atendimento e a função que edita com rastro. Entra na
+  // cadeia porque usa `registrar_etiquetas_do_lead` e `atendimentos.tags`.
+  "20261023120000_etiquetas_no_lead.sql",
+  "20261024120000_anexos_do_atendimento.sql",
+  "20261025120000_etiquetas_automaticas.sql",
+  "20261026120000_base_parada_no_assistente.sql",
 ];
 
 /**

@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "../../../../lib/supabase-server";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
-import { leadNoEscopo, visaoDeLeads, type VisaoDeLeads } from "../../../../lib/escopoDeLeads";
-import { configDoChatwoot, lerEtiquetasDaConta } from "../../../../lib/etiquetasDoChatwoot";
-import { ETIQUETAS_DA_PASSAGEM, mesmaEtiqueta } from "../../../../lib/etiquetas";
+import { comEscopoDeLeads, leadNoEscopo, visaoDeLeads, type VisaoDeLeads } from "../../../../lib/escopoDeLeads";
 import { editarEtiquetasDoLead, etiquetasConhecidas } from "../../../../lib/etiquetasDoLead";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +10,13 @@ export const dynamic = "force-dynamic";
  * As etiquetas do lead no card do kanban (2026-09-25).
  *
  * Pedido do dono: *"ele [o SDR] tem que ter acesso às etiquetas"*; decisão
- * dele: ver e editar no card. As etiquetas moram na conversa do Chatwoot — esta
- * rota grava LÁ, pela API, e deixa no rastro do lead quem mudou o quê. A
- * lógica mora em `lib/etiquetasDoLead.ts`; aqui só a porta.
+ * dele: ver e editar no card. Desde 20/10/2026 as etiquetas moram no próprio
+ * lead (`leads.etiquetas`; o Chatwoot saiu de cena) — esta rota grava lá e
+ * deixa no rastro do lead quem mudou o quê. A lógica mora em
+ * `lib/etiquetasDoLead.ts`; aqui só a porta.
  *
  * A porta é a mesma do kanban: "Ver e mover leads no kanban" — Admin, Gestor,
- * Comercial e SDR, cada um nos leads do seu escopo (`lib/escopoDeLeads.ts`). Quem move o lead também etiqueta a conversa dele.
+ * Comercial e SDR, cada um nos leads do seu escopo (`lib/escopoDeLeads.ts`). Quem move o lead também o etiqueta.
  */
 
 async function sessaoQueMoveLead() {
@@ -44,40 +43,50 @@ async function sessaoQueMoveLead() {
   return { supabase, visao, recusa: null };
 }
 
+/** Quantos leads etiquetados a lista de sugestões lê, no máximo. */
+const TETO_DE_LEADS_ETIQUETADOS = 2000;
+
 /**
- * As etiquetas criadas na conta do Chatwoot — o que o card oferece para pôr.
+ * O que o card oferece para pôr: as etiquetas que já estão nos leads que a
+ * sessão enxerga (`comEscopoDeLeads`, a mesma régua da fila), menos as duas
+ * da passagem.
  *
- * Lidas à parte, e não no GET da fila: a fila não pode esperar o Chatwoot
- * responder para aparecer. Falhou, o card fica com as etiquetas que já viu nas
- * conversas e as duas da passagem.
+ * Lidas à parte, e não no GET da fila: a fila lê só os leads dela, e a
+ * etiqueta criada num lead que saiu da fila tem de continuar oferecida.
+ * Falhou, o card fica com as etiquetas que já viu na fila.
  *
- * `faltamNaConta`: das duas da passagem, as que ninguém criou na conta. A
- * conversa aceita a etiqueta mesmo assim, mas a tela do Chatwoot só desenha as
- * criadas — o SDR passaria o lead e ninguém lá veria "reaquecido". O painel
- * avisa em vez de criar sozinho: criar etiqueta na conta é decisão de quem
- * administra o Chatwoot.
+ * `daConta` e `faltamNaConta` ficam na resposta pelo formato de antes (eram a
+ * lista da conta do Chatwoot): sem Chatwoot, a lista é sempre a do banco, e
+ * nenhuma etiqueta falta em lugar nenhum.
  */
 export async function GET() {
   try {
-    const { recusa } = await sessaoQueMoveLead();
+    const { supabase, visao, recusa } = await sessaoQueMoveLead();
     if (recusa) return recusa;
 
-    const cfg = configDoChatwoot();
-    if (!cfg) return NextResponse.json({ etiquetas: etiquetasConhecidas(), daConta: false });
-    const r = await lerEtiquetasDaConta(cfg);
-    if (!r.ok) return NextResponse.json({ etiquetas: etiquetasConhecidas(), daConta: false, aviso: r.motivo });
-    const faltamNaConta = ETIQUETAS_DA_PASSAGEM.filter((p) => !r.valor.some((e) => mesmaEtiqueta(e, p)));
-    return NextResponse.json({ etiquetas: etiquetasConhecidas(r.valor), daConta: true, faltamNaConta });
+    const consulta = supabase
+      .from("leads")
+      .select("etiquetas, responsavel")
+      .neq("etiquetas", "{}")
+      .limit(TETO_DE_LEADS_ETIQUETADOS);
+    const { data, error } = await comEscopoDeLeads(consulta, visao);
+    if (error) return NextResponse.json({ etiquetas: etiquetasConhecidas(), daConta: false, aviso: error.message });
+    // `leadNoEscopo` de novo, como a fila: o banco não sabe que responsável
+    // só com espaços é "sem responsável".
+    const listas = (data ?? [])
+      .filter((l: { responsavel?: string | null }) => leadNoEscopo(visao, l.responsavel))
+      .map((l: { etiquetas?: unknown }) => (Array.isArray(l.etiquetas) ? l.etiquetas : []));
+    return NextResponse.json({ etiquetas: etiquetasConhecidas(...listas), daConta: true, faltamNaConta: [] });
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Erro" }, { status: 500 });
   }
 }
 
 /**
- * Muda as etiquetas da conversa do lead: `{ id, incluir?, retirar? }`.
+ * Muda as etiquetas do lead: `{ id, incluir?, retirar? }`.
  *
  * Mudança, e não a lista inteira — ver `editarEtiquetasDoLead`. A resposta
- * traz a lista que ficou no Chatwoot, que é a que o card passa a mostrar.
+ * traz a lista que ficou no lead, que é a que o card passa a mostrar.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -101,7 +110,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const r = await editarEtiquetasDoLead(supabase, id, body, configDoChatwoot());
+    const r = await editarEtiquetasDoLead(supabase, id, body);
     if (!r.ok) return NextResponse.json({ error: r.erro }, { status: r.status });
     return NextResponse.json({ ok: true, etiquetas: r.etiquetas, ...(r.aviso ? { aviso: r.aviso } : {}) });
   } catch (err: unknown) {

@@ -669,6 +669,8 @@ const ROTULO_DO_EVENTO: Record<string, string> = {
 const ROTULO_DO_CANAL: Record<string, string> = {
   whatsapp: "WhatsApp",
   chatwoot: "Chatwoot",
+  // A resposta de gente pelo número da loja, no painel ou no celular (2026-10-20).
+  evolution: "WhatsApp da loja",
   telefone: "telefone",
   ligacao: "telefone",
 };
@@ -793,8 +795,8 @@ function fraseDoEvento(e: EventoDoLead, contexto: ContextoDoHistorico): string {
         ...(incluidas.length ? [`incluiu ${enumerar(incluidas)}`] : []),
         ...(retiradas.length ? [`retirou ${enumerar(retiradas)}`] : []),
       ];
-      if (partes.length) return `Etiquetas da conversa: ${partes.join("; ")}.`;
-      return para ? `Etiquetas da conversa: ${para}.` : "Etiquetas da conversa alteradas.";
+      if (partes.length) return `Etiquetas: ${partes.join("; ")}.`;
+      return para ? `Etiquetas: ${para}.` : "Etiquetas alteradas.";
     }
 
     case "nota": {

@@ -78,7 +78,7 @@ Sem corpo. Resposta `200`:
     "chatwoot_conversation_id": "number|null",
     "com_assistente": false,
     "humano_assumiu_em": "ISO|null",
-    "etiquetas": ["string"]
+    "etiquetas": ["string"]                  // leads.etiquetas (20261023120000); sem a coluna, as da conversa
   },
   "etapa": { "chave": "string", "rotulo": "string", "tipo": "aberta|ganho|perdido|descartado" },  // ou null
   "aberto": true,                            // false = tem desfecho
@@ -105,7 +105,7 @@ Sem corpo. Resposta `200`:
   "atendentes": [ { "nome": "string" } ],
   "escopo": "todos|designados|meus",
   "podeRemoverResponsavel": false,           // só o Administrador
-  "etiquetasEditaveis": true,
+  "etiquetasEditaveis": true,               // false: banco sem leads.etiquetas
   "funilPendente": false,
   "avisos": ["string"]                       // leituras secundárias que falharam; [] é o normal
 }

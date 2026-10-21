@@ -72,6 +72,21 @@
      `tests/contraste.test.ts`. */
   --mt-accent-inverso: color-mix(in srgb, var(--mt-accent) 70%, #ffffff);
 
+  /* — temperatura do lead (2026-10-20) —
+     A única cor fora da paleta da marca, e de propósito: frio, morno e quente
+     precisam se ler de relance no detalhe e no card do lead (pedido do dono:
+     "a barra amarela ou vermelha no quente, com um emoji de chama, o inverso
+     no frio, emoji de gelado e azul na barra"). Fixas em qualquer paleta. O
+     texto (`--mt-frio`, `--mt-morno`) passa de 4,5:1 sobre o fundo -100 e
+     sobre o fundo da página; o `-vivo` é só para barra, nunca para texto. O
+     quente usa o acento da marca. */
+  --mt-frio: #1659b0;
+  --mt-frio-100: #e6effa;
+  --mt-frio-vivo: #2f80ed;
+  --mt-morno: #8a5a00;
+  --mt-morno-100: #fdf3d8;
+  --mt-morno-vivo: #f0a500;
+
   /* — elevação —
      Usada só nas molduras de mockup e em overlays. As seções da página
      não flutuam: a régua organiza, não a sombra. */

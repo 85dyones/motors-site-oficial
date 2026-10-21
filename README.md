@@ -68,6 +68,7 @@ olhe o que mudou na versão antes de aprovar.
 | `docs/MANUAL_MOTORS_CICLO.md` | A especificação de produto do Ciclo — **fonte de verdade** |
 | `docs/MOTORS_CICLO_IMPLEMENTACAO.md` | O plano de implementação em pacotes |
 | `docs/FUNIL_DE_VENDAS.md` | O funil de leads — a régua de estagnação e transferência, a pesquisa que a embasa e o que ficou de fora |
+| `docs/ATENDIMENTO_IA.md` | O atendimento por IA no WhatsApp (Evolution + n8n + DeepSeek, sem Chatwoot): a régua do aquecimento, a entrega ao vendedor, as cadências e como ligar |
 | `docs/FINANCEIRO_OPERACIONAL.md` | A linha geral do financeiro — briefing de 2026-08-21, o que está entregue e a fila |
 | `AUDITORIA.md` | Auditoria do Pacote 0 (fotografia de 2026-08-03) + decisões datadas |
 | `docs/ACHADOS_FINANCEIRO.md` | 13 achados de revisão no financeiro/investidores, ainda não corrigidos |

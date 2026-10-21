@@ -1,33 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
-import {
-  ETIQUETAS_DA_PASSAGEM,
-  ehEtiquetaDaPassagem,
-  lerMudanca,
-  normalizarEtiquetas,
-} from "./etiquetas";
-import {
-  garantirEtiquetas,
-  motivoSemChatwoot,
-  mudarEtiquetas,
-  type ConfigDoChatwoot,
-  type Resultado,
-} from "./etiquetasDoChatwoot";
+import { ETIQUETAS_DA_PASSAGEM, ehEtiquetaDaPassagem, lerMudanca, limparEtiquetas, normalizarEtiquetas } from "./etiquetas";
 
 /**
- * As etiquetas do LEAD: a ponte entre o card do kanban e a conversa do
- * Chatwoot (2026-09-25).
+ * As etiquetas do LEAD (2026-09-25; moram no lead desde 2026-10-20).
  *
- * `etiquetasDoChatwoot.ts` sabe falar com o Chatwoot; este arquivo sabe QUAL
- * conversa é a do lead e o que fica no rastro. As rotas (`/api/leads/gerenciar`
- * e `/api/leads/etiquetas`) só checam sessão e chamam daqui.
- *
- * A conversa do lead é a do atendimento MAIS RECENTE — a mesma régua de
- * `montar_fila_do_funil` e do link "Abrir no Chatwoot" do card. Duas réguas
- * seriam o card mostrando as etiquetas de uma conversa e gravando em outra.
+ * Até 20/10 a etiqueta morava na conversa do Chatwoot, e este arquivo era a
+ * ponte entre o card e a API de lá. Com o atendimento 2.0 o Chatwoot sai de
+ * cena (decisão do dono: *"gostaria de manter a questão das tags no lead"*), e
+ * a lista mora em `leads.etiquetas` — gravada só pela função
+ * `editar_etiquetas_do_lead` (migração 20261023120000), que aplica a mudança
+ * sob trava e deixa o rastro de sempre (`registrar_etiquetas_do_lead`). As
+ * rotas (`/api/leads/gerenciar` e `/api/leads/etiquetas`) só checam sessão e
+ * escopo e chamam daqui.
  */
-
-type Buscar = (url: string, init?: RequestInit) => Promise<Response>;
 
 interface AtendimentoComData {
   iniciado_em?: string | null;
@@ -42,13 +28,13 @@ export function maisRecentePrimeiro<T extends AtendimentoComData>(lista: readonl
 }
 
 /**
- * O que o card oferece para pôr: as etiquetas que já apareceram nas conversas
- * lidas (ou as criadas na conta), no formato que o site pode gravar. Em ordem
- * alfabética, para a lista não mudar de lugar a cada leitura.
+ * O que o card oferece para pôr: as etiquetas que já estão nos leads lidos,
+ * no formato que o site pode gravar. Em ordem alfabética, para a lista não
+ * mudar de lugar a cada leitura.
  *
  * Sem "resgate" e "reaquecido": elas são da passagem, e só da passagem. Postas
- * à mão, marcariam como resgate um lead que o SDR não passou — e quem medir
- * pelo filtro de etiqueta do Chatwoot contaria trabalho que não houve.
+ * à mão, marcariam como resgate um lead que o SDR não passou — e o relatório
+ * de resgates contaria trabalho que não houve.
  */
 export function etiquetasConhecidas(...listas: ReadonlyArray<unknown>[]): string[] {
   return normalizarEtiquetas(listas.flat())
@@ -57,21 +43,14 @@ export function etiquetasConhecidas(...listas: ReadonlyArray<unknown>[]): string
 }
 
 /**
- * A conversa do Chatwoot do lead, ou `null` quando o lead ainda não tem
- * (a conversa nasce quando o cliente escreve).
+ * Se o banco já guarda a lista no lead (migração 20261023120000): a coluna
+ * vem em todo `select("*")` de `leads` e é `not null`. Sem ela, o card mostra
+ * as etiquetas da conversa e não oferece editar — oferecer e falhar no clique
+ * é pior. Lista vazia não diz nada, e aí vale o banco novo: não há card para
+ * enganar.
  */
-export async function conversaDoLead(
-  supabase: SupabaseClient,
-  leadId: string,
-): Promise<Resultado<number | null>> {
-  const { data, error } = await supabase
-    .from("atendimentos")
-    .select("chatwoot_conversation_id, iniciado_em, created_at")
-    .eq("lead_id", leadId);
-  if (error) return { ok: false, motivo: `atendimento ilegível: ${error.message}` };
-  const recente = maisRecentePrimeiro((data ?? []) as Array<AtendimentoComData & { chatwoot_conversation_id?: unknown }>)[0];
-  const id = Number(recente?.chatwoot_conversation_id);
-  return { ok: true, valor: Number.isInteger(id) && id > 0 ? id : null };
+export function leadsGuardamEtiquetas(leads: ReadonlyArray<{ etiquetas?: unknown }>): boolean {
+  return leads.every((l) => Array.isArray(l.etiquetas));
 }
 
 // ----------------------------------------------------------------------------
@@ -79,42 +58,54 @@ export async function conversaDoLead(
 // ----------------------------------------------------------------------------
 
 export interface EtiquetasDaPassagem {
-  /** As etiquetas da conversa depois da passagem, quando deu para ler. */
+  /** As etiquetas do lead depois da passagem, quando deu para gravar. */
   etiquetas?: string[];
-  /** Por que "resgate" e "reaquecido" NÃO chegaram ao Chatwoot. */
+  /** Por que "resgate" e "reaquecido" NÃO chegaram ao lead. */
   aviso?: string;
 }
 
-/**
- * Garante "resgate" e "reaquecido" na conversa do lead que o SDR acabou de
- * passar para o Comercial. Pedido do dono: *"isso tem que ser feito
- * automático"*.
- *
- * Nunca lança e nunca desfaz a passagem, que já foi gravada. O que falhar
- * aqui vira `aviso`, para o SDR pôr as etiquetas à mão. O aviso não promete
- * nada sobre o crédito: quem o grava é o gatilho do banco, com regra própria,
- * e esta função não o confere — dizer "ficou registrado" seria afirmar o que
- * não se leu (revisão de 25/09).
- */
-export async function etiquetarPassagemDoSdr(
+/** O que a função do banco devolveu, ou o motivo de não ter dado. */
+type Gravacao = { ok: true; etiquetas: string[] } | { ok: false; status: number; erro: string };
+
+/** Chama `editar_etiquetas_do_lead` e traduz o erro do banco para a tela. */
+async function gravarNoLead(
   supabase: SupabaseClient,
   leadId: string,
-  cfg: ConfigDoChatwoot | null,
-  buscar?: Buscar,
-): Promise<EtiquetasDaPassagem> {
-  const semEtiqueta = (porque: string): EtiquetasDaPassagem => ({
-    aviso: `A passagem foi gravada, mas resgate e reaquecido não foram para o Chatwoot: ${porque}. Ponha as duas à mão na conversa.`,
+  incluir: readonly string[],
+  retirar: readonly string[],
+  rastro: boolean,
+): Promise<Gravacao> {
+  const { data, error } = await supabase.rpc("editar_etiquetas_do_lead", {
+    p_lead: leadId,
+    p_incluir: [...incluir],
+    p_retirar: [...retirar],
+    p_rastro: rastro,
   });
+  if (!error) return { ok: true, etiquetas: limparEtiquetas(data) };
+  if (ehTabelaOuColunaAusente(error) || error.code === "PGRST202") {
+    return { ok: false, status: 503, erro: "A edição de etiquetas espera a migração 20261023120000 (as etiquetas no lead)." };
+  }
+  if (error.code === "42501") return { ok: false, status: 403, erro: "Seu perfil não edita etiquetas." };
+  if (error.code === "23514") return { ok: false, status: 400, erro: "Etiquetas fora do formato: até 20 por pedido, cada uma com até 255 caracteres." };
+  if (error.code === "P0002") return { ok: false, status: 404, erro: "Lead não encontrado" };
+  return { ok: false, status: 500, erro: error.message };
+}
+
+/**
+ * Garante "resgate" e "reaquecido" no lead que o SDR acabou de passar para o
+ * Comercial. Pedido do dono: *"isso tem que ser feito automático"*.
+ *
+ * Sem rastro próprio: o crédito da passagem já é o evento que o gatilho grava
+ * (migração 20260925180000), com as duas etiquetas no detalhe. Nunca lança e
+ * nunca desfaz a passagem, que já foi gravada: o que falhar vira `aviso`.
+ */
+export async function etiquetarPassagemDoSdr(supabase: SupabaseClient, leadId: string): Promise<EtiquetasDaPassagem> {
   try {
-    if (!cfg) return semEtiqueta(motivoSemChatwoot());
-    const conversa = await conversaDoLead(supabase, leadId);
-    if (!conversa.ok) return semEtiqueta(conversa.motivo);
-    if (conversa.valor === null) return semEtiqueta("o lead ainda não tem conversa no Chatwoot");
-    const r = await garantirEtiquetas(conversa.valor, ETIQUETAS_DA_PASSAGEM, cfg, buscar);
-    if (!r.ok) return semEtiqueta(r.motivo);
-    return { etiquetas: r.valor.depois };
+    const r = await gravarNoLead(supabase, leadId, ETIQUETAS_DA_PASSAGEM, [], false);
+    if (!r.ok) return { aviso: `A passagem foi gravada, mas resgate e reaquecido não entraram no lead: ${r.erro}` };
+    return { etiquetas: r.etiquetas };
   } catch (e) {
-    return semEtiqueta(e instanceof Error ? e.message : "erro inesperado");
+    return { aviso: `A passagem foi gravada, mas resgate e reaquecido não entraram no lead: ${e instanceof Error ? e.message : "erro inesperado"}` };
   }
 }
 
@@ -127,31 +118,19 @@ export type EdicaoDeEtiquetas =
   | { ok: false; status: number; erro: string };
 
 /**
- * Aplica no Chatwoot o que o card pediu — pôr umas, tirar outras — e deixa no
- * rastro o que entrou e o que saiu.
+ * Aplica no lead o que o card pediu — pôr umas, tirar outras — e deixa no
+ * rastro o que entrou e o que saiu (a função do banco faz as duas coisas, sob
+ * trava da linha).
  *
- * O card manda a MUDANÇA, nunca a lista inteira. Ele desenha as etiquetas do
- * espelho (`atendimentos.tags`), que pode estar atrás da conversa; a lista
- * dele gravada por cima apagaria o que ele não via. A mudança é aplicada sobre
- * o que a conversa tem agora, lido na hora (`mudarEtiquetas`).
+ * O card manda a MUDANÇA, nunca a lista inteira: outra aba pode ter mudado a
+ * lista no meio, e a lista do card gravada por cima apagaria o que ele não via.
  *
  * "resgate" e "reaquecido" não ENTRAM nem SAEM à mão por aqui. São da
  * passagem do SDR: o dono pediu *"automático"* e *"manter"*. Postas à mão,
  * marcariam trabalho que não houve; tiradas por um clique do Comercial,
- * apagariam o que houve. Engano se desfaz no próprio Chatwoot.
- *
- * E o lead que o SDR JÁ passou (há passagem no rastro) tem as duas garantidas
- * de novo em toda edição. Duas coisas de graça: a edição feita em outra aba
- * no meio da passagem não as apaga, e a passagem que falhou com o Chatwoot
- * fora do ar se cura na primeira edição seguinte.
+ * apagariam o que houve.
  */
-export async function editarEtiquetasDoLead(
-  supabase: SupabaseClient,
-  leadId: string,
-  pedido: unknown,
-  cfg: ConfigDoChatwoot | null,
-  buscar?: Buscar,
-): Promise<EdicaoDeEtiquetas> {
+export async function editarEtiquetasDoLead(supabase: SupabaseClient, leadId: string, pedido: unknown): Promise<EdicaoDeEtiquetas> {
   const lido = lerMudanca(pedido);
   if (!lido.ok) return { ok: false, status: 400, erro: lido.erro };
   const { mudanca } = lido;
@@ -159,7 +138,7 @@ export async function editarEtiquetasDoLead(
     return {
       ok: false,
       status: 422,
-      erro: "Resgate e reaquecido medem o trabalho do SDR e não saem pelo painel. Se foi engano, tire no Chatwoot.",
+      erro: "Resgate e reaquecido medem o trabalho do SDR e não saem pelo painel. Se foi engano, fale com o administrador.",
     };
   }
   if (mudanca.incluir.some(ehEtiquetaDaPassagem)) {
@@ -169,50 +148,9 @@ export async function editarEtiquetasDoLead(
       erro: "Resgate e reaquecido entram sozinhas, quando o SDR passa o lead para o Comercial.",
     };
   }
-  if (!cfg) {
-    return {
-      ok: false,
-      status: 503,
-      erro: `A edição de etiquetas ainda não foi ligada: ${motivoSemChatwoot()}.`,
-    };
-  }
-
-  const conversa = await conversaDoLead(supabase, leadId);
-  if (!conversa.ok) return { ok: false, status: 500, erro: conversa.motivo };
-  if (conversa.valor === null) {
-    return {
-      ok: false,
-      status: 409,
-      erro: "O lead ainda não tem conversa no Chatwoot — as etiquetas moram na conversa.",
-    };
-  }
-
-  const aplicada = (await jaPassouPeloSdr(supabase, leadId))
-    ? { ...mudanca, incluir: [...mudanca.incluir, ...ETIQUETAS_DA_PASSAGEM] }
-    : mudanca;
-  const r = await mudarEtiquetas(conversa.valor, aplicada, cfg, buscar);
-  if (!r.ok) return { ok: false, status: 502, erro: r.motivo };
-  if (!r.valor.mudou) return { ok: true, etiquetas: r.valor.depois };
-
-  const { error } = await supabase.rpc("registrar_etiquetas_do_lead", {
-    p_lead: leadId,
-    p_antes: r.valor.antes,
-    p_depois: r.valor.depois,
-  });
-  if (error) {
-    // A etiqueta JÁ mudou no Chatwoot; responder erro faria a tela desfazer
-    // o que está gravado lá. Antes da migração a função não existe — o rastro
-    // é um ganho, não um requisito, o mesmo trato de `registrar_contato_do_lead`.
-    if (!ehTabelaOuColunaAusente(error) && error.code !== "PGRST202") {
-      console.warn("[Leads] Etiqueta gravada sem rastro:", error.message);
-      return {
-        ok: true,
-        etiquetas: r.valor.depois,
-        aviso: "As etiquetas foram gravadas no Chatwoot, mas o registro no histórico do lead falhou.",
-      };
-    }
-  }
-  return { ok: true, etiquetas: r.valor.depois };
+  const r = await gravarNoLead(supabase, leadId, mudanca.incluir, mudanca.retirar, true);
+  if (!r.ok) return r;
+  return { ok: true, etiquetas: r.etiquetas };
 }
 
 /**
@@ -238,9 +176,4 @@ export async function contarPassagensCreditadas(
     .eq("detalhe->>origem", "passagem_do_sdr");
   if (error || typeof count !== "number") return null;
   return count;
-}
-
-/** O SDR já passou este lead como resgate? Rastro ilegível responde "não". */
-async function jaPassouPeloSdr(supabase: SupabaseClient, leadId: string): Promise<boolean> {
-  return ((await contarPassagensCreditadas(supabase, leadId)) ?? 0) > 0;
 }

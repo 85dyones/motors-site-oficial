@@ -19,6 +19,8 @@ import {
   type LeadDaFila,
 } from "../../lib/filaDoFunil";
 import { iniciais } from "../../lib/leadsKanban";
+import { seloDaTemperatura } from "../../lib/atendimentoNaTela";
+import { EMOJI_DA_TEMPERATURA, SELO_DA_TEMPERATURA } from "./lead/temperaturaNaTela";
 
 /**
  * O card enxuto do quadro (desenho de 23/09/2026, `docs/design/gestao_do_lead`).
@@ -93,6 +95,11 @@ export default function CardDoLead({
   const passo = (l.proximo_passo ?? "").trim();
   const atrasado = passo !== "" && situacaoDoPasso(l.proximo_passo_vence_em, agora) === "atrasado";
   const transferencias = seloCurtoDeTransferencias(l.transferencias);
+  // O atendimento por IA (2026-10-20): a temperatura que o assistente leu e
+  // se ele está com a conversa agora. Um lead "Novo" parado há uma hora que
+  // está com o assistente não é um lead abandonado — o selo diz isso.
+  const temperatura = seloDaTemperatura(l.temperatura, l.aquecimento);
+  const comOAssistente = l.com_assistente === true && l.assistente_fase === "qualificando";
 
   return (
     <div
@@ -126,6 +133,24 @@ export default function CardDoLead({
           // inteiro no detalhe.
           <div title={l.interesse} className="line-clamp-2 text-[11px] leading-snug text-mt-neutral-800 [overflow-wrap:anywhere]">
             {l.interesse}
+          </div>
+        )}
+        {(temperatura || comOAssistente) && (
+          <div className="flex flex-wrap items-center gap-1">
+            {temperatura && (
+              <span
+                data-temperatura={l.temperatura}
+                className={`border px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-[.1em] tabular-nums ${
+                  l.temperatura ? SELO_DA_TEMPERATURA[l.temperatura] : "border-mt-regua-fina text-mt-neutral-700"
+                }`}
+              >
+                {l.temperatura && <span aria-hidden="true">{EMOJI_DA_TEMPERATURA[l.temperatura]} </span>}
+                {temperatura}
+              </span>
+            )}
+            {comOAssistente && (
+              <span className="text-[9px] font-semibold uppercase tracking-[.1em] text-mt-neutral-600">Com o assistente</span>
+            )}
           </div>
         )}
         {aviso && (

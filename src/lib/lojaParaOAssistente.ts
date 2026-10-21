@@ -129,8 +129,10 @@ export function montarLoja(
     textoDosBancos(condicoes.bancosParceiros),
     "",
     "Nunca diga taxa, parcela ou valor, e nunca diga que a aprovação é garantida,",
-    "fácil ou rápida. Não peça CPF, RG, comprovante de renda nem dado bancário —",
-    "o consultor coleta no canal próprio.",
+    "fácil ou rápida. Não peça CPF, RG, comprovante de renda nem dado bancário por",
+    "iniciativa própria. Se o cliente pedir para simular ou mandar os dados, dá para",
+    "receber o CPF e a data de nascimento e passar ao consultor; RG, comprovante de",
+    "renda e dado bancário, nunca — o consultor coleta no canal próprio.",
   ]);
 
   const ferramentas = bloco("O que a loja tem no site", [
