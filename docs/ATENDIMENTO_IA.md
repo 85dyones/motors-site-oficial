@@ -853,6 +853,15 @@ tela, em **Leads → Atendimento IA → Configuração**.
     o WhatsApp da loja, 7 dias sem contato, até 30 por dia (§6).
 12. **Os leads do clique no WhatsApp vão ao Meta** — anotado para a próxima
     entrega (§11).
+13. **Carro do catálogo está disponível** (primeiro teste em produção,
+    21/10): *"se estiver anunciada sem ser vendida, está disponível, a
+    princípio"*. À pergunta pronta do site ("Ele ainda está disponível?") o
+    Ney responde que sim, já no primeiro balão; reservar continua com o
+    consultor. Regra 7 do prompt.
+14. **A Titano, o Onix**: *"Titano é uma caminhonete, é feminino, então seria
+    A Titano, a Saveiro, o Onix"*. O catálogo do prompt marca o carro feminino
+    (`fala-se "a Titano"`) pela mesma regra do site (`generoDoVeiculo.ts`:
+    picape, perua, van e moto), e a regra 1a manda concordar a frase inteira.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

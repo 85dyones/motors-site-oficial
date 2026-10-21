@@ -11,6 +11,7 @@ import type { ConfigDoAtendimento } from "./configDoAtendimento";
 import type { MensagemDoModelo } from "./deepseek";
 import { ROTULO_DO_CONTEUDO, type ConteudoDaMensagem } from "./evolutionEventos";
 import { ehCamada, fotosNoHistorico, pedidoDeFotosValido, type CamadaDaFoto, type PedidoDeFotos } from "./fotosDoAtendimento";
+import { generoDeModelo } from "./generoDoVeiculo";
 import { PILARES, horarioParaVisita } from "./metodoDeQualificacao";
 import { nomeComAno } from "./nomeDoVeiculo";
 import type { Veiculo } from "../types";
@@ -73,6 +74,24 @@ function formatarPreco(preco: number | null | undefined): string | null {
 }
 
 /**
+ * "a Titano", "a Saveiro" — como se fala do carro quando ele é feminino; `null`
+ * quando é masculino, que é o que o modelo já faz sozinho.
+ *
+ * O dono, no primeiro teste em produção (2026-10-21): *"Titano é uma
+ * caminhonete, é feminino, então seria A Titano, a Saveiro, o Onix"*. O Ney
+ * escrevia "O Titano Volcano 2025 é diesel". A regra é a do site
+ * (`generoDoVeiculo.ts`): picape, perua, van e moto no feminino, pelo cadastro
+ * e pela tabela de modelos. Só o feminino vai na linha: o nome falado é a
+ * primeira palavra do modelo, que acerta nas picapes e peruas ("Titano",
+ * "S10", "Kombi") e erraria em masculino de nome composto ("o T", "o Novo").
+ */
+export function comoSeFalaDoCarro(v: Pick<Veiculo, "modelo" | "tipo">): string | null {
+  const nome = (v.modelo ?? "").trim().split(/\s+/)[0] ?? "";
+  if (!nome) return null;
+  return generoDeModelo(nome, { tipo: v.tipo }) === "f" ? `a ${nome}` : null;
+}
+
+/**
  * Uma linha por carro, cada uma se bastando — o modelo cita a linha inteira
  * quando o cliente pergunta. O `#id` é o mesmo do estoque e da URL da ficha,
  * para o consultor achar o carro de que o cliente falou.
@@ -99,8 +118,10 @@ export function catalogoParaOAgente(
         .filter(Boolean)
         .slice(0, 8)
         .join(", ");
+      const falado = comoSeFalaDoCarro(v);
       const partes = [
         `#${v.id} ${nomeComAno(v)}`,
+        falado ? `fala-se "${falado}"` : null,
         formatarKm(v.quilometragem),
         v.cambio?.trim() || null,
         v.combustivel?.trim() || null,
@@ -203,6 +224,7 @@ export function montarInstrucoesFixas(entrada: {
     "",
     "## Regras",
     "1. Português do Brasil, tom informal e próximo, frases curtas, no máximo um emoji de vez em quando. É WhatsApp: no máximo 3 balões curtos por resposta.",
+    "1a. Concordância: carro, sedã e SUV são masculinos (o Onix, o Corolla, o Compass); picape, perua, van e moto são femininas (a Titano, a Saveiro, a Strada, a Spin, a Kombi). No catálogo, o carro feminino traz `fala-se \"a ...\"`: use esse artigo e concorde a frase inteira (\"A Titano é diesel\", \"ela está disponível\", \"Olha ela aqui 👇\").",
     "2. Pergunte UM assunto por vez. Não faça interrogatório nem formulário; responda o que o cliente perguntou antes de perguntar algo.",
     "2a. Toda resposta termina com UMA pergunta que avança o método ou com uma proposta concreta. Nunca encerre com \"fico à disposição\", \"qualquer dúvida estou aqui\", \"qualquer coisa é só chamar\" ou parecido: isso devolve a conversa ao cliente e esfria o lead.",
     "2b. Para marcar a visita, proponha duas opções concretas de dia e hora dentro do horário da loja (ex.: \"Consegue passar sábado às 10h, ou prefere quinta no fim da tarde?\"). Preencha visita_data e visita_hora só quando o cliente confirmar um dia E uma hora.",
@@ -211,7 +233,7 @@ export function montarInstrucoesFixas(entrada: {
     "4. Você NÃO decide desconto, preço final, valor da troca, aprovação de financiamento nem parcela. Nunca diga que um financiamento foi ou será aprovado. Quando pedirem desconto, valor final, avaliação da troca ou aprovação, marque `pediu_condicao`. Quando pedirem simulação ou valor de parcela, NÃO marque: siga as regras 4 e 4a de \"Como montar cada resposta\".",
     `5. Preço: ${preco}`,
     "6. Estoque: use só o CATÁLOGO abaixo. Se o carro pedido não estiver nele, não diga que a loja não tem: diga que vai confirmar com a equipe e ofereça os mais parecidos do catálogo.",
-    "7. Não garanta reserva nem disponibilidade, não prometa prazo, frete, brinde ou condição especial.",
+    "7. Disponibilidade: todo carro do CATÁLOGO está anunciado e não foi vendido — está disponível. Quando o cliente perguntar se ainda está disponível (é a pergunta da mensagem pronta do site), responda que SIM, está disponível, já no primeiro balão, e siga a conversa. Carro \"chegando (em preparação)\": diga que está chegando, em preparação. Reservar (segurar o carro para o cliente) é com a equipe de consultores: não prometa reserva, prazo, frete, brinde ou condição especial.",
     `8. Você é um assistente VIRTUAL${apresentacao ? ` — ${config.nome_do_assistente}${apresentacao.replace(/,$/, "")} —` : ""} e nunca diz que é uma pessoa. Se perguntarem, diga isso com naturalidade, e que a equipe de consultores assume quando precisar. Não diga que vai transferir: quando for a hora, o sistema avisa o cliente.`,
     "9. Se o cliente pedir para falar com uma pessoa, marque `pediu_humano` e responda curto.",
     "10. Se o cliente pedir para não receber mais mensagens, marque `optout` e responda só confirmando, com educação.",
@@ -222,7 +244,7 @@ export function montarInstrucoesFixas(entrada: {
     "## Fotos",
     "- Cada carro do catálogo diz quantas fotos tem de cada camada: fora, interior, detalhes da versão, rodas, motor, porta-malas. Quem manda as fotos é o sistema: você só pede, no campo \"fotos\". Nunca escreva link de foto.",
     "- Mostre em camadas, sem despejar tudo: a primeira vez que mostrar um carro, peça as de fora (\"externa\"). O interior, só quando o cliente quiser. Os detalhes (versão, rodas, motor, porta-malas), um de cada vez, quando ele pedir ou aceitar a oferta.",
-    "- Quando pedir fotos, escreva só a frase que vem ANTES delas (ex.: \"Olha ele aqui 👇\"). A pergunta sobre a próxima camada o sistema manda depois das fotos: não pergunte você.",
+    "- Quando pedir fotos, escreva só a frase que vem ANTES delas (ex.: \"Olha ele aqui 👇\", ou \"Olha ela aqui 👇\" se o carro é feminino). A pergunta sobre a próxima camada o sistema manda depois das fotos: não pergunte você.",
     "- Não peça de novo a camada que já foi (veja \"Fotos já enviadas\" no estado). Se o cliente pedir uma foto que o carro não tem, diga que a equipe consegue mandar.",
     "- Fotos de um carro por vez. Se o cliente quer ver fotos e ainda não disse de qual carro, pergunte antes.",
     "",

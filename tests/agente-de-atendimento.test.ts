@@ -4,6 +4,7 @@ import {
   BALAO_SEM_PRECO,
   MAXIMO_DE_BALOES,
   catalogoParaOAgente,
+  comoSeFalaDoCarro,
   historicoParaOModelo,
   lerRespostaDoAgente,
   lerToque,
@@ -59,6 +60,27 @@ describe("o catálogo", () => {
   it("catálogo vazio não vira 'não temos'", () => {
     expect(catalogoParaOAgente([], { comPreco: false })).toContain("Não diga que a loja não tem carros");
   });
+
+  // O dono, no primeiro teste em produção (21/10/2026): "Titano é uma
+  // caminhonete, é feminino, então seria A Titano, a Saveiro, o Onix".
+  it("picape, perua, van e moto saem com o artigo feminino; carro, sem marca nenhuma", () => {
+    const titano = carro({ id: "9001", marca: "Fiat", modelo: "Titano Volcano 2.2 16V 4x4 TB Die. Aut.", versao: "Volcano 2.2 16V 4x4 TB Die. Aut.", tipo: "Picape" });
+    const texto = catalogoParaOAgente([titano, carro({})], { comPreco: false });
+    const [linhaDaTitano, linhaDoOnix] = texto.split("\n");
+    expect(linhaDaTitano).toContain('fala-se "a Titano"');
+    expect(linhaDoOnix).not.toContain("fala-se");
+  });
+
+  it("o feminino vem do cadastro e da tabela do site — e a exceção masculina vence", () => {
+    expect(comoSeFalaDoCarro({ modelo: "Saveiro Robust 1.6", tipo: "Utilitário" })).toBe("a Saveiro");
+    expect(comoSeFalaDoCarro({ modelo: "Spin 1.8 LTZ", tipo: "Hatch" })).toBe("a Spin");
+    expect(comoSeFalaDoCarro({ modelo: "Kombi Standard 1.4", tipo: "Van" })).toBe("a Kombi");
+    expect(comoSeFalaDoCarro({ modelo: "F-250 XLT", tipo: "Picape" })).toBe("a F-250");
+    expect(comoSeFalaDoCarro({ modelo: "CB 300F Twister", tipo: "Motocicleta" })).toBe("a CB");
+    expect(comoSeFalaDoCarro({ modelo: "Bongo K2500", tipo: "Picape" })).toBeNull();
+    expect(comoSeFalaDoCarro({ modelo: "T Cross Highline", tipo: "SUV" })).toBeNull();
+    expect(comoSeFalaDoCarro({ modelo: "", tipo: "Picape" })).toBeNull();
+  });
 });
 
 describe("o prompt", () => {
@@ -79,6 +101,22 @@ describe("o prompt", () => {
     expect(instrucoes).toContain("NÃO informe preço");
     expect(instrucoes).toContain("não diga que a loja não tem");
     expect(instrucoes).toContain("JSON");
+  });
+
+  // O dono, no primeiro teste em produção (21/10/2026): "quando o cliente
+  // pergunta sobre disponibilidade, e vem sempre no texto padrão, se estiver
+  // anunciada sem ser vendida, está disponível, a princípio".
+  it("carro do catálogo está disponível: o Ney diz que sim, e reserva fica com o consultor", () => {
+    expect(instrucoes).toContain("todo carro do CATÁLOGO está anunciado e não foi vendido — está disponível");
+    expect(instrucoes).toContain("responda que SIM, está disponível, já no primeiro balão");
+    expect(instrucoes).toContain("não prometa reserva");
+    expect(instrucoes).not.toContain("Não garanta reserva nem disponibilidade");
+  });
+
+  it("a concordância segue o catálogo: a Titano, o Onix", () => {
+    expect(instrucoes).toContain("picape, perua, van e moto são femininas (a Titano, a Saveiro");
+    expect(instrucoes).toContain('o carro feminino traz `fala-se "a ..."`');
+    expect(instrucoes).toContain("Olha ela aqui 👇");
   });
 
   it("informar preço muda a regra 5", () => {
