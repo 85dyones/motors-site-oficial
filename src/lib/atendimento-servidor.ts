@@ -2503,9 +2503,10 @@ function inicioDoDiaNaLoja(agora: Date): string {
  * se não, a cadência acaba e o lead volta para a equipe, como qualquer outro.
  *
  * Fica de fora (21/10, depois do toque genérico na lojista em visita): o
- * repasse, que é lojista e não compra no varejo, e o lead que já passou de
- * "em contato" — em proposta, visita ou negociação, o acompanhamento é do
- * consultor (`entraNaBase`). E o toque só sai depois de ler a conversa.
+ * repasse, que é lojista e não compra no varejo, o lead com a visita
+ * agendada, na negociação ou no pós-venda — o acompanhamento é do consultor
+ * (`entraNaBase`) — e o telefone com outro lead aberto. E o toque só sai
+ * depois de ler a conversa.
  *
  * Sem `reservar`, só diz quem entraria. Nunca lança.
  */

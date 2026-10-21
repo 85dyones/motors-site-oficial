@@ -109,10 +109,13 @@ describe("o calendário dos passos", () => {
     expect(interesseDaCadencia({ canal: "WhatsApp", interesse: "  " }, "")).toBeNull();
   });
 
-  it("a base parada: só novo e em contato, e nunca o repasse", () => {
+  it("a base parada: as etapas de antes da visita (Novo, 1º Contato, Recontato), e nunca o repasse", () => {
     expect(entraNaBase({ canal: "WhatsApp", situacao: "novo" })).toBe(true);
     expect(entraNaBase({ canal: null, situacao: "em_contato" })).toBe(true);
-    for (const situacao of ["proposta", "visita", "negociacao", null]) expect(entraNaBase({ canal: "WhatsApp", situacao }), String(situacao)).toBe(false);
+    // "Recontato" na tela da loja é a chave `proposta`.
+    expect(entraNaBase({ canal: "WhatsApp Proposta", situacao: "proposta" })).toBe(true);
+    // Visita agendada, negociação, o pós-venda que a loja criou.
+    for (const situacao of ["visita", "negociacao", "nova_etapa_n9vi", null]) expect(entraNaBase({ canal: "WhatsApp", situacao }), String(situacao)).toBe(false);
     for (const canal of ["repasse", "repasse-lojista", "repasse-exame", "repasse-whatsapp"]) expect(entraNaBase({ canal, situacao: "novo" }), canal).toBe(false);
   });
 

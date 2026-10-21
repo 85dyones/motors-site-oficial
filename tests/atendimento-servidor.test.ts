@@ -2272,20 +2272,22 @@ describe("a base parada entra na cadência (decisão do dono, 20/10)", () => {
 
   // Visto em produção (21/10): a lojista do repasse, em visita com o dono,
   // entrou na base e recebeu "o carro que te interessou" — "Qual carro?".
-  it("o repasse e quem já passou de 'em contato' não entram: o acompanhamento é do consultor", async () => {
-    const ids = ["lead-01", "lead-02", "lead-03", "lead-04", "lead-05"];
+  it("o repasse e quem já tem visita agendada, negociação ou pós-venda não entram: o acompanhamento é do consultor", async () => {
+    const ids = ["lead-01", "lead-02", "lead-03", "lead-04", "lead-05", "lead-06"];
     const banco = montarBase(
       [
         parado("lead-01", { canal: "repasse-lojista", interesse: "Entrou na lista do repasse (lojista)." }),
         parado("lead-02", { situacao: "visita" }),
+        // "Recontato" na tela da loja: entra.
         parado("lead-03", { situacao: "proposta" }),
         parado("lead-04", { situacao: "negociacao" }),
         parado("lead-05", { situacao: "em_contato" }),
+        parado("lead-06", { situacao: "nova_etapa_n9vi" }),
       ],
       ids.map((id) => conversaDoChatwoot(id)),
     );
     const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
-    expect(rodada.base).toEqual([{ lead_id: "lead-05", cadencia: "follow_up" }]);
+    expect(rodada.base.map((b) => b.lead_id).sort()).toEqual(["lead-03", "lead-05"]);
   });
 
   it("quem não entra: contato recente, conversa recente, nunca conversou, fechado, opt-out, já com o assistente", async () => {

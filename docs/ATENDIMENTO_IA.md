@@ -401,8 +401,10 @@ registro do vendedor, nem conversa) e que **já conversaram** com o WhatsApp da
 loja — pelo Chatwoot ou por ele. Entram no follow-up (com carro de interesse)
 ou na reativação, com o primeiro toque na rodada seguinte — que lê a
 conversa antes (acima). Ficam de fora o **repasse** (lojista, que não compra
-no varejo), quem já passou de **em contato** — em proposta, visita ou
-negociação, o acompanhamento é do consultor (`entraNaBase`) — e o telefone que
+no varejo), quem já está depois do **Recontato** — com a visita agendada, na
+negociação, no pós-venda ou numa etapa que a loja criou, o acompanhamento é do
+consultor (`entraNaBase`; entram "Novo", "1º Contato" e "Recontato", que é a
+chave `proposta` renomeada na tela) — e o telefone que
 tem **outro lead aberto** (o mesmo cliente com a simulação em proposta e uma
 cópia parada em "em contato", visto em 21/10). A mesma régua vale no toque: o
 lead que a base puxou e já não entraria nela sai da cadência sem receber nada
@@ -967,7 +969,7 @@ tela, em **Leads → Atendimento IA → Configuração**.
     hora, e voltaram (com o aval do dono, depois do deploy) com estas
     regras: o histórico do WhatsApp entra antes de cada toque, o modelo lê e
     pode não escrever, o texto pronto não sai sozinho, e a base deixa de
-    fora o repasse, as etapas depois de "em contato" e o telefone com outro
+    fora o repasse, as etapas depois do "Recontato" e o telefone com outro
     lead aberto. A primeira resposta do Ney também traz o histórico antes,
     quando o painel não tem mensagem do cliente além das que acabaram de
     chegar (o lead novo, ou o da base que só tinha o toque da cadência).
