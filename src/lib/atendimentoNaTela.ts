@@ -373,6 +373,7 @@ export function posicaoNaRegua(pontos: number | null | undefined): number {
 /** O que o selo do Ney lê do lead. */
 export interface LeadDoNeyNoCard {
   assistente_fase?: string | null;
+  cadencia?: string | null;
   cadencia_passo?: number | null;
   cadencia_proximo_em?: string | null;
   desfecho?: string | null;
@@ -386,7 +387,8 @@ export interface SeloDoNey {
 
 /**
  * "Ney conversando", "Ney reaquecendo · 1º toque hoje 15:00", "Ney
- * reaquecendo · 2 toques enviados". Nulo quando o Ney não está com o lead
+ * reaquecendo · 2 toques enviados" — e "Ney · retoma 01/03" na conversa que
+ * ele encerrou com data combinada (21/10). Nulo quando o Ney não está com o lead
  * (nunca pegou, pausado, entregue) ou o negócio acabou. O card não sabe
  * quantos toques a cadência tem — a configuração mora no servidor —, então
  * diz o que já foi, e o primeiro, quando sai.
@@ -396,6 +398,11 @@ export function seloDoNey(lead: LeadDoNeyNoCard, agora: Date, nome = "Ney"): Sel
   if (lead.assistente_fase === "qualificando") return { tom: "conversando", texto: `${nome} conversando` };
   if (lead.assistente_fase !== "reaquecendo") return null;
   const enviados = Math.max(0, Number(lead.cadencia_passo ?? 0));
+  const proximoDaRetomada = lead.cadencia === "retomada" && enviados === 0 && lead.cadencia_proximo_em ? new Date(lead.cadencia_proximo_em) : null;
+  if (proximoDaRetomada && Number.isFinite(proximoDaRetomada.getTime())) {
+    const dia = proximoDaRetomada.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" });
+    return { tom: "reaquecendo", texto: `${nome} · retoma ${dia}` };
+  }
   if (enviados > 0) return { tom: "reaquecendo", texto: `${nome} reaquecendo · ${enviados} ${enviados === 1 ? "toque enviado" : "toques enviados"}` };
   const proximo = lead.cadencia_proximo_em ? Date.parse(lead.cadencia_proximo_em) : NaN;
   const quando = !Number.isFinite(proximo) ? "" : proximo <= agora.getTime() ? " na próxima rodada" : ` ${horaDaMensagem(lead.cadencia_proximo_em as string, agora)}`;

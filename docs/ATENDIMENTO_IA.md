@@ -766,6 +766,12 @@ menos os do "Ney retoma agora" (a última passagem anotada no rastro decide).
 O gatilho do rastro anota de onde cada um saiu; é por essa linha que ele volta
 (decisão 25). Com a etapa já criada, não mexe em nada.
 
+A décima (`20261029120000_cadencia_retomada.sql`) troca a regra
+`leads_cadencia_valida` pela que aceita a cadência `retomada` (decisão 26). A
+régua dela mora em `atendimento_config.cadencias` (jsonb): sem ela na linha da
+loja, vale a de fábrica. Sem a migração, o código agenda a retomada como a
+cadência do silêncio, na mesma data.
+
 ---
 
 ## 10. Como ligar
@@ -777,8 +783,9 @@ O gatilho do rastro anota de onde cada um saiu; é por essa linha que ele volta
    `20261024120000_anexos_do_atendimento.sql`,
    `20261025120000_etiquetas_automaticas.sql`,
    `20261026120000_base_parada_no_assistente.sql`,
-   `20261027120000_entrega_pos_venda.sql` e
-   `20261028120000_etapa_reaquecendo.sql`, nesta ordem.
+   `20261027120000_entrega_pos_venda.sql`,
+   `20261028120000_etapa_reaquecendo.sql` e
+   `20261029120000_cadencia_retomada.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -1124,6 +1131,48 @@ tela, em **Leads → Atendimento IA → Configuração**.
       quadro pergunta `GET /api/leads/novidades` — a conversa de cada lead e
       o estado dos que mudaram — e junta, sem relê-lo. O card mexido nesta
       tela há menos de 2 minutos não recebe o estado (o arrasto não desfaz).
+    - **o bug do quadro** (21/10, visto em produção: *"as informações novas
+      aparecem e somem, quando mudamos filtros"*; *"entrego o lead para o ney
+      e continua aparecendo o botão"*): a mudança pulada por ser de um card
+      mexido agora há pouco se perdia — o relógio das novidades andava assim
+      mesmo; agora ele espera, e a mudança volta na próxima pergunta. O "Ney
+      retoma agora" (e as outras ações do Ney) no detalhe avisa o quadro na
+      hora. Os filtros passaram a ser **um por vez**: "Esperando resposta" e
+      "Com o Ney" somados com outro deixavam o quadro vazio com "(1)" no
+      botão. A Lista do dia ganhou os selos e a última mensagem, e esses dois
+      filtros (como o "Sem responsável") levam ao Quadro, onde está quem não
+      tem próximo passo. Leitura de mensagens que falha nas novidades devolve
+      `conversas` nulo: o quadro mantém os selos e mostra o aviso.
+
+26. **O Ney encerra conversas e agenda a retomada** (21/10): *"o Ney precisa
+    fechar conversas também, gerenciar os contatos, além de aquecer, da mesma
+    forma como ele marca visitas, pode fechar a conversa e deixar a cadência
+    agendada para o futuro, com um espaço maior dependendo do momento da
+    compra"*. Nas perguntas, o dono escolheu as quatro recomendações:
+    - **quando**: só quando o CLIENTE diz que a compra não é agora ("só mês
+      que vem", "lá pra março", "vou pensar e te chamo"), depois de o Ney
+      tentar o passo seguinte. A resposta é a despedida, sem pergunta, com o
+      que ficou anotado e quando ele volta (sinal `encerrar`). Conversa em
+      andamento não se encerra;
+    - **a retomada** (cadência nova `retomada`, migração `20261029120000`):
+      com a data que o cliente disse (`ficha.retomar_data`), uma semana antes
+      dela; sem data, pelo prazo da compra — "este mês" (e "imediato") 7
+      dias, "nos próximos meses" 30, "sem pressa" 60, sem prazo 30. Às 10h da
+      loja. Depois do 1º toque, mais dois: 7 e 15 dias. A régua da base não
+      vale para ela: foi combinada com o próprio cliente;
+    - **o card vai para Reaquecendo** e o selo diz "Ney · retoma 19/11". Se o
+      cliente escrever antes, a conversa recomeça; o "ok, obrigado" à
+      despedida não reabre (ninguém responde, a retomada fica, o vendedor não
+      recebe o "valeu");
+    - **desistiu ou já comprou** (sinal `desistiu`): o Ney se despede, para a
+      cadência e devolve o lead ao vendedor, com a etiqueta `desistiu` no card
+      e a nota no histórico — quem marca o desfecho é o vendedor;
+    - **o aviso** é o card e o histórico ("Ney encerrou a conversa (compra nos
+      próximos meses): retoma em 19/11, quinta-feira"), sem WhatsApp ao
+      vendedor;
+    - a entrega ao vendedor (visita marcada, pediu uma pessoa, pós-venda…) e o
+      opt-out mandam mais que o encerramento. Com a cadência de retomada
+      desligada na configuração, a despedida sai e o lead volta para a equipe.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

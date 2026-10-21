@@ -146,6 +146,25 @@ describe("o prompt", () => {
     expect(lerRespostaDoAgente(JSON.stringify({ mensagens: ["Sinto muito."], sinais: { pos_venda: true } }))!.sinais.pos_venda).toBe(true);
   });
 
+  // O dono (21/10/2026): "o Ney precisa fechar conversas também [...] da mesma
+  // forma como ele marca visitas, pode fechar a conversa e deixar a cadência
+  // agendada para o futuro".
+  it("encerrar a conversa: só quando o cliente diz que não é agora, com a despedida e a data", () => {
+    expect(instrucoes).toContain("## Encerrar a conversa (quando não é agora)");
+    expect(instrucoes).toContain("marque `encerrar`");
+    expect(instrucoes).toContain("uma semana antes da data que ele disse; sem data, em uma semana se é este mês, em um mês se é nos próximos meses, em dois meses se não tem pressa");
+    expect(instrucoes).toContain("marque `desistiu`");
+    expect(instrucoes).toContain("Não encerre conversa em andamento");
+    expect(instrucoes).toContain("na despedida de \"Encerrar a conversa\", nenhuma");
+    expect(instrucoes).toContain('"encerrar": false');
+    expect(instrucoes).toContain('"retomar_data": null');
+    const lida = lerRespostaDoAgente(JSON.stringify({ mensagens: ["Combinado!"], ficha: { prazo: "proximos_meses", retomar_data: "2027-03-01" }, sinais: { encerrar: true } }))!;
+    expect(lida.sinais).toMatchObject({ encerrar: true, desistiu: false });
+    expect(lida.ficha).toMatchObject({ prazo: "proximos_meses", retomar_data: "2027-03-01" });
+    // Data que não existe não passa.
+    expect(lerRespostaDoAgente(JSON.stringify({ mensagens: ["Ok"], ficha: { retomar_data: "2027-02-30" } }))!.ficha.retomar_data).toBeNull();
+  });
+
   it("o que não está no catálogo nem na loja, o Ney não inventa", () => {
     expect(instrucoes).toContain("6a. Informação que não está no catálogo nem em \"A loja\"");
     expect(instrucoes).toContain("não invente nem deduza. Diga que o consultor confirma isso para ele");

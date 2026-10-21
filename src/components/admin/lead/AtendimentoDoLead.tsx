@@ -215,8 +215,9 @@ export default function AtendimentoDoLead({
       else {
         setErro(null);
         if (corpo?.aviso) setAviso(corpo.aviso);
-        // A fase, a nota e o resumo mudaram: o resto do lead relê.
-        if (acao === "entregar" || acao === "devolver" || acao === "assumir" || acao === "ler") aoMudarOLead?.();
+        // A fase, a nota e o resumo mudaram: o resto do lead relê, e o card
+        // do quadro acompanha (pausar e retomar também mudam a fase).
+        aoMudarOLead?.();
       }
     } catch {
       setErro("Não deu para mudar o assistente.");

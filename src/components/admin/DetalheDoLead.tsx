@@ -145,6 +145,7 @@ export default function DetalheDoLead({
   aoSumir,
   aoMudarLead,
   aoSairDeSincronia,
+  aoMudarOAssistente,
 }: {
   id: string;
   layout: LayoutDoDetalhe;
@@ -167,6 +168,12 @@ export default function DetalheDoLead({
   aoMudarLead?: (id: string, campos: Partial<LeadDaFila>) => void;
   /** Uma gravação falhou: o quadro relê a fila. */
   aoSairDeSincronia?: () => void;
+  /**
+   * Uma ação do Ney no bloco Atendimento (retoma agora, reaquece, pausa…)
+   * mudou o lead no servidor: o quadro pergunta o que mudou e o card
+   * acompanha — sem isto, o "Enviar ao Ney" ficava no card (21/10/2026).
+   */
+  aoMudarOAssistente?: () => void;
 }) {
   const [dados, setDados] = useState<DetalheDaApi | null>(null);
   const [erroDeLeitura, setErroDeLeitura] = useState("");
@@ -802,7 +809,10 @@ export default function DetalheDoLead({
               conversa={conversa}
               nomeDoCliente={lead.nome}
               className={area("a")}
-              aoMudarOLead={() => void recarregar()}
+              aoMudarOLead={() => {
+                void recarregar();
+                aoMudarOAssistente?.();
+              }}
             />
             <div data-coluna="p" className={`flex min-w-0 flex-col ${area("p")}`}>
               <AquecimentoDoLead conversa={conversa} nomeDoLead={lead.nome} className={area("q")} />

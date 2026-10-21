@@ -14,9 +14,11 @@ import { ehTabelaOuColunaAusente } from "./erroDeSchema";
  * assunto da régua de estagnação. Em produção, uma semana são umas 500
  * mensagens (21/10); o teto é o do PostgREST, e batido, vem um aviso.
  *
- * Nunca lança. Leitura que falha devolve o mapa vazio e o aviso — o quadro
- * continua inteiro, só sem o selo; banco sem a tabela (ambiente atrasado),
- * nem aviso.
+ * Nunca lança. Leitura que falha devolve `lida: false`, o mapa vazio e o
+ * aviso — o quadro continua inteiro, só sem o selo; banco sem a tabela
+ * (ambiente atrasado), nem aviso. `lida` é o que separa "ninguém tem
+ * mensagem" de "não deu para ler": as novidades do minuto não podem apagar
+ * os selos da tela por uma leitura que falhou.
  */
 
 /** A janela: só a conversa da última semana entra no card. */
@@ -30,7 +32,7 @@ export const AVISO_DE_MENSAGENS_DEMAIS = "Há mensagens demais na última semana
 export async function lerConversasDoQuadro(
   supabase: SupabaseClient,
   agora: Date = new Date(),
-): Promise<{ porLead: Map<string, ConversaNoCard>; avisos: string[] }> {
+): Promise<{ porLead: Map<string, ConversaNoCard>; avisos: string[]; lida: boolean }> {
   try {
     const { data, error } = await supabase
       .from("atendimento_mensagens")
@@ -39,17 +41,18 @@ export async function lerConversasDoQuadro(
       .order("criado_em", { ascending: false })
       .limit(TETO_DE_MENSAGENS_NO_CARD);
     if (error) {
-      if (ehTabelaOuColunaAusente(error)) return { porLead: new Map(), avisos: [] };
+      if (ehTabelaOuColunaAusente(error)) return { porLead: new Map(), avisos: [], lida: false };
       console.warn("[Leads] Conversas do quadro ilegíveis:", error.message);
-      return { porLead: new Map(), avisos: [AVISO_SEM_CONVERSAS] };
+      return { porLead: new Map(), avisos: [AVISO_SEM_CONVERSAS], lida: false };
     }
     const mensagens = (data ?? []) as MensagemDoCard[];
     return {
       porLead: conversasPorLead(mensagens),
       avisos: mensagens.length >= TETO_DE_MENSAGENS_NO_CARD ? [AVISO_DE_MENSAGENS_DEMAIS] : [],
+      lida: true,
     };
   } catch (erro) {
     console.warn("[Leads] Conversas do quadro ilegíveis:", erro instanceof Error ? erro.message : String(erro));
-    return { porLead: new Map(), avisos: [AVISO_SEM_CONVERSAS] };
+    return { porLead: new Map(), avisos: [AVISO_SEM_CONVERSAS], lida: false };
   }
 }

@@ -25,6 +25,12 @@ import { ehCanalDoRepasse } from "./leadDoRepasse";
  * (7, 15 e 30 dias), porque o assunto é outro: não é retomar uma conversa
  * de ontem, é lembrar que a loja existe quando o cliente voltar a procurar.
  *
+ * A quarta também é daqui (2026-10-21): **retomada**, a que o próprio Ney
+ * agenda quando encerra a conversa com quem compra mais adiante (*"pode
+ * fechar a conversa e deixar a cadência agendada para o futuro, com um espaço
+ * maior dependendo do momento da compra"*, o dono). O 1º toque é na data
+ * combinada (`dataDaRetomada`); os outros dois, 7 e 15 dias depois.
+ *
  * ---------------------------------------------------------------------------
  * O que este arquivo nunca faz
  * ---------------------------------------------------------------------------
@@ -39,19 +45,21 @@ import { ehCanalDoRepasse } from "./leadDoRepasse";
  *   anda, só espera.
  */
 
-export type NomeDaCadencia = "follow_up" | "reativacao" | "engajamento";
-export const NOMES_DAS_CADENCIAS: readonly NomeDaCadencia[] = ["follow_up", "reativacao", "engajamento"];
+export type NomeDaCadencia = "follow_up" | "reativacao" | "engajamento" | "retomada";
+export const NOMES_DAS_CADENCIAS: readonly NomeDaCadencia[] = ["follow_up", "reativacao", "engajamento", "retomada"];
 
 export const ROTULO_DA_CADENCIA: Record<NomeDaCadencia, string> = {
   follow_up: "Follow-up",
   reativacao: "Reativação",
   engajamento: "Engajamento",
+  retomada: "Retomada combinada",
 };
 
 export const QUANDO_A_CADENCIA_COMECA: Record<NomeDaCadencia, string> = {
   follow_up: "Perguntou de um carro e parou de responder.",
   reativacao: "Parou de responder sem dizer o que procura.",
   engajamento: "O vendedor devolveu o lead ao assistente porque esfriou.",
+  retomada: "O Ney encerrou a conversa com quem compra mais adiante: o 1º toque é na data combinada.",
 };
 
 export interface PassoDaCadencia {
@@ -137,7 +145,109 @@ export const CADENCIAS_DE_FABRICA: ReguaDeCadencias = {
       },
     ],
   },
+  retomada: {
+    ativa: true,
+    passos: [
+      {
+        // O 1º toque é na data que o encerramento calcula (`dataDaRetomada`);
+        // estas horas só valem se ela faltar.
+        apos_horas: 24 * 30,
+        objetivo:
+          "Retomar no momento que o cliente combinou: lembrar o que ele procurava (o carro, a troca, como pagaria) e perguntar se chegou a hora, com uma novidade do estoque se combinar.",
+        modelo: "Oi, {nome}! Como combinamos, passando para saber se chegou a hora do carro novo. Ainda pensa no {interesse}?",
+      },
+      {
+        apos_horas: 24 * 7,
+        objetivo: "Oferecer uma opção do estoque parecida com o que ele queria, ou a visita sem compromisso.",
+        modelo: "{nome}, separei umas opções parecidas com o {interesse}. Quer que eu te mande as fotos?",
+      },
+      {
+        apos_horas: 24 * 15,
+        objetivo: "Último toque: perguntar, sem pressionar, se ainda faz sentido ou se ele já resolveu.",
+        modelo: "{nome}, pra não te incomodar vou parar por aqui. Ainda faz sentido pra você, ou já resolveu?",
+      },
+    ],
+  },
 };
+
+// ----------------------------------------------------------------------------
+// O Ney encerra a conversa (2026-10-21)
+// ----------------------------------------------------------------------------
+
+/**
+ * Quantos dias até a retomada, pelo momento da compra — escolha do dono:
+ * "este mês" 7, "nos próximos meses" 30, "sem pressa" 60. Quem quer comprar
+ * já (imediato) e encerra mesmo assim ("vou ver com a esposa e te falo")
+ * volta em 7, como "este mês"; sem prazo dito, 30.
+ */
+export const DIAS_ATE_A_RETOMADA: Record<PrazoDaRetomada, number> = {
+  imediato: 7,
+  este_mes: 7,
+  proximos_meses: 30,
+  sem_pressa: 60,
+};
+export const DIAS_SEM_PRAZO = 30;
+/** Com data dita pelo cliente, o 1º toque sai uma semana antes dela. */
+export const DIAS_ANTES_DA_DATA = 7;
+/** A data combinada mais longe que se agenda: um ano. */
+const DIAS_NO_MAXIMO = 365;
+/** A hora do toque no dia da retomada, na hora da loja (o toque só sai com a loja aberta). */
+const HORA_DA_RETOMADA = "10:00";
+
+type PrazoDaRetomada = "imediato" | "este_mes" | "proximos_meses" | "sem_pressa";
+
+/**
+ * Quando o Ney volta a chamar o cliente que encerrou a conversa. Com a data
+ * que o cliente disse (`retomar_data`), uma semana antes dela — nunca antes
+ * de amanhã, e a data passada ou além de um ano não vale. Sem data, pelo
+ * prazo da ficha (`DIAS_ATE_A_RETOMADA`). Sempre às 10h da loja.
+ */
+export function dataDaRetomada(
+  ficha: { prazo?: string | null; retomar_data?: string | null },
+  agora: Date,
+): { em: Date; porque: string } {
+  const diaDaLoja = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const as10 = (dia: string) => new Date(`${dia}T${HORA_DA_RETOMADA}:00-03:00`);
+  const amanha = diaDaLoja(new Date(agora.getTime() + 24 * 60 * 60 * 1000));
+  const dia = 24 * 60 * 60 * 1000;
+
+  const combinada = ficha.retomar_data && /^\d{4}-\d{2}-\d{2}$/.test(ficha.retomar_data) ? as10(ficha.retomar_data) : null;
+  if (combinada && combinada.getTime() > agora.getTime() && combinada.getTime() - agora.getTime() <= DIAS_NO_MAXIMO * dia) {
+    const semanaAntes = diaDaLoja(new Date(combinada.getTime() - DIAS_ANTES_DA_DATA * dia));
+    const escolhido = semanaAntes < amanha ? amanha : semanaAntes;
+    const [a, m, d] = (ficha.retomar_data as string).split("-");
+    return { em: as10(escolhido), porque: `o cliente falou em ${d}/${m}/${a}` };
+  }
+  const prazo = ficha.prazo && ficha.prazo in DIAS_ATE_A_RETOMADA ? (ficha.prazo as PrazoDaRetomada) : null;
+  const dias = prazo ? DIAS_ATE_A_RETOMADA[prazo] : DIAS_SEM_PRAZO;
+  const rotulo: Record<PrazoDaRetomada, string> = {
+    imediato: "compra já, mas pediu um tempo",
+    este_mes: "compra este mês",
+    proximos_meses: "compra nos próximos meses",
+    sem_pressa: "sem pressa para comprar",
+  };
+  return { em: as10(diaDaLoja(new Date(agora.getTime() + dias * dia))), porque: prazo ? rotulo[prazo] : "sem prazo dito" };
+}
+
+/** O que o Ney faz depois da despedida. `null`: a conversa segue (ou a entrega manda). */
+export type Encerramento = { tipo: "retomada"; em: Date; porque: string } | { tipo: "desistiu" };
+
+/**
+ * A conversa acaba nesta resposta? A entrega ao vendedor (visita marcada,
+ * pediu uma pessoa, pós-venda…) e o opt-out mandam mais que o encerramento:
+ * o cliente que pediu uma pessoa e disse "só mês que vem" vai à pessoa.
+ */
+export function decidirEncerramento(
+  sinais: { encerrar?: boolean; desistiu?: boolean; optout?: boolean; pos_venda?: boolean },
+  ficha: { prazo?: string | null; retomar_data?: string | null },
+  entregar: boolean,
+  agora: Date,
+): Encerramento | null {
+  if (entregar || sinais.optout || sinais.pos_venda) return null;
+  if (sinais.desistiu) return { tipo: "desistiu" };
+  if (sinais.encerrar) return { tipo: "retomada", ...dataDaRetomada(ficha, agora) };
+  return null;
+}
 
 function passoValido(bruto: unknown): PassoDaCadencia | null {
   if (!bruto || typeof bruto !== "object") return null;

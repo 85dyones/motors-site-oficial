@@ -2652,3 +2652,141 @@ describe("a etapa Reaquecendo (decisão do dono, 21/10)", () => {
     expect(trocas(retomado)).toEqual([]);
   });
 });
+
+// O dono (21/10/2026): "o Ney precisa fechar conversas também, gerenciar os
+// contatos, além de aquecer, da mesma forma como ele marca visitas, pode
+// fechar a conversa e deixar a cadência agendada para o futuro, com um espaço
+// maior dependendo do momento da compra". Nas perguntas: 7/30/60 dias (ou uma
+// semana antes da data dita), o card vai para Reaquecendo, quem desistiu volta
+// ao vendedor (que marca o desfecho), e o aviso é o card e o histórico.
+describe("o Ney encerra a conversa e agenda a retomada (decisão do dono, 21/10)", () => {
+  const ETAPAS = [
+    { chave: "novo", tipo: "aberta", ordem: 1, ativa: true },
+    { chave: "em_contato", tipo: "aberta", ordem: 2, ativa: true },
+    { chave: "proposta", tipo: "aberta", ordem: 3, ativa: true },
+    { chave: "reaquecendo", tipo: "aberta", ordem: 4, ativa: true },
+    { chave: "visita", tipo: "aberta", ordem: 5, ativa: true },
+  ];
+  const ONIX = { interesse: "Onix LT 2020", interesse_especifico: true };
+  const DESPEDIDA = "Combinado, Rafael! Te chamo daqui a um mês pra ver como estão as coisas.";
+  const doCliente = (t: ReturnType<typeof transporteDeTeste>) => t.enviados.filter((e) => e.numero === CLIENTE).map((e) => e.texto);
+  const praEquipe = (t: ReturnType<typeof transporteDeTeste>) => t.enviados.filter((e) => e.numero !== CLIENTE);
+  const nota = (banco: BancoDeTeste, acao: string) => banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === acao);
+
+  async function encerrar(resposta: Record<string, unknown>, opcoes: { lead?: Record<string, unknown>; config?: Record<string, unknown>; antes?: (banco: BancoDeTeste) => void } = {}) {
+    const banco = montar(
+      { leads: [leadAberto({ situacao: "em_contato", responsavel: "Carla Souza", ...opcoes.lead })], funil_etapas: ETAPAS.map((e) => ({ ...e })) },
+      opcoes.config ? { config: opcoes.config } : {},
+    );
+    opcoes.antes?.(banco);
+    const t = transporteDeTeste([respostaDoModelo(resposta)]);
+    const entrada = await clienteEscreve(banco, t, "agora não dá, só lá pro mês que vem");
+    const r = await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    return { banco, t, r };
+  }
+
+  it("compra nos próximos meses: despedida sem pergunta, retomada em 30 dias às 10h, na coluna Reaquecendo, e o histórico diz", async () => {
+    const { banco, t, r } = await encerrar({
+      mensagens: [`${DESPEDIDA} Pode ser?`],
+      ficha: { ...ONIX, prazo: "proximos_meses" },
+      sinais: { encerrar: true },
+    });
+
+    expect(r).toMatchObject({ acao: "respondido", entregue: false, encerrado: "retomada" });
+    expect(doCliente(t)).toEqual([DESPEDIDA]);
+    expect(banco.tabelas.leads[0]).toMatchObject({
+      assistente_fase: "reaquecendo",
+      cadencia: "retomada",
+      cadencia_passo: 0,
+      cadencia_proximo_em: "2026-11-19T13:00:00.000Z",
+      situacao: "reaquecendo",
+      responsavel: "Carla Souza",
+    });
+    expect(nota(banco, "encerrou")?.detalhe).toMatchObject({ retomar_em: "2026-11-19T13:00:00.000Z", porque: "compra nos próximos meses" });
+    expect(nota(banco, "encerrou")?.detalhe?.texto).toBe(
+      "Ney encerrou a conversa (compra nos próximos meses): retoma em 19/11, quinta-feira, na etapa Reaquecendo. Se o cliente escrever antes, a conversa recomeça.",
+    );
+    // Sem aviso ao vendedor pelo WhatsApp (escolha do dono: card e histórico).
+    expect(praEquipe(t)).toEqual([]);
+    expect(banco.tabelas.atendimentos.at(-1)!.com_assistente).toBe(true);
+  });
+
+  it("o cliente disse a data: uma semana antes dela", async () => {
+    const { banco } = await encerrar({ mensagens: ["Fechado, te chamo no fim de fevereiro!"], ficha: { ...ONIX, prazo: "proximos_meses", retomar_data: "2027-03-01" }, sinais: { encerrar: true } });
+    expect(banco.tabelas.leads[0]).toMatchObject({ cadencia: "retomada", cadencia_proximo_em: "2027-02-22T13:00:00.000Z" });
+    expect(nota(banco, "encerrou")?.detalhe?.porque).toBe("o cliente falou em 01/03/2027");
+  });
+
+  it("já comprou ou desistiu: despedida, o lead volta ao vendedor com a etiqueta, sem cadência", async () => {
+    const { banco, t, r } = await encerrar(
+      { mensagens: ["Que bom que resolveu, Rafael! Boa sorte com o carro novo. Posso ajudar em mais algo?"], sinais: { desistiu: true } },
+      {
+        lead: { situacao: "reaquecendo" },
+        antes: (b) => b.tabelas.leads_eventos.push({ id: "ev-r", lead_id: "lead-1", tipo: "etapa", de: "proposta", para: "reaquecendo", criado_em: "2026-10-15T12:00:00.000Z" }),
+      },
+    );
+    expect(r).toMatchObject({ encerrado: "desistiu", entregue: false });
+    expect(doCliente(t)).toEqual(["Que bom que resolveu, Rafael! Boa sorte com o carro novo."]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "pausado", cadencia: null, cadencia_proximo_em: null, situacao: "proposta" });
+    expect(banco.rpcs.filter((x) => x.nome === "etiquetar_lead_pelo_sistema").map((x) => x.args.p_incluir)).toContainEqual(["desistiu"]);
+    expect(nota(banco, "desistiu")?.detalhe?.texto).toBe("Ney encerrou a conversa: o cliente disse que já comprou ou desistiu. Marque o desfecho no quadro.");
+    expect(banco.tabelas.atendimentos.at(-1)!.com_assistente).toBe(false);
+  });
+
+  it("pediu uma pessoa e disse \"só mês que vem\": a entrega manda mais que o encerramento", async () => {
+    const { banco, r } = await encerrar({ mensagens: ["Claro!"], ficha: { ...ONIX, prazo: "proximos_meses" }, sinais: { encerrar: true, pediu_humano: true } });
+    expect(r).toMatchObject({ entregue: true });
+    expect(r).not.toHaveProperty("encerrado");
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", cadencia: null });
+  });
+
+  it("o \"valeu 👍\" à despedida não reabre a conversa: ninguém responde, a retomada fica, o vendedor não recebe", async () => {
+    const { banco, t } = await encerrar({ mensagens: [DESPEDIDA], ficha: { ...ONIX, prazo: "proximos_meses" }, sinais: { encerrar: true } });
+    relogio = new Date(TERCA_10H.getTime() + 2 * 60 * 1000);
+    const ack = await registrarEntrada(banco.cliente, evento({ texto: "valeu, obrigado! 👍" }), deps(t));
+    expect(ack).toMatchObject({ acao: "mensagem_registrada", responder: false });
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "reaquecendo", cadencia: "retomada", cadencia_proximo_em: "2026-11-19T13:00:00.000Z" });
+    expect(praEquipe(t)).toEqual([]);
+
+    // Qualquer outra coisa reabre: o Ney volta a conversar, e a retomada sai.
+    relogio = new Date(TERCA_10H.getTime() + 5 * 60 * 1000);
+    const volta = await registrarEntrada(banco.cliente, evento({ texto: "pensando bem, tem algum SUV até 80 mil?" }), deps(t));
+    expect(volta).toMatchObject({ responder: true });
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "qualificando", cadencia: null });
+  });
+
+  it("banco sem a migração da retomada: agenda como a cadência do silêncio, na mesma data", async () => {
+    const { banco } = await encerrar(
+      { mensagens: [DESPEDIDA], ficha: { ...ONIX, prazo: "proximos_meses" }, sinais: { encerrar: true } },
+      { antes: (b) => b.recusarNoUpdate("leads", "cadencia", "retomada") },
+    );
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "reaquecendo", cadencia: "follow_up", cadencia_proximo_em: "2026-11-19T13:00:00.000Z" });
+  });
+
+  it("retomada desligada na configuração: a despedida sai e o lead volta para a equipe", async () => {
+    const { banco } = await encerrar(
+      { mensagens: [DESPEDIDA], ficha: { ...ONIX, prazo: "proximos_meses" }, sinais: { encerrar: true } },
+      { config: { cadencias: { retomada: { ativa: false } } } },
+    );
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "pausado", cadencia: null, situacao: "em_contato" });
+    expect(nota(banco, "encerrou_sem_retomada")).toBeDefined();
+  });
+
+  it("na data, o toque da retomada sai — lendo a conversa, e sem a régua da base (foi combinado com o cliente)", async () => {
+    const banco = montar({
+      leads: [leadAberto({ situacao: "visita", assistente_fase: "reaquecendo", cadencia: "retomada", cadencia_passo: 0, cadencia_proximo_em: "2026-10-20T12:00:00.000Z", responsavel: "Carla Souza" })],
+      atendimento_mensagens: [jaEscreveu()],
+      leads_eventos: [{ id: "ev-e", lead_id: "lead-1", tipo: "nota", detalhe: { acao: "encerrou" }, criado_em: "2026-09-20T12:00:00.000Z" }],
+    });
+    const t = transporteDeTeste([TOQUE_QUE_LEU]);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+    expect(rodada.suprimidos.map((s) => s.motivo)).not.toContain("fora_da_base");
+    expect(rodada.toques).toEqual([expect.objectContaining({ lead_id: "lead-1", cadencia: "retomada", passo: 0, enviado: true })]);
+    expect(doCliente(t)).toEqual([TEXTO_QUE_LEU]);
+    const pedido = JSON.stringify(t.pedidosAoModelo[0].messages);
+    expect(pedido).toContain("Retomar no momento que o cliente combinou");
+    expect(pedido).not.toContain("A equipe passou este cliente ao assistente");
+    // O próximo toque, uma semana depois.
+    expect(banco.tabelas.leads[0]).toMatchObject({ cadencia_passo: 1, cadencia_proximo_em: "2026-10-27T13:00:00.000Z" });
+  });
+});

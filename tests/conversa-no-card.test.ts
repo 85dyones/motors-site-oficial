@@ -143,6 +143,8 @@ describe("as novidades do minuto", () => {
     expect(juntos[0].situacao).toBe("em_contato");
     expect(aplicarNovidades(leads, { leads: "lixo", conversas: [] })).toEqual(leads);
     expect(aplicarNovidades(leads, null)).toEqual(leads);
+    // A leitura das mensagens falhou no servidor: os selos da tela ficam.
+    expect(aplicarNovidades(leads, { conversas: null, leads: [] })).toEqual(leads);
   });
 });
 
@@ -155,6 +157,9 @@ describe("o Ney no card", () => {
     expect(seloDoNey({ assistente_fase: "reaquecendo", cadencia_passo: 0, cadencia_proximo_em: "2026-10-28T12:00:00.000Z" }, agora)!.texto).toBe("Ney reaquecendo · 1º toque 28/10 09:00");
     expect(seloDoNey({ assistente_fase: "reaquecendo", cadencia_passo: 1 }, agora)!.texto).toBe("Ney reaquecendo · 1 toque enviado");
     expect(seloDoNey({ assistente_fase: "reaquecendo", cadencia_passo: 2 }, agora)!.texto).toBe("Ney reaquecendo · 2 toques enviados");
+    // A conversa que o Ney encerrou com data combinada: o card diz quando ele volta.
+    expect(seloDoNey({ assistente_fase: "reaquecendo", cadencia: "retomada", cadencia_passo: 0, cadencia_proximo_em: "2026-11-19T13:00:00.000Z" }, agora)).toEqual({ tom: "reaquecendo", texto: "Ney · retoma 19/11" });
+    expect(seloDoNey({ assistente_fase: "reaquecendo", cadencia: "retomada", cadencia_passo: 1 }, agora)!.texto).toBe("Ney reaquecendo · 1 toque enviado");
     for (const fase of ["pausado", "entregue", null]) expect(seloDoNey({ assistente_fase: fase }, agora), String(fase)).toBeNull();
     expect(seloDoNey({ assistente_fase: "qualificando", desfecho: "ganho" }, agora)).toBeNull();
   });

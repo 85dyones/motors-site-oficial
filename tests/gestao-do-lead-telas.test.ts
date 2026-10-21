@@ -991,12 +991,20 @@ describe("os filtros que voltaram: Parados, para todos; Sem responsável, para o
     for (const id of ["l2", "l3", "l4", "l6"]) expect(cardDe(container, id), id).toBeNull();
   });
 
-  it("os dois filtros somam com os chips de data, e a busca os desliga", async () => {
+  // O dono (21/10/2026): "filtros se somam" era bug para quem usa. Um filtro
+  // por vez: ligar outro troca, e a contagem de cada um é o que ele mostra.
+  it("um filtro por vez: ligar outro troca o ligado, e a busca desliga", async () => {
     await montarQuadro("Ana");
     await clicar(botao(/^Parados/));
     await clicar(botao(/^Hoje/));
-    expect(container.querySelectorAll("[data-lead]")).toHaveLength(0);
+    expect(pressionado(/^Hoje/)).toBe("true");
+    expect(pressionado(/^Parados/)).toBe("false");
+    await clicar(botao(/^Sem responsável/));
+    expect(pressionado(/^Sem responsável/)).toBe("true");
+    expect(pressionado(/^Hoje/)).toBe("false");
+    expect(cardDe(container, "l6")).not.toBeNull();
 
+    await clicar(botao(/^Parados/));
     const campo = container.querySelector<HTMLInputElement>("#busca-de-leads")!;
     await mudar(campo, "Pedro");
     expect(pressionado(/^Parados/)).toBe("false");

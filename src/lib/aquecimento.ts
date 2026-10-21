@@ -115,6 +115,12 @@ export interface FichaDoLead {
   visita_data: string | null;
   /** A hora marcada, "HH:MM" — só quando o cliente confirmou a hora. */
   visita_hora: string | null;
+  /**
+   * Quando o cliente disse que volta a pensar na compra, "AAAA-MM-DD"
+   * (2026-10-21): "em março", "depois do dia 10", "ano que vem". É de onde o
+   * encerramento tira a data da retomada (`dataDaRetomada`).
+   */
+  retomar_data?: string | null;
 }
 
 /** O que a conversa mostra, além da ficha. Estado ATUAL, não histórico. */
@@ -150,6 +156,19 @@ export interface SinaisDaConversa {
    * direto pro atendente pós triagem"*, o dono).
    */
   pos_venda?: boolean;
+  /**
+   * O Ney encerra a conversa nesta resposta (2026-10-21, pedido do dono: *"o
+   * Ney precisa fechar conversas também [...] e deixar a cadência agendada
+   * para o futuro, com um espaço maior dependendo do momento da compra"*): o
+   * cliente disse que compra mais adiante ou que vai pensar e volta, e não há
+   * o que fazer agora. A resposta é a despedida; a retomada sai do prazo.
+   */
+  encerrar?: boolean;
+  /**
+   * O cliente disse que já comprou em outro lugar ou desistiu da compra. O
+   * Ney se despede e devolve o lead ao vendedor, que marca Perdido.
+   */
+  desistiu?: boolean;
 }
 
 export const FICHA_VAZIA: FichaDoLead = {
@@ -172,6 +191,7 @@ export const FICHA_VAZIA: FichaDoLead = {
   dor: null,
   intencao: null,
   objecoes: null,
+  retomar_data: null,
 };
 
 /** "sem troca", "não tenho", "nenhum": o cliente respondeu que NÃO tem carro na troca. */
@@ -188,6 +208,8 @@ export const SINAIS_NEUTROS: SinaisDaConversa = {
   optout: false,
   assunto_em_aberto: false,
   pos_venda: false,
+  encerrar: false,
+  desistiu: false,
 };
 
 /** Cada peso tem nome: é a chave que vira motivo na tela. */
@@ -481,6 +503,7 @@ export function fichaValida(bruto: unknown): FichaDoLead {
     dor: textoOuNulo(b.dor, 160),
     intencao: textoOuNulo(b.intencao, 160),
     objecoes: textoOuNulo(b.objecoes, 160),
+    retomar_data: dataValida(b.retomar_data),
   };
 }
 
@@ -512,6 +535,8 @@ export function sinaisValidos(bruto: unknown): SinaisDaConversa {
     optout: b.optout === true,
     assunto_em_aberto: b.assunto_em_aberto === true,
     pos_venda: b.pos_venda === true,
+    encerrar: b.encerrar === true,
+    desistiu: b.desistiu === true,
   };
 }
 

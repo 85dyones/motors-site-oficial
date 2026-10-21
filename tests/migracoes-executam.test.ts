@@ -347,6 +347,9 @@ const CADEIA = [
   // cadeia porque depende de `funil_etapas`, do rastro e das colunas do
   // assistente no lead.
   "20261028120000_etapa_reaquecendo.sql",
+  // A cadência `retomada` (2026-10-21): o Ney encerra a conversa e agenda a
+  // volta. Troca a regra `leads_cadencia_valida` da 20261020120000.
+  "20261029120000_cadencia_retomada.sql",
 ];
 
 /**
