@@ -1918,6 +1918,55 @@ describe("as etiquetas do assistente e a etapa Visita (decisões do dono, 20/10)
     }
   });
 
+  // O dono (21/10/2026): "se alguém tiver reclamação ou pós-venda, assuma uma
+  // postura séria, receba o atendimento e transfira direto pro atendente pós
+  // triagem".
+  it("reclamação ou pós-venda: entrega na hora, fora do rodízio, com passagem séria, cabeçalho e etiqueta", async () => {
+    const banco = montar({ leads: [leadAberto()], funil_etapas: ETAPAS }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste([
+      respostaDoModelo({
+        mensagens: ["Sinto muito pelo transtorno, Rafael. Já anotei: o documento da Saveiro que você comprou em agosto ainda não chegou."],
+        sinais: { pos_venda: true },
+        resumo: "Comprou a Saveiro em agosto; o documento de transferência não chegou. Quer saber o prazo.",
+      }),
+    ]);
+    const entrada = await clienteEscreve(banco, t, "comprei a saveiro em agosto e até agora nada do documento, que absurdo");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    // Sem dono e fora do rodízio: o caso vai a quem distribui e ao gestor.
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", entregue_motivo: "pos_venda", responsavel: null, aviso_de_entrega_para: "administrador", situacao: "novo" });
+    const aoCliente = t.enviados.filter((e) => e.numero === CLIENTE).map((e) => e.texto);
+    expect(aoCliente.at(-1)).toBe("Obrigado por explicar, Rafael. Já passei o seu caso para a nossa equipe, que já vai te chamar.");
+    expect(aoCliente.join(" ")).not.toContain("Perfeito");
+    const paraEquipe = t.enviados.filter((e) => e.numero !== CLIENTE);
+    expect(paraEquipe.map((e) => e.numero)).toEqual(["5541977776666", "5541966665555"]);
+    expect(paraEquipe[0].texto).toMatch(/^⚠️ RECLAMAÇÃO OU PÓS-VENDA/);
+    expect(paraEquipe[0].texto).toContain("o documento de transferência não chegou");
+    expect(etiquetagens(banco).at(-1)).toEqual({ p_lead: "lead-1", p_incluir: ["pos-venda"], p_autor: "Ney" });
+    // O carro de que ele fala já foi comprado: nem "quer-comprar", nem carro de interesse.
+    expect(etiquetagens(banco).flatMap((e) => e.p_incluir)).toEqual(["pos-venda"]);
+  });
+
+  it("pós-venda com dono: vai ao dono, pelo nome e pelo número dele", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] }, { config: { distribuicao: "rodizio" } });
+    const t = transporteDeTeste([respostaDoModelo({ mensagens: ["Entendi, já anotei o que aconteceu."], sinais: { pos_venda: true } })]);
+    const entrada = await clienteEscreve(banco, t, "o carro que comprei está com barulho no motor");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    expect(banco.tabelas.leads[0]).toMatchObject({ entregue_motivo: "pos_venda", responsavel: "Carla Souza", aviso_de_entrega_para: "Carla Souza" });
+    const passagem = t.enviados.filter((e) => e.numero === CLIENTE).at(-1)!.texto;
+    expect(passagem).toMatch(/^Obrigado por explicar, Rafael\. Já passei o seu caso para Carla, da nossa equipe, que já vai te chamar pelo WhatsApp /);
+  });
+
+  it("banco sem a migração do pós-venda: a entrega grava como 'pediu um consultor', e não fica pela metade", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })] });
+    banco.recusarNoUpdate("leads", "entregue_motivo", "pos_venda");
+    const t = transporteDeTeste([respostaDoModelo({ sinais: { pos_venda: true } })]);
+    const entrada = await clienteEscreve(banco, t, "quero reclamar do atendimento");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", entregue_motivo: "pediu_humano" });
+  });
+
   it("entrega que não é visita (quente) não move a etapa", async () => {
     const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })], funil_etapas: ETAPAS });
     const t = transporteDeTeste([respostaDoModelo({ ficha: ONIX, sinais: { pediu_humano: true } })]);

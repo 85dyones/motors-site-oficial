@@ -1363,18 +1363,21 @@ async function responderUmaVez(
   }
 
   // Os carros da conversa viram carros de interesse do lead — os que o modelo
-  // apontou e o das fotos pedidas.
-  await registrarCarrosDaConversa(
-    supabase,
-    lead,
-    [...resposta.veiculos, ...(resposta.fotos ? [resposta.fotos.veiculo] : [])],
-    base,
-    config.nome_do_assistente,
-  );
+  // apontou e o das fotos pedidas. Na reclamação e no pós-venda, nada disso:
+  // o carro de que ele fala é o que já comprou, não um interesse de compra.
+  if (!sinais.pos_venda) {
+    await registrarCarrosDaConversa(
+      supabase,
+      lead,
+      [...resposta.veiculos, ...(resposta.fotos ? [resposta.fotos.veiculo] : [])],
+      base,
+      config.nome_do_assistente,
+    );
 
-  // O que o cliente disse vira etiqueta de intenção (quer-comprar,
-  // quer-financiar, quer-avaliar). "negociando" é da entrega.
-  await etiquetarPeloAssistente(supabase, leadId, etiquetasDaConversa(ficha), config.nome_do_assistente);
+    // O que o cliente disse vira etiqueta de intenção (quer-comprar,
+    // quer-financiar, quer-avaliar). "negociando" é da entrega.
+    await etiquetarPeloAssistente(supabase, leadId, etiquetasDaConversa(ficha), config.nome_do_assistente);
+  }
 
   // As fotos que o modelo pediu saem depois do texto — e depois de o lead
   // estar gravado: se a Evolution demorar baixando a mídia, a ficha, a nota e
@@ -1828,7 +1831,10 @@ async function entregarAoVendedor(
   const equipe = await lerEquipe(supabase);
   let responsavel = String(lead.responsavel ?? "").trim() || null;
 
-  if (!responsavel && config.distribuicao === "rodizio") {
+  // Reclamação e pós-venda não entram no rodízio (2026-10-21): sem dono, o
+  // caso vai a quem distribui e ao gestor, que escolhem quem cuida — e o
+  // gestor fica sabendo da reclamação.
+  if (!responsavel && config.distribuicao === "rodizio" && motivo !== "pos_venda") {
     const escolhido = await vendedorDoRodizio(supabase, equipe);
     if (escolhido) {
       const { data: gravado } = await supabase
@@ -1852,6 +1858,7 @@ async function entregarAoVendedor(
       visita: motivo === "agendou" ? rotuloDaVisita(ficha) : null,
       simulacao: motivo === "simulacao",
       retomada: opcoes.retomada,
+      posVenda: motivo === "pos_venda",
     });
     const atendimento = await garantirAtendimento(supabase, leadId, agora);
     await enviarAoCliente(supabase, { leadId, telefone: lead.telefone, texto: passagem, gatilho: "passagem", autor: "assistente", autorNome: config.nome_do_assistente, atendimentoId: atendimento?.id ?? null }, evolution, deps);
@@ -1877,6 +1884,9 @@ async function entregarAoVendedor(
   // Banco sem a 20261022120000 só conhece os motivos de antes: a entrega não
   // pode ficar pela metade (o cliente já leu a passagem) por causa disso.
   if (erroDaEntrega && (motivo === "agendou" || motivo === "simulacao")) ({ error: erroDaEntrega } = await marcarEntregue("quente"));
+  // Sem a 20261027120000, o banco ainda não conhece `pos_venda`: grava como
+  // "pediu um consultor", que é o mais perto — o cabeçalho e a etiqueta dizem o resto.
+  if (erroDaEntrega && motivo === "pos_venda") ({ error: erroDaEntrega } = await marcarEntregue("pediu_humano"));
   if (erroDaEntrega) console.error("[Atendimento] Entrega não gravada:", erroDaEntrega.message);
 
   // A visita marcada vira o próximo passo do lead, com a hora — aparece no

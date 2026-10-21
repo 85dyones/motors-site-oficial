@@ -154,6 +154,17 @@ describe("a entrega ao vendedor", () => {
     expect(decidirEntrega({ temperatura: "frio" }, { ...SINAIS_NEUTROS, pediu_humano: true })).toEqual({ entregar: true, motivo: "pediu_humano" });
   });
 
+  // O dono (21/10/2026): "se alguém tiver reclamação ou pós-venda, assuma uma
+  // postura séria, receba o atendimento e transfira direto pro atendente".
+  it("reclamação ou pós-venda entrega na hora, antes de tudo — menos do opt-out", () => {
+    const pos = { ...SINAIS_NEUTROS, pos_venda: true };
+    expect(decidirEntrega({ temperatura: "frio" }, pos)).toEqual({ entregar: true, motivo: "pos_venda" });
+    expect(decidirEntrega({ temperatura: "quente" }, { ...pos, pediu_humano: true, pediu_condicao: true }, "quente", "agendou", { conduzindo: true })).toEqual({ entregar: true, motivo: "pos_venda" });
+    expect(decidirEntrega({ temperatura: "frio" }, { ...pos, optout: true })).toEqual({ entregar: false, motivo: null });
+    expect(sinaisValidos({ pos_venda: true }).pos_venda).toBe(true);
+    expect(sinaisValidos({ pos_venda: "sim" }).pos_venda).toBe(false);
+  });
+
   it("pediu condição (desconto, troca, financiamento) entrega: o assistente não decide nada disso", () => {
     expect(decidirEntrega({ temperatura: "frio" }, { ...SINAIS_NEUTROS, pediu_condicao: true })).toEqual({ entregar: true, motivo: "pediu_condicao" });
   });

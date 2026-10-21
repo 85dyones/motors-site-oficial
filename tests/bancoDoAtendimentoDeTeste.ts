@@ -41,6 +41,11 @@ export interface BancoDeTeste {
    */
   quebrarLeitura: (tabela: string, trechoDasColunas: string) => void;
   /**
+   * Faz o update desta tabela que grave `valor` em `coluna` falhar como uma
+   * restrição do banco (23514) — o banco sem a migração que aceita o valor.
+   */
+  recusarNoUpdate: (tabela: string, coluna: string, valor: unknown) => void;
+  /**
    * O Storage em memória (os anexos, 2026-10-20): `bucket/caminho` → o
    * arquivo. `upload`, `list` (com `search`), `createSignedUrl`,
    * `createSignedUploadUrl` e `remove`. `quebrarStorage` faz a próxima
@@ -90,6 +95,7 @@ export function bancoDeTeste(
   for (const [nome, linhas] of Object.entries(inicial)) tabelas[nome] = linhas.map((l) => ({ ...l }));
   const chamadasRpc: { nome: string; args: any }[] = [];
   const quebradas: { tabela: string; trecho: string }[] = [];
+  const recusas: { tabela: string; coluna: string; valor: unknown }[] = [];
 
   const cadeia = (tabela: string) => {
     let operacao: "select" | "insert" | "update" | "delete" = "select";
@@ -133,6 +139,9 @@ export function bancoDeTeste(
         }
       } else {
         afetadas = linhas.filter((l) => filtros.every((f) => f(l)));
+        if (operacao === "update" && recusas.some((r) => r.tabela === tabela && valores && valores[r.coluna] === r.valor)) {
+          return { data: null, error: { message: "new row violates check constraint", code: "23514" } };
+        }
         if (operacao === "update") for (const l of afetadas) Object.assign(l, valores);
         if (operacao === "delete") tabelas[tabela] = linhas.filter((l) => !afetadas.includes(l));
       }
@@ -319,6 +328,7 @@ export function bancoDeTeste(
     cliente,
     rpcs: chamadasRpc,
     quebrarLeitura: (tabela, trecho) => quebradas.push({ tabela, trecho }),
+    recusarNoUpdate: (tabela, coluna, valor) => recusas.push({ tabela, coluna, valor }),
     objetos,
     quebrarStorage: (operacao) => quebrasDoStorage.add(operacao),
   };

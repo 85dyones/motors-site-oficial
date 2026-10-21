@@ -206,10 +206,14 @@ export function trocaParaLer(troca: string | null): string | null {
  *   quer-financiar  ← vai financiar
  *   quer-avaliar    ← tem carro na troca
  *   negociando      ← pediu condição, fechou visita ou está pronto para simular
+ *   pos-venda       ← reclamação ou pós-venda, entregue depois da triagem
  */
-export const ETIQUETAS_DE_INTENCAO = ["quer-comprar", "quer-financiar", "quer-avaliar", "negociando"] as const;
+export const ETIQUETAS_DE_INTENCAO = ["quer-comprar", "quer-financiar", "quer-avaliar", "negociando", "pos-venda"] as const;
 
 export function etiquetasDaConversa(ficha: FichaDoLead, motivoDaEntrega?: string | null): string[] {
+  // Reclamação ou pós-venda (2026-10-21): o card mostra que não é venda nova,
+  // e o carro de que ele fala é o que já comprou — nada de "quer-comprar".
+  if (motivoDaEntrega === "pos_venda") return ["pos-venda"];
   const etiquetas: string[] = [];
   if (ficha.interesse?.trim()) etiquetas.push("quer-comprar");
   if (ficha.pagamento === "financiado") etiquetas.push("quer-financiar");

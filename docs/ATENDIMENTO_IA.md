@@ -600,7 +600,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261026120000_base_parada_no_assistente.sql`
+## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261027120000_entrega_pos_venda.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -680,8 +680,9 @@ A sétima guarda a régua da **base parada** em `atendimento_config.base`
    `20261022120000_atendimento_entrega_pronta.sql`,
    `20261023120000_etiquetas_no_lead.sql`,
    `20261024120000_anexos_do_atendimento.sql`,
-   `20261025120000_etiquetas_automaticas.sql` e
-   `20261026120000_base_parada_no_assistente.sql`, nesta ordem.
+   `20261025120000_etiquetas_automaticas.sql`,
+   `20261026120000_base_parada_no_assistente.sql` e
+   `20261027120000_entrega_pos_venda.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -886,6 +887,26 @@ tela, em **Leads → Atendimento IA → Configuração**.
     - os últimos toques das três cadências diziam "fico à disposição" e "é
       só me chamar", que o dono vetou: viraram uma pergunta ("ainda está
       procurando carro, ou já resolveu?"), na fábrica e na linha da loja.
+17. **Reclamação e pós-venda: sério, triagem e direto ao atendente** (21/10):
+    *"se alguém tiver reclamação ou pós-venda, assuma uma postura séria,
+    receba o atendimento e transfira direto pro atendente pós triagem"*. O
+    Ney deixa o roteiro de vendas, acolhe sem humor nem promessa, pergunta o
+    essencial (o que aconteceu, qual carro, quando comprou — no máximo duas
+    perguntas) e marca `pos_venda`: a entrega sai na hora com o motivo
+    `pos_venda` (migração `20261027120000`; sem ela, grava `pediu_humano`),
+    **fora do rodízio** — com dono, vai ao dono; sem dono, a quem distribui e
+    ao gestor —, com a passagem séria ao cliente ("Obrigado por explicar. Já
+    passei o seu caso para…"), o cabeçalho "⚠️ RECLAMAÇÃO OU PÓS-VENDA" ao
+    atendente e a etiqueta `pos-venda`. O carro de que ele fala não vira
+    carro de interesse nem "quer-comprar".
+18. **Respostas bem-humoradas guardadas no código** (21/10): *"oculte
+    respostas engraçadas no código para perguntas diferentes e
+    inapropriadas"*. A seção "Perguntas fora da curva" do prompt (código, não
+    a tela) dá o tom para robô, piada, dever de casa, signo, troca por
+    bicicleta, desconto absurdo, conteúdo sexual e provocação: uma tirada
+    curta, sem duplo sentido, e a volta para o carro. Nunca na reclamação, no
+    pós-venda ou em assunto sensível; insistência no inapropriado vira
+    resposta séria; ameaça vira `pediu_humano`.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

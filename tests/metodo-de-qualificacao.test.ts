@@ -233,7 +233,7 @@ describe("na entrega, nenhuma pergunta no ar", () => {
 });
 
 describe("o que o vendedor e o cliente leem", () => {
-  const entrega = (parcial: Partial<FichaDoLead>, motivo: "agendou" | "simulacao") =>
+  const entrega = (parcial: Partial<FichaDoLead>, motivo: "agendou" | "simulacao" | "pos_venda") =>
     mensagemDeEntrega({
       motivo,
       lead: { nome: "Rafael", telefone: "5541999990000" },
@@ -272,6 +272,18 @@ describe("o que o vendedor e o cliente leem", () => {
     expect(mensagemDePassagemAoCliente({ ...base, simulacao: true })).toBe(
       "Perfeito, Rafael! Já deixei os dados da sua simulação com a equipe. Vou passar seu atendimento para a nossa equipe de consultores, que já te chama.",
     );
+  });
+
+  it("reclamação ou pós-venda: a passagem é séria — sem \"Perfeito\", sem consultores de venda", () => {
+    const base = { nomeDoCliente: "Rafael", vendedor: null, equipeDisponivel: true, posVenda: true };
+    expect(mensagemDePassagemAoCliente(base)).toBe("Obrigado por explicar, Rafael. Já passei o seu caso para a nossa equipe, que já vai te chamar.");
+    expect(mensagemDePassagemAoCliente({ ...base, equipeDisponivel: false })).toBe(
+      "Obrigado por explicar, Rafael. Já passei o seu caso para a nossa equipe, que te chama assim que a loja abrir.",
+    );
+    expect(mensagemDePassagemAoCliente({ ...base, nomeDoCliente: null, vendedor: { nome: "Carla Souza", whatsapp: null } })).toBe(
+      "Obrigado por explicar. Já passei o seu caso para Carla, da nossa equipe, que já vai te chamar.",
+    );
+    expect(entrega(ONIX, "pos_venda").split("\n")[0]).toBe("⚠️ RECLAMAÇÃO OU PÓS-VENDA — atender com prioridade — Rafael");
   });
 });
 
@@ -329,5 +341,7 @@ describe("as etiquetas de intenção (decisão do dono, 20/10)", () => {
       expect(etiquetasDaConversa(ficha({}), motivo)).toEqual(["negociando"]);
     }
     expect(etiquetasDaConversa(ficha({}), "pediu_humano")).toEqual([]);
+    // Pós-venda: só a etiqueta dele — o carro de que fala já foi comprado.
+    expect(etiquetasDaConversa(ficha({ interesse: "Saveiro", pagamento: "financiado" }), "pos_venda")).toEqual(["pos-venda"]);
   });
 });

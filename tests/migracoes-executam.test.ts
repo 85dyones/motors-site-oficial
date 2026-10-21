@@ -341,6 +341,7 @@ const CADEIA = [
   "20261024120000_anexos_do_atendimento.sql",
   "20261025120000_etiquetas_automaticas.sql",
   "20261026120000_base_parada_no_assistente.sql",
+  "20261027120000_entrega_pos_venda.sql",
 ];
 
 /**
