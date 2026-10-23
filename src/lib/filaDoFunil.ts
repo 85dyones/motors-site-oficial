@@ -589,6 +589,8 @@ export interface DetalheDaApi {
   atendentes: { nome: string }[];
   escopo: string;
   podeRemoverResponsavel: boolean;
+  /** Falso para o SDR, que só consulta (23/10/2026). Ausente na resposta antiga: pode. */
+  podePassarOLead?: boolean;
   etiquetasEditaveis: boolean;
   avisos: string[];
 }

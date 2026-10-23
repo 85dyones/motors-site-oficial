@@ -398,8 +398,8 @@ export default function DetalheDoLead({
       // O toque humano reinicia o relógio no banco. Os valores da avaliação,
       // não: a tela não mostra um relógio que o banco não reiniciou.
       if (reiniciaORelogio) doLead.ultimo_contato_em = new Date().toISOString();
-      // Trocar o dono pode escrever etiqueta no Chatwoot (a passagem do SDR):
-      // enquanto isso, responsável e etiquetas travam.
+      // Trocar o dono: enquanto a troca não volta, responsável e etiquetas
+      // travam.
       const escreveNoChatwoot = "responsavel" in campos;
       if (escreveNoChatwoot) setOcupado(true);
       aplicar(doLead as Partial<LeadDoDetalhe>);
@@ -784,6 +784,7 @@ export default function DetalheDoLead({
               etapas={etapas}
               atendentes={dados.atendentes.map((a) => a.nome)}
               podeTirarDono={dados.podeRemoverResponsavel}
+              podePassar={dados.podePassarOLead !== false}
               ocupado={ocupado}
               chegando={chegando}
               tituloDaPagina={naPagina}

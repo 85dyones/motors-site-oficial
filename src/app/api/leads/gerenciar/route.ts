@@ -5,9 +5,11 @@ import { avisarEntregaPendente } from "../../../../lib/atendimento-servidor";
 import { ehStaff, perfisDe, podeFazer } from "../../../../lib/permissoes";
 import {
   AVISO_DE_RESPONSAVEL_OBRIGATORIO,
+  AVISO_DO_SDR,
   comEscopoDeLeads,
   leadNoEscopo,
   pedeLeadSemResponsavel,
+  podePassarOLead,
   podeRemoverResponsavel,
   visaoDeLeads,
 } from "../../../../lib/escopoDeLeads";
@@ -31,8 +33,6 @@ import { limparEtiquetas } from "../../../../lib/etiquetas";
 import { lerConversasDoQuadro } from "../../../../lib/conversaNoCard-servidor";
 import { BUCKET_DOS_ANEXOS } from "../../../../lib/anexosDoAtendimento";
 import {
-  contarPassagensCreditadas,
-  etiquetarPassagemDoSdr,
   etiquetasConhecidas,
   leadsGuardamEtiquetas,
   maisRecentePrimeiro,
@@ -493,6 +493,8 @@ export async function PATCH(request: NextRequest) {
     // Só se mexe no lead que se enxerga. 404, e não 403: para quem não vê o
     // lead, ele não existe, e a resposta não confirma o contrário.
     const visaoDoAutor = visaoDeLeads(perfisDoAutor, profile?.full_name);
+    /** O dono de agora, lido no guarda do escopo (quem vê todos não precisa dele). */
+    let responsavelAtual: string | null = null;
     if (visaoDoAutor.escopo !== "todos") {
       const { data: alvo, error: erroDoAlvo } = await supabase
         .from("leads")
@@ -505,6 +507,7 @@ export async function PATCH(request: NextRequest) {
       if (!alvo || !leadNoEscopo(visaoDoAutor, alvo.responsavel)) {
         return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
       }
+      responsavelAtual = typeof alvo.responsavel === "string" ? alvo.responsavel.trim() : null;
     }
 
     // Só o Administrador deixa um lead sem responsável (decisão do dono,
@@ -513,6 +516,16 @@ export async function PATCH(request: NextRequest) {
     // primeira escrita da rota: recusado, o pedido não grava nada.
     if (pedeLeadSemResponsavel(responsavel) && !podeRemoverResponsavel(visaoDoAutor)) {
       return NextResponse.json({ error: AVISO_DE_RESPONSAVEL_OBRIGATORIO }, { status: 403 });
+    }
+    // O SDR só consulta (23/10/2026): o resgate é do Ney, e quem leva o lead
+    // ao vendedor é o rodízio do Ney ou o administrador. Repetir o mesmo dono
+    // não é passar o lead. Quem vê todos é Administrador, e passa.
+    if (
+      responsavel !== undefined &&
+      !podePassarOLead(perfisDoAutor) &&
+      (typeof responsavel === "string" ? responsavel.trim() : "") !== (responsavelAtual ?? "")
+    ) {
+      return NextResponse.json({ error: AVISO_DO_SDR }, { status: 403 });
     }
 
     // "Falei com o cliente" — o clique no WhatsApp do card. Vai por RPC porque
@@ -673,16 +686,6 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // A passagem do SDR (ver o bloco depois do `update`): quantos resgates o
-    // lead já tinha, para saber depois se ESTA passagem contou. Só para quem
-    // o gatilho pode creditar — SDR sem papel de Comercial, dando dono.
-    const passaComoSdr =
-      perfisDoAutor.includes("sdr") &&
-      !perfisDoAutor.includes("comercial") &&
-      typeof responsavel === "string" &&
-      responsavel.trim() !== "";
-    const resgatesAntes = passaComoSdr ? await contarPassagensCreditadas(supabase, id) : null;
-
     // O escopo vai também na escrita: se o lead mudou de dono entre a leitura
     // do guarda e este ponto, a gravação não alcança linha nenhuma.
     // `select("id")` para saber se a gravação ALCANÇOU o lead: sem linha
@@ -761,57 +764,10 @@ export async function PATCH(request: NextRequest) {
       );
       if (meta.aviso) doDesfecho.aviso = [doDesfecho.aviso, meta.aviso].filter(Boolean).join(" ");
     }
-    /** Os avisos do desfecho, se houver, junto com o aviso próprio de cada resposta. */
-    const comAviso = (aviso: string) => [doDesfecho.aviso, aviso].filter(Boolean).join(" ");
 
-    // ------------------------------------------------------------------------
-    // A passagem do SDR para o Comercial (2026-09-25)
-    // ------------------------------------------------------------------------
-    // *"Quando o sdr atribuir um contato para um vendedor do comercial,
-    // precisamos manter a tag de resgate e reaquecido, para mensurar o
-    // trabalho dele, isso tem que ser feito automático."*
-    //
-    // Duas metades, e só esta mora aqui. O CRÉDITO fica no rastro, pelo
-    // gatilho da migração 20260925180000, no mesmo `update` acima — não
-    // depende desta rota. E é o gatilho que decide se a
-    // passagem conta: só lead parado ou reaberto, passado por quem é só SDR
-    // (decisões do dono, 25/09). A rota não repete a régua; ela CONTA os
-    // resgates do lead antes e depois do `update`, e põe as ETIQUETAS no
-    // lead só se o gatilho creditou. Etiqueta e crédito medem a mesma coisa,
-    // ou o filtro do card e o relatório do banco discordam.
-    //
-    // As etiquetas vão DEPOIS de a passagem estar gravada: uma falha ao
-    // etiquetar não pode travar o lead com o SDR. Falhou, a resposta leva o
-    // aviso e a passagem continua valendo.
-    if (passaComoSdr) {
-      const resgatesDepois = await contarPassagensCreditadas(supabase, id);
-      if (resgatesAntes === null || resgatesDepois === null) {
-        return NextResponse.json({
-          ok: true,
-          ...doDesfecho,
-          aviso: comAviso(
-            "A passagem foi gravada, mas não deu para conferir se contou como resgate — por isso resgate e reaquecido não entraram no lead.",
-          ),
-        });
-      }
-      if (resgatesDepois <= resgatesAntes) {
-        return NextResponse.json({
-          ok: true,
-          ...doDesfecho,
-          aviso: comAviso(
-            "Passagem gravada. Não conta como resgate: só conta o lead que esteve parado ou foi reaberto desde a última passagem do SDR — e aí resgate e reaquecido entram sozinhas no lead.",
-          ),
-        });
-      }
-      const passagem = await etiquetarPassagemDoSdr(supabase, id);
-      return NextResponse.json({
-        ok: true,
-        ...doDesfecho,
-        ...(passagem.etiquetas ? { etiquetas: passagem.etiquetas } : {}),
-        ...(passagem.aviso ? { aviso: comAviso(passagem.aviso) } : {}),
-      });
-    }
-
+    // A passagem do SDR para o Comercial (25/09) saiu em 23/10/2026: o SDR só
+    // consulta, e "resgate" e "reaquecido" passaram a medir o trabalho do Ney
+    // (`lib/atendimento-servidor`, na entrega do lead que ele reaqueceu).
     return NextResponse.json({ ok: true, ...doDesfecho });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

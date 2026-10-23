@@ -30,7 +30,8 @@ Todas as rotas daqui usam a sessão de quem está logado, e a mesma porta:
 | Lead fora do escopo, inexistente, ou id que não é UUID | `404 { "error": "Lead não encontrado" }` |
 
 O escopo é o de `src/lib/escopoDeLeads.ts`: Administrador, todos; Gestor e SDR,
-os que têm responsável; Comercial, só os dele.
+os que têm responsável; Comercial, só os dele. Desde 23/10/2026 o SDR só
+consulta: anota, mas não troca o dono (`podePassarOLead`) — o resgate é do Ney.
 
 **A guarda vem antes de tudo.** No banco, `leads_interacoes` e `leads_eventos`
 são legíveis por toda a equipe, e `registrar_interacao_do_lead` alcança

@@ -23,6 +23,7 @@ import {
 } from "../../../lib/filaDoFunil";
 import type { FichaDoLead } from "../../../lib/aquecimento";
 import { iniciais, opcaoSemResponsavel, opcoesDoCard } from "../../../lib/leadsKanban";
+import { AVISO_DO_SDR } from "../../../lib/escopoDeLeads";
 import { mensagemDeRetomadaAoCliente } from "../../../lib/resumoParaOVendedor";
 import { Segmentado } from "../SegmentadoDoPainel";
 import { irParaAConversa } from "./irParaAConversa";
@@ -43,6 +44,7 @@ export default function CabecalhoDoLead({
   etapas,
   atendentes,
   podeTirarDono,
+  podePassar = true,
   ocupado,
   chegando,
   tituloDaPagina = false,
@@ -62,6 +64,8 @@ export default function CabecalhoDoLead({
   atendentes: string[];
   /** Só o Administrador deixa o lead sem responsável. */
   podeTirarDono: boolean;
+  /** O SDR só consulta (23/10/2026): vê o responsável, não troca. */
+  podePassar?: boolean;
   /** Há escrita no Chatwoot em voo: o responsável trava. */
   ocupado: boolean;
   chegando: boolean;
@@ -214,9 +218,12 @@ export default function CabecalhoDoLead({
           <select
             value={lead.responsavel ?? ""}
             onChange={(e) => aoMudarResponsavel(e.target.value || null)}
-            disabled={ocupado}
+            disabled={ocupado || !podePassar}
             aria-label={`Responsável por ${lead.nome}`}
-            className="mt-foco min-w-0 cursor-pointer border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink disabled:cursor-wait disabled:opacity-60 pointer-coarse:min-h-11"
+            title={podePassar ? undefined : AVISO_DO_SDR}
+            className={`mt-foco min-w-0 border border-mt-regua-fina bg-mt-bg px-2 py-1.5 text-[11px] text-mt-ink disabled:opacity-60 pointer-coarse:min-h-11 ${
+              podePassar ? "cursor-pointer disabled:cursor-wait" : "cursor-not-allowed"
+            }`}
           >
             {/* Só o Administrador deixa o lead sem dono (03/10): para os outros
                 a opção não existe, e a rota recusa com 403. */}

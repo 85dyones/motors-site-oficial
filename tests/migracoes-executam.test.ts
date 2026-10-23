@@ -350,6 +350,11 @@ const CADEIA = [
   // A cadência `retomada` (2026-10-21): o Ney encerra a conversa e agenda a
   // volta. Troca a regra `leads_cadencia_valida` da 20261020120000.
   "20261029120000_cadencia_retomada.sql",
+  // O fluxo de SDR é do Ney (2026-10-23): a fila do funil reserva o resgate
+  // sem dono para o Ney (o resto avisa o administrador), quem tem SDR nunca é
+  // candidato a dono e a RLS não deixa o SDR passar o lead. Entra na cadeia
+  // porque refaz `montar_fila_do_funil` e a policy de UPDATE de `leads`.
+  "20261030120000_sdr_e_do_ney.sql",
 ];
 
 /**

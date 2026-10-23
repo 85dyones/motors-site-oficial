@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { comEscopoDeLeads, leadNoEscopo, podeRemoverResponsavel } from "../../../../lib/escopoDeLeads";
+import { comEscopoDeLeads, leadNoEscopo, podePassarOLead, podeRemoverResponsavel } from "../../../../lib/escopoDeLeads";
 import { ehTabelaOuColunaAusente } from "../../../../lib/erroDeSchema";
 import { limparEtiquetas } from "../../../../lib/etiquetas";
 import { leadsGuardamEtiquetas, maisRecentePrimeiro } from "../../../../lib/etiquetasDoLead";
@@ -57,7 +57,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const { supabase, visao, recusa } = await sessaoDeLeads();
+    const { supabase, visao, perfis: perfisDaSessao, recusa } = await sessaoDeLeads();
     if (recusa) return recusa;
 
     const guarda = await lerLeadNoEscopo(supabase, visao, id, "*");
@@ -226,6 +226,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       atendentes: perfis.data ? atendentesDoFluxo(perfis.data as PerfilDoFluxo[]) : [],
       escopo: visao.escopo,
       podeRemoverResponsavel: podeRemoverResponsavel(visao),
+      // O SDR só consulta (23/10/2026): o select do responsável trava.
+      podePassarOLead: podePassarOLead(perfisDaSessao),
       etiquetasEditaveis: etiquetasNoLead,
       funilPendente,
       avisos,

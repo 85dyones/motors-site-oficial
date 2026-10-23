@@ -685,7 +685,7 @@ recusada (a tela avisa). Sem a loja (`org_padrao` ilegível), a aba responde
 | `POST /api/atendimento/fotos` | n8n, a cada 15 min (junto com a rodada) | Classifica as fotos do estoque que o modelo de visão ainda não viu, até 40 s por chamada. |
 | `GET/PATCH/POST /api/atendimento/fotos/estoque` | painel (Admin, Gestor) | A aba Fotos: o andamento por carro e a galeria (`?veiculo=`), a correção à mão de uma foto, e classificar agora (a fila, ou `{ veiculo, refazer }`). |
 
-## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261028120000_etapa_reaquecendo.sql`
+## 9. O banco — de `20261020120000_atendimento_ia.sql` a `20261030120000_sdr_e_do_ney.sql`
 
 Aditiva. Três tabelas novas com `org_id`, RLS e leitura que **herda o escopo de
 `leads`** (o vendedor lê a conversa dos leads dele; marketing e financeiro,
@@ -772,6 +772,17 @@ régua dela mora em `atendimento_config.cadencias` (jsonb): sem ela na linha da
 loja, vale a de fábrica. Sem a migração, o código agenda a retomada como a
 cadência do silêncio, na mesma data.
 
+A décima primeira (`20261030120000_sdr_e_do_ney.sql`) tira o SDR do fluxo
+(decisão 28). `montar_fila_do_funil` deixa de reservar o lead sem dono do
+resgate ao SDR: ele fica fora do aviso de lead novo só enquanto o Ney pode
+puxá-lo (nunca com o assistente, sem opt-out, telefone que o WhatsApp aceita,
+o cliente já escreveu, etapa até "Recontato", fora do repasse, assistente
+ligado); o resto avisa o administrador. O candidato a novo dono da
+transferência e `recebe_lead_pelo_nome` (o `with check` da RLS) nunca são
+quem tem `sdr`, e a policy de UPDATE de `leads` usa `sessao_passa_lead()`: no
+escopo "designados", o SDR anota, mas não troca o dono. Sem a migração, o
+código já puxa o resgate e a rota já recusa a passagem; falta o banco.
+
 ---
 
 ## 10. Como ligar
@@ -784,8 +795,9 @@ cadência do silêncio, na mesma data.
    `20261025120000_etiquetas_automaticas.sql`,
    `20261026120000_base_parada_no_assistente.sql`,
    `20261027120000_entrega_pos_venda.sql`,
-   `20261028120000_etapa_reaquecendo.sql` e
-   `20261029120000_cadencia_retomada.sql`, nesta ordem.
+   `20261028120000_etapa_reaquecendo.sql`,
+   `20261029120000_cadencia_retomada.sql` e
+   `20261030120000_sdr_e_do_ney.sql`, nesta ordem.
 2. **Vercel**: `ATENDIMENTO_MOTOR_TOKEN`, `DEEPSEEK_API_KEY`,
    `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCIA` (ver
    `.env.example`) — e republicar.
@@ -1201,6 +1213,31 @@ tela, em **Leads → Atendimento IA → Configuração**.
       por ela. O cliente de verdade que escreve depois disso é atendido
       normalmente — inclusive o "seja bem-vindo" de quem cumprimenta horas
       depois.
+
+28. **O fluxo de SDR é do Ney** (23/10): *"todo o fluxo de SDR deve ser
+    direcionado ao Ney, não envie mais ao SDR, essa função é exclusiva do Ney
+    e suas cadências"*. Nas perguntas, o dono escolheu:
+    - **o resgate vai para o Ney**: o lead sem dono com a etiqueta `resgate`
+      (no lead, a fonte desde 20261023120000) ficava reservado ao SDR, sem aviso
+      nenhum (regra de 14/10). Agora a rodada o puxa (`puxarOResgate`) para a
+      cadência do silêncio (follow-up com carro, reativação sem) e para
+      "Reaquecendo", antes da base e sem depender dela ligada, dividindo o
+      teto do dia (`por_dia`, 3 por rodada). A régua é a da base, menos o
+      "sem contato há X dias" do lead: o cliente já escreveu, a conversa está
+      parada há `dias_parado` dias, telefone que serve e sem outro lead aberto,
+      etapa até "Recontato", fora do repasse. O que o Ney não pode pegar o
+      funil volta a avisar ao administrador (migração `20261030120000`);
+    - **quem tem SDR nunca recebe lead**, nem sendo também do Comercial: o
+      rodízio do Ney, a transferência do funil, a lista do card e a RLS
+      (`recebeLead`, `recebe_lead_pelo_nome`);
+    - **o SDR só consulta**: vê os leads com responsável e anota, mas não troca
+      o dono (`podePassarOLead`; 403 na rota, select travado no card, RLS). A
+      passagem com crédito saiu. "Resgate" e "reaquecido" passam a medir o
+      Ney: entram quando ele entrega ao vendedor um lead que tirou de
+      "Reaquecendo" (fora a entrega pelo painel e o pós-venda), com a nota
+      "Resgate do Ney" no histórico;
+    - **o lead do site segue como está**: quem preenche o formulário e não
+      escreve no WhatsApp continua indo ao administrador.
 
 **Merge**: só depois do teste completo no branch paralelo (*"sem merge por
 enquanto, vamos testar no branch paralelo, só entra 100%"*).

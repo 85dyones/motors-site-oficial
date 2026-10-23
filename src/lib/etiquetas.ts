@@ -18,7 +18,10 @@
  *   rastro nem mostraria a perda. Achado da revisão de 25/09.
  */
 
-/** O que a passagem do SDR para o Comercial garante na conversa. */
+/**
+ * As que medem o resgate: o Ney as põe quando entrega ao vendedor um lead que
+ * ele reaqueceu (desde 23/10/2026; antes, a passagem do SDR ao Comercial).
+ */
 export const ETIQUETAS_DA_PASSAGEM = ["resgate", "reaquecido"] as const;
 
 /** Quantas etiquetas um pedido do card pode incluir, e quantas retirar. */
@@ -97,7 +100,7 @@ export function mesmasEtiquetas(a: readonly string[], b: readonly string[]): boo
   );
 }
 
-/** Esta é uma das duas que medem o trabalho do SDR? */
+/** Esta é uma das duas que medem o resgate? */
 export function ehEtiquetaDaPassagem(etiqueta: string): boolean {
   return ETIQUETAS_DA_PASSAGEM.some((p) => mesmaEtiqueta(p, etiqueta));
 }

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ehTabelaOuColunaAusente } from "./erroDeSchema";
-import { ETIQUETAS_DA_PASSAGEM, ehEtiquetaDaPassagem, lerMudanca, limparEtiquetas, normalizarEtiquetas } from "./etiquetas";
+import { ehEtiquetaDaPassagem, lerMudanca, limparEtiquetas, normalizarEtiquetas } from "./etiquetas";
 
 /**
  * As etiquetas do LEAD (2026-09-25; moram no lead desde 2026-10-20).
@@ -32,9 +32,9 @@ export function maisRecentePrimeiro<T extends AtendimentoComData>(lista: readonl
  * no formato que o site pode gravar. Em ordem alfabética, para a lista não
  * mudar de lugar a cada leitura.
  *
- * Sem "resgate" e "reaquecido": elas são da passagem, e só da passagem. Postas
- * à mão, marcariam como resgate um lead que o SDR não passou — e o relatório
- * de resgates contaria trabalho que não houve.
+ * Sem "resgate" e "reaquecido": elas medem o resgate (o do Ney, desde
+ * 23/10/2026) e só entram sozinhas. Postas à mão, marcariam como resgate um
+ * lead que ninguém resgatou — e o relatório contaria trabalho que não houve.
  */
 export function etiquetasConhecidas(...listas: ReadonlyArray<unknown>[]): string[] {
   return normalizarEtiquetas(listas.flat())
@@ -51,17 +51,6 @@ export function etiquetasConhecidas(...listas: ReadonlyArray<unknown>[]): string
  */
 export function leadsGuardamEtiquetas(leads: ReadonlyArray<{ etiquetas?: unknown }>): boolean {
   return leads.every((l) => Array.isArray(l.etiquetas));
-}
-
-// ----------------------------------------------------------------------------
-// A passagem do SDR
-// ----------------------------------------------------------------------------
-
-export interface EtiquetasDaPassagem {
-  /** As etiquetas do lead depois da passagem, quando deu para gravar. */
-  etiquetas?: string[];
-  /** Por que "resgate" e "reaquecido" NÃO chegaram ao lead. */
-  aviso?: string;
 }
 
 /** O que a função do banco devolveu, ou o motivo de não ter dado. */
@@ -91,24 +80,6 @@ async function gravarNoLead(
   return { ok: false, status: 500, erro: error.message };
 }
 
-/**
- * Garante "resgate" e "reaquecido" no lead que o SDR acabou de passar para o
- * Comercial. Pedido do dono: *"isso tem que ser feito automático"*.
- *
- * Sem rastro próprio: o crédito da passagem já é o evento que o gatilho grava
- * (migração 20260925180000), com as duas etiquetas no detalhe. Nunca lança e
- * nunca desfaz a passagem, que já foi gravada: o que falhar vira `aviso`.
- */
-export async function etiquetarPassagemDoSdr(supabase: SupabaseClient, leadId: string): Promise<EtiquetasDaPassagem> {
-  try {
-    const r = await gravarNoLead(supabase, leadId, ETIQUETAS_DA_PASSAGEM, [], false);
-    if (!r.ok) return { aviso: `A passagem foi gravada, mas resgate e reaquecido não entraram no lead: ${r.erro}` };
-    return { etiquetas: r.etiquetas };
-  } catch (e) {
-    return { aviso: `A passagem foi gravada, mas resgate e reaquecido não entraram no lead: ${e instanceof Error ? e.message : "erro inesperado"}` };
-  }
-}
-
 // ----------------------------------------------------------------------------
 // A edição no card
 // ----------------------------------------------------------------------------
@@ -125,10 +96,11 @@ export type EdicaoDeEtiquetas =
  * O card manda a MUDANÇA, nunca a lista inteira: outra aba pode ter mudado a
  * lista no meio, e a lista do card gravada por cima apagaria o que ele não via.
  *
- * "resgate" e "reaquecido" não ENTRAM nem SAEM à mão por aqui. São da
- * passagem do SDR: o dono pediu *"automático"* e *"manter"*. Postas à mão,
- * marcariam trabalho que não houve; tiradas por um clique do Comercial,
- * apagariam o que houve.
+ * "resgate" e "reaquecido" não ENTRAM nem SAEM à mão por aqui. Medem o
+ * resgate — da passagem do SDR até 23/10/2026, e desde então do Ney, que as
+ * põe quando entrega ao vendedor um lead que ele reaqueceu. O dono pediu
+ * *"automático"* e *"manter"*: postas à mão, marcariam trabalho que não
+ * houve; tiradas por um clique do Comercial, apagariam o que houve.
  */
 export async function editarEtiquetasDoLead(supabase: SupabaseClient, leadId: string, pedido: unknown): Promise<EdicaoDeEtiquetas> {
   const lido = lerMudanca(pedido);
@@ -138,14 +110,14 @@ export async function editarEtiquetasDoLead(supabase: SupabaseClient, leadId: st
     return {
       ok: false,
       status: 422,
-      erro: "Resgate e reaquecido medem o trabalho do SDR e não saem pelo painel. Se foi engano, fale com o administrador.",
+      erro: "Resgate e reaquecido medem o resgate e não saem pelo painel. Se foi engano, fale com o administrador.",
     };
   }
   if (mudanca.incluir.some(ehEtiquetaDaPassagem)) {
     return {
       ok: false,
       status: 422,
-      erro: "Resgate e reaquecido entram sozinhas, quando o SDR passa o lead para o Comercial.",
+      erro: "Resgate e reaquecido entram sozinhas, quando o Ney entrega ao vendedor um lead que ele reaqueceu.",
     };
   }
   const r = await gravarNoLead(supabase, leadId, mudanca.incluir, mudanca.retirar, true);
@@ -153,27 +125,3 @@ export async function editarEtiquetasDoLead(supabase: SupabaseClient, leadId: st
   return { ok: true, etiquetas: r.etiquetas };
 }
 
-/**
- * Quantas passagens do SDR já contaram como resgate neste lead — os eventos
- * que o gatilho da migração 20260925180000 grava. `null` quando o rastro não
- * se deixa ler (migração ainda não aplicada, rede): quem chama trata como
- * "não sei", e não como zero.
- *
- * É por aqui que a rota sabe se a passagem que acabou de gravar CONTOU: a
- * régua (SDR sem Comercial, lead parado ou reaberto, Comercial ativo) mora
- * só no gatilho, e reescrevê-la em TypeScript seria a segunda régua que
- * discorda da primeira no dia em que uma delas mudar.
- */
-export async function contarPassagensCreditadas(
-  supabase: SupabaseClient,
-  leadId: string,
-): Promise<number | null> {
-  const { count, error } = await supabase
-    .from("leads_eventos")
-    .select("id", { count: "exact", head: true })
-    .eq("lead_id", leadId)
-    .eq("tipo", "etiqueta")
-    .eq("detalhe->>origem", "passagem_do_sdr");
-  if (error || typeof count !== "number") return null;
-  return count;
-}
