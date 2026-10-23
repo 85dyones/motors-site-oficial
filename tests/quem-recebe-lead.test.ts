@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PERFIS, ehStaff, podeFazer, recebeLead, ROTULO_DO_PERFIL } from "../src/lib/permissoes";
+import { podePassarOLead } from "../src/lib/escopoDeLeads";
 
 /**
  * Quem recebe lead — ordem do dono em 2026-09-23: *"nenhum destes que não
@@ -19,6 +20,11 @@ describe("quem recebe lead — só o Comercial (23/09)", () => {
 
   it("sdr não recebe", () => {
     expect(recebeLead({ papeis: ["sdr"], is_active: true })).toBe(false);
+  });
+
+  it("quem tem sdr nunca recebe, nem sendo também do Comercial (23/10: o fluxo de SDR é do Ney)", () => {
+    expect(recebeLead({ papeis: ["comercial", "sdr"], is_active: true })).toBe(false);
+    expect(recebeLead({ papeis: ["sdr", "comercial"], role: "comercial", is_active: true })).toBe(false);
   });
 
   it("inativo não recebe, mesmo comercial", () => {
@@ -43,5 +49,23 @@ describe("o papel sdr", () => {
     expect(podeFazer("sdr", "Alterar preço até 5%")).toBe("nao_ve");
     expect(podeFazer("sdr", "Gerenciar clientes e fornecedores")).toBe("nao_ve");
     expect(podeFazer("sdr", "Convidar usuário e trocar perfil")).toBe("nao_ve");
+  });
+});
+
+describe("quem passa o lead adiante — o SDR só consulta (23/10)", () => {
+  it("vendedor, gestor e administrador passam", () => {
+    expect(podePassarOLead(["comercial"])).toBe(true);
+    expect(podePassarOLead(["gestor"])).toBe(true);
+    expect(podePassarOLead(["admin"])).toBe(true);
+  });
+
+  it("o SDR não passa, nem sendo também do Comercial", () => {
+    expect(podePassarOLead(["sdr"])).toBe(false);
+    expect(podePassarOLead(["comercial", "sdr"])).toBe(false);
+  });
+
+  it("o SDR que também é Gestor ou Administrador passa: ele distribui", () => {
+    expect(podePassarOLead(["sdr", "gestor"])).toBe(true);
+    expect(podePassarOLead(["admin", "sdr"])).toBe(true);
   });
 });

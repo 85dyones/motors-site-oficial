@@ -54,6 +54,8 @@ import {
   type NomeDaCadencia,
 } from "./cadencias";
 import { variantesDoTelefone } from "./whatsapp";
+import { recebeLead } from "./permissoes";
+import { ETIQUETAS_DA_PASSAGEM } from "./etiquetas";
 import { pareceRespostaAutomatica, soEncerra } from "./conversaNoCard";
 import { configValida, type ConfigDoAtendimento } from "./configDoAtendimento";
 import { completarEmJson, configDoModelo, MODELO_DE_VISAO, type ConfigDoModelo, type UsoDoModelo } from "./deepseek";
@@ -1857,9 +1859,13 @@ async function registrarRetrato(
 // 3. A entrega ao vendedor
 // ----------------------------------------------------------------------------
 
-/** O vendedor do rodízio: Comercial ativo, com WhatsApp, menos leads abertos. */
+/**
+ * O vendedor do rodízio: quem recebe lead (`recebeLead` — Comercial ativo e,
+ * desde 23/10/2026, nunca quem tem o papel SDR), com WhatsApp, menos leads
+ * abertos.
+ */
 async function vendedorDoRodizio(supabase: Banco, equipe: readonly PessoaDaEquipe[]): Promise<PessoaDaEquipe | null> {
-  const candidatos = equipe.filter((p) => p.papeis.includes("comercial") && p.whatsapp);
+  const candidatos = equipe.filter((p) => recebeLead({ papeis: p.papeis }) && p.whatsapp);
   if (candidatos.length === 0) return null;
   const { data } = await supabase
     .from("leads")
@@ -2100,16 +2106,28 @@ async function entregarAoVendedor(
   // onde entrou: o vendedor o retoma de onde parou.
   if (!foiParaVisita) await voltarDoReaquecimento(supabase, leadId);
 
+  // O resgate é do Ney (23/10/2026: *"todo o fluxo de SDR deve ser
+  // direcionado ao Ney, não envie mais ao SDR"*): o lead que ele tirou de
+  // "Reaquecendo" e entregou quente ganha "resgate" e "reaquecido", as
+  // etiquetas que mediam a passagem do SDR. Não conta a entrega pelo painel
+  // (quem entregou foi a equipe) nem o pós-venda (é o cliente que já comprou).
+  const resgatou = lead.situacao === ETAPA_DO_REAQUECIMENTO && motivo !== "painel" && motivo !== "pos_venda";
+
   // Pediu condição, fechou visita ou está pronto para simular: negociando.
-  await etiquetarPeloAssistente(supabase, leadId, etiquetasDaConversa(ficha, motivo), config.nome_do_assistente);
+  await etiquetarPeloAssistente(
+    supabase,
+    leadId,
+    [...etiquetasDaConversa(ficha, motivo), ...(resgatou ? ETIQUETAS_DA_PASSAGEM : [])],
+    config.nome_do_assistente,
+  );
 
   const rotulo = motivo === "painel" ? "Entregue pelo painel" : ROTULO_DO_MOTIVO_DA_ENTREGA[motivo];
   const peloRodizio = Boolean(responsavel) && !String(lead.responsavel ?? "").trim();
   await anotarNoRastro(
     supabase,
     leadId,
-    `Assistente entregou o lead${responsavel ? ` a ${responsavel}${peloRodizio ? " (rodízio; o administrador pode trocar no quadro)" : ""}` : " (aguardando o responsável)"}: ${rotulo.toLowerCase()} (${aquecimento.pontos}/100).${foiParaVisita ? " O lead foi para a etapa Visita." : ""}`,
-    { acao: "entrega", motivo, para: responsavel ?? PARA_QUEM_DISTRIBUI, aquecimento: aquecimento.pontos },
+    `Assistente entregou o lead${responsavel ? ` a ${responsavel}${peloRodizio ? " (rodízio; o administrador pode trocar no quadro)" : ""}` : " (aguardando o responsável)"}: ${rotulo.toLowerCase()} (${aquecimento.pontos}/100).${foiParaVisita ? " O lead foi para a etapa Visita." : ""}${resgatou ? ` Resgate do ${config.nome_do_assistente}: o lead estava em Reaquecendo (etiquetas resgate e reaquecido).` : ""}`,
+    { acao: "entrega", motivo, para: responsavel ?? PARA_QUEM_DISTRIBUI, aquecimento: aquecimento.pontos, ...(resgatou ? { resgate: true } : {}) },
   );
 
   // O aviso ao vendedor sai agora, ou na abertura da janela pela rodada. Até
@@ -2300,6 +2318,8 @@ export interface ResultadoDaRodada {
   }[];
   /** Os leads da base parada que entraram na cadência nesta rodada (ou entrariam, na prévia). */
   base: { lead_id: string; cadencia: NomeDaCadencia }[];
+  /** Os leads do resgate (antes do SDR) que entraram na cadência nesta rodada (ou entrariam, na prévia). */
+  resgate: { lead_id: string; cadencia: NomeDaCadencia }[];
   falhas: number;
 }
 
@@ -2311,7 +2331,7 @@ export async function executarRodada(
   const agora = deps.agora ?? new Date();
   const relogio = relogioDe(deps);
   const inicio = relogio();
-  const resultado: ResultadoDaRodada = { ativo: false, reservado: opcoes.reservar, entregas: [], devolvidos: [], toques: [], suprimidos: [], base: [], falhas: 0 };
+  const resultado: ResultadoDaRodada = { ativo: false, reservado: opcoes.reservar, entregas: [], devolvidos: [], toques: [], suprimidos: [], base: [], resgate: [], falhas: 0 };
   const { config, legivel } = await lerConfigDoAtendimento(supabase);
   if (!config.ativo) {
     // Desligado por fora (ou a rota não conseguiu liberar): os leads que
@@ -2620,10 +2640,15 @@ export async function executarRodada(
     resultado.toques.push(toque);
   }
 
-  // A base parada, por último: os puxados agora recebem o primeiro toque na
-  // próxima rodada, e o orçamento desta já foi das cadências em andamento.
-  if (config.base.ativa && dentroDoExpediente(agora) && relogio() - inicio <= ORCAMENTO_DA_RODADA_MS) {
-    resultado.base = await puxarABase(supabase, config, agora, opcoes.reservar && Boolean(evolution));
+  // O resgate e a base parada, por último: os puxados agora recebem o
+  // primeiro toque na próxima rodada, e o orçamento desta já foi das
+  // cadências em andamento. O resgate vem antes e não depende da base ligada:
+  // é a fila que era do SDR (23/10/2026). Os dois dividem o teto do dia.
+  if (dentroDoExpediente(agora) && relogio() - inicio <= ORCAMENTO_DA_RODADA_MS) {
+    const reservar = opcoes.reservar && Boolean(evolution);
+    const vagas = await vagasDaRodada(supabase, config, agora);
+    resultado.resgate = await puxarOResgate(supabase, config, agora, reservar, vagas);
+    if (config.base.ativa) resultado.base = await puxarABase(supabase, config, agora, reservar, vagas - resultado.resgate.length);
   }
 
   return resultado;
@@ -2698,6 +2723,124 @@ function inicioDoDiaNaLoja(agora: Date): string {
 }
 
 /**
+ * Quantos leads a rodada ainda pode puxar para a cadência: o teto do dia da
+ * base (`por_dia`), com o resgate e a base somados, e no máximo
+ * `BASE_POR_RODADA` por rodada.
+ */
+async function vagasDaRodada(supabase: Banco, config: ConfigDoAtendimento, agora: Date): Promise<number> {
+  const { data } = await supabase
+    .from("leads_eventos")
+    .select("id, detalhe")
+    .eq("tipo", "nota")
+    .gte("criado_em", inicioDoDiaNaLoja(agora))
+    .limit(1000);
+  const jaHoje = ((data ?? []) as Linha[]).filter((e) => e.detalhe?.acao === "base" || e.detalhe?.acao === "resgate").length;
+  return Math.max(0, Math.min(config.base.por_dia - jaHoje, BASE_POR_RODADA));
+}
+
+/** A etiqueta que marcava a conversa no resgate do SDR (a Fila de Resgate do n8n, com o Chatwoot). */
+const ETIQUETA_DO_RESGATE = "resgate";
+
+/**
+ * O resgate é do Ney (decisão do dono, 23/10/2026): *"todo o fluxo de SDR
+ * deve ser direcionado ao Ney, não envie mais ao SDR, essa função é exclusiva
+ * do Ney e suas cadências"*. O lead aberto SEM DONO com a etiqueta `resgate`
+ * ficava reservado ao SDR: o funil não
+ * avisava ninguém (`montar_fila_do_funil`, 14/10). Agora o Ney o puxa para a
+ * cadência e para "Reaquecendo", como a base parada; se o cliente responder,
+ * ele qualifica e entrega pelo rodízio.
+ *
+ * A mesma régua da base, menos o "nunca teve contato há X dias" do lead (o
+ * SDR acabou de mexer nele): o cliente já escreveu para a loja (a cadência
+ * não aborda quem nunca escreveu), a conversa está parada há `dias_parado`
+ * dias, o telefone serve e não tem outro lead aberto, e o lead não é de
+ * repasse nem passou de "Recontato". Não depende da base ligada; divide com
+ * ela o teto do dia. Quem o Ney não pode pegar o funil passa a avisar ao
+ * administrador (migração `20261030120000`).
+ *
+ * Sem `reservar`, só diz quem entraria. Nunca lança.
+ */
+async function puxarOResgate(
+  supabase: Banco,
+  config: ConfigDoAtendimento,
+  agora: Date,
+  reservar: boolean,
+  lote: number,
+): Promise<{ lead_id: string; cadencia: NomeDaCadencia }[]> {
+  try {
+    const puxados: { lead_id: string; cadencia: NomeDaCadencia }[] = [];
+    if (lote <= 0) return puxados;
+
+    // A etiqueta mora no lead (20261023120000, que a trouxe das conversas do
+    // Chatwoot). Sem dono já no banco: o lead que o SDR passou com crédito
+    // também tem "resgate", e tem dono — não pode tomar o lugar na fila.
+    const { data: candidatos, error } = await supabase
+      .from("leads")
+      .select("id, nome, telefone, canal, situacao, interesse, qualificacao, responsavel, ultimo_contato_em, created_at")
+      .contains("etiquetas", [ETIQUETA_DO_RESGATE])
+      .or("responsavel.is.null,responsavel.eq.")
+      .is("desfecho", null)
+      .is("optout_em", null)
+      .is("assistente_fase", null)
+      .is("cadencia", null)
+      .not("telefone", "is", null)
+      .order("created_at", { ascending: true })
+      .limit(60);
+    if (error || !candidatos?.length) return puxados;
+    const semDono = (candidatos as Linha[]).filter((l) => !String(l.responsavel ?? "").trim());
+    if (semDono.length === 0) return puxados;
+    const ids = semDono.map((l) => String(l.id));
+
+    const limite = new Date(agora.getTime() - config.base.dias_parado * 24 * 60 * 60 * 1000).toISOString();
+    const [doCliente, recentes] = await Promise.all([
+      supabase.from("atendimento_mensagens").select("lead_id").in("lead_id", ids).eq("direcao", "entrada").limit(1000),
+      supabase.from("atendimento_mensagens").select("lead_id").in("lead_id", ids).gte("criado_em", limite).limit(1000),
+    ]);
+    const conversou = new Set<string>(((doCliente.data ?? []) as Linha[]).map((m) => String(m.lead_id)));
+    const mexeuHaPouco = new Set<string>(((recentes.data ?? []) as Linha[]).map((m) => String(m.lead_id)));
+
+    for (const lead of semDono) {
+      if (puxados.length >= lote) break;
+      const leadId = String(lead.id);
+      if (!entraNaBase(lead) || !conversou.has(leadId) || mexeuHaPouco.has(leadId)) continue;
+      if (!numeroParaEnvio(String(lead.telefone ?? ""))) continue;
+      if (await temOutroLeadAberto(supabase, lead)) continue;
+      const cadencia = cadenciaDoSilencio(Boolean(interesseDaCadencia(lead, fichaDoLead(lead).interesse)));
+      if (!config.cadencias[cadencia].ativa) continue;
+      if (!reservar) {
+        puxados.push({ lead_id: leadId, cadencia });
+        continue;
+      }
+      // Só quem acerta a linha como foi lida: o administrador que deu dono
+      // neste meio-tempo, ou outra rodada, ganha.
+      const { data: reservado } = await supabase
+        .from("leads")
+        .update({ assistente_fase: "reaquecendo", cadencia, cadencia_passo: 0, cadencia_proximo_em: agora.toISOString() })
+        .eq("id", leadId)
+        .is("assistente_fase", null)
+        .is("cadencia", null)
+        .is("desfecho", null)
+        .or("responsavel.is.null,responsavel.eq.")
+        .select("id");
+      if (!reservado || (reservado as Linha[]).length === 0) continue;
+      await assistenteNoSla(supabase, leadId, true, agora);
+      const naColuna = await moverParaOReaquecimento(supabase, lead);
+      await anotarNoRastro(
+        supabase,
+        leadId,
+        `${config.nome_do_assistente} puxou o lead do resgate (antes era do SDR) para a cadência de ${ROTULO_DA_CADENCIA[cadencia].toLowerCase()}${naColuna ? ", na etapa Reaquecendo" : ""}. Se o cliente responder, ele qualifica e entrega ao vendedor pelo rodízio.`,
+        { acao: "resgate", cadencia },
+      );
+      puxados.push({ lead_id: leadId, cadencia });
+    }
+    return puxados;
+  } catch (erro) {
+    console.warn("[Atendimento] Resgate não puxado:", erro instanceof Error ? erro.message : String(erro));
+    return [];
+  }
+}
+
+/**
  * A base parada entra na cadência (decisão do dono, 20/10): o lead aberto,
  * nunca pego pelo assistente, sem contato há `dias_parado` dias, que JÁ
  * CONVERSOU com o WhatsApp da loja (pelo Chatwoot ou pelo assistente) — até
@@ -2721,17 +2864,11 @@ async function puxarABase(
   config: ConfigDoAtendimento,
   agora: Date,
   reservar: boolean,
+  /** Quantos ainda cabem nesta rodada (`vagasDaRodada`, menos o resgate). */
+  lote: number,
 ): Promise<{ lead_id: string; cadencia: NomeDaCadencia }[]> {
   try {
     const puxados: { lead_id: string; cadencia: NomeDaCadencia }[] = [];
-    const { data: eventosDeHoje } = await supabase
-      .from("leads_eventos")
-      .select("id, detalhe")
-      .eq("tipo", "nota")
-      .gte("criado_em", inicioDoDiaNaLoja(agora))
-      .limit(1000);
-    const jaHoje = ((eventosDeHoje ?? []) as Linha[]).filter((e) => e.detalhe?.acao === "base").length;
-    const lote = Math.min(config.base.por_dia - jaHoje, BASE_POR_RODADA);
     if (lote <= 0) return puxados;
 
     const limite = new Date(agora.getTime() - config.base.dias_parado * 24 * 60 * 60 * 1000).toISOString();

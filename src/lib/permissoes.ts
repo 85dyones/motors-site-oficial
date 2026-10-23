@@ -181,16 +181,20 @@ export function ehInvestidor(
  * comercial, na atividade principal ou secundária, podem estar no fluxo"*.
  *
  * Só `comercial`, em qualquer posição de `papeis`, e conta ativa. Admin não
- * entra por ser admin — era assim que o Marketing recebia lead no rodízio — e
- * o SDR trabalha o resgate, não é dono. O rodízio do banco
- * (`montar_fila_do_funil`) aplica a mesma régua; o aceite da migração
- * `20260923130100` a prova lá.
+ * entra por ser admin — era assim que o Marketing recebia lead no rodízio.
+ *
+ * Quem tem `sdr` nunca recebe, nem sendo também do Comercial (decisão do
+ * dono, 23/10/2026: *"todo o fluxo de SDR deve ser direcionado ao Ney, não
+ * envie mais ao SDR, essa função é exclusiva do Ney e suas cadências"*). O
+ * rodízio do banco (`montar_fila_do_funil`) e a RLS (`recebe_lead_pelo_nome`)
+ * aplicam a mesma régua desde a migração `20261030120000`.
  */
 export function recebeLead(
   p: { papeis?: string[] | null; role?: string | null; is_active?: boolean | null } | null | undefined,
 ): boolean {
   if (!p || p.is_active === false) return false;
-  return papeisBrutos(p).includes("comercial");
+  const papeis = papeisBrutos(p);
+  return papeis.includes("comercial") && !papeis.includes("sdr");
 }
 
 export type Permissao = "faz" | "revisao" | "nao_ve";
@@ -254,8 +258,8 @@ export const DESCRICAO_DO_PERFIL: Record<Perfil, { descricao: string; chave: str
   },
   sdr: {
     descricao:
-      "Resgate de leads que o Comercial não converteu. Trabalha no painel; não entra no rodízio nem recebe lead.",
-    chave: "Não recebe lead",
+      "Consulta e anota os leads com responsável. O resgate é do Ney e das cadências dele: não entra no rodízio, não recebe nem passa lead.",
+    chave: "Só consulta",
   },
 };
 
@@ -370,8 +374,9 @@ export const MATRIZ_DE_PERMISSOES: LinhaDaMatriz[] = [
     ["faz", "nao_ve", "faz", "faz", "nao_ve"],
     "Dado interno — nunca aparece no site",
   ),
-  // O SDR (2026-09-23) mexe no lead do resgate, mas nunca é dono: quem
-  // recebe lead é a régua `recebeLead`, não esta linha.
+  // O SDR (2026-09-23) vê e anota, mas nunca é dono e, desde 23/10/2026, não
+  // passa lead (`podePassarOLead`): quem recebe lead é a régua `recebeLead`,
+  // não esta linha.
   linha(
     "Ver e mover leads no kanban",
     // Gestor entrou em 03/10/2026 (decisão do dono): vê os leads que já têm

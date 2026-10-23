@@ -91,6 +91,23 @@ export function podeRemoverResponsavel(visao: Pick<VisaoDeLeads, "escopo">): boo
 }
 
 /**
+ * Quem pode PASSAR o lead a outra pessoa (23/10/2026). O SDR só consulta: o
+ * dono decidiu que *"todo o fluxo de SDR deve ser direcionado ao Ney, não
+ * envie mais ao SDR, essa função é exclusiva do Ney e suas cadências"*. Quem
+ * tem `sdr` vê os leads com responsável e anota, mas não troca o dono — salvo
+ * se também for Administrador ou Gestor, que distribuem. O SDR que também é
+ * do Comercial não passa: nunca é dono (`recebeLead`), e não há lead "dele".
+ *
+ * A mesma regra no banco: a RLS de `leads` (migração `20261030120000`).
+ */
+export const AVISO_DO_SDR = "O SDR só consulta: quem leva o lead ao vendedor é o Ney, pelo rodízio, ou o administrador.";
+
+export function podePassarOLead(perfis: readonly string[]): boolean {
+  if (perfis.includes("admin") || perfis.includes("gestor")) return true;
+  return !perfis.includes("sdr");
+}
+
+/**
  * O pedido deixaria o lead sem responsável? `undefined` é "não mexe no campo".
  * Todo o resto que não é um nome (nulo, vazio, só espaços, ou um valor que nem
  * texto é) conta como retirada: na dúvida, a trava vale.

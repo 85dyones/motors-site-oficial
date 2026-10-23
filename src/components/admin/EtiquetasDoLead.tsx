@@ -16,15 +16,16 @@ import { ehEtiquetaDaPassagem, mesmaEtiqueta, normalizarEtiqueta } from "../../l
  * estar atrás de outra aba.
  *
  * "resgate" e "reaquecido" aparecem com a régua de destaque, SEM × e fora do
- * "+ etiqueta": são as que medem o trabalho do SDR, e entram sozinhas na
- * passagem (o dono pediu *"automático"* e *"manter"*).
+ * "+ etiqueta": medem o resgate e entram sozinhas — desde 23/10/2026, quando
+ * o Ney entrega ao vendedor um lead que ele reaqueceu (o dono pediu
+ * *"automático"* e *"manter"*).
  *
  * Dois jeitos de não oferecer edição, e cada um com o seu motivo:
  *   - banco sem a migração 20261023120000: as etiquetas (da conversa)
  *     aparecem, sem × e sem select — oferecer e falhar no clique ensina que o
  *     botão não presta;
  *   - enquanto o lead tem gravação no ar — de etiqueta OU de responsável —,
- *     os controles travam: a passagem do SDR também escreve etiqueta.
+ *     os controles travam.
  */
 
 /** O valor do select que abre o campo de etiqueta nova. */
@@ -159,7 +160,7 @@ function NovaEtiqueta({
     : !etiqueta
       ? "Use letras, números, hífen ou sublinhado (até 50)."
       : ehEtiquetaDaPassagem(etiqueta)
-        ? "Resgate e reaquecido entram sozinhas, na passagem do SDR."
+        ? "Resgate e reaquecido entram sozinhas, quando o Ney entrega um lead que reaqueceu."
         : jaTem(etiqueta)
           ? "O lead já tem essa etiqueta."
           : null;

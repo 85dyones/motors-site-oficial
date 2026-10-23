@@ -5,7 +5,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  *
  * Decisão do dono em 03/10/2026: só o Administrador deixa um lead sem
  * responsável. Vendedor (Comercial), SDR e Gestor não tiram o dono; passar o
- * lead a outra pessoa do Comercial e mexer no resto do card segue como era.
+ * lead a outra pessoa do Comercial e mexer no resto do card segue como era —
+ * menos para o SDR, que desde 23/10/2026 só consulta (o resgate é do Ney).
  *
  * O que se trava aqui:
  *   - nulo, vazio e só espaços são a mesma retirada, e os três recusam;
@@ -175,14 +176,27 @@ describe("PATCH — só o Administrador deixa o lead sem responsável (03/10)", 
 });
 
 describe("PATCH — o que quem não é Admin continua fazendo", () => {
-  it("passar o lead a outra pessoa do Comercial: vendedor, SDR e Gestor", async () => {
-    for (const quem of NAO_ADMINS) {
+  it("passar o lead a outra pessoa do Comercial: vendedor e Gestor", async () => {
+    for (const quem of [ANA, GESTOR]) {
       autor = quem;
       gravacoes = [];
       const r = await chamar({ responsavel: "Bia" });
       expect(r.status, quem.role).toBe(200);
       expect(gravacoes, quem.role).toHaveLength(1);
       expect(gravacoes[0].responsavel, quem.role).toBe("Bia");
+    }
+  });
+
+  it("o SDR só consulta (23/10/2026): não passa o lead, nem sendo também do Comercial, e nada é escrito", async () => {
+    for (const quem of [SDR, DUPLO]) {
+      autor = quem;
+      gravacoes = [];
+      CLIENTE.rpc.mockClear();
+      const r = await chamar({ responsavel: "Bia", contato: "whatsapp" });
+      expect(r.status, quem.papeis.join("+")).toBe(403);
+      expect(await r.json()).toEqual({ error: "O SDR só consulta: quem leva o lead ao vendedor é o Ney, pelo rodízio, ou o administrador." });
+      expect(gravacoes, quem.papeis.join("+")).toHaveLength(0);
+      expect(CLIENTE.rpc, quem.papeis.join("+")).not.toHaveBeenCalled();
     }
   });
 

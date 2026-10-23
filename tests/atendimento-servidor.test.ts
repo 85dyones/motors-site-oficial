@@ -2660,6 +2660,176 @@ describe("a etapa Reaquecendo (decisão do dono, 21/10)", () => {
 // maior dependendo do momento da compra". Nas perguntas: 7/30/60 dias (ou uma
 // semana antes da data dita), o card vai para Reaquecendo, quem desistiu volta
 // ao vendedor (que marca o desfecho), e o aviso é o card e o histórico.
+describe("o resgate é do Ney, não do SDR (decisão do dono, 23/10)", () => {
+  // *"todo o fluxo de SDR deve ser direcionado ao Ney, não envie mais ao SDR,
+  // essa função é exclusiva do Ney e suas cadências"*.
+  const ETAPAS = [
+    { chave: "novo", tipo: "aberta", ordem: 1, ativa: true },
+    { chave: "em_contato", tipo: "aberta", ordem: 2, ativa: true },
+    { chave: "proposta", tipo: "aberta", ordem: 3, ativa: true },
+    { chave: "reaquecendo", tipo: "aberta", ordem: 4, ativa: true },
+    { chave: "visita", tipo: "aberta", ordem: 5, ativa: true },
+  ];
+  const BASE_DESLIGADA = { base: { ativa: false, por_dia: 30, dias_parado: 7 } };
+  /** O lead sem dono que o SDR deixou no resgate, parado há 10 dias. */
+  const doResgate = (id: string, parcial: Record<string, unknown> = {}) =>
+    leadAberto({
+      id,
+      telefone: `55419888800${id.slice(-2).padStart(2, "0")}`,
+      assistente_fase: null,
+      responsavel: null,
+      situacao: "em_contato",
+      interesse: "Onix LT 2020",
+      etiquetas: ["origem-organico", "resgate"],
+      created_at: "2026-09-20T12:00:00.000Z",
+      ultimo_contato_em: "2026-10-10T12:00:00.000Z",
+      ...parcial,
+    });
+  const escreveu = (lead: Record<string, unknown>, quando = "2026-10-10T12:00:00.000Z") =>
+    jaEscreveu({ id: `m-${lead.id}`, lead_id: lead.id, telefone: lead.telefone, criado_em: quando, respondida_em: quando });
+  const montarResgate = (
+    leads: Record<string, unknown>[],
+    mensagens: Record<string, unknown>[],
+    config: Record<string, unknown> = BASE_DESLIGADA,
+    extra: Record<string, Record<string, unknown>[]> = {},
+  ) =>
+    montar(
+      {
+        leads,
+        funil_etapas: ETAPAS.map((e) => ({ ...e })),
+        atendimentos: leads.map((l) => ({ id: `at-${l.id}`, lead_id: l.id, created_at: "2026-10-10T12:00:00", updated_at: "2026-10-10T12:00:00", com_assistente: false, tags: [] })),
+        atendimento_mensagens: mensagens,
+        ...extra,
+      },
+      { config },
+    );
+
+  it("puxa o lead sem dono do resgate para a cadência e para Reaquecendo, mesmo com a base desligada", async () => {
+    const lead = doResgate("res-01");
+    const banco = montarResgate([lead], [escreveu(lead)]);
+    const t = transporteDeTeste();
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    expect(rodada.resgate).toEqual([{ lead_id: "res-01", cadencia: "follow_up" }]);
+    expect(rodada.base).toEqual([]);
+    expect(banco.tabelas.leads[0]).toMatchObject({
+      assistente_fase: "reaquecendo",
+      cadencia: "follow_up",
+      cadencia_passo: 0,
+      cadencia_proximo_em: TERCA_10H.toISOString(),
+      situacao: "reaquecendo",
+      // Sem dono: se esquentar, o rodízio escolhe.
+      responsavel: null,
+    });
+    // O funil para de contar: o lead está com o Ney.
+    expect(banco.tabelas.atendimentos[0].com_assistente).toBe(true);
+    const nota = banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "resgate");
+    expect(nota?.detalhe?.texto).toContain("Ney puxou o lead do resgate (antes era do SDR) para a cadência de follow-up, na etapa Reaquecendo.");
+    // O toque sai na próxima rodada, depois de ler a conversa.
+    expect(t.enviados).toHaveLength(0);
+  });
+
+  it("os leads que o SDR passou com crédito (resgate, com dono) não tomam o lugar do resgate sem dono", async () => {
+    const passados = Array.from({ length: 70 }, (_, i) =>
+      doResgate(`pas-${String(i).padStart(2, "0")}`, { responsavel: "Carla Souza", telefone: `55419777${String(i).padStart(5, "0")}`, created_at: "2026-08-01T12:00:00.000Z" }),
+    );
+    const semDono = doResgate("res-01");
+    const banco = montarResgate([...passados, semDono], [escreveu(semDono)]);
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.resgate).toEqual([{ lead_id: "res-01", cadencia: "follow_up" }]);
+  });
+
+  it("não puxa quem tem dono, quem nunca escreveu, quem conversou há pouco, quem pediu para sair, quem já passou de Recontato nem quem não é do resgate", async () => {
+    const comDono = doResgate("res-01", { responsavel: "Carla Souza" });
+    const nuncaEscreveu = doResgate("res-02");
+    const recente = doResgate("res-03");
+    const saiu = doResgate("res-04", { optout_em: "2026-10-01T12:00:00.000Z" });
+    const naVisita = doResgate("res-05", { situacao: "visita" });
+    const semEtiqueta = doResgate("res-06", { etiquetas: ["origem-organico"] });
+    const banco = montarResgate(
+      [comDono, nuncaEscreveu, recente, saiu, naVisita, semEtiqueta],
+      [escreveu(comDono), escreveu(recente, "2026-10-18T12:00:00.000Z"), escreveu(saiu), escreveu(naVisita), escreveu(semEtiqueta)],
+    );
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.resgate).toEqual([]);
+    expect(banco.tabelas.leads.every((l) => l.assistente_fase === null)).toBe(true);
+  });
+
+  it("divide o teto do dia com a base: o resgate vem primeiro", async () => {
+    const r1 = doResgate("res-01");
+    const r2 = doResgate("res-02");
+    const b1 = doResgate("bas-11", { etiquetas: [], responsavel: "Carla Souza" });
+    const b2 = doResgate("bas-12", { etiquetas: [], responsavel: "Carla Souza" });
+    const banco = montarResgate([r1, r2, b1, b2], [r1, r2, b1, b2].map((l) => escreveu(l)), { base: { ativa: true, por_dia: 30, dias_parado: 7 } });
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.resgate.map((p) => p.lead_id).sort()).toEqual(["res-01", "res-02"]);
+    // Três por rodada, somados.
+    expect(rodada.base).toHaveLength(1);
+  });
+
+  it("o resgate de hoje conta no teto do dia", async () => {
+    const lead = doResgate("res-01");
+    const hoje = Array.from({ length: 30 }, (_, i) => ({ id: `ev-${i}`, lead_id: `x-${i}`, tipo: "nota", detalhe: { acao: i % 2 ? "base" : "resgate" }, criado_em: "2026-10-20T11:00:00.000Z" }));
+    const banco = montarResgate([lead], [escreveu(lead)], BASE_DESLIGADA, { leads_eventos: hoje });
+    const rodada = await executarRodada(banco.cliente, { reservar: true }, deps(transporteDeTeste()));
+    expect(rodada.resgate).toEqual([]);
+  });
+
+  it("na prévia, só diz quem entraria", async () => {
+    const lead = doResgate("res-01");
+    const banco = montarResgate([lead], [escreveu(lead)]);
+    const rodada = await executarRodada(banco.cliente, { reservar: false }, deps(transporteDeTeste()));
+    expect(rodada.resgate).toEqual([{ lead_id: "res-01", cadencia: "follow_up" }]);
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: null, situacao: "em_contato" });
+  });
+
+  it("o cliente responde e esquenta: o rodízio entrega, e o lead ganha resgate e reaquecido", async () => {
+    const lead = doResgate("lead-1", { telefone: CLIENTE });
+    const banco = montarResgate([lead], [escreveu(lead)], { ...BASE_DESLIGADA, distribuicao: "rodizio" });
+    const t = transporteDeTeste([respostaDoModelo({ ficha: { interesse: "Onix LT 2020", interesse_especifico: true }, sinais: { pediu_humano: true } })]);
+    await executarRodada(banco.cliente, { reservar: true }, deps(t));
+
+    relogio = new Date(TERCA_10H.getTime() + 60 * 60 * 1000);
+    const entrada = await clienteEscreve(banco, t, "ainda quero, me chama alguém");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+
+    expect(banco.tabelas.leads[0]).toMatchObject({ assistente_fase: "entregue", situacao: "em_contato" });
+    expect(["Carla Souza", "Bruno Lima"]).toContain(banco.tabelas.leads[0].responsavel);
+    const incluidas = banco.rpcs.filter((r) => r.nome === "etiquetar_lead_pelo_sistema").flatMap((r) => r.args.p_incluir);
+    expect(incluidas).toEqual(expect.arrayContaining(["resgate", "reaquecido"]));
+    const nota = banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "entrega");
+    expect(nota?.detalhe).toMatchObject({ resgate: true });
+    expect(nota?.detalhe?.texto).toContain("Resgate do Ney: o lead estava em Reaquecendo (etiquetas resgate e reaquecido).");
+  });
+
+  it("a entrega de quem não estava em Reaquecendo não ganha resgate", async () => {
+    const banco = montar({ leads: [leadAberto({ responsavel: "Carla Souza" })], funil_etapas: ETAPAS.map((e) => ({ ...e })) });
+    const t = transporteDeTeste([respostaDoModelo({ ficha: { interesse: "Onix LT 2020", interesse_especifico: true }, sinais: { pediu_humano: true } })]);
+    const entrada = await clienteEscreve(banco, t, "quero falar com alguém");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    const incluidas = banco.rpcs.filter((r) => r.nome === "etiquetar_lead_pelo_sistema").flatMap((r) => r.args.p_incluir);
+    expect(incluidas).not.toContain("resgate");
+    expect(banco.tabelas.leads_eventos.find((e) => e.detalhe?.acao === "entrega")?.detalhe?.resgate).toBeUndefined();
+  });
+
+  it("o rodízio nunca escolhe quem tem o papel SDR, nem sendo também do Comercial", async () => {
+    // "Ana" vem antes na ordem e não tem lead nenhum: sem a régua, seria ela.
+    const ANA_SDR = { full_name: "Ana Prado", telefone_e164: "+5541944443333", papeis: ["comercial", "sdr"], role: "comercial", is_active: true };
+    const banco = montar(
+      {
+        profiles: [CARLA, BRUNO, DONO, GESTOR, ANA_SDR],
+        leads: [leadAberto(), leadAberto({ id: "outro-1", telefone: "5541911111111", responsavel: "Carla Souza", assistente_fase: null })],
+      },
+      { config: { distribuicao: "rodizio" } },
+    );
+    const t = transporteDeTeste([respostaDoModelo({ sinais: { pediu_humano: true } })]);
+    const entrada = await clienteEscreve(banco, t, "quero falar com alguém");
+    await responderAoLead(banco.cliente, { leadId: "lead-1", mensagemId: entrada.mensagem }, deps(t));
+    expect(banco.tabelas.leads[0].responsavel).toBe("Bruno Lima");
+    expect(t.enviados.some((e) => e.numero === "5541944443333")).toBe(false);
+  });
+});
+
 describe("o Ney encerra a conversa e agenda a retomada (decisão do dono, 21/10)", () => {
   const ETAPAS = [
     { chave: "novo", tipo: "aberta", ordem: 1, ativa: true },

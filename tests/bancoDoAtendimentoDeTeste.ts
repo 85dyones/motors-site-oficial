@@ -12,7 +12,7 @@
  * Suporta: select (as colunas são ignoradas, volta a linha inteira), insert,
  * update, delete, upsert (com `ignoreDuplicates`, pula a linha que já existe
  * nas colunas de `onConflict`; sem ele, sobrescreve), range, os filtros eq, neq, in, is, gte, lte, lt,
- * gt, not(col, "is", null), or("col.is.null,col.lt.X"),
+ * gt, contains (array), not(col, "is", null), or("col.is.null,col.lt.X,col.eq.Y"),
  * order (uma ou mais, na ordem em que foram pedidas), limit, single/maybeSingle
  * e o `await` direto; `rpc` por função registrada. O índice único de
  * `atendimento_mensagens (wa_id)` é simulado, com o código 23505 que o
@@ -227,11 +227,14 @@ export function bancoDeTeste(
           const v = resto.join(".");
           if (op === "is" && v === "null") return (l: Linha) => l[c] === null || l[c] === undefined;
           if (op === "lt") return (l: Linha) => l[c] !== null && l[c] !== undefined && String(l[c]) < v;
+          if (op === "eq") return (l: Linha) => l[c] === v;
           throw new Error(`or: o dublê não conhece "${t}"`);
         });
         filtros.push((l) => termos.some((f) => f(l)));
         return api;
       },
+      // A lista da coluna tem todos os pedidos (o `@>` de array do PostgREST).
+      contains: (c: string, v: unknown[]) => (filtros.push((l) => Array.isArray(l[c]) && v.every((x) => (l[c] as unknown[]).includes(x))), api),
       not: (c: string, op: string, v: unknown) => {
         if (op !== "is" || v !== null) throw new Error(`not(${op}) não suportado no dublê`);
         filtros.push((l) => l[c] !== null && l[c] !== undefined);

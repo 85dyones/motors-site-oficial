@@ -484,6 +484,13 @@ describe("a opção 'Sem responsável' do select do card (03/10)", () => {
     expect(card).not.toContain("<select");
   });
 
+  it("o SDR só consulta (23/10): a rota diz, e o select do responsável trava com a explicação", () => {
+    expect(rotaDoDetalhe).toContain("podePassarOLead: podePassarOLead(perfisDaSessao)");
+    expect(detalhe).toContain("podePassar={dados.podePassarOLead !== false}");
+    expect(cabecalhoDoLead).toContain("disabled={ocupado || !podePassar}");
+    expect(cabecalhoDoLead).toContain("title={podePassar ? undefined : AVISO_DO_SDR}");
+  });
+
   it("a recusa da rota aparece na tela pelo caminho de sempre", () => {
     expect(codigo).toContain('throw new Error(d.error || "Falha ao salvar");');
     expect(codigo).toContain("falhou(e.message);");

@@ -14,23 +14,21 @@ import { aplicarMudanca } from "../src/lib/etiquetas";
  * (migração 20261023120000). A função — trava, caixa, guarda, rastro — se
  * prova no aceite dela (`migracoes-executam.test.ts`); aqui ela é um dublê
  * que aplica a mudança no banco em memória, e o que se trava é a ROTA:
- *   - a passagem do SDR põe as duas etiquetas no lead SEM tirar as outras, e
- *     só DEPOIS de a passagem estar gravada — uma falha ao etiquetar não
- *     segura o lead com o SDR;
+ *   - desde 23/10/2026 o SDR só consulta: não passa o lead (403), e
+ *     "resgate" e "reaquecido" medem o trabalho do Ney, não o dele;
  *   - o Comercial passando entre si, e o SDR tirando o dono, não etiquetam;
  *   - o card manda MUDANÇA (esta entra, esta sai), nunca a lista inteira;
  *   - resgate e reaquecido não entram nem saem pelo card;
  *   - quem não move lead, ou não enxerga o lead, não mexe em etiqueta.
  *
- * O crédito do SDR no rastro NÃO está aqui: é gatilho de banco, e a régua
- * dele (só lead parado ou reaberto, só quem é SDR sem ser Comercial) se prova
- * no aceite da migração 20260925180000. Aqui o gatilho é simulado —
- * `gatilhoCredita` diz se o UPDATE deixa o crédito — e o que se trava é a
- * rota SEGUIR o que ele decidiu: etiqueta só se o crédito entrou.
+ * O crédito do SDR no rastro (gatilho da migração 20260925180000) ficou sem
+ * caminho: a rota e a RLS (20261030120000) não deixam mais o SDR trocar o
+ * dono. O gatilho segue simulado aqui — `gatilhoCredita` — para provar que a
+ * rota não etiqueta por conta própria.
  *
  * Desde 03/10/2026 cada perfil só mexe no lead que enxerga (`escopoDeLeads`):
  * o SDR, nos que já têm responsável; o vendedor, só nos dele. Por isso os dois
- * leads da fixture já são da Bia — a passagem do SDR é da Bia para a Ana —, e
+ * leads da fixture já são da Bia, e
  * o teste em que a Ana age começa por pôr o lead no nome dela. O terceiro
  * lead, sem responsável, é o que só o Admin vê.
  */
@@ -234,72 +232,52 @@ const postEtiquetas = (corpo: unknown) =>
 /** Os pedidos à função das etiquetas, sem os outros rpcs. */
 const edicoes = () => rpcs.filter((r) => r.nome === "editar_etiquetas_do_lead");
 
-describe("a passagem do SDR para o Comercial", () => {
-  it("põe resgate e reaquecido no lead, sem tirar as que ele tinha", async () => {
+describe("o SDR só consulta (23/10/2026): a passagem com crédito saiu", () => {
+  // *"todo o fluxo de SDR deve ser direcionado ao Ney, não envie mais ao SDR,
+  // essa função é exclusiva do Ney e suas cadências"* — e o dono escolheu
+  // "só consulta": o SDR vê e anota, não passa lead.
+  it("o SDR não passa o lead: 403, fica com quem estava, nada se etiqueta", async () => {
     const r = await patch({ responsavel: "Ana" });
-    const d = await r.json();
-
-    expect(r.status).toBe(200);
-    expect(banco.leads[0].etiquetas).toEqual(["origem-site", "quer-comprar", "resgate", "reaquecido"]);
-    expect(d).toEqual({ ok: true, etiquetas: ["origem-site", "quer-comprar", "resgate", "reaquecido"] });
-    // Sem rastro próprio: o crédito do gatilho já é o evento da passagem.
-    expect(edicoes()).toEqual([
-      {
-        nome: "editar_etiquetas_do_lead",
-        args: { p_lead: "lead-1", p_incluir: ["resgate", "reaquecido"], p_retirar: [], p_rastro: false },
-      },
-    ]);
-  });
-
-  it("as etiquetas só entram DEPOIS de a passagem estar gravada", async () => {
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({
+      error: "O SDR só consulta: quem leva o lead ao vendedor é o Ney, pelo rodízio, ou o administrador.",
+    });
     expect(banco.leads[0].responsavel).toBe("Bia");
-    await patch({ responsavel: "Ana" });
-    expect(banco.leads[0].responsavel).toBe("Ana");
-    const gravou = linhaDoTempo.indexOf("update leads");
-    const etiquetou = linhaDoTempo.indexOf("rpc editar_etiquetas_do_lead");
-    expect(gravou).toBeGreaterThanOrEqual(0);
-    expect(etiquetou).toBeGreaterThan(gravou);
+    expect(banco.leads[0].etiquetas).toEqual(["origem-site", "quer-comprar"]);
+    expect(edicoes()).toHaveLength(0);
+    expect(linhaDoTempo).not.toContain("update leads");
   });
 
-  it("etiqueta fora do formato do site sobrevive à passagem", async () => {
-    banco.leads[0].etiquetas = ["Lead Quente", "campanha.setembro"];
-    await patch({ responsavel: "Ana" });
-    expect(banco.leads[0].etiquetas).toEqual(["Lead Quente", "campanha.setembro", "resgate", "reaquecido"]);
-  });
-
-  it("quem é SDR E Comercial não etiqueta — \"só quem é SDR mesmo\" (dono, 25/09)", async () => {
+  it("nem quem é SDR e também Comercial", async () => {
     usuario = "u-duplo";
-    const d = await (await patch({ responsavel: "Ana" })).json();
-    expect(d).toEqual({ ok: true });
+    const r = await patch({ responsavel: "Ana" });
+    expect(r.status).toBe(403);
+    expect(banco.leads[0].responsavel).toBe("Bia");
+  });
+
+  it("repetir o mesmo dono não é passar: o pedido segue", async () => {
+    const r = await patch({ responsavel: "Bia", observacoes: "cliente pediu fotos" });
+    expect(r.status).toBe(200);
+    expect(banco.leads[0].responsavel).toBe("Bia");
+    expect(banco.leads[0].observacoes).toBe("cliente pediu fotos");
     expect(edicoes()).toHaveLength(0);
-    // A passagem em si valeu: SDR e Comercial somados veem os designados.
+  });
+
+  it("o SDR anota no lead, e isso não etiqueta", async () => {
+    await patch({ observacoes: "ligar amanhã" });
+    expect(banco.leads[0].observacoes).toBe("ligar amanhã");
+    expect(edicoes()).toHaveLength(0);
+  });
+
+  it("o SDR não tira o dono (03/10): 403, e o lead fica com quem estava", async () => {
+    banco.leads[0].responsavel = "Ana";
+    const r = await patch({ responsavel: null });
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ error: "Só um administrador pode deixar o lead sem responsável." });
     expect(banco.leads[0].responsavel).toBe("Ana");
   });
 
-  it("passagem que o gatilho não creditou (lead fresco): não etiqueta, e diz por quê", async () => {
-    // "só para os parados ou reabertos" (dono, 25/09). A régua mora no
-    // gatilho; a rota só segue o que ele decidiu.
-    gatilhoCredita = false;
-    const d = await (await patch({ responsavel: "Ana" })).json();
-    expect(banco.leads[0].responsavel).toBe("Ana");
-    expect(edicoes()).toHaveLength(0);
-    expect(d.ok).toBe(true);
-    expect(d.etiquetas).toBeUndefined();
-    expect(d.aviso).toContain("Não conta como resgate");
-    expect(d.aviso).toContain("parado ou foi reaberto");
-    expect(d.aviso).not.toContain("Chatwoot");
-  });
-
-  it("rastro ilegível: não etiqueta às cegas, e avisa", async () => {
-    falhas.leads_eventos = { message: "sem permissão" };
-    const d = await (await patch({ responsavel: "Ana" })).json();
-    expect(banco.leads[0].responsavel).toBe("Ana");
-    expect(edicoes()).toHaveLength(0);
-    expect(d.aviso).toContain("não deu para conferir");
-    expect(d.aviso).toContain("não entraram no lead");
-  });
-
-  it("o Comercial passando entre si não etiqueta", async () => {
+  it("o Comercial passando entre si segue, sem etiquetar", async () => {
     usuario = "u-ana";
     banco.leads[0].responsavel = "Ana";
     const r = await patch({ responsavel: "Bia" });
@@ -308,77 +286,21 @@ describe("a passagem do SDR para o Comercial", () => {
     expect(banco.leads[0].responsavel).toBe("Bia");
   });
 
-  it("o SDR não tira o dono (03/10): 403, o lead fica com quem estava e nada se etiqueta", async () => {
+  it("o Comercial não passa o lead a quem é SDR, nem sendo também do Comercial", async () => {
+    usuario = "u-ana";
     banco.leads[0].responsavel = "Ana";
-    const r = await patch({ responsavel: null });
-    expect(r.status).toBe(403);
-    expect(await r.json()).toEqual({ error: "Só um administrador pode deixar o lead sem responsável." });
-    expect(edicoes()).toHaveLength(0);
-    expect(banco.leads[0].responsavel).toBe("Ana");
-  });
-
-  it("o SDR mexendo em outra coisa do lead não etiqueta", async () => {
-    await patch({ observacoes: "ligar amanhã" });
-    expect(banco.leads[0].observacoes).toBe("ligar amanhã");
-    expect(edicoes()).toHaveLength(0);
-  });
-
-  it("passagem recusada (não é do Comercial) não etiqueta", async () => {
-    const r = await patch({ responsavel: "Mari" });
+    const r = await patch({ responsavel: "Caio" });
     expect(r.status).toBe(422);
-    expect(edicoes()).toHaveLength(0);
-    // Continua com quem estava.
-    expect(banco.leads[0].responsavel).toBe("Bia");
-  });
-
-  it("gravação da passagem falhou: nada se etiqueta", async () => {
-    // Só o `update` falha: a leitura do escopo, que vem antes, acha o lead.
-    falhasAoGravar.leads = { message: "sem permissão" };
-    const r = await patch({ responsavel: "Ana" });
-    expect(r.status).toBe(500);
-    expect(edicoes()).toHaveLength(0);
-    expect(banco.leads[0].responsavel).toBe("Bia");
-  });
-
-  it("a função das etiquetas falhou: a passagem vale e a resposta avisa", async () => {
-    erroDoRpc = { message: "boom", code: "XX000" };
-    const r = await patch({ responsavel: "Ana" });
-    const d = await r.json();
-
-    expect(r.status).toBe(200);
     expect(banco.leads[0].responsavel).toBe("Ana");
-    expect(d.ok).toBe(true);
-    expect(d.etiquetas).toBeUndefined();
-    expect(d.aviso).toContain("resgate e reaquecido não entraram no lead");
-    // O aviso não afirma o que não conferiu: o crédito é do gatilho do banco.
-    expect(d.aviso).not.toMatch(/crédito/i);
   });
 
-  it("banco sem a migração das etiquetas: a passagem vale e o aviso diz o que falta", async () => {
-    erroDoRpc = { message: "Could not find the function", code: "PGRST202" };
-    const d = await (await patch({ responsavel: "Ana" })).json();
-    expect(banco.leads[0].responsavel).toBe("Ana");
-    expect(d.aviso).toContain("20261023120000");
-  });
-
-  it("lead sem conversa também é etiquetado: a etiqueta é do lead", async () => {
-    const r = await gerenciar.PATCH(
-      new Request("http://x/api/leads/gerenciar", {
-        method: "PATCH",
-        body: JSON.stringify({ id: "lead-sem-conversa", responsavel: "Ana" }),
-      }) as never,
-    );
-    const d = await r.json();
-    expect(banco.leads[1].responsavel).toBe("Ana");
-    expect(banco.leads[1].etiquetas).toEqual(["resgate", "reaquecido"]);
-    expect(d.aviso).toBeUndefined();
-  });
-
-  it("passar de novo para quem já tem as duas não muda nada", async () => {
-    banco.leads[0].etiquetas = ["reaquecido", "resgate"];
-    const d = await (await patch({ responsavel: "Ana" })).json();
-    expect(d.etiquetas).toEqual(["reaquecido", "resgate"]);
-    expect(banco.leads[0].etiquetas).toEqual(["reaquecido", "resgate"]);
+  it("a lista de quem recebe lead não traz o SDR, nem o que também é do Comercial", async () => {
+    usuario = "u-admin";
+    const d = await (await gerenciar.GET(new Request("http://x/api/leads/gerenciar") as never)).json();
+    const nomes = (d.atendentes as { nome: string }[]).map((a) => a.nome);
+    expect(nomes).toContain("Ana");
+    expect(nomes).not.toContain("Caio");
+    expect(nomes).not.toContain("Felipe");
   });
 });
 
